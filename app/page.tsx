@@ -37,7 +37,7 @@ export default function MainPage() {
       formData.append("template", file);
       console.log("Uploading file to API...");
       try {
-        const response = await fetch("http://localhost:3000/api/upload", {
+        const response = await fetch("/api/upload", {
           method: "POST",
           body: formData
         });
@@ -55,15 +55,21 @@ export default function MainPage() {
   const generatePdf = async () => {
     setIsGenerating(true);
     try {
-      const response = await fetch("http://localhost:3000/api/generate", {
+      const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ template: uploadedFile, names })
+        body: JSON.stringify({
+          templateFilename: uploadedFile,
+          data: names.split("\n").map(name => ({ name: { text: name } })),
+          positions: {
+            name: { x: 0.5, y: 0.5, fontSize: 3 } // Adjust as needed
+          }
+        })
       });
       const data = await response.json();
-      setGeneratedPdfUrl(data.pdfUrl);
+      setGeneratedPdfUrl(data.outputPath);
       setIsGenerating(false);
     } catch (error) {
       console.error("Error generating PDF:", error);
