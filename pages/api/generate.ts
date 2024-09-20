@@ -1,9 +1,25 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fsPromises from 'fs/promises';
 import path from 'path';
 
 const FONT_SIZE_MULTIPLIER = 8;
+
+interface Position {
+  fontSize?: number;
+  x: number;
+  y: number;
+}
+
+interface Entry {
+  [key: string]: {
+    text: string;
+    color?: [number, number, number];
+    font?: 'Times' | 'Courier' | 'Helvetica';
+    bold?: boolean;
+    oblique?: boolean;
+  };
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -11,32 +27,71 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { templateFilename, data, positions } = req.body;
+    const { templateFilename, data, positions }: { templateFilename: string; data: Entry[]; positions: Record<string, Position> } = req.body;
     const templatePath = path.join(process.cwd(), 'tmp', 'uploads', templateFilename); // Standardized path
 
     const templatePdfBytes = await fsPromises.readFile(templatePath);
     const pdfDoc = await PDFDocument.load(templatePdfBytes);
 
-    const generatedPdfs = await Promise.all(data.map(async (entry: { [key: string]: { text: string } }) => {
+    const generatedPdfs = await Promise.all(data.map(async (entry: Entry) => {
       const pdf = await PDFDocument.create();
       const [templatePage] = await pdf.copyPages(pdfDoc, [0]);
       pdf.addPage(templatePage);
 
+      // Embed fonts for each individual PDF
       const helveticaFont = await pdf.embedFont(StandardFonts.Helvetica);
+      const helveticaBoldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
+      const helveticaObliqueFont = await pdf.embedFont(StandardFonts.HelveticaOblique); // Corrected to Embed Helvetica Oblique
+      const helveticaBoldObliqueFont = await pdf.embedFont(StandardFonts.HelveticaBoldOblique); // Embed Helvetica Bold Oblique
+      const timesFont = await pdf.embedFont(StandardFonts.TimesRoman); // Embed Times New Roman
+      const timesBoldFont = await pdf.embedFont(StandardFonts.TimesRomanBold); // Embed Times Bold
+      const timesObliqueFont = await pdf.embedFont(StandardFonts.TimesRomanItalic); // Corrected to Embed Times Oblique
+      const timesBoldObliqueFont = await pdf.embedFont(StandardFonts.TimesRomanBoldItalic); // Embed Times Bold Oblique
+      const courierFont = await pdf.embedFont(StandardFonts.Courier); // Embed Courier
+      const courierBoldFont = await pdf.embedFont(StandardFonts.CourierBold); // Embed Courier Bold
+      const courierObliqueFont = await pdf.embedFont(StandardFonts.CourierOblique); // Embed Courier Oblique
+      const courierBoldObliqueFont = await pdf.embedFont(StandardFonts.CourierBoldOblique); // Embed Courier Bold Oblique
+
       const page = pdf.getPages()[0];
       const { width, height } = page.getSize();
 
       for (const [key, position] of Object.entries(positions)) {
-        if (entry[key]) {
-          const adjustedFontSize = ((position as { fontSize?: number; x: number; y: number }).fontSize || 12) * FONT_SIZE_MULTIPLIER;
-          const x = (position as { x: number; y: number }).x * width;
-          const y = height * (position as { x: number; y: number }).y;
+        const entryValue = entry[key];
+        if (entryValue) {
+          const adjustedFontSize = ((position.fontSize || 12) * FONT_SIZE_MULTIPLIER);
+          const x = position.x * width;
 
-          page.drawText(entry[key].text, {
+          // Use color from entry or default to black
+          const color = entryValue.color ? rgb(...entryValue.color) : rgb(0, 0, 0);
+
+          // Select font based on entry properties
+          let font = helveticaFont; // Default font
+          switch (entryValue.font) {
+            case 'Times':
+              font = entryValue.bold 
+                ? (entryValue.oblique ? timesBoldObliqueFont : timesBoldFont) 
+                : (entryValue.oblique ? timesObliqueFont : timesFont);
+              break;
+            case 'Courier':
+              font = entryValue.bold 
+                ? (entryValue.oblique ? courierBoldObliqueFont : courierBoldFont) 
+                : (entryValue.oblique ? courierObliqueFont : courierFont);
+              break;
+            case 'Helvetica':
+              font = entryValue.bold 
+                ? (entryValue.oblique ? helveticaBoldObliqueFont : helveticaBoldFont) 
+                : (entryValue.oblique ? helveticaObliqueFont : helveticaFont);
+              break;
+            default:
+              console.warn(`Unknown font: ${entryValue.font}. Defaulting to Helvetica.`);
+          }
+
+          page.drawText(entryValue.text, {
             x,
-            y,
+            y: height * position.y,
             size: adjustedFontSize,
-            font: helveticaFont,
+            color: color,
+            font: font,
           });
         }
       }
