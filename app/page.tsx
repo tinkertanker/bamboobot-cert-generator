@@ -24,16 +24,39 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 
+// Add this spinner component above the MainPage function
+const Spinner = () => (
+  <div className="spinner">
+    <style jsx>{`
+      .spinner {
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top: 4px solid #3498db; /* Change color as needed */
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `}</style>
+  </div>
+);
+
 export default function MainPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [names, setNames] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState(null);
+  const [isLoading, setIsLoading] = useState(false); // Add loading state
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setUploadedFile(file);
+      setIsLoading(true); // Set loading to true
       const formData = new FormData();
       formData.append("template", file);
       console.log("Uploading file to API...");
@@ -48,12 +71,16 @@ export default function MainPage() {
         setUploadedFileUrl(data.image); // Set the image URL
       } catch (error) {
         console.error("Error uploading file:", error);
+      } finally {
+        setIsLoading(false); // Set loading to false after upload
       }
     }
   };
+
   const handleNamesChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNames(event.target.value);
   };
+
   const generatePdf = async () => {
     setIsGenerating(true);
     try {
@@ -78,6 +105,7 @@ export default function MainPage() {
       setIsGenerating(false);
     }
   };
+
   return (
     <div className="flex flex-col h-screen">
       <header className="bg-primary text-primary-foreground py-4 px-6">
@@ -86,46 +114,54 @@ export default function MainPage() {
       <main className="flex-1 grid grid-cols-2 gap-6 p-6">
         <div className="bg-card p-4 rounded-lg shadow">
           <h2 className="text-lg font-medium mb-4">Certificate Preview</h2>
-          {uploadedFileUrl ? (
-            <div className="relative">
-              <Image
-                src={uploadedFileUrl} // Use the uploaded file URL
-                alt="Certificate Template"
-                layout="responsive"
-                width={500} // specify the width
-                height={300} // specify the height
-              />
-              {names.split("\n").map((name, index) => (
-                <div
-                  key={index}
-                  className="absolute"
-                  style={{
-                    left: "50%",
-                    top: "50%",
-                    transform: "translate(-50%, -50%)",
-                    fontSize: "24px",
-                    fontWeight: "bold"
-                  }}>
-                  {name}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-muted-foreground bg-muted rounded-lg">
-              <label htmlFor="file-upload" className="cursor-pointer">
-                <div className="flex items-center justify-center space-x-2">
-                  <UploadIcon className="h-6 w-6" />
-                  <span>Choose File</span>
-                </div>
-                <input
-                  id="file-upload"
-                  type="file"
-                  onChange={handleFileUpload}
-                  className="sr-only"
+          <div className="relative">
+            {isLoading && <Spinner />} {/* Show spinner while loading */}
+            {uploadedFileUrl ? (
+              <>
+                <Image
+                  src={uploadedFileUrl} // Use the uploaded file URL
+                  alt="Certificate Template"
+                  layout="responsive"
+                  width={500} // specify the width
+                  height={300} // specify the height
                 />
-              </label>
-            </div>
-          )}
+                {names.split("\n").map((name, index) => (
+                  <div
+                    key={index}
+                    className="absolute"
+                    style={{
+                      left: "50%",
+                      top: "50%",
+                      transform: "translate(-50%, -50%)",
+                      fontSize: "24px",
+                      fontWeight: "bold"
+                    }}>
+                    {name}
+                  </div>
+                ))}
+                <div className="absolute bottom-4 right-4">
+                  <Button onClick={() => { setUploadedFileUrl(null); setUploadedFile(null); }}>
+                    Clear
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground bg-muted rounded-lg">
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  <div className="flex items-center justify-center space-x-2">
+                    <UploadIcon className="h-6 w-6" />
+                    <span>Choose File</span>
+                  </div>
+                  <input
+                    id="file-upload"
+                    type="file"
+                    onChange={handleFileUpload}
+                    className="sr-only"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
         </div>
         <div className="bg-card p-4 rounded-lg shadow">
           <h2 className="text-lg font-medium mb-4">Name Entry</h2>
@@ -181,4 +217,5 @@ function UploadIcon(props: React.SVGProps<SVGSVGElement>) {
       <polyline points="17 8 12 3 7 8" />
       <line x1="12" x2="12" y1="3" y2="15" />
     </svg>
-  );}
+  );
+}
