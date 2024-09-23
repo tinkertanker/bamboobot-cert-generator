@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { templateFilename, data, positions }: { templateFilename: string; data: Entry[]; positions: Record<string, Position> } = req.body;
-    const templatePath = path.join(process.cwd(), 'tmp', 'uploads', templateFilename); // Standardized path
+    const templatePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename); // Standardized path
 
     const templatePdfBytes = await fsPromises.readFile(templatePath);
     const pdfDoc = await PDFDocument.load(templatePdfBytes);

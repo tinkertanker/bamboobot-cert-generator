@@ -26,6 +26,7 @@ import Image from "next/image";
 
 export default function MainPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [names, setNames] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState(null);
@@ -44,6 +45,7 @@ export default function MainPage() {
         const data = await response.json();
         console.log(data.message);
         setUploadedFile(data.filename);
+        setUploadedFileUrl(data.image); // Set the image URL
       } catch (error) {
         console.error("Error uploading file:", error);
       }
@@ -84,10 +86,10 @@ export default function MainPage() {
       <main className="flex-1 grid grid-cols-2 gap-6 p-6">
         <div className="bg-card p-4 rounded-lg shadow">
           <h2 className="text-lg font-medium mb-4">Certificate Preview</h2>
-          {uploadedFile ? (
+          {uploadedFileUrl ? (
             <div className="relative">
               <Image
-                src="/placeholder.svg"
+                src={uploadedFileUrl} // Use the uploaded file URL
                 alt="Certificate Template"
                 layout="responsive"
                 width={500} // specify the width
