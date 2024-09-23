@@ -1,7 +1,7 @@
 module.exports = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
+  // api: {
+  //   bodyParser: {
+  //     sizeLimit: '10mb',
+  //   },
+  // },
 }
