@@ -26,8 +26,21 @@ import Image from "next/image";
 
 // Add this spinner component above the MainPage function
 const Spinner = () => (
-  <div className="spinner">
+  <div className="spinner-overlay">
     <style jsx>{`
+      .spinner-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: rgba(255, 255, 255, 0.8); /* Optional: semi-transparent background */
+        transition: opacity 0.3s ease; /* Fade effect */
+        opacity: 1; /* Default opacity */
+      }
       .spinner {
         border: 4px solid rgba(255, 255, 255, 0.3);
         border-top: 4px solid #3498db; /* Change color as needed */
@@ -41,6 +54,7 @@ const Spinner = () => (
         100% { transform: rotate(360deg); }
       }
     `}</style>
+    <div className="spinner" />
   </div>
 );
 
@@ -51,6 +65,8 @@ export default function MainPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(false); // Add loading state
+
+  const [fields, setFields] = useState(""); // New state for fields
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -79,6 +95,10 @@ export default function MainPage() {
 
   const handleNamesChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNames(event.target.value);
+  };
+
+  const handleFieldsChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setFields(event.target.value); // New handler for fields
   };
 
   const generatePdf = async () => {
@@ -164,22 +184,31 @@ export default function MainPage() {
           </div>
         </div>
         <div className="bg-card p-4 rounded-lg shadow">
-          <h2 className="text-lg font-medium mb-4">Name Entry</h2>
+          <h2 className="text-lg font-medium mb-4">Fields</h2>
+          <Textarea
+            value={fields} // New state for fields
+            onChange={handleFieldsChange} // New handler for fields
+            placeholder="Enter fields, one per line"
+            className="w-full h-32 resize-none mb-4" // Adjust height and margin
+          />
+          <h2 className="text-lg font-medium mb-4">Data</h2>
           <Textarea
             value={names}
             onChange={handleNamesChange}
             placeholder="Enter names, one per line"
-            className="w-full h-64 resize-none"
+            className="w-full h-32 resize-none"
           />
-          <div className="flex justify-end mt-4">
-            <Button
-              onClick={generatePdf}
-              disabled={!uploadedFile || isGenerating}>
-              {isGenerating ? "Generating..." : "Generate PDF"}
-            </Button>
-          </div>
         </div>
       </main>
+      <footer className="bg-primary text-primary-foreground py-4 px-6 fixed bottom-0 left-0 right-0">
+        <div className="flex justify-end">
+          <Button
+            onClick={generatePdf}
+            disabled={!uploadedFile || isGenerating}>
+            {isGenerating ? "Generating..." : "Generate PDF"}
+          </Button>
+        </div>
+      </footer>
       {generatedPdfUrl && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded-lg shadow-lg">
