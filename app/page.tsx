@@ -70,7 +70,12 @@ export default function MainPage() {
   };
 
   const handleTableDataChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    processTableData(event.target.value);
+    const data = event.target.value;
+    if (data.trim() === "") {
+      setTableData([]); // Clear table data if input is empty
+    } else {
+      processTableData(data);
+    }
   };
 
   const handleHeaderToggle = () => {
