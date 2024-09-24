@@ -123,7 +123,7 @@ export default function MainPage() {
       </header>
       <main className="flex-1 grid grid-cols-2 gap-6 p-6">
         <div className="bg-card p-4 rounded-lg shadow">
-          <h2 className="text-lg font-medium mb-4">Certificate Preview</h2>
+          <h2 className="text-lg font-medium mb-4">Design</h2>
           <div className="relative">
             {isLoading && <Spinner />} {/* Show spinner while loading */}
             {uploadedFileUrl ? (
@@ -150,7 +150,11 @@ export default function MainPage() {
                   </div>
                 ))}
                 <div className="absolute bottom-4 right-4">
-                  <Button onClick={() => { setUploadedFileUrl(null); setUploadedFile(null); }}>
+                  <Button
+                    onClick={() => {
+                      setUploadedFileUrl(null);
+                      setUploadedFile(null);
+                    }}>
                     Clear
                   </Button>
                 </div>
@@ -174,57 +178,71 @@ export default function MainPage() {
           </div>
         </div>
         <div className="bg-card p-4 rounded-lg shadow">
-          <h2 className="text-lg font-medium mb-4">Fields</h2>
-          <Textarea
-            value={fields} // New state for fields
-            onChange={handleFieldsChange} // New handler for fields
-            placeholder="Enter fields, one per line"
-            className="w-full h-32 resize-none mb-4" // Adjust height and margin
-          />
-          <h2 className="text-lg font-medium mb-4">Data</h2>
-          <div className="flex items-center mb-4">
-            <input
-              type="checkbox"
-              id="header-toggle"
-              checked={isFirstRowHeader}
-              onChange={handleHeaderToggle} // Updated handler for checkbox
-              className="mr-2"
+          <div>
+            <h2 className="text-lg font-medium mb-4">Data</h2>
+            <div className="flex items-center mb-4">
+              <input
+                type="checkbox"
+                id="header-toggle"
+                checked={isFirstRowHeader}
+                onChange={handleHeaderToggle} // Updated handler for checkbox
+                className="mr-2"
+              />
+              <label htmlFor="header-toggle">Treat first row as header</label>
+            </div>
+            <Textarea
+              onChange={handleTableDataChange} // Updated handler for table data
+              placeholder="Paste tabular data here"
+              className="w-full h-32 resize-none"
             />
-            <label htmlFor="header-toggle">Treat first row as header</label>
-          </div>
-          <Textarea
-            onChange={handleTableDataChange} // Updated handler for table data
-            placeholder="Paste tabular data here"
-            className="w-full h-32 resize-none"
-          />
-          <div className="mt-4">
-            <table {...getTableProps()} className="min-w-full bg-white">
-              <thead>
-                {headerGroups.map((headerGroup: HeaderGroup<TableData>) => (
-                  <tr {...headerGroup.getHeaderGroupProps()} key={headerGroup.id}>
-                    {headerGroup.headers.map((column: ColumnInstance<TableData>) => (
-                      <th {...column.getHeaderProps()} className="px-4 py-2 border" key={column.id}>
-                        {column.render('Header')}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody {...getTableBodyProps()}>
-                {rows.map((row: Row<TableData>) => {
-                  prepareRow(row);
-                  return (
-                    <tr {...row.getRowProps()} key={row.getRowProps().key}>
-                      {row.cells.map((cell: Cell<TableData>) => (
-                        <td {...cell.getCellProps()} className="px-4 py-2 border" key={cell.getCellProps().key}>
-                          {cell.render('Cell')}
-                        </td>
-                      ))}
+            <div className="mt-4">
+              <table {...getTableProps()} className="min-w-full bg-white">
+                <thead>
+                  {headerGroups.map((headerGroup: HeaderGroup<TableData>) => (
+                    <tr
+                      {...headerGroup.getHeaderGroupProps()}
+                      key={headerGroup.id}>
+                      {headerGroup.headers.map(
+                        (column: ColumnInstance<TableData>) => (
+                          <th
+                            {...column.getHeaderProps()}
+                            className="px-4 py-2 border"
+                            key={column.id}>
+                            {column.render("Header")}
+                          </th>
+                        )
+                      )}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </thead>
+                <tbody {...getTableBodyProps()}>
+                  {rows.map((row: Row<TableData>) => {
+                    prepareRow(row);
+                    return (
+                      <tr {...row.getRowProps()} key={row.getRowProps().key}>
+                        {row.cells.map((cell: Cell<TableData>) => (
+                          <td
+                            {...cell.getCellProps()}
+                            className="px-4 py-2 border"
+                            key={cell.getCellProps().key}>
+                            {cell.render("Cell")}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h2 className="text-lg font-medium mb-4">Formatting</h2>
+            <Textarea
+              value={fields} // New state for fields
+              onChange={handleFieldsChange} // New handler for fields
+              placeholder="Enter fields, one per line"
+              className="w-full h-32 resize-none mb-4" // Adjust height and margin
+            />
           </div>
         </div>
       </main>
