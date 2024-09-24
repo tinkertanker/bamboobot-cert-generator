@@ -21,6 +21,7 @@ export default function MainPage() {
   const [fields, setFields] = useState<string>(""); // New state for fields
   const [tableData, setTableData] = useState<TableData[]>([]); // Explicitly define the type for table data
   const [isFirstRowHeader, setIsFirstRowHeader] = useState<boolean>(false); // New state for header toggle
+  const [tableInput, setTableInput] = useState<string>(""); // New state for table input
 
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -55,14 +56,16 @@ export default function MainPage() {
     setFields(event.target.value); // New handler for fields
   };
 
-  const processTableData = (pastedData: string) => {
-    const rows = pastedData.split("\n").map(row => row.split("\t"));
-    const headers = isFirstRowHeader ? rows[0] : rows[0].map((_, index) => `Column ${index + 1}`);
-    const data = isFirstRowHeader ? rows.slice(1) : rows;
+  const processTableData = (input: string, useHeaderRow: boolean = isFirstRowHeader) => {
+    const rows = input.trim().split("\n").map(row => row.split("\t"));
+    if (rows.length === 0) return;
+
+    const headers = useHeaderRow ? rows[0] : rows[0].map((_, index) => `Column ${index + 1}`);
+    const data = useHeaderRow ? rows.slice(1) : rows;
     const tableData = data.map(row => {
       const obj: TableData = {};
-      row.forEach((cell, index) => {
-        obj[headers[index]] = cell;
+      headers.forEach((header, index) => {
+        obj[header] = row[index] || "";
       });
       return obj;
     });
@@ -70,17 +73,21 @@ export default function MainPage() {
   };
 
   const handleTableDataChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    const data = event.target.value;
-    if (data.trim() === "") {
-      setTableData([]); // Clear table data if input is empty
+    const newInput = event.target.value;
+    setTableInput(newInput);
+    if (newInput.trim() === '') {
+      setTableData([]); // Clear the table data when input is empty
     } else {
-      processTableData(data);
+      processTableData(newInput, isFirstRowHeader);
     }
   };
 
   const handleHeaderToggle = () => {
-    setIsFirstRowHeader(!isFirstRowHeader);
-    processTableData(fields); // Reprocess the table data when the checkbox state changes
+    setIsFirstRowHeader(prev => {
+      const newValue = !prev;
+      processTableData(tableInput, newValue);
+      return newValue;
+    });
   };
 
   const generatePdf = async () => {
@@ -196,49 +203,52 @@ export default function MainPage() {
               <label htmlFor="header-toggle">Treat first row as header</label>
             </div>
             <Textarea
+              value={tableInput}
               onChange={handleTableDataChange} // Updated handler for table data
               placeholder="Paste tabular data here"
               className="w-full h-32 resize-none"
             />
-            <div className="mt-4">
-              <table {...getTableProps()} className="min-w-full bg-white">
-                <thead>
-                  {headerGroups.map((headerGroup: HeaderGroup<TableData>) => (
-                    <tr
-                      {...headerGroup.getHeaderGroupProps()}
-                      key={headerGroup.id}>
-                      {headerGroup.headers.map(
-                        (column: ColumnInstance<TableData>) => (
-                          <th
-                            {...column.getHeaderProps()}
-                            className="px-4 py-2 border"
-                            key={column.id}>
-                            {column.render("Header")}
-                          </th>
-                        )
-                      )}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody {...getTableBodyProps()}>
-                  {rows.map((row: Row<TableData>) => {
-                    prepareRow(row);
-                    return (
-                      <tr {...row.getRowProps()} key={row.getRowProps().key}>
-                        {row.cells.map((cell: Cell<TableData>) => (
-                          <td
-                            {...cell.getCellProps()}
-                            className="px-4 py-2 border"
-                            key={cell.getCellProps().key}>
-                            {cell.render("Cell")}
-                          </td>
-                        ))}
+            {tableData.length > 0 && (
+              <div className="mt-4">
+                <table {...getTableProps()} className="min-w-full bg-white">
+                  <thead>
+                    {headerGroups.map((headerGroup: HeaderGroup<TableData>) => (
+                      <tr
+                        {...headerGroup.getHeaderGroupProps()}
+                        key={headerGroup.id}>
+                        {headerGroup.headers.map(
+                          (column: ColumnInstance<TableData>) => (
+                            <th
+                              {...column.getHeaderProps()}
+                              className="px-4 py-2 border"
+                              key={column.id}>
+                              {column.render("Header")}
+                            </th>
+                          )
+                        )}
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </thead>
+                  <tbody {...getTableBodyProps()}>
+                    {rows.map((row: Row<TableData>) => {
+                      prepareRow(row);
+                      return (
+                        <tr {...row.getRowProps()} key={row.getRowProps().key}>
+                          {row.cells.map((cell: Cell<TableData>) => (
+                            <td
+                              {...cell.getCellProps()}
+                              className="px-4 py-2 border"
+                              key={cell.getCellProps().key}>
+                              {cell.render("Cell")}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
           <div>
             <h2 className="text-lg font-medium mb-4">Formatting</h2>
