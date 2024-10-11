@@ -68,24 +68,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           let font = helveticaFont; // Default font
           switch (entryValue.font) {
             case 'Times':
-              font = entryValue.bold 
-                ? (entryValue.oblique ? timesBoldObliqueFont : timesBoldFont) 
+              font = entryValue.bold
+                ? (entryValue.oblique ? timesBoldObliqueFont : timesBoldFont)
                 : (entryValue.oblique ? timesObliqueFont : timesFont);
               break;
             case 'Courier':
-              font = entryValue.bold 
-                ? (entryValue.oblique ? courierBoldObliqueFont : courierBoldFont) 
+              font = entryValue.bold
+                ? (entryValue.oblique ? courierBoldObliqueFont : courierBoldFont)
                 : (entryValue.oblique ? courierObliqueFont : courierFont);
               break;
             case 'Helvetica':
-              font = entryValue.bold 
-                ? (entryValue.oblique ? helveticaBoldObliqueFont : helveticaBoldFont) 
+              font = entryValue.bold
+                ? (entryValue.oblique ? helveticaBoldObliqueFont : helveticaBoldFont)
                 : (entryValue.oblique ? helveticaObliqueFont : helveticaFont);
               break;
             default:
               console.warn(`Unknown font: ${entryValue.font}. Defaulting to Helvetica.`);
           }
 
+          console.log(`Drawing text: ${entryValue.text}, x: ${x}, y: ${height * position.y}, size: ${adjustedFontSize}, color: ${color}, font: ${font}`);
           page.drawText(entryValue.text, {
             x,
             y: height * position.y,
@@ -115,9 +116,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const outputPath = path.join(outputDir, outputFilename);
     await fsPromises.writeFile(outputPath, pdfBytes);
 
-    return res.status(200).json({ 
-      message: 'Certificates generated successfully', 
-      outputPath: `${req.headers.host}/generated/${outputFilename}` 
+    return res.status(200).json({
+      message: 'Certificates generated successfully',
+      outputPath: `${req.headers.host}/generated/${outputFilename}`
     });
   } catch (error) {
     console.error(error);

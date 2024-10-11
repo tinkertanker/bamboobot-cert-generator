@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import Spinner from "@/components/Spinner"; // Update the import path
 import { useTable, Column, ColumnInstance, HeaderGroup, Row, Cell } from "react-table"; // Import react-table
+import { saveAs } from 'file-saver'; // Add this import
 
 interface TableData {
   [key: string]: string;
@@ -33,6 +34,7 @@ export default function MainPage() {
   const [tableInput, setTableInput] = useState<string>(""); // New state for table input
   const [positions, setPositions] = useState<Positions>({}); // Add new state for positions
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
 
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -111,18 +113,38 @@ export default function MainPage() {
         },
         body: JSON.stringify({
           templateFilename: uploadedFile,
-          data: names.split("\n").map(name => ({ name: { text: name } })),
-          positions: {
-            name: { x: 0.5, y: 0.5, fontSize: 3 } // Adjust as needed
-          }
+          data: tableData.map(row => {
+            const entry: { [key: string]: { text: string } } = {};
+            Object.keys(row).forEach(key => {
+              entry[key] = { text: row[key] };
+            });
+            return entry;
+          }),
+          positions: Object.fromEntries(
+            Object.entries(positions).map(([key, pos]) => [
+              key,
+              {
+                x: pos.x / 100,
+                y: 1 - (pos.y / 100), // Invert Y coordinate
+                fontSize: 12 // You can adjust this or make it dynamic
+              }
+            ])
+          )
         })
       });
       const data = await response.json();
       setGeneratedPdfUrl(data.outputPath);
+      setPdfDownloadUrl(data.outputPath);
       setIsGenerating(false);
     } catch (error) {
       console.error("Error generating PDF:", error);
       setIsGenerating(false);
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    if (pdfDownloadUrl) {
+      saveAs(pdfDownloadUrl, 'generated_certificates.pdf');
     }
   };
 
@@ -324,7 +346,7 @@ export default function MainPage() {
         </div>
       </main>
       <footer className="bg-primary text-primary-foreground py-4 px-6 fixed bottom-0 left-0 right-0">
-        <div className="flex justify-end">
+        <div className="flex justify-end space-x-4">
           <Button
             onClick={generatePdf}
             disabled={!uploadedFile || isGenerating}>
@@ -332,19 +354,34 @@ export default function MainPage() {
           </Button>
         </div>
       </footer>
-      {generatedPdfUrl && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h2 className="text-lg font-medium mb-4">PDF Generated</h2>
-            <iframe
-              src={generatedPdfUrl}
-              width="100%"
-              height="600"
-              title="Generated PDF"
-            />
-            <div className="flex justify-end mt-4">
-              <Button onClick={() => setGeneratedPdfUrl(null)}>Close</Button>
-            </div>
+      {(isGenerating || generatedPdfUrl) && (
+        <div className="fixed inset-0 z-50 overflow-auto bg-primary bg-opacity-50 flex items-center justify-center">
+          <div className="relative bg-secondary w-11/12 md:w-3/4 lg:w-1/2 max-w-4xl mx-auto rounded-lg shadow-lg p-6">
+            {isGenerating ? (
+              <div className="flex flex-col items-center justify-center h-64">
+                <Spinner />
+                <p className="mt-4 text-lg">Generating PDF...</p>
+              </div>
+            ) : generatedPdfUrl ? (
+              <>
+                <h2 className="text-2xl font-bold mb-4">PDF Generated</h2>
+                <div className="bg-gray-100 p-2 rounded-lg mb-4">
+                  <iframe
+                    src={generatedPdfUrl}
+                    width="100%"
+                    height="600"
+                    title="Generated PDF"
+                    className="border-0 rounded"
+                  />
+                </div>
+                <div className="flex justify-end space-x-4">
+                  <Button onClick={handleDownloadPdf}>
+                    Download PDF
+                  </Button>
+                  <Button onClick={() => setGeneratedPdfUrl(null)}>Close</Button>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       )}
