@@ -173,9 +173,9 @@ export default function MainPage() {
               </>
             ) : (
               <div className="flex items-center justify-center h-64 text-muted-foreground bg-muted rounded-lg">
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  <div className="flex items-center justify-center space-x-2">
-                    <UploadIcon className="h-6 w-6" />
+                <label htmlFor="file-upload" className="cursor-pointer w-full h-full flex items-center justify-center">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <UploadIcon className="h-12 w-12" />
                     <span>Choose File</span>
                   </div>
                   <input
