@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, ChangeEvent } from "react";
+import { useState, useMemo, ChangeEvent, useCallback } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -9,6 +9,15 @@ import { useTable, Column, ColumnInstance, HeaderGroup, Row, Cell } from "react-
 
 interface TableData {
   [key: string]: string;
+}
+
+interface Position {
+  x: number;
+  y: number;
+}
+
+interface Positions {
+  [key: string]: Position;
 }
 
 export default function MainPage() {
@@ -22,6 +31,8 @@ export default function MainPage() {
   const [tableData, setTableData] = useState<TableData[]>([]); // Explicitly define the type for table data
   const [isFirstRowHeader, setIsFirstRowHeader] = useState<boolean>(false); // New state for header toggle
   const [tableInput, setTableInput] = useState<string>(""); // New state for table input
+  const [positions, setPositions] = useState<Positions>({}); // Add new state for positions
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
 
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -128,6 +139,25 @@ export default function MainPage() {
     prepareRow
   } = useTable({ columns, data: tableData });
 
+  const handleDragStart = useCallback((key: string) => {
+    setDraggingKey(key);
+  }, []);
+
+  const handleDrag = useCallback((event: React.DragEvent, key: string) => {
+    event.preventDefault();
+    const imageContainer = event.currentTarget.closest('.image-container');
+    if (imageContainer) {
+      const rect = imageContainer.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * 100;
+      const y = ((event.clientY - rect.top) / rect.height) * 100;
+      setPositions(prev => ({ ...prev, [key]: { x, y } }));
+    }
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingKey(null);
+  }, []);
+
   return (
     <div className="flex flex-col h-screen">
       <header className="bg-primary text-primary-foreground py-4 px-6">
@@ -136,37 +166,54 @@ export default function MainPage() {
       <main className="flex-1 grid grid-cols-2 gap-6 p-6">
         <div className="bg-card p-4 rounded-lg shadow">
           <h2 className="text-lg font-medium mb-4">Design</h2>
-          <div className="relative w-full aspect-[16/9]"> {/* Adjust aspect ratio as needed */}
+          <div className="relative w-full aspect-[16/9] image-container"> {/* Add image-container class */}
             {isLoading && <Spinner />} {/* Show spinner while loading */}
             {uploadedFileUrl ? (
               <>
-                <div className="border-4 border-gray-700 inline-block"> {/* Add this wrapper div */}
+                <div className="border-4 border-gray-700 inline-block relative w-full h-full">
                   <Image
                     src={uploadedFileUrl} // Use the uploaded file URL
                     alt="Certificate Template"
                     fill
                     style={{ objectFit: 'contain' }}
                   />
-                  {names.split("\n").map((name, index) => (
-                    <div
-                      key={index}
-                      className="absolute"
-                      style={{
-                        left: "50%",
-                        top: "50%",
-                        transform: "translate(-50%, -50%)",
-                        fontSize: "24px",
-                        fontWeight: "bold"
-                      }}>
-                      {name}
-                    </div>
-                  ))}
+                  {tableData.length > 0 && Object.entries(tableData[0]).map(([key, value], index) => {
+                    const isDragging = draggingKey === key;
+                    const style = {
+                      left: `${positions[key]?.x ?? 50}%`,
+                      top: `${positions[key]?.y ?? (50 + index * 10)}%`,
+                      transform: 'translate(-50%, -50%)',
+                      fontSize: '24px',
+                      fontWeight: 'bold',
+                      textShadow: '1px 1px 2px white',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      maxWidth: '100%',
+                    };
+
+                    return (
+                      <div
+                        key={key}
+                        className="absolute cursor-move"
+                        style={style}
+                        draggable
+                        onDragStart={() => handleDragStart(key)}
+                        onDrag={(e) => handleDrag(e, key)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={(e) => e.preventDefault()}
+                      >
+                        {value}
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="absolute bottom-4 right-4">
                   <Button
                     onClick={() => {
                       setUploadedFileUrl(null);
                       setUploadedFile(null);
+                      setPositions({}); // Reset positions when clearing the image
                     }}>
                     Clear
                   </Button>
