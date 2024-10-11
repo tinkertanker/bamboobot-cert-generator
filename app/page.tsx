@@ -143,14 +143,26 @@ export default function MainPage() {
     setDraggingKey(key);
   }, []);
 
-  const handleDrag = useCallback((event: React.DragEvent, key: string) => {
-    event.preventDefault();
-    const imageContainer = event.currentTarget.closest('.image-container');
+  const handleDrag = useCallback((event: React.DragEvent | MouseEvent, key: string) => {
+    const imageContainer = document.querySelector('.image-container');
     if (imageContainer) {
       const rect = imageContainer.getBoundingClientRect();
-      const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
-      const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
-      setPositions(prev => ({ ...prev, [key]: { x, y } }));
+      const x = ((event.clientX - rect.left) / rect.width) * 100;
+      const y = ((event.clientY - rect.top) / rect.height) * 100;
+      
+      // Define the threshold (e.g., 10% from the edge)
+      const threshold = 10;
+      
+      if (x < -threshold || x > 100 + threshold || y < -threshold || y > 100 + threshold) {
+        // If dragged too far, reset to center
+        setPositions(prev => ({ ...prev, [key]: { x: 50, y: 50 } }));
+      } else {
+        // Clamp the values between 0 and 100
+        const clampedX = Math.max(0, Math.min(100, x));
+        const clampedY = Math.max(0, Math.min(100, y));
+        
+        setPositions(prev => ({ ...prev, [key]: { x: clampedX, y: clampedY } }));
+      }
     }
   }, []);
 
@@ -191,6 +203,7 @@ export default function MainPage() {
                       maxWidth: '100%',
                       position: 'absolute' as const,
                       pointerEvents: 'auto',
+                      opacity: isDragging ? '0.05' : '1',
                     };
 
                     return (
