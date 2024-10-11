@@ -136,31 +136,32 @@ export default function MainPage() {
       <main className="flex-1 grid grid-cols-2 gap-6 p-6">
         <div className="bg-card p-4 rounded-lg shadow">
           <h2 className="text-lg font-medium mb-4">Design</h2>
-          <div className="relative">
+          <div className="relative w-full aspect-[16/9]"> {/* Adjust aspect ratio as needed */}
             {isLoading && <Spinner />} {/* Show spinner while loading */}
             {uploadedFileUrl ? (
               <>
-                <Image
-                  src={uploadedFileUrl} // Use the uploaded file URL
-                  alt="Certificate Template"
-                  layout="responsive"
-                  width={500} // specify the width
-                  height={300} // specify the height
-                />
-                {names.split("\n").map((name, index) => (
-                  <div
-                    key={index}
-                    className="absolute"
-                    style={{
-                      left: "50%",
-                      top: "50%",
-                      transform: "translate(-50%, -50%)",
-                      fontSize: "24px",
-                      fontWeight: "bold"
-                    }}>
-                    {name}
-                  </div>
-                ))}
+                <div className="border-4 border-gray-700 inline-block"> {/* Add this wrapper div */}
+                  <Image
+                    src={uploadedFileUrl} // Use the uploaded file URL
+                    alt="Certificate Template"
+                    fill
+                    style={{ objectFit: 'contain' }}
+                  />
+                  {names.split("\n").map((name, index) => (
+                    <div
+                      key={index}
+                      className="absolute"
+                      style={{
+                        left: "50%",
+                        top: "50%",
+                        transform: "translate(-50%, -50%)",
+                        fontSize: "24px",
+                        fontWeight: "bold"
+                      }}>
+                      {name}
+                    </div>
+                  ))}
+                </div>
                 <div className="absolute bottom-4 right-4">
                   <Button
                     onClick={() => {
@@ -176,7 +177,7 @@ export default function MainPage() {
                 <label htmlFor="file-upload" className="cursor-pointer w-full h-full flex items-center justify-center">
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <UploadIcon className="h-12 w-12" />
-                    <span>Choose File</span>
+                    <span>Choose File (JPEG or PNG)</span>
                   </div>
                   <input
                     id="file-upload"
