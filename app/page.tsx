@@ -148,8 +148,8 @@ export default function MainPage() {
     const imageContainer = event.currentTarget.closest('.image-container');
     if (imageContainer) {
       const rect = imageContainer.getBoundingClientRect();
-      const x = ((event.clientX - rect.left) / rect.width) * 100;
-      const y = ((event.clientY - rect.top) / rect.height) * 100;
+      const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
+      const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
       setPositions(prev => ({ ...prev, [key]: { x, y } }));
     }
   }, []);
@@ -170,7 +170,7 @@ export default function MainPage() {
             {isLoading && <Spinner />} {/* Show spinner while loading */}
             {uploadedFileUrl ? (
               <>
-                <div className="border-4 border-gray-700 inline-block relative w-full h-full">
+                <div className="border-4 border-gray-700 inline-block relative w-full h-full overflow-hidden">
                   <Image
                     src={uploadedFileUrl} // Use the uploaded file URL
                     alt="Certificate Template"
@@ -185,11 +185,12 @@ export default function MainPage() {
                       transform: 'translate(-50%, -50%)',
                       fontSize: '24px',
                       fontWeight: 'bold',
-                      textShadow: '1px 1px 2px white',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       maxWidth: '100%',
+                      position: 'absolute' as const,
+                      pointerEvents: 'auto',
                     };
 
                     return (
