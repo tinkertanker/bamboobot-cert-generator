@@ -24,7 +24,7 @@ interface Positions {
 export default function MainPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
-  const [names, setNames] = useState<string>("");
+  // State variables for the application
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false); // Add loading state
@@ -61,9 +61,7 @@ export default function MainPage() {
     }
   };
 
-  const handleNamesChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    setNames(event.target.value);
-  };
+  // Event handlers for form elements
 
   const handleFieldsChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     setFields(event.target.value); // New handler for fields
