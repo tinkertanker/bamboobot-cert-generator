@@ -142,7 +142,11 @@ export default function MainPage() {
 
   const handleDownloadPdf = () => {
     if (pdfDownloadUrl) {
-      saveAs(pdfDownloadUrl, 'generated_certificates.pdf');
+      // Create full URL from relative path
+      const fullUrl = pdfDownloadUrl.startsWith('http') 
+        ? pdfDownloadUrl 
+        : `${window.location.origin}${pdfDownloadUrl}`;
+      saveAs(fullUrl, 'generated_certificates.pdf');
     }
   };
 
