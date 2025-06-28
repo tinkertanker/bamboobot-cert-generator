@@ -35,6 +35,7 @@ export default function MainPage() {
   const [positions, setPositions] = useState<Positions>({}); // Add new state for positions
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
 
   // Ensure all table columns have positions
   useEffect(() => {
@@ -55,9 +56,8 @@ export default function MainPage() {
     }
   }, [tableData]);
 
-  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
+  const processFile = async (file: File) => {
+    if (file && (file.type === 'image/jpeg' || file.type === 'image/png')) {
       setUploadedFile(file);
       setIsLoading(true); // Set loading to true
       const formData = new FormData();
@@ -77,6 +77,38 @@ export default function MainPage() {
       } finally {
         setIsLoading(false); // Set loading to false after upload
       }
+    } else {
+      alert("Please upload a JPEG or PNG file.");
+    }
+  };
+
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      await processFile(file);
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingFile(true);
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingFile(false);
+  };
+
+  const handleFileDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingFile(false);
+    
+    const file = event.dataTransfer.files?.[0];
+    if (file) {
+      await processFile(file);
     }
   };
 
@@ -277,16 +309,31 @@ export default function MainPage() {
                 </div>
               </>
             ) : (
-              <div className="flex items-center justify-center h-64 text-muted-foreground bg-muted rounded-lg">
+              <div 
+                className={`flex items-center justify-center h-64 text-muted-foreground rounded-lg border-2 border-dashed transition-colors ${
+                  isDraggingFile 
+                    ? 'border-primary bg-primary/10 text-primary' 
+                    : 'border-muted-foreground/25 bg-muted'
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleFileDrop}
+              >
                 <label htmlFor="file-upload" className="cursor-pointer w-full h-full flex items-center justify-center">
                   <div className="flex flex-col items-center justify-center space-y-2">
-                    <UploadIcon className="h-12 w-12" />
-                    <span>Choose File (JPEG or PNG)</span>
+                    <UploadIcon className={`h-12 w-12 ${isDraggingFile ? 'animate-pulse' : ''}`} />
+                    <span className="text-center">
+                      {isDraggingFile 
+                        ? 'Drop your image here' 
+                        : 'Choose File or Drag & Drop (JPEG or PNG)'
+                      }
+                    </span>
                   </div>
                   <input
                     id="file-upload"
                     type="file"
                     onChange={handleFileUpload}
+                    accept="image/jpeg,image/png"
                     className="sr-only"
                   />
                 </label>

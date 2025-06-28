@@ -78,11 +78,14 @@ npm test -- __tests__/components/Button.test.tsx
 
 ### ✅ Completed
 - Image upload (PNG/JPEG) with PDF conversion
+- Drag-and-drop file upload support with visual feedback
 - Visual drag-and-drop text placement
 - Bulk data input with table interface
 - PDF generation and merging
 - Font formatting (Helvetica, Times, Courier with bold/italic)
 - Download functionality
+- Automatic text positioning for all table columns
+- Fixed coordinate system conversion between UI and PDF
 
 ### 🚧 Planned Features (Priority Order)
 
