@@ -69,24 +69,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
           // Select font based on entry properties
           let font = helveticaFont; // Default font
-          switch (entryValue.font) {
-            case 'Times':
-              font = entryValue.bold
-                ? (entryValue.oblique ? timesBoldObliqueFont : timesBoldFont)
-                : (entryValue.oblique ? timesObliqueFont : timesFont);
-              break;
-            case 'Courier':
-              font = entryValue.bold
-                ? (entryValue.oblique ? courierBoldObliqueFont : courierBoldFont)
-                : (entryValue.oblique ? courierObliqueFont : courierFont);
-              break;
-            case 'Helvetica':
-              font = entryValue.bold
-                ? (entryValue.oblique ? helveticaBoldObliqueFont : helveticaBoldFont)
-                : (entryValue.oblique ? helveticaObliqueFont : helveticaFont);
-              break;
-            default:
-              console.warn(`Unknown font: ${entryValue.font}. Defaulting to Helvetica.`);
+          if (entryValue.font) {
+            switch (entryValue.font) {
+              case 'Times':
+                font = entryValue.bold
+                  ? (entryValue.oblique ? timesBoldObliqueFont : timesBoldFont)
+                  : (entryValue.oblique ? timesObliqueFont : timesFont);
+                break;
+              case 'Courier':
+                font = entryValue.bold
+                  ? (entryValue.oblique ? courierBoldObliqueFont : courierBoldFont)
+                  : (entryValue.oblique ? courierObliqueFont : courierFont);
+                break;
+              case 'Helvetica':
+                font = entryValue.bold
+                  ? (entryValue.oblique ? helveticaBoldObliqueFont : helveticaBoldFont)
+                  : (entryValue.oblique ? helveticaObliqueFont : helveticaFont);
+                break;
+              default:
+                console.warn(`Unknown font: ${entryValue.font}. Defaulting to Helvetica.`);
+            }
           }
 
           // Calculate text dimensions for centering
