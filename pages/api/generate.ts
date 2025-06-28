@@ -58,7 +58,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       for (const [key, position] of Object.entries(positions)) {
         const entryValue = entry[key];
         if (entryValue) {
-          const adjustedFontSize = ((position.fontSize || 12) * FONT_SIZE_MULTIPLIER);
+          // Scale font size based on page width (adjusted to match UI size)
+          const scaleFactor = Math.max(0.7, width / 800) * 1.26; // Starting point + slight increase
+          const baseFontSize = position.fontSize || 24;
+          const adjustedFontSize = baseFontSize * scaleFactor * FONT_SIZE_MULTIPLIER;
           const x = position.x * width;
 
           // Use color from entry or default to black
@@ -86,10 +89,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               console.warn(`Unknown font: ${entryValue.font}. Defaulting to Helvetica.`);
           }
 
-          console.log(`Drawing text: ${entryValue.text}, x: ${x}, y: ${height * (1 - position.y)}, size: ${adjustedFontSize}, color: ${color}, font: ${font}`);
+          // Calculate text dimensions for centering
+          const textWidth = font.widthOfTextAtSize(entryValue.text, adjustedFontSize);
+          
+          // Center the text like in the UI (translate(-50%, -50%))
+          const centeredX = x - (textWidth / 2);
+          // For Y centering, use a smaller adjustment to sit better on lines
+          const centeredY = height * (1 - position.y) - (adjustedFontSize * 0.32);
+
+          console.log(`Drawing text: ${entryValue.text}, x: ${centeredX}, y: ${centeredY}, size: ${adjustedFontSize}, color: ${color}, font: ${font}`);
           page.drawText(entryValue.text, {
-            x,
-            y: height * (1 - position.y), // Invert Y coordinate for PDF coordinate system
+            x: centeredX,
+            y: centeredY,
             size: adjustedFontSize,
             color: color,
             font: font,

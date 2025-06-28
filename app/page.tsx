@@ -3,7 +3,6 @@
 import { useState, useMemo, ChangeEvent, useCallback, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
 import Spinner from "@/components/Spinner"; // Update the import path
 import { useTable, Column, ColumnInstance, HeaderGroup, Row, Cell } from "react-table"; // Import react-table
 import { saveAs } from 'file-saver'; // Add this import
@@ -253,25 +252,25 @@ export default function MainPage() {
       <main className="flex-1 grid grid-cols-2 gap-6 p-6">
         <div className="bg-card p-4 rounded-lg shadow">
           <h2 className="text-lg font-medium mb-4">Design</h2>
-          <div className="relative w-full aspect-[16/9] image-container"> {/* Add image-container class */}
+          <div className="relative w-full image-container"> {/* Add image-container class */}
             {isLoading && <Spinner />} {/* Show spinner while loading */}
             {uploadedFileUrl ? (
               <>
-                <div className="border-4 border-gray-700 inline-block relative w-full h-full overflow-hidden">
-                  <Image
+                <div className="border-4 border-gray-700 inline-block relative w-full">
+                  <img
                     src={uploadedFileUrl} // Use the uploaded file URL
                     alt="Certificate Template"
-                    fill
-                    style={{ objectFit: 'contain' }}
+                    className="w-full h-auto block"
                   />
-                  {tableData.length > 0 && Object.entries(tableData[0]).map(([key, value], index) => {
+                  <div className="absolute inset-0">
+                    {tableData.length > 0 && Object.entries(tableData[0]).map(([key, value], index) => {
                     const isDragging = draggingKey === key;
                     const style = {
                       left: `${positions[key]?.x ?? 50}%`,
                       top: `${positions[key]?.y ?? (50 + index * 10)}%`,
                       transform: 'translate(-50%, -50%)',
                       fontSize: '24px',
-                      fontWeight: 'bold',
+                      fontWeight: 'normal',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -296,6 +295,7 @@ export default function MainPage() {
                       </div>
                     );
                   })}
+                  </div>
                 </div>
                 <div className="absolute bottom-4 right-4">
                   <Button
