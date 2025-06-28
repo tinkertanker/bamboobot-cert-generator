@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, ChangeEvent, useCallback } from "react";
+import { useState, useMemo, ChangeEvent, useCallback, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -35,6 +35,25 @@ export default function MainPage() {
   const [positions, setPositions] = useState<Positions>({}); // Add new state for positions
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
+
+  // Ensure all table columns have positions
+  useEffect(() => {
+    if (tableData.length > 0) {
+      setPositions(prevPositions => {
+        const newPositions = { ...prevPositions };
+        let hasNewPositions = false;
+        
+        Object.keys(tableData[0]).forEach((key, index) => {
+          if (!newPositions[key]) {
+            newPositions[key] = { x: 50, y: 50 + index * 10 };
+            hasNewPositions = true;
+          }
+        });
+        
+        return hasNewPositions ? newPositions : prevPositions;
+      });
+    }
+  }, [tableData]);
 
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -122,9 +141,9 @@ export default function MainPage() {
             Object.entries(positions).map(([key, pos]) => [
               key,
               {
-                x: pos.x / 100,
-                y: 1 - (pos.y / 100), // Invert Y coordinate
-                fontSize: 12 // You can adjust this or make it dynamic
+                x: pos.x / 100, // Convert percentage to 0-1 range
+                y: pos.y / 100, // Convert percentage to 0-1 range (no inversion)
+                fontSize: 24 // Default size for certificate text
               }
             ])
           )

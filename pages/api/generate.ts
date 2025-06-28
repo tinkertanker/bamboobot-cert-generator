@@ -3,7 +3,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fsPromises from 'fs/promises';
 import path from 'path';
 
-const FONT_SIZE_MULTIPLIER = 8;
+const FONT_SIZE_MULTIPLIER = 1;
 
 interface Position {
   fontSize?: number;
@@ -86,10 +86,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               console.warn(`Unknown font: ${entryValue.font}. Defaulting to Helvetica.`);
           }
 
-          console.log(`Drawing text: ${entryValue.text}, x: ${x}, y: ${height * position.y}, size: ${adjustedFontSize}, color: ${color}, font: ${font}`);
+          console.log(`Drawing text: ${entryValue.text}, x: ${x}, y: ${height * (1 - position.y)}, size: ${adjustedFontSize}, color: ${color}, font: ${font}`);
           page.drawText(entryValue.text, {
             x,
-            y: height * position.y,
+            y: height * (1 - position.y), // Invert Y coordinate for PDF coordinate system
             size: adjustedFontSize,
             color: color,
             font: font,
