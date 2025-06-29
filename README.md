@@ -7,10 +7,11 @@ A Next.js application for generating certificates from uploaded image templates.
 - **Image Template Upload** - Support for JPG/PNG images with automatic PDF conversion
 - **Drag & Drop File Upload** - Intuitive file upload with visual feedback
 - **Precision Text Positioning** - Pointer-based drag system with visual feedback
+- **Interactive Font Controls** - Click text fields to adjust font size (8-72px) with live preview
 - **Bulk Data Import** - TSV/CSV support with header row toggle
 - **Batch Certificate Generation** - Generate multiple certificates from tabular data
 - **Live Preview** - Real-time preview matching final PDF output
-- **Docker Support** - Production-ready containerization
+- **Docker Support** - Production-ready containerization with development hot reload
 
 ## Getting Started
 
@@ -46,6 +47,19 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+> **Note:** For the best development experience, we recommend using the Docker development setup above, which provides hot reload and ensures environment consistency.
+
+## How to Use
+
+1. **Upload Template**: Drag & drop or select a JPG/PNG image
+2. **Add Data**: Paste TSV/CSV data in the Data section (toggle "Treat first row as header" if needed)
+3. **Position Text**: Drag text fields to desired positions on the template
+4. **Format Text**: Click any text field to open formatting controls
+   - Adjust font size with slider (8-72px) or number input
+   - See changes instantly in the preview
+5. **Generate PDFs**: Click "Generate PDF" to create certificates for all data rows
+6. **Download**: Download the generated PDF with all certificates
 
 ## Project Structure
 
@@ -118,11 +132,19 @@ docker-compose -f docker-compose.dev.yml down
 ```
 
 ### Docker Features:
+- **Development Mode**: Hot reload, instant code changes, port 3001
+- **Production Mode**: Optimized build, smaller image, port 3000
 - Multi-stage build for optimized image size
 - Non-root user for security
 - Volume mounts for persistent file storage
 - Health checks and auto-restart
 - Alpine Linux base for minimal footprint
+
+### Quick Development Workflow:
+1. Start development server: `docker-compose -f docker-compose.dev.yml up -d`
+2. Edit code in your IDE - changes appear instantly at http://localhost:3001
+3. Test production build: `docker-compose up -d` (runs on http://localhost:3000)
+4. No container rebuilds needed for development!
 
 ## Technology Stack
 
