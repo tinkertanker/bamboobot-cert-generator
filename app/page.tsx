@@ -17,6 +17,8 @@ interface Position {
   y: number;
   fontSize?: number;
   fontFamily?: 'Helvetica' | 'Times' | 'Courier';
+  bold?: boolean;
+  italic?: boolean;
 }
 
 interface Positions {
@@ -268,7 +270,9 @@ export default function MainPage() {
                 x: pos.x / 100, // Convert percentage to 0-1 range
                 y: pos.y / 100, // Convert percentage to 0-1 range (no inversion)
                 fontSize: pos.fontSize || 24, // Use custom fontSize or default to 24
-                font: pos.fontFamily || 'Helvetica' // Send font family to backend
+                font: pos.fontFamily || 'Helvetica', // Send font family to backend
+                bold: pos.bold || false, // Send bold state
+                oblique: pos.italic || false // Send italic state (backend uses 'oblique')
               }
             ])
           )
@@ -370,6 +374,8 @@ export default function MainPage() {
                     const isSelected = selectedField === key;
                     const fontSize = positions[key]?.fontSize || 24;
                     const fontFamily = positions[key]?.fontFamily || 'Helvetica';
+                    const isBold = positions[key]?.bold || false;
+                    const isItalic = positions[key]?.italic || false;
                     
                     // Map font names to CSS font families
                     const fontFamilyMap = {
@@ -384,7 +390,8 @@ export default function MainPage() {
                       transform: 'translate(-50%, -50%)',
                       fontSize: `${fontSize}px`,
                       fontFamily: fontFamilyMap[fontFamily],
-                      fontWeight: '500',
+                      fontWeight: isBold ? 'bold' : 'normal',
+                      fontStyle: isItalic ? 'italic' : 'normal',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -598,6 +605,44 @@ export default function MainPage() {
                     <option value="Times">Times New Roman (Serif)</option>
                     <option value="Courier">Courier (Monospace)</option>
                   </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Font Style</label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={positions[selectedField]?.bold ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setPositions(prev => ({
+                          ...prev,
+                          [selectedField]: {
+                            ...prev[selectedField],
+                            bold: !prev[selectedField]?.bold
+                          }
+                        }));
+                      }}
+                      className="flex-1"
+                    >
+                      <strong>B</strong>
+                    </Button>
+                    <Button
+                      variant={positions[selectedField]?.italic ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setPositions(prev => ({
+                          ...prev,
+                          [selectedField]: {
+                            ...prev[selectedField],
+                            italic: !prev[selectedField]?.italic
+                          }
+                        }));
+                      }}
+                      className="flex-1"
+                    >
+                      <em>I</em>
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : (

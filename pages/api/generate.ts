@@ -10,6 +10,8 @@ interface Position {
   x: number;
   y: number;
   font?: 'Times' | 'Courier' | 'Helvetica';
+  bold?: boolean;
+  oblique?: boolean;
 }
 
 interface Entry {
@@ -77,22 +79,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Select font based on position properties or entry properties
           let font = helveticaFont; // Default font
           const fontToUse = position.font || entryValue.font || 'Helvetica';
+          const isBold = position.bold ?? entryValue.bold ?? false;
+          const isOblique = position.oblique ?? entryValue.oblique ?? false;
           
           switch (fontToUse) {
             case 'Times':
-              font = entryValue.bold
-                ? (entryValue.oblique ? timesBoldObliqueFont : timesBoldFont)
-                : (entryValue.oblique ? timesObliqueFont : timesFont);
+              font = isBold
+                ? (isOblique ? timesBoldObliqueFont : timesBoldFont)
+                : (isOblique ? timesObliqueFont : timesFont);
               break;
             case 'Courier':
-              font = entryValue.bold
-                ? (entryValue.oblique ? courierBoldObliqueFont : courierBoldFont)
-                : (entryValue.oblique ? courierObliqueFont : courierFont);
+              font = isBold
+                ? (isOblique ? courierBoldObliqueFont : courierBoldFont)
+                : (isOblique ? courierObliqueFont : courierFont);
               break;
             case 'Helvetica':
-              font = entryValue.bold
-                ? (entryValue.oblique ? helveticaBoldObliqueFont : helveticaBoldFont)
-                : (entryValue.oblique ? helveticaObliqueFont : helveticaFont);
+              font = isBold
+                ? (isOblique ? helveticaBoldObliqueFont : helveticaBoldFont)
+                : (isOblique ? helveticaObliqueFont : helveticaFont);
               break;
             default:
               console.warn(`Unknown font: ${fontToUse}. Defaulting to Helvetica.`);
