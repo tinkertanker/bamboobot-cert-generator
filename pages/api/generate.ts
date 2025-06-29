@@ -158,7 +158,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       message: 'Certificates generated successfully',
-      outputPath: `/generated/${outputFilename}`
+      outputPath: `/api/files/generated/${outputFilename}`
     });
   } catch (error) {
     console.error(error);

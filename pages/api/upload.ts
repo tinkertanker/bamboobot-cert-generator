@@ -75,7 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const imageFilepath = path.join(outputDir, `${path.basename(filename, fileExtension)}${fileExtension}`);
     await fsPromises.copyFile(filepath, imageFilepath);
 
-    const imageUrl = path.join('/temp_images', `${path.basename(filename, fileExtension)}${fileExtension}`); // Use the new path for the image
+    const imageUrl = `/api/files/temp_images/${path.basename(filename, fileExtension)}${fileExtension}`; // Use API endpoint for serving the image
     console.log("imageUrl");
     console.log(imageUrl);
 

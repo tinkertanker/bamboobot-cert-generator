@@ -1,0 +1,17 @@
+Dockerfile
+.dockerignore
+node_modules
+.next
+.git
+.gitignore
+README.md
+.env*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+*.tsbuildinfo
+public/temp_images/*
+public/generated/*
+!public/temp_images/.gitkeep
+!public/generated/.gitkeep

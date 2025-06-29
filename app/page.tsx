@@ -374,7 +374,7 @@ export default function MainPage() {
                       textOverflow: 'ellipsis',
                       maxWidth: '100%',
                       position: 'absolute' as const,
-                      pointerEvents: 'auto',
+                      pointerEvents: 'auto' as const,
                       userSelect: 'none' as const,
                       touchAction: 'none',
                       backgroundColor: isCurrentlyDragging ? 'rgba(59, 130, 246, 0.1)' : 'transparent',

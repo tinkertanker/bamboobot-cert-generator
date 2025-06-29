@@ -39,3 +39,6 @@ tmp/
 public/generated/
 public/temp_images/
 **/.claude/settings.local.json
+
+# Docker volume data
+data/
