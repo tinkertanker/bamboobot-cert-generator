@@ -16,6 +16,11 @@ npm run dev          # Start development server on http://localhost:3000
 npm run build        # Build for production
 npm start           # Start production server
 
+# Docker
+docker-compose up -d    # Start with Docker Compose
+docker-compose down     # Stop containers
+docker-compose logs -f  # View logs
+
 # Testing
 npm test            # Run all tests with Jest
 npm run test:watch  # Run tests in watch mode
@@ -37,12 +42,16 @@ npm run lint        # Run ESLint with Next.js configuration
 ### API Endpoints
 - `/api/upload`: Handles image upload and PDF conversion using pdf-lib
 - `/api/generate`: Processes certificate generation with positioned text fields
+- `/api/files/temp_images/[filename]`: Serves uploaded images in production
+- `/api/files/generated/[filename]`: Serves generated PDFs in production
 
 ### Key Dependencies
 - **pdf-lib**: PDF manipulation and generation
 - **formidable**: File upload handling
 - **react-table**: Data table implementation
 - **shadcn/ui**: UI components (Button, Textarea, Spinner)
+- **mime-types**: Content type detection for file serving
+- **Docker**: Production containerization
 
 ## Testing Approach
 
@@ -69,7 +78,10 @@ npm test -- __tests__/components/Button.test.tsx
 
 ## Important Considerations
 
-1. **File Storage**: Currently uses `public/` directory for file storage (not scalable for production)
+1. **File Storage**: 
+   - Development: Uses `public/` directory
+   - Production: Docker volumes mounted to `data/` directory
+   - API endpoints handle dynamic file serving in production
 2. **No Authentication**: The app is currently open access
 3. **Text Formatting**: 
    - Backend supports Helvetica, Times, and Courier fonts with bold/italic variants
@@ -77,6 +89,7 @@ npm test -- __tests__/components/Button.test.tsx
    - Font formatting is currently hardcoded to Helvetica 24px in the UI
 4. **Coordinate System**: PDF uses bottom-left origin (0,0), while UI uses top-left origin - conversion happens in the API
 5. **Drag System**: Uses pointer events for precise positioning with visual feedback and touch support
+6. **Production Mode**: Next.js doesn't serve dynamic files from public/ in production, hence the file serving API
 
 ## Current Features Status
 
@@ -96,6 +109,11 @@ npm test -- __tests__/components/Button.test.tsx
 - Font formatting backend support (Helvetica, Times, Courier with bold/italic variants)
 - PDF download functionality with proper URL handling
 - Automatic text field positioning for all table columns
+- **Docker containerization** (Dockerfile, docker-compose.yml)
+  - Production-ready multi-stage build
+  - Non-root user security
+  - Dynamic file serving API for production mode
+  - Volume mounts for persistent storage
 
 ### 🚧 Planned Features (Priority Order)
 
@@ -112,7 +130,6 @@ npm test -- __tests__/components/Button.test.tsx
   - Field deletion and reordering capabilities
 
 **Phase 2 - Core Missing Features**
-- Docker configuration (Dockerfile, docker-compose.yml)
 - Email functionality (SMTP, bulk sending, templates)
 - Individual PDF generation with ZIP download option
 
