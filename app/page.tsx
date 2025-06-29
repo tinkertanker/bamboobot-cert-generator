@@ -32,9 +32,17 @@ export default function MainPage() {
   const [isFirstRowHeader, setIsFirstRowHeader] = useState<boolean>(false); // New state for header toggle
   const [tableInput, setTableInput] = useState<string>(""); // New state for table input
   const [positions, setPositions] = useState<Positions>({}); // Add new state for positions
-  const [draggingKey, setDraggingKey] = useState<string | null>(null);
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
+  
+  // Pointer events state for dragging
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragInfo, setDragInfo] = useState<{
+    key: string;
+    offsetX: number;
+    offsetY: number;
+    pointerId: number;
+  } | null>(null);
 
   // Text measurement utility for consistent sizing
   const measureText = useCallback((text: string, fontSize: number, fontWeight: string = '500', fontFamily: string = 'system-ui, sans-serif') => {
@@ -46,6 +54,65 @@ export default function MainPage() {
       width: metrics.width,
       height: fontSize, // Approximate height - could use actualBoundingBoxAscent + actualBoundingBoxDescent for precision
       actualHeight: (metrics.actualBoundingBoxAscent || fontSize * 0.8) + (metrics.actualBoundingBoxDescent || fontSize * 0.2)
+    };
+  }, []);
+
+  // Global pointer event handlers for smooth dragging
+  useEffect(() => {
+    const handleGlobalPointerMove = (event: PointerEvent) => {
+      if (!isDragging || !dragInfo) return;
+      
+      const imageContainer = document.querySelector('.image-container');
+      if (imageContainer) {
+        const containerRect = imageContainer.getBoundingClientRect();
+        
+        // Calculate position accounting for initial offset
+        const x = ((event.clientX - dragInfo.offsetX - containerRect.left) / containerRect.width) * 100;
+        const y = ((event.clientY - dragInfo.offsetY - containerRect.top) / containerRect.height) * 100;
+        
+        // Define the threshold (e.g., 10% from the edge)
+        const threshold = 10;
+        
+        if (x < -threshold || x > 100 + threshold || y < -threshold || y > 100 + threshold) {
+          // If dragged too far, reset to center
+          setPositions(prev => ({ ...prev, [dragInfo.key]: { x: 50, y: 50 } }));
+        } else {
+          // Clamp the values between 0 and 100
+          const clampedX = Math.max(0, Math.min(100, x));
+          const clampedY = Math.max(0, Math.min(100, y));
+          
+          setPositions(prev => ({ ...prev, [dragInfo.key]: { x: clampedX, y: clampedY } }));
+        }
+      }
+    };
+
+    const handleGlobalPointerUp = (event: PointerEvent) => {
+      if (!isDragging || !dragInfo || event.pointerId !== dragInfo.pointerId) return;
+      
+      setIsDragging(false);
+      setDragInfo(null);
+    };
+
+    if (isDragging) {
+      document.addEventListener('pointermove', handleGlobalPointerMove);
+      document.addEventListener('pointerup', handleGlobalPointerUp);
+      document.addEventListener('pointercancel', handleGlobalPointerUp);
+      
+      return () => {
+        document.removeEventListener('pointermove', handleGlobalPointerMove);
+        document.removeEventListener('pointerup', handleGlobalPointerUp);
+        document.removeEventListener('pointercancel', handleGlobalPointerUp);
+      };
+    }
+  }, [isDragging, dragInfo]);
+
+  // Cleanup drag state on unmount
+  useEffect(() => {
+    return () => {
+      if (isDragging) {
+        setIsDragging(false);
+        setDragInfo(null);
+      }
     };
   }, []);
 
@@ -239,36 +306,41 @@ export default function MainPage() {
     prepareRow
   } = useTable({ columns, data: tableData });
 
-  const handleDragStart = useCallback((key: string) => {
-    setDraggingKey(key);
+  // Pointer event handlers for precise dragging
+  const handlePointerDown = useCallback((event: React.PointerEvent, key: string) => {
+    event.preventDefault();
+    
+    const element = event.currentTarget as HTMLElement;
+    const rect = element.getBoundingClientRect();
+    
+    // Calculate offset from element center (accounting for transform: translate(-50%, -50%))
+    const offsetX = event.clientX - (rect.left + rect.width / 2);
+    const offsetY = event.clientY - (rect.top + rect.height / 2);
+    
+    setDragInfo({
+      key,
+      offsetX,
+      offsetY,
+      pointerId: event.pointerId
+    });
+    setIsDragging(true);
+    
+    // Capture pointer for smooth dragging
+    element.setPointerCapture(event.pointerId);
   }, []);
 
-  const handleDrag = useCallback((event: React.DragEvent | MouseEvent, key: string) => {
-    const imageContainer = document.querySelector('.image-container');
-    if (imageContainer) {
-      const rect = imageContainer.getBoundingClientRect();
-      const x = ((event.clientX - rect.left) / rect.width) * 100;
-      const y = ((event.clientY - rect.top) / rect.height) * 100;
-      
-      // Define the threshold (e.g., 10% from the edge)
-      const threshold = 10;
-      
-      if (x < -threshold || x > 100 + threshold || y < -threshold || y > 100 + threshold) {
-        // If dragged too far, reset to center
-        setPositions(prev => ({ ...prev, [key]: { x: 50, y: 50 } }));
-      } else {
-        // Clamp the values between 0 and 100
-        const clampedX = Math.max(0, Math.min(100, x));
-        const clampedY = Math.max(0, Math.min(100, y));
-        
-        setPositions(prev => ({ ...prev, [key]: { x: clampedX, y: clampedY } }));
-      }
-    }
-  }, []);
-
-  const handleDragEnd = useCallback(() => {
-    setDraggingKey(null);
-  }, []);
+  const handlePointerUp = useCallback((event: React.PointerEvent) => {
+    if (!isDragging || !dragInfo || event.pointerId !== dragInfo.pointerId) return;
+    
+    event.preventDefault();
+    
+    setIsDragging(false);
+    setDragInfo(null);
+    
+    // Release pointer capture
+    const element = event.currentTarget as HTMLElement;
+    element.releasePointerCapture(event.pointerId);
+  }, [isDragging, dragInfo]);
 
   return (
     <div className="flex flex-col h-screen">
@@ -290,7 +362,7 @@ export default function MainPage() {
                   />
                   <div className="absolute inset-0">
                     {tableData.length > 0 && Object.entries(tableData[0]).map(([key, value], index) => {
-                    const isDragging = draggingKey === key;
+                    const isCurrentlyDragging = isDragging && dragInfo?.key === key;
                     const style = {
                       left: `${positions[key]?.x ?? 50}%`,
                       top: `${positions[key]?.y ?? (50 + index * 10)}%`,
@@ -303,19 +375,23 @@ export default function MainPage() {
                       maxWidth: '100%',
                       position: 'absolute' as const,
                       pointerEvents: 'auto',
-                      opacity: isDragging ? '0.05' : '1',
+                      userSelect: 'none' as const,
+                      touchAction: 'none',
+                      backgroundColor: isCurrentlyDragging ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                      border: isCurrentlyDragging ? '2px solid rgb(59, 130, 246)' : '2px solid transparent',
+                      borderRadius: '4px',
+                      padding: '2px 4px',
+                      cursor: isCurrentlyDragging ? 'grabbing' : 'grab',
                     };
 
                     return (
                       <div
                         key={key}
-                        className="absolute cursor-move"
+                        className="absolute"
                         style={style}
-                        draggable
-                        onDragStart={() => handleDragStart(key)}
-                        onDrag={(e) => handleDrag(e, key)}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={(e) => e.preventDefault()}
+                        onPointerDown={(e) => handlePointerDown(e, key)}
+                        onPointerUp={handlePointerUp}
+                        onPointerCancel={handlePointerUp}
                       >
                         {value}
                       </div>
@@ -329,6 +405,9 @@ export default function MainPage() {
                       setUploadedFileUrl(null);
                       setUploadedFile(null);
                       setPositions({}); // Reset positions when clearing the image
+                      // Clear any active drag state
+                      setIsDragging(false);
+                      setDragInfo(null);
                     }}>
                     Clear
                   </Button>
