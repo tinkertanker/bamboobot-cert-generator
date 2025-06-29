@@ -3,6 +3,7 @@
 import { useState, useMemo, ChangeEvent, useCallback, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import Spinner from "@/components/Spinner"; // Update the import path
 import { useTable, Column, ColumnInstance, HeaderGroup, Row, Cell } from "react-table"; // Import react-table
 import { saveAs } from 'file-saver'; // Add this import
@@ -15,6 +16,7 @@ interface Position {
   x: number;
   y: number;
   fontSize?: number;
+  fontFamily?: 'Helvetica' | 'Times' | 'Courier';
 }
 
 interface Positions {
@@ -126,7 +128,7 @@ export default function MainPage() {
         
         Object.keys(tableData[0]).forEach((key, index) => {
           if (!newPositions[key]) {
-            newPositions[key] = { x: 50, y: 50 + index * 10, fontSize: 24 };
+            newPositions[key] = { x: 50, y: 50 + index * 10, fontSize: 24, fontFamily: 'Helvetica' };
             hasNewPositions = true;
           }
         });
@@ -265,7 +267,8 @@ export default function MainPage() {
               {
                 x: pos.x / 100, // Convert percentage to 0-1 range
                 y: pos.y / 100, // Convert percentage to 0-1 range (no inversion)
-                fontSize: pos.fontSize || 24 // Use custom fontSize or default to 24
+                fontSize: pos.fontSize || 24, // Use custom fontSize or default to 24
+                font: pos.fontFamily || 'Helvetica' // Send font family to backend
               }
             ])
           )
@@ -366,11 +369,21 @@ export default function MainPage() {
                     const isCurrentlyDragging = isDragging && dragInfo?.key === key;
                     const isSelected = selectedField === key;
                     const fontSize = positions[key]?.fontSize || 24;
+                    const fontFamily = positions[key]?.fontFamily || 'Helvetica';
+                    
+                    // Map font names to CSS font families
+                    const fontFamilyMap = {
+                      'Helvetica': '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+                      'Times': 'Times, "Times New Roman", Georgia, serif',
+                      'Courier': 'Courier, "Courier New", monospace'
+                    };
+                    
                     const style = {
                       left: `${positions[key]?.x ?? 50}%`,
                       top: `${positions[key]?.y ?? (50 + index * 10)}%`,
                       transform: 'translate(-50%, -50%)',
                       fontSize: `${fontSize}px`,
+                      fontFamily: fontFamilyMap[fontFamily],
                       fontWeight: '500',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
@@ -564,6 +577,27 @@ export default function MainPage() {
                     />
                     <span className="text-sm text-gray-500">px</span>
                   </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Font Family</label>
+                  <Select
+                    value={positions[selectedField]?.fontFamily || 'Helvetica'}
+                    onChange={(e) => {
+                      const newFontFamily = e.target.value as 'Helvetica' | 'Times' | 'Courier';
+                      setPositions(prev => ({
+                        ...prev,
+                        [selectedField]: {
+                          ...prev[selectedField],
+                          fontFamily: newFontFamily
+                        }
+                      }));
+                    }}
+                  >
+                    <option value="Helvetica">Helvetica (Sans-serif)</option>
+                    <option value="Times">Times New Roman (Serif)</option>
+                    <option value="Courier">Courier (Monospace)</option>
+                  </Select>
                 </div>
               </div>
             ) : (

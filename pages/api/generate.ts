@@ -9,6 +9,7 @@ interface Position {
   fontSize?: number;
   x: number;
   y: number;
+  font?: 'Times' | 'Courier' | 'Helvetica';
 }
 
 interface Entry {
@@ -73,28 +74,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Use color from entry or default to black
           const color = entryValue.color ? rgb(...entryValue.color) : rgb(0, 0, 0);
 
-          // Select font based on entry properties
+          // Select font based on position properties or entry properties
           let font = helveticaFont; // Default font
-          if (entryValue.font) {
-            switch (entryValue.font) {
-              case 'Times':
-                font = entryValue.bold
-                  ? (entryValue.oblique ? timesBoldObliqueFont : timesBoldFont)
-                  : (entryValue.oblique ? timesObliqueFont : timesFont);
-                break;
-              case 'Courier':
-                font = entryValue.bold
-                  ? (entryValue.oblique ? courierBoldObliqueFont : courierBoldFont)
-                  : (entryValue.oblique ? courierObliqueFont : courierFont);
-                break;
-              case 'Helvetica':
-                font = entryValue.bold
-                  ? (entryValue.oblique ? helveticaBoldObliqueFont : helveticaBoldFont)
-                  : (entryValue.oblique ? helveticaObliqueFont : helveticaFont);
-                break;
-              default:
-                console.warn(`Unknown font: ${entryValue.font}. Defaulting to Helvetica.`);
-            }
+          const fontToUse = position.font || entryValue.font || 'Helvetica';
+          
+          switch (fontToUse) {
+            case 'Times':
+              font = entryValue.bold
+                ? (entryValue.oblique ? timesBoldObliqueFont : timesBoldFont)
+                : (entryValue.oblique ? timesObliqueFont : timesFont);
+              break;
+            case 'Courier':
+              font = entryValue.bold
+                ? (entryValue.oblique ? courierBoldObliqueFont : courierBoldFont)
+                : (entryValue.oblique ? courierObliqueFont : courierFont);
+              break;
+            case 'Helvetica':
+              font = entryValue.bold
+                ? (entryValue.oblique ? helveticaBoldObliqueFont : helveticaBoldFont)
+                : (entryValue.oblique ? helveticaObliqueFont : helveticaFont);
+              break;
+            default:
+              console.warn(`Unknown font: ${fontToUse}. Defaulting to Helvetica.`);
           }
 
           // Calculate font size using container-dimension-based scaling
