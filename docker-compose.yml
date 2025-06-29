@@ -18,6 +18,29 @@ services:
       retries: 3
       start_period: 40s
 
+  # Development service with hot reload
+  cert-generator-dev:
+    build:
+      context: .
+      target: builder  # Use the builder stage for development
+    ports:
+      - "3001:3000"  # Different port to avoid conflicts
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+    volumes:
+      # Mount source code for hot reload
+      - .:/app
+      - /app/node_modules  # Prevent overwriting node_modules
+      - /app/.next         # Prevent overwriting .next build cache
+      # Persist uploaded templates and generated PDFs
+      - ./data/temp_images:/app/public/temp_images
+      - ./data/generated:/app/public/generated
+    command: npm run dev
+    restart: unless-stopped
+    profiles:
+      - dev  # Only start when using dev profile
+
 # Optional: Add a reverse proxy for production
   # nginx:
   #   image: nginx:alpine

@@ -14,15 +14,21 @@ A Next.js application for generating certificates from uploaded image templates.
 
 ## Getting Started
 
-### Option 1: Docker (Recommended for Production)
+### Option 1: Docker (Recommended)
 
+**Production Mode:**
 ```bash
-# Using Docker Compose
+# Build and run production version
 docker-compose up -d
+# Access at http://localhost:3000
+```
 
-# Or using Docker directly
-docker build -t cert-generator .
-docker run -p 3000:3000 cert-generator
+**Development Mode (with hot reload):**
+```bash
+# Build and run development version with hot reload
+docker-compose -f docker-compose.dev.yml up -d
+# Access at http://localhost:3001
+# Code changes will automatically reload
 ```
 
 ### Option 2: Local Development
@@ -82,10 +88,11 @@ The test suite includes:
 
 ## Docker Deployment
 
-The application includes production-ready Docker configuration:
+The application includes both production and development Docker configurations:
 
+**Production Deployment:**
 ```bash
-# Build and run with Docker Compose (recommended)
+# Build and run production version
 docker-compose up -d
 
 # Check status
@@ -96,6 +103,18 @@ docker-compose logs -f cert-generator
 
 # Stop the application
 docker-compose down
+```
+
+**Development with Hot Reload:**
+```bash
+# Start development server with hot reload
+docker-compose -f docker-compose.dev.yml up -d
+
+# View development logs
+docker-compose -f docker-compose.dev.yml logs -f cert-generator-dev
+
+# Stop development server
+docker-compose -f docker-compose.dev.yml down
 ```
 
 ### Docker Features:
