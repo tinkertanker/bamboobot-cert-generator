@@ -14,6 +14,7 @@ interface TableData {
 interface Position {
   x: number;
   y: number;
+  fontSize?: number;
 }
 
 interface Positions {
@@ -27,13 +28,13 @@ export default function MainPage() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false); // Add loading state
-  const [fields, setFields] = useState<string>(""); // New state for fields
   const [tableData, setTableData] = useState<TableData[]>([]); // Explicitly define the type for table data
   const [isFirstRowHeader, setIsFirstRowHeader] = useState<boolean>(false); // New state for header toggle
   const [tableInput, setTableInput] = useState<string>(""); // New state for table input
   const [positions, setPositions] = useState<Positions>({}); // Add new state for positions
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
+  const [selectedField, setSelectedField] = useState<string | null>(null);
   
   // Pointer events state for dragging
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -125,7 +126,7 @@ export default function MainPage() {
         
         Object.keys(tableData[0]).forEach((key, index) => {
           if (!newPositions[key]) {
-            newPositions[key] = { x: 50, y: 50 + index * 10 };
+            newPositions[key] = { x: 50, y: 50 + index * 10, fontSize: 24 };
             hasNewPositions = true;
           }
         });
@@ -193,9 +194,6 @@ export default function MainPage() {
 
   // Event handlers for form elements
 
-  const handleFieldsChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    setFields(event.target.value); // New handler for fields
-  };
 
   const processTableData = (input: string, useHeaderRow: boolean = isFirstRowHeader) => {
     const rows = input.trim().split("\n").map(row => row.split("\t"));
@@ -267,7 +265,7 @@ export default function MainPage() {
               {
                 x: pos.x / 100, // Convert percentage to 0-1 range
                 y: pos.y / 100, // Convert percentage to 0-1 range (no inversion)
-                fontSize: 24 // Default size for certificate text
+                fontSize: pos.fontSize || 24 // Use custom fontSize or default to 24
               }
             ])
           )
@@ -309,6 +307,9 @@ export default function MainPage() {
   // Pointer event handlers for precise dragging
   const handlePointerDown = useCallback((event: React.PointerEvent, key: string) => {
     event.preventDefault();
+    
+    // Select the field for formatting
+    setSelectedField(key);
     
     const element = event.currentTarget as HTMLElement;
     const rect = element.getBoundingClientRect();
@@ -363,11 +364,13 @@ export default function MainPage() {
                   <div className="absolute inset-0">
                     {tableData.length > 0 && Object.entries(tableData[0]).map(([key, value], index) => {
                     const isCurrentlyDragging = isDragging && dragInfo?.key === key;
+                    const isSelected = selectedField === key;
+                    const fontSize = positions[key]?.fontSize || 24;
                     const style = {
                       left: `${positions[key]?.x ?? 50}%`,
                       top: `${positions[key]?.y ?? (50 + index * 10)}%`,
                       transform: 'translate(-50%, -50%)',
-                      fontSize: '24px',
+                      fontSize: `${fontSize}px`,
                       fontWeight: '500',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
@@ -377,8 +380,8 @@ export default function MainPage() {
                       pointerEvents: 'auto' as const,
                       userSelect: 'none' as const,
                       touchAction: 'none',
-                      backgroundColor: isCurrentlyDragging ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                      border: isCurrentlyDragging ? '2px solid rgb(59, 130, 246)' : '2px solid transparent',
+                      backgroundColor: isCurrentlyDragging ? 'rgba(59, 130, 246, 0.1)' : isSelected ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
+                      border: isCurrentlyDragging ? '2px solid rgb(59, 130, 246)' : isSelected ? '2px solid rgb(34, 197, 94)' : '2px solid transparent',
                       borderRadius: '4px',
                       padding: '2px 4px',
                       cursor: isCurrentlyDragging ? 'grabbing' : 'grab',
@@ -509,12 +512,70 @@ export default function MainPage() {
           </div>
           <div>
             <h2 className="text-lg font-medium mb-4">Formatting</h2>
-            <Textarea
-              value={fields} // New state for fields
-              onChange={handleFieldsChange} // New handler for fields
-              placeholder="Enter fields, one per line"
-              className="w-full h-32 resize-none mb-4" // Adjust height and margin
-            />
+            {selectedField ? (
+              <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium text-sm">Field: {selectedField}</h3>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setSelectedField(null)}
+                  >
+                    ✕
+                  </Button>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Font Size</label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="range"
+                      min="8"
+                      max="72"
+                      value={positions[selectedField]?.fontSize || 24}
+                      onChange={(e) => {
+                        const newFontSize = parseInt(e.target.value);
+                        setPositions(prev => ({
+                          ...prev,
+                          [selectedField]: {
+                            ...prev[selectedField],
+                            fontSize: newFontSize
+                          }
+                        }));
+                      }}
+                      className="flex-1"
+                    />
+                    <input
+                      type="number"
+                      min="8"
+                      max="72"
+                      value={positions[selectedField]?.fontSize || 24}
+                      onChange={(e) => {
+                        const newFontSize = parseInt(e.target.value) || 24;
+                        setPositions(prev => ({
+                          ...prev,
+                          [selectedField]: {
+                            ...prev[selectedField],
+                            fontSize: newFontSize
+                          }
+                        }));
+                      }}
+                      className="w-16 px-2 py-1 border rounded text-sm"
+                    />
+                    <span className="text-sm text-gray-500">px</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
+                <div className="mb-2">📝</div>
+                <p className="text-sm font-medium">Click on a text field above to format it</p>
+                <p className="text-xs mt-1 text-gray-400">You can adjust font size, style, and more</p>
+                {tableData.length > 0 && (
+                  <p className="text-xs mt-2 text-blue-600">💡 Tip: Text fields have a green border when selected</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </main>
