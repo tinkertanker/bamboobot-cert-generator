@@ -71,40 +71,62 @@ npm test -- __tests__/components/Button.test.tsx
 
 1. **File Storage**: Currently uses `public/` directory for file storage (not scalable for production)
 2. **No Authentication**: The app is currently open access
-3. **Text Formatting**: Supports Helvetica, Times, and Courier fonts with bold/italic options
+3. **Text Formatting**: 
+   - Backend supports Helvetica, Times, and Courier fonts with bold/italic variants
+   - **Frontend lacks UI controls** for font formatting (users cannot change fonts/sizes)
+   - Font formatting is currently hardcoded to Helvetica 24px in the UI
 4. **Coordinate System**: PDF uses bottom-left origin (0,0), while UI uses top-left origin - conversion happens in the API
+5. **Drag System**: Uses pointer events for precise positioning with visual feedback and touch support
 
 ## Current Features Status
 
 ### ✅ Completed
 - Image upload (PNG/JPEG) with PDF conversion
 - Drag-and-drop file upload support with visual feedback
-- Visual drag-and-drop text placement
-- Bulk data input with table interface
-- PDF generation and merging
-- Font formatting (Helvetica, Times, Courier with bold/italic)
-- Download functionality
-- Automatic text positioning for all table columns
-- Fixed coordinate system conversion between UI and PDF
+- **Precision drag-and-drop text placement** with pointer events system
+  - Eliminates ghost/shadow images during dragging
+  - Precise positioning with offset tracking from element center
+  - Visual feedback with blue border during drag operations
+  - Touch device compatibility and smooth global event handling
+- Bulk data input with table interface (TSV/CSV with header toggle)
+- **Advanced PDF generation and coordinate system**
+  - Container-dimension-based font scaling for accurate UI-to-PDF matching
+  - Proper coordinate conversion (UI top-left to PDF bottom-left origin)
+  - Text centering and positioning that matches UI preview exactly
+- Font formatting backend support (Helvetica, Times, Courier with bold/italic variants)
+- PDF download functionality with proper URL handling
+- Automatic text field positioning for all table columns
 
 ### 🚧 Planned Features (Priority Order)
 
-**Phase 1 - Core Missing Features**
+**Phase 1 - Critical UI Missing Features**
+- **Frontend font formatting controls** (IMMEDIATE PRIORITY)
+  - Font size adjustment controls for each text field
+  - Font family selection (Helvetica, Times, Courier)
+  - Bold/italic toggle buttons
+  - Text color picker
+  - Font weight and style preview in UI
+- **Enhanced text field management**
+  - Individual field formatting persistence
+  - Text alignment options (left, center, right)
+  - Field deletion and reordering capabilities
+
+**Phase 2 - Core Missing Features**
 - Docker configuration (Dockerfile, docker-compose.yml)
 - Email functionality (SMTP, bulk sending, templates)
 - Individual PDF generation with ZIP download option
 
-**Phase 2 - Enhanced Functionality**
+**Phase 3 - Enhanced Functionality**
 - PDF template support (currently only images)
-- Enhanced text formatting (font size, alignment, color)
 - Template management system (save/load/share)
+- Advanced text formatting (text effects, shadows, outlines)
 
-**Phase 3 - Platform Features**
+**Phase 4 - Platform Features**
 - Authentication & user management (NextAuth.js)
 - UI/UX improvements (mobile responsive, undo/redo)
 - API development for external integrations
 
-**Phase 4 - Advanced Features**
+**Phase 5 - Advanced Features**
 - QR code generation for verification
 - Performance optimization (caching, CDN)
 - Webhook notifications
