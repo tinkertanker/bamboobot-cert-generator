@@ -18,6 +18,11 @@ interface Entry {
     font?: 'Times' | 'Courier' | 'Helvetica';
     bold?: boolean;
     oblique?: boolean;
+    uiMeasurements?: {
+      width: number;
+      height: number;
+      actualHeight: number;
+    };
   };
 }
 
@@ -27,7 +32,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { templateFilename, data, positions }: { templateFilename: string; data: Entry[]; positions: Record<string, Position> } = req.body;
+    const { templateFilename, data, positions, uiContainerDimensions }: { 
+      templateFilename: string; 
+      data: Entry[]; 
+      positions: Record<string, Position>;
+      uiContainerDimensions?: { width: number; height: number };
+    } = req.body;
     const templatePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename); // Standardized path
 
     const templatePdfBytes = await fsPromises.readFile(templatePath);
@@ -58,10 +68,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       for (const [key, position] of Object.entries(positions)) {
         const entryValue = entry[key];
         if (entryValue) {
-          // Scale font size based on page width (adjusted to match UI size)
-          const scaleFactor = Math.max(0.7, width / 800) * 1.26; // Starting point + slight increase
-          const baseFontSize = position.fontSize || 24;
-          const adjustedFontSize = baseFontSize * scaleFactor * FONT_SIZE_MULTIPLIER;
           const x = position.x * width;
 
           // Use color from entry or default to black
@@ -91,13 +97,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }
           }
 
+          // Calculate font size using container-dimension-based scaling
+          let adjustedFontSize: number;
+          if (uiContainerDimensions) {
+            // Scale based on actual UI container vs PDF template size ratio
+            const scaleFactor = width / uiContainerDimensions.width;
+            const baseFontSize = position.fontSize || 24;
+            adjustedFontSize = baseFontSize * scaleFactor * FONT_SIZE_MULTIPLIER;
+          } else if (entryValue.uiMeasurements) {
+            // Fallback to measurement-based scaling
+            const targetPdfWidth = entryValue.uiMeasurements.width;
+            const baseFontSize = position.fontSize || 24;
+            const testWidth = font.widthOfTextAtSize(entryValue.text, baseFontSize);
+            const scaleToMatchWidth = targetPdfWidth / testWidth;
+            adjustedFontSize = baseFontSize * scaleToMatchWidth;
+          } else {
+            // Final fallback to old scaling method
+            const scaleFactor = Math.max(0.7, width / 800) * 1.19;
+            const baseFontSize = position.fontSize || 24;
+            adjustedFontSize = baseFontSize * scaleFactor * FONT_SIZE_MULTIPLIER;
+          }
+
           // Calculate text dimensions for centering
           const textWidth = font.widthOfTextAtSize(entryValue.text, adjustedFontSize);
           
           // Center the text like in the UI (translate(-50%, -50%))
           const centeredX = x - (textWidth / 2);
           // For Y centering, use a smaller adjustment to sit better on lines
-          const centeredY = height * (1 - position.y) - (adjustedFontSize * 0.32);
+          const centeredY = height * (1 - position.y) - (adjustedFontSize * 0.36);
 
           console.log(`Drawing text: ${entryValue.text}, x: ${centeredX}, y: ${centeredY}, size: ${adjustedFontSize}, color: ${color}, font: ${font}`);
           page.drawText(entryValue.text, {

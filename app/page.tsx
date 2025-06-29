@@ -36,6 +36,19 @@ export default function MainPage() {
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
 
+  // Text measurement utility for consistent sizing
+  const measureText = useCallback((text: string, fontSize: number, fontWeight: string = '500', fontFamily: string = 'system-ui, sans-serif') => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    const metrics = ctx.measureText(text);
+    return {
+      width: metrics.width,
+      height: fontSize, // Approximate height - could use actualBoundingBoxAscent + actualBoundingBoxDescent for precision
+      actualHeight: (metrics.actualBoundingBoxAscent || fontSize * 0.8) + (metrics.actualBoundingBoxDescent || fontSize * 0.2)
+    };
+  }, []);
+
   // Ensure all table columns have positions
   useEffect(() => {
     if (tableData.length > 0) {
@@ -154,6 +167,13 @@ export default function MainPage() {
   const generatePdf = async () => {
     setIsGenerating(true);
     try {
+      // Measure actual container dimensions
+      const containerElement = document.querySelector('.image-container img') as HTMLImageElement;
+      const containerDimensions = containerElement ? {
+        width: containerElement.offsetWidth,
+        height: containerElement.offsetHeight
+      } : { width: 600, height: 400 }; // Fallback dimensions
+
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
@@ -161,10 +181,16 @@ export default function MainPage() {
         },
         body: JSON.stringify({
           templateFilename: uploadedFile,
+          uiContainerDimensions: containerDimensions,
           data: tableData.map(row => {
-            const entry: { [key: string]: { text: string } } = {};
+            const entry: { [key: string]: { text: string; uiMeasurements?: { width: number; height: number; actualHeight: number } } } = {};
             Object.keys(row).forEach(key => {
-              entry[key] = { text: row[key] };
+              const fontSize = 24; // Current UI font size
+              const measurements = measureText(row[key], fontSize, '500');
+              entry[key] = { 
+                text: row[key],
+                uiMeasurements: measurements
+              };
             });
             return entry;
           }),
@@ -270,7 +296,7 @@ export default function MainPage() {
                       top: `${positions[key]?.y ?? (50 + index * 10)}%`,
                       transform: 'translate(-50%, -50%)',
                       fontSize: '24px',
-                      fontWeight: 'normal',
+                      fontWeight: '500',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
