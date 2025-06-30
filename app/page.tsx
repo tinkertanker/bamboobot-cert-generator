@@ -368,8 +368,11 @@ export default function MainPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      <header className="bg-primary text-primary-foreground py-4 px-6">
-        <h1 className="text-2xl font-bold">Bamboobot</h1>
+      <header className="py-4 px-6" style={{
+        background: 'linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)',
+        boxShadow: '0 2px 4px rgba(27, 67, 50, 0.1)'
+      }}>
+        <h1 className="text-2xl font-bold" style={{color: '#F4A261'}}>Bamboobot</h1>
       </header>
       <main className="flex-1 grid grid-cols-[60%_40%] gap-6 p-6">
         <div className="bg-card p-4 rounded-lg shadow">
@@ -417,8 +420,8 @@ export default function MainPage() {
                       pointerEvents: 'auto' as const,
                       userSelect: 'none' as const,
                       touchAction: 'none',
-                      backgroundColor: isCurrentlyDragging ? 'rgba(59, 130, 246, 0.1)' : isSelected ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
-                      border: isCurrentlyDragging ? '2px solid rgb(59, 130, 246)' : isSelected ? '2px solid rgb(34, 197, 94)' : '2px solid transparent',
+                      backgroundColor: isCurrentlyDragging ? 'rgba(231, 111, 81, 0.15)' : isSelected ? 'rgba(45, 106, 79, 0.15)' : 'transparent',
+                      border: isCurrentlyDragging ? '2px solid #E76F51' : isSelected ? '2px solid #2D6A4F' : '2px solid transparent',
                       borderRadius: '4px',
                       padding: '2px 4px',
                       cursor: isCurrentlyDragging ? 'grabbing' : 'grab',
@@ -448,6 +451,18 @@ export default function MainPage() {
                       // Clear any active drag state
                       setIsDragging(false);
                       setDragInfo(null);
+                    }}
+                    className="text-white"
+                    style={{
+                      background: 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)',
+                      borderColor: '#E76F51',
+                      boxShadow: '0 2px 4px rgba(231, 111, 81, 0.2)'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #D65A3A 0%, #E76F51 100%)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)';
                     }}>
                     Clear
                   </Button>
@@ -455,11 +470,15 @@ export default function MainPage() {
               </>
             ) : (
               <div 
-                className={`flex items-center justify-center h-64 text-muted-foreground rounded-lg border-2 border-dashed transition-colors ${
+                className={`flex items-center justify-center h-64 rounded-lg border-2 border-dashed transition-colors ${
                   isDraggingFile 
-                    ? 'border-primary bg-primary/10 text-primary' 
-                    : 'border-muted-foreground/25 bg-muted'
+                    ? 'text-white' 
+                    : 'text-gray-600 bg-gray-50'
                 }`}
+                style={{
+                  borderColor: isDraggingFile ? '#2D6A4F' : '#D1D5DB',
+                  backgroundColor: isDraggingFile ? 'rgba(45, 106, 79, 0.1)' : '#F9FAFB'
+                }}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleFileDrop}
@@ -493,7 +512,7 @@ export default function MainPage() {
               onClick={() => setActiveTab('data')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
               style={{
-                backgroundColor: activeTab === 'data' ? '#2563eb' : '#ffffff',
+                backgroundColor: activeTab === 'data' ? '#2D6A4F' : '#ffffff',
                 color: activeTab === 'data' ? '#ffffff' : '#374151'
               }}
             >
@@ -503,7 +522,7 @@ export default function MainPage() {
               onClick={() => setActiveTab('formatting')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
               style={{
-                backgroundColor: activeTab === 'formatting' ? '#2563eb' : '#ffffff',
+                backgroundColor: activeTab === 'formatting' ? '#2D6A4F' : '#ffffff',
                 color: activeTab === 'formatting' ? '#ffffff' : '#374151'
               }}
             >
@@ -511,9 +530,12 @@ export default function MainPage() {
               {selectedField && (
                 <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
                   activeTab === 'formatting' 
-                    ? 'bg-white text-blue-600' 
-                    : 'bg-green-100 text-green-800'
-                }`}>
+                    ? 'text-amber-600' 
+                    : 'text-green-800'
+                }`}
+                style={{
+                  backgroundColor: activeTab === 'formatting' ? '#F4A261' : '#D1FAE5'
+                }}>
                   {selectedField}
                 </span>
               )}
@@ -687,6 +709,11 @@ export default function MainPage() {
                           }));
                         }}
                         className="flex-1 h-8"
+                        style={{
+                          backgroundColor: positions[selectedField]?.bold ? '#2D6A4F' : 'transparent',
+                          borderColor: '#2D6A4F',
+                          color: positions[selectedField]?.bold ? 'white' : '#2D6A4F'
+                        }}
                       >
                         <strong>B</strong>
                       </Button>
@@ -703,6 +730,11 @@ export default function MainPage() {
                           }));
                         }}
                         className="flex-1 h-8"
+                        style={{
+                          backgroundColor: positions[selectedField]?.italic ? '#2D6A4F' : 'transparent',
+                          borderColor: '#2D6A4F',
+                          color: positions[selectedField]?.italic ? 'white' : '#2D6A4F'
+                        }}
                       >
                         <em>I</em>
                       </Button>
@@ -761,7 +793,19 @@ export default function MainPage() {
                         }
                       }}
                       title="Apply this field's formatting to all fields"
-                      className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors duration-200 shadow hover:shadow-md"
+                      className="w-full px-4 py-2 text-sm font-medium text-white rounded-md transition-all duration-200 shadow hover:shadow-md"
+                      style={{
+                        background: 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)',
+                        boxShadow: '0 2px 4px rgba(45, 106, 79, 0.2)'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.background = 'linear-gradient(135deg, #40916C 0%, #52B788 100%)';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.background = 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                      }}
                     >
                       Apply Formatting to All Fields
                     </button>
@@ -769,7 +813,12 @@ export default function MainPage() {
                   
                   {/* Success message */}
                   {showAppliedMessage && (
-                    <div className="bg-green-100 border border-green-400 text-green-700 px-3 py-2 rounded text-sm text-center">
+                    <div className="px-3 py-2 rounded text-sm text-center border"
+                         style={{
+                           backgroundColor: '#D1FAE5',
+                           borderColor: '#52B788',
+                           color: '#1B4332'
+                         }}>
                       ✓ Formatting applied to all fields
                     </div>
                   )}
@@ -788,11 +837,34 @@ export default function MainPage() {
           )}
         </div>
       </main>
-      <footer className="bg-primary text-primary-foreground py-4 px-6 fixed bottom-0 left-0 right-0">
+      <footer className="py-4 px-6 fixed bottom-0 left-0 right-0" style={{
+        background: 'linear-gradient(45deg, #1B4332 0%, #2D6A4F 100%)',
+        boxShadow: '0 -2px 4px rgba(27, 67, 50, 0.1)'
+      }}>
         <div className="flex justify-end space-x-4">
           <Button
             onClick={generatePdf}
-            disabled={!uploadedFile || isGenerating}>
+            disabled={!uploadedFile || isGenerating}
+            className="text-white font-semibold px-6"
+            style={{
+              background: !uploadedFile || isGenerating 
+                ? 'linear-gradient(135deg, #6B7280 0%, #9CA3AF 100%)' 
+                : 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)',
+              borderColor: '#E76F51',
+              boxShadow: !uploadedFile || isGenerating 
+                ? '0 2px 4px rgba(107, 114, 128, 0.2)'
+                : '0 2px 4px rgba(231, 111, 81, 0.2)'
+            }}
+            onMouseOver={(e) => {
+              if (!(!uploadedFile || isGenerating)) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #D65A3A 0%, #E76F51 100%)';
+              }
+            }}
+            onMouseOut={(e) => {
+              if (!(!uploadedFile || isGenerating)) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)';
+              }
+            }}>
             {isGenerating ? "Generating..." : "Generate PDF"}
           </Button>
         </div>
@@ -818,10 +890,35 @@ export default function MainPage() {
                   />
                 </div>
                 <div className="flex justify-end space-x-4">
-                  <Button onClick={handleDownloadPdf}>
+                  <Button 
+                    onClick={handleDownloadPdf}
+                    className="text-white"
+                    style={{
+                      background: 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)',
+                      borderColor: '#2D6A4F',
+                      boxShadow: '0 2px 4px rgba(45, 106, 79, 0.2)'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #40916C 0%, #52B788 100%)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)';
+                    }}>
                     Download PDF
                   </Button>
-                  <Button onClick={() => setGeneratedPdfUrl(null)}>Close</Button>
+                  <Button 
+                    onClick={() => setGeneratedPdfUrl(null)}
+                    variant="outline"
+                    style={{
+                      borderColor: '#6B7280',
+                      color: '#6B7280'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#F3F4F6';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}>Close</Button>
                 </div>
               </>
             ) : null}
