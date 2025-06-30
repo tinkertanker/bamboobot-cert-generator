@@ -591,47 +591,13 @@ export default function MainPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 bg-white rounded border relative">
                     <h3 className="font-medium text-sm">Field: {selectedField}</h3>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="default" 
-                        size="sm"
-                        onClick={() => {
-                          // Apply current field's formatting to all fields
-                          const currentFormatting = positions[selectedField];
-                          if (currentFormatting && tableData.length > 0) {
-                            const updatedPositions = { ...positions };
-                            Object.keys(tableData[0]).forEach(key => {
-                              if (updatedPositions[key]) {
-                                updatedPositions[key] = {
-                                  ...updatedPositions[key],
-                                  fontSize: currentFormatting.fontSize,
-                                  fontFamily: currentFormatting.fontFamily,
-                                  bold: currentFormatting.bold,
-                                  italic: currentFormatting.italic,
-                                  color: currentFormatting.color
-                                };
-                              }
-                            });
-                            setPositions(updatedPositions);
-                            
-                            // Show success message
-                            setShowAppliedMessage(true);
-                            setTimeout(() => setShowAppliedMessage(false), 2000);
-                          }
-                        }}
-                        title="Apply this field's formatting to all fields"
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        Apply to All
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setSelectedField(null)}
-                      >
-                        ✕
-                      </Button>
-                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setSelectedField(null)}
+                    >
+                      ✕
+                    </Button>
                   </div>
                   
                   {/* Compact Font Size + Family Row */}
@@ -765,6 +731,40 @@ export default function MainPage() {
                         {positions[selectedField]?.color || '#000000'}
                       </span>
                     </div>
+                  </div>
+                  
+                  {/* Apply to All Button - More prominent placement */}
+                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <button
+                      onClick={() => {
+                        // Apply current field's formatting to all fields
+                        const currentFormatting = positions[selectedField];
+                        if (currentFormatting && tableData.length > 0) {
+                          const updatedPositions = { ...positions };
+                          Object.keys(tableData[0]).forEach(key => {
+                            if (updatedPositions[key]) {
+                              updatedPositions[key] = {
+                                ...updatedPositions[key],
+                                fontSize: currentFormatting.fontSize,
+                                fontFamily: currentFormatting.fontFamily,
+                                bold: currentFormatting.bold,
+                                italic: currentFormatting.italic,
+                                color: currentFormatting.color
+                              };
+                            }
+                          });
+                          setPositions(updatedPositions);
+                          
+                          // Show success message
+                          setShowAppliedMessage(true);
+                          setTimeout(() => setShowAppliedMessage(false), 2000);
+                        }
+                      }}
+                      title="Apply this field's formatting to all fields"
+                      className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors duration-200 shadow hover:shadow-md"
+                    >
+                      Apply Formatting to All Fields
+                    </button>
                   </div>
                   
                   {/* Success message */}
