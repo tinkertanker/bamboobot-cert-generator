@@ -119,7 +119,7 @@ export default function MainPage() {
         setDragInfo(null);
       }
     };
-  }, []);
+  }, [isDragging]);
 
   // Ensure all table columns have positions
   useEffect(() => {
