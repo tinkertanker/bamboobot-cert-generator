@@ -39,6 +39,7 @@ export default function MainPage() {
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [selectedField, setSelectedField] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'data' | 'formatting'>('data');
   
   // Pointer events state for dragging
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -315,8 +316,9 @@ export default function MainPage() {
   const handlePointerDown = useCallback((event: React.PointerEvent, key: string) => {
     event.preventDefault();
     
-    // Select the field for formatting
+    // Select the field for formatting and switch to formatting tab
     setSelectedField(key);
+    setActiveTab('formatting');
     
     const element = event.currentTarget as HTMLElement;
     const rect = element.getBoundingClientRect();
@@ -355,7 +357,7 @@ export default function MainPage() {
       <header className="bg-primary text-primary-foreground py-4 px-6">
         <h1 className="text-2xl font-bold">Cert Generator Again</h1>
       </header>
-      <main className="flex-1 grid grid-cols-2 gap-6 p-6">
+      <main className="flex-1 grid grid-cols-[60%_40%] gap-6 p-6">
         <div className="bg-card p-4 rounded-lg shadow">
           <h2 className="text-lg font-medium mb-4">Design</h2>
           <div className="relative w-full image-container"> {/* Add image-container class */}
@@ -470,84 +472,170 @@ export default function MainPage() {
           </div>
         </div>
         <div className="bg-card p-4 rounded-lg shadow">
-          <div>
-            <h2 className="text-lg font-medium mb-4">Data</h2>
-            <div className="flex items-center mb-4">
-              <input
-                type="checkbox"
-                id="header-toggle"
-                checked={isFirstRowHeader}
-                onChange={handleHeaderToggle} // Updated handler for checkbox
-                className="mr-2"
-              />
-              <label htmlFor="header-toggle">Treat first row as header</label>
-            </div>
-            <Textarea
-              value={tableInput}
-              onChange={handleTableDataChange} // Updated handler for table data
-              placeholder="Paste tabular data here"
-              className="w-full h-32 resize-none"
-            />
-            {tableData.length > 0 && (
-              <div className="mt-4">
-                <table {...getTableProps()} className="min-w-full bg-white">
-                  <thead>
-                    {headerGroups.map((headerGroup: HeaderGroup<TableData>) => (
-                      <tr
-                        {...headerGroup.getHeaderGroupProps()}
-                        key={headerGroup.id}>
-                        {headerGroup.headers.map(
-                          (column: ColumnInstance<TableData>) => (
-                            <th
-                              {...column.getHeaderProps()}
-                              className="px-4 py-2 border"
-                              key={column.id}>
-                              {column.render("Header")}
-                            </th>
-                          )
-                        )}
-                      </tr>
-                    ))}
-                  </thead>
-                  <tbody {...getTableBodyProps()}>
-                    {rows.map((row: Row<TableData>) => {
-                      prepareRow(row);
-                      return (
-                        <tr {...row.getRowProps()} key={row.getRowProps().key}>
-                          {row.cells.map((cell: Cell<TableData>) => (
-                            <td
-                              {...cell.getCellProps()}
-                              className="px-4 py-2 border"
-                              key={cell.getCellProps().key}>
-                              {cell.render("Cell")}
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          {/* Tab Navigation */}
+          <div className="flex mb-4 bg-gray-100 rounded-lg p-1 gap-1">
+            <button
+              onClick={() => setActiveTab('data')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
+              style={{
+                backgroundColor: activeTab === 'data' ? '#2563eb' : '#ffffff',
+                color: activeTab === 'data' ? '#ffffff' : '#374151'
+              }}
+            >
+              Data
+            </button>
+            <button
+              onClick={() => setActiveTab('formatting')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
+              style={{
+                backgroundColor: activeTab === 'formatting' ? '#2563eb' : '#ffffff',
+                color: activeTab === 'formatting' ? '#ffffff' : '#374151'
+              }}
+            >
+              Formatting
+              {selectedField && (
+                <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
+                  activeTab === 'formatting' 
+                    ? 'bg-white text-blue-600' 
+                    : 'bg-green-100 text-green-800'
+                }`}>
+                  {selectedField}
+                </span>
+              )}
+            </button>
           </div>
-          <div>
-            <h2 className="text-lg font-medium mb-4">Formatting</h2>
-            {selectedField ? (
-              <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium text-sm">Field: {selectedField}</h3>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setSelectedField(null)}
-                  >
-                    ✕
-                  </Button>
+
+          {/* Tab Content */}
+          {activeTab === 'data' && (
+            <div>
+              <div className="flex items-center mb-4">
+                <input
+                  type="checkbox"
+                  id="header-toggle"
+                  checked={isFirstRowHeader}
+                  onChange={handleHeaderToggle}
+                  className="mr-2"
+                />
+                <label htmlFor="header-toggle" className="text-sm">
+                  Treat first row as header
+                </label>
+              </div>
+              <Textarea
+                value={tableInput}
+                onChange={handleTableDataChange}
+                placeholder="Paste tabular data here"
+                className="w-full h-32 resize-none"
+              />
+              {tableData.length > 0 && (
+                <div className="mt-4">
+                  <table {...getTableProps()} className="min-w-full bg-white">
+                    <thead>
+                      {headerGroups.map((headerGroup: HeaderGroup<TableData>) => (
+                        <tr
+                          {...headerGroup.getHeaderGroupProps()}
+                          key={headerGroup.id}>
+                          {headerGroup.headers.map(
+                            (column: ColumnInstance<TableData>) => (
+                              <th
+                                {...column.getHeaderProps()}
+                                className="px-4 py-2 border"
+                                key={column.id}>
+                                {column.render("Header")}
+                              </th>
+                            )
+                          )}
+                        </tr>
+                      ))}
+                    </thead>
+                    <tbody {...getTableBodyProps()}>
+                      {rows.map((row: Row<TableData>) => {
+                        prepareRow(row);
+                        return (
+                          <tr {...row.getRowProps()} key={row.getRowProps().key}>
+                            {row.cells.map((cell: Cell<TableData>) => (
+                              <td
+                                {...cell.getCellProps()}
+                                className="px-4 py-2 border"
+                                key={cell.getCellProps().key}>
+                                {cell.render("Cell")}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Font Size</label>
-                  <div className="flex items-center space-x-2">
+              )}
+            </div>
+          )}
+
+          {activeTab === 'formatting' && (
+            <div>
+              {selectedField ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-white rounded border">
+                    <h3 className="font-medium text-sm">Field: {selectedField}</h3>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setSelectedField(null)}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                  
+                  {/* Compact Font Size + Family Row */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Font Size</label>
+                      <div className="flex items-center space-x-1">
+                        <input
+                          type="number"
+                          min="8"
+                          max="72"
+                          value={positions[selectedField]?.fontSize || 24}
+                          onChange={(e) => {
+                            const newFontSize = parseInt(e.target.value) || 24;
+                            setPositions(prev => ({
+                              ...prev,
+                              [selectedField]: {
+                                ...prev[selectedField],
+                                fontSize: newFontSize
+                              }
+                            }));
+                          }}
+                          className="w-12 px-1 py-1 border rounded text-xs"
+                        />
+                        <span className="text-xs text-gray-500">px</span>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Font Family</label>
+                      <Select
+                        value={positions[selectedField]?.fontFamily || 'Helvetica'}
+                        onChange={(e) => {
+                          const newFontFamily = e.target.value as 'Helvetica' | 'Times' | 'Courier';
+                          setPositions(prev => ({
+                            ...prev,
+                            [selectedField]: {
+                              ...prev[selectedField],
+                              fontFamily: newFontFamily
+                            }
+                          }));
+                        }}
+                        className="text-xs"
+                      >
+                        <option value="Helvetica">Helvetica</option>
+                        <option value="Times">Times</option>
+                        <option value="Courier">Courier</option>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  {/* Font Size Slider */}
+                  <div>
                     <input
                       type="range"
                       min="8"
@@ -563,99 +651,61 @@ export default function MainPage() {
                           }
                         }));
                       }}
-                      className="flex-1"
+                      className="w-full"
                     />
-                    <input
-                      type="number"
-                      min="8"
-                      max="72"
-                      value={positions[selectedField]?.fontSize || 24}
-                      onChange={(e) => {
-                        const newFontSize = parseInt(e.target.value) || 24;
-                        setPositions(prev => ({
-                          ...prev,
-                          [selectedField]: {
-                            ...prev[selectedField],
-                            fontSize: newFontSize
-                          }
-                        }));
-                      }}
-                      className="w-16 px-2 py-1 border rounded text-sm"
-                    />
-                    <span className="text-sm text-gray-500">px</span>
+                  </div>
+                  
+                  {/* Font Style Buttons */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-2 block">Font Style</label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={positions[selectedField]?.bold ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setPositions(prev => ({
+                            ...prev,
+                            [selectedField]: {
+                              ...prev[selectedField],
+                              bold: !prev[selectedField]?.bold
+                            }
+                          }));
+                        }}
+                        className="flex-1 h-8"
+                      >
+                        <strong>B</strong>
+                      </Button>
+                      <Button
+                        variant={positions[selectedField]?.italic ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setPositions(prev => ({
+                            ...prev,
+                            [selectedField]: {
+                              ...prev[selectedField],
+                              italic: !prev[selectedField]?.italic
+                            }
+                          }));
+                        }}
+                        className="flex-1 h-8"
+                      >
+                        <em>I</em>
+                      </Button>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Font Family</label>
-                  <Select
-                    value={positions[selectedField]?.fontFamily || 'Helvetica'}
-                    onChange={(e) => {
-                      const newFontFamily = e.target.value as 'Helvetica' | 'Times' | 'Courier';
-                      setPositions(prev => ({
-                        ...prev,
-                        [selectedField]: {
-                          ...prev[selectedField],
-                          fontFamily: newFontFamily
-                        }
-                      }));
-                    }}
-                  >
-                    <option value="Helvetica">Helvetica (Sans-serif)</option>
-                    <option value="Times">Times New Roman (Serif)</option>
-                    <option value="Courier">Courier (Monospace)</option>
-                  </Select>
+              ) : (
+                <div className="p-6 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
+                  <div className="mb-3">📝</div>
+                  <p className="text-sm font-medium mb-1">Select a text field to format</p>
+                  <p className="text-xs text-gray-400 mb-2">Click on any text field in the certificate preview</p>
+                  {tableData.length > 0 && (
+                    <p className="text-xs text-blue-600">💡 Selected fields have a green border</p>
+                  )}
                 </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Font Style</label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={positions[selectedField]?.bold ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        setPositions(prev => ({
-                          ...prev,
-                          [selectedField]: {
-                            ...prev[selectedField],
-                            bold: !prev[selectedField]?.bold
-                          }
-                        }));
-                      }}
-                      className="flex-1"
-                    >
-                      <strong>B</strong>
-                    </Button>
-                    <Button
-                      variant={positions[selectedField]?.italic ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        setPositions(prev => ({
-                          ...prev,
-                          [selectedField]: {
-                            ...prev[selectedField],
-                            italic: !prev[selectedField]?.italic
-                          }
-                        }));
-                      }}
-                      className="flex-1"
-                    >
-                      <em>I</em>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
-                <div className="mb-2">📝</div>
-                <p className="text-sm font-medium">Click on a text field above to format it</p>
-                <p className="text-xs mt-1 text-gray-400">You can adjust font size, style, and more</p>
-                {tableData.length > 0 && (
-                  <p className="text-xs mt-2 text-blue-600">💡 Tip: Text fields have a green border when selected</p>
-                )}
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </main>
       <footer className="bg-primary text-primary-foreground py-4 px-6 fixed bottom-0 left-0 right-0">
