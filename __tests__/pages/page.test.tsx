@@ -34,7 +34,7 @@ describe('MainPage Component', () => {
   it('renders the upload button when no file is uploaded', () => {
     render(<MainPage />);
     expect(screen.getByText(/Choose File/i)).toBeInTheDocument();
-    expect(screen.getByText(/Cert Generator Again/i)).toBeInTheDocument();
+    expect(screen.getByText(/Bamboobot/i)).toBeInTheDocument();
   });
 
   it('handles file upload', async () => {
