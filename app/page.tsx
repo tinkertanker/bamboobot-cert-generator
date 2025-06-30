@@ -42,6 +42,7 @@ export default function MainPage() {
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'data' | 'formatting'>('data');
   const [showAppliedMessage, setShowAppliedMessage] = useState<boolean>(false);
+  const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number>(0);
   
   // Pointer events state for dragging
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -124,9 +125,12 @@ export default function MainPage() {
     };
   }, [isDragging]);
 
-  // Ensure all table columns have positions
+  // Ensure all table columns have positions and reset preview index
   useEffect(() => {
     if (tableData.length > 0) {
+      // Reset preview index when table data changes
+      setCurrentPreviewIndex(0);
+      
       setPositions(prevPositions => {
         const newPositions = { ...prevPositions };
         let hasNewPositions = false;
@@ -235,6 +239,12 @@ export default function MainPage() {
       return newValue;
     });
   };
+
+  // Navigation functions
+  const goToFirst = () => setCurrentPreviewIndex(0);
+  const goToPrevious = () => setCurrentPreviewIndex(prev => Math.max(0, prev - 1));
+  const goToNext = () => setCurrentPreviewIndex(prev => Math.min(tableData.length - 1, prev + 1));
+  const goToLast = () => setCurrentPreviewIndex(tableData.length - 1);
 
   // Helper function to convert hex color to RGB array
   const hexToRgb = (hex: string): [number, number, number] => {
@@ -387,7 +397,7 @@ export default function MainPage() {
                     className="w-full h-auto block"
                   />
                   <div className="absolute inset-0">
-                    {tableData.length > 0 && Object.entries(tableData[0]).map(([key, value], index) => {
+                    {tableData.length > 0 && Object.entries(tableData[currentPreviewIndex] || tableData[0]).map(([key, value], index) => {
                     const isCurrentlyDragging = isDragging && dragInfo?.key === key;
                     const isSelected = selectedField === key;
                     const fontSize = positions[key]?.fontSize || 24;
@@ -515,43 +525,52 @@ export default function MainPage() {
                 
                 {/* Navigation buttons - right aligned */}
                 {tableData.length > 0 && (
-                  <div className="flex gap-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled
-                      className="text-gray-400 border-gray-300 px-2"
-                      title="Coming soon: First entry"
-                    >
-                      ⏮
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled
-                      className="text-gray-400 border-gray-300 px-2"
-                      title="Coming soon: Previous entry"
-                    >
-                      ◀
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled
-                      className="text-gray-400 border-gray-300 px-2"
-                      title="Coming soon: Next entry"
-                    >
-                      ▶
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled
-                      className="text-gray-400 border-gray-300 px-2"
-                      title="Coming soon: Last entry"
-                    >
-                      ⏭
-                    </Button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 font-medium">
+                      {currentPreviewIndex + 1} of {tableData.length}
+                    </span>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPreviewIndex === 0}
+                        className={currentPreviewIndex === 0 ? "text-gray-400 border-gray-300 px-2" : "text-gray-700 border-gray-400 px-2 hover:bg-gray-50"}
+                        title="First entry"
+                        onClick={goToFirst}
+                      >
+                        ⏮
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPreviewIndex === 0}
+                        className={currentPreviewIndex === 0 ? "text-gray-400 border-gray-300 px-2" : "text-gray-700 border-gray-400 px-2 hover:bg-gray-50"}
+                        title="Previous entry"
+                        onClick={goToPrevious}
+                      >
+                        ◀
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPreviewIndex === tableData.length - 1}
+                        className={currentPreviewIndex === tableData.length - 1 ? "text-gray-400 border-gray-300 px-2" : "text-gray-700 border-gray-400 px-2 hover:bg-gray-50"}
+                        title="Next entry"
+                        onClick={goToNext}
+                      >
+                        ▶
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPreviewIndex === tableData.length - 1}
+                        className={currentPreviewIndex === tableData.length - 1 ? "text-gray-400 border-gray-300 px-2" : "text-gray-700 border-gray-400 px-2 hover:bg-gray-50"}
+                        title="Last entry"
+                        onClick={goToLast}
+                      >
+                        ⏭
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
