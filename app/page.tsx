@@ -423,7 +423,15 @@ export default function MainPage() {
                     alt="Certificate Template"
                     className="w-full h-auto block"
                   />
-                  <div className="absolute inset-0">
+                  <div 
+                    className="absolute inset-0"
+                    onClick={(e) => {
+                      // Only deselect if clicking on the overlay itself, not on text fields
+                      if (e.target === e.currentTarget) {
+                        setSelectedField(null);
+                      }
+                    }}
+                  >
                     {tableData.length > 0 && Object.entries(tableData[currentPreviewIndex] || tableData[0]).map(([key, value], index) => {
                     const isCurrentlyDragging = isDragging && dragInfo?.key === key;
                     const isSelected = selectedField === key;
@@ -535,15 +543,16 @@ export default function MainPage() {
                     size="sm"
                     className="text-white"
                     style={{
-                      background: 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)',
-                      borderColor: '#2D6A4F',
-                      boxShadow: '0 1px 3px rgba(45, 106, 79, 0.2)'
+                      background: 'linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)',
+                      borderColor: '#1B4332',
+                      boxShadow: '0 1px 3px rgba(27, 67, 50, 0.2)',
+                      color: '#FFFFFF'
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #40916C 0%, #52B788 100%)';
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)';
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)';
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)';
                     }}
                   >
                     Clear Template
@@ -611,7 +620,7 @@ export default function MainPage() {
               onClick={() => setActiveTab('data')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
               style={{
-                backgroundColor: activeTab === 'data' ? '#2D6A4F' : '#ffffff',
+                backgroundColor: activeTab === 'data' ? '#2D6A4F' : '#cccccc',
                 color: activeTab === 'data' ? '#ffffff' : '#374151'
               }}
             >
@@ -621,7 +630,7 @@ export default function MainPage() {
               onClick={() => setActiveTab('formatting')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
               style={{
-                backgroundColor: activeTab === 'formatting' ? '#2D6A4F' : '#ffffff',
+                backgroundColor: activeTab === 'formatting' ? '#2D6A4F' : '#cccccc',
                 color: activeTab === 'formatting' ? '#ffffff' : '#374151'
               }}
             >
@@ -894,15 +903,16 @@ export default function MainPage() {
                       title="Apply this field's formatting to all fields"
                       className="w-full px-4 py-2 text-sm font-medium text-white rounded-md transition-all duration-200 shadow hover:shadow-md"
                       style={{
-                        background: 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)',
-                        boxShadow: '0 2px 4px rgba(45, 106, 79, 0.2)'
+                        background: 'linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)',
+                        boxShadow: '0 2px 4px rgba(27, 67, 50, 0.2)',
+                        color: '#FFFFFF'
                       }}
                       onMouseOver={(e) => {
-                        e.currentTarget.style.background = 'linear-gradient(135deg, #40916C 0%, #52B788 100%)';
+                        e.currentTarget.style.background = 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)';
                         e.currentTarget.style.transform = 'translateY(-1px)';
                       }}
                       onMouseOut={(e) => {
-                        e.currentTarget.style.background = 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)';
+                        e.currentTarget.style.background = 'linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)';
                         e.currentTarget.style.transform = 'translateY(0)';
                       }}
                     >
