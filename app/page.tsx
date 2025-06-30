@@ -41,6 +41,7 @@ export default function MainPage() {
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'data' | 'formatting'>('data');
+  const [showAppliedMessage, setShowAppliedMessage] = useState<boolean>(false);
   
   // Pointer events state for dragging
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -588,15 +589,49 @@ export default function MainPage() {
             <div>
               {selectedField ? (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-white rounded border">
+                  <div className="flex items-center justify-between p-3 bg-white rounded border relative">
                     <h3 className="font-medium text-sm">Field: {selectedField}</h3>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setSelectedField(null)}
-                    >
-                      ✕
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        onClick={() => {
+                          // Apply current field's formatting to all fields
+                          const currentFormatting = positions[selectedField];
+                          if (currentFormatting && tableData.length > 0) {
+                            const updatedPositions = { ...positions };
+                            Object.keys(tableData[0]).forEach(key => {
+                              if (updatedPositions[key]) {
+                                updatedPositions[key] = {
+                                  ...updatedPositions[key],
+                                  fontSize: currentFormatting.fontSize,
+                                  fontFamily: currentFormatting.fontFamily,
+                                  bold: currentFormatting.bold,
+                                  italic: currentFormatting.italic,
+                                  color: currentFormatting.color
+                                };
+                              }
+                            });
+                            setPositions(updatedPositions);
+                            
+                            // Show success message
+                            setShowAppliedMessage(true);
+                            setTimeout(() => setShowAppliedMessage(false), 2000);
+                          }
+                        }}
+                        title="Apply this field's formatting to all fields"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        Apply to All
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setSelectedField(null)}
+                      >
+                        ✕
+                      </Button>
+                    </div>
                   </div>
                   
                   {/* Compact Font Size + Family Row */}
@@ -731,6 +766,13 @@ export default function MainPage() {
                       </span>
                     </div>
                   </div>
+                  
+                  {/* Success message */}
+                  {showAppliedMessage && (
+                    <div className="bg-green-100 border border-green-400 text-green-700 px-3 py-2 rounded text-sm text-center">
+                      ✓ Formatting applied to all fields
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="p-6 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
