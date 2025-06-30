@@ -377,12 +377,39 @@ export default function MainPage() {
   }, [isDragging, dragInfo]);
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen" style={{backgroundColor: '#F5F1E8'}}>
       <header className="py-4 px-6" style={{
         background: 'linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)',
         boxShadow: '0 2px 4px rgba(27, 67, 50, 0.1)'
       }}>
-        <h1 className="text-2xl font-bold" style={{color: '#F4A261'}}>Bamboobot</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold" style={{color: '#F4A261'}}>Bamboobot</h1>
+          <Button
+            onClick={generatePdf}
+            disabled={!uploadedFile || isGenerating}
+            className="text-white font-semibold px-6"
+            style={{
+              background: !uploadedFile || isGenerating 
+                ? 'linear-gradient(135deg, #6B7280 0%, #9CA3AF 100%)' 
+                : 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)',
+              borderColor: '#E76F51',
+              boxShadow: !uploadedFile || isGenerating 
+                ? '0 2px 4px rgba(107, 114, 128, 0.2)'
+                : '0 2px 4px rgba(231, 111, 81, 0.2)'
+            }}
+            onMouseOver={(e) => {
+              if (!(!uploadedFile || isGenerating)) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #D65A3A 0%, #E76F51 100%)';
+              }
+            }}
+            onMouseOut={(e) => {
+              if (!(!uploadedFile || isGenerating)) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)';
+              }
+            }}>
+            {isGenerating ? "Generating..." : "Generate PDF"}
+          </Button>
+        </div>
       </header>
       <main className="flex-1 grid grid-cols-[60%_40%] gap-6 p-6">
         <div className="bg-card p-4 rounded-lg shadow">
@@ -577,7 +604,7 @@ export default function MainPage() {
             </div>
           )}
         </div>
-        <div className="bg-card p-4 rounded-lg shadow">
+        <div className="bg-card p-4 rounded-lg shadow mr-6">
           {/* Tab Navigation */}
           <div className="flex mb-4 bg-gray-100 rounded-lg p-1 gap-1">
             <button
@@ -909,38 +936,6 @@ export default function MainPage() {
           )}
         </div>
       </main>
-      <footer className="py-4 px-6 fixed bottom-0 left-0 right-0" style={{
-        background: 'linear-gradient(45deg, #1B4332 0%, #2D6A4F 100%)',
-        boxShadow: '0 -2px 4px rgba(27, 67, 50, 0.1)'
-      }}>
-        <div className="flex justify-end space-x-4">
-          <Button
-            onClick={generatePdf}
-            disabled={!uploadedFile || isGenerating}
-            className="text-white font-semibold px-6"
-            style={{
-              background: !uploadedFile || isGenerating 
-                ? 'linear-gradient(135deg, #6B7280 0%, #9CA3AF 100%)' 
-                : 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)',
-              borderColor: '#E76F51',
-              boxShadow: !uploadedFile || isGenerating 
-                ? '0 2px 4px rgba(107, 114, 128, 0.2)'
-                : '0 2px 4px rgba(231, 111, 81, 0.2)'
-            }}
-            onMouseOver={(e) => {
-              if (!(!uploadedFile || isGenerating)) {
-                e.currentTarget.style.background = 'linear-gradient(135deg, #D65A3A 0%, #E76F51 100%)';
-              }
-            }}
-            onMouseOut={(e) => {
-              if (!(!uploadedFile || isGenerating)) {
-                e.currentTarget.style.background = 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)';
-              }
-            }}>
-            {isGenerating ? "Generating..." : "Generate PDF"}
-          </Button>
-        </div>
-      </footer>
       {(isGenerating || generatedPdfUrl) && (
         <div className="fixed inset-0 z-50 overflow-auto bg-primary bg-opacity-50 flex items-center justify-center">
           <div className="relative bg-secondary w-11/12 md:w-3/4 lg:w-1/2 max-w-4xl mx-auto rounded-lg shadow-lg p-6">
