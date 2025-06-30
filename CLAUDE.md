@@ -112,6 +112,11 @@ npm test -- __tests__/components/Button.test.tsx
   - Bold and italic toggle buttons
   - Live preview of all formatting changes
   - Per-field formatting persistence
+- **Tabbed UI with optimized layout**
+  - Data and Formatting tabs for better space utilization
+  - 60%/40% layout split favoring design area
+  - Automatic tab switching when selecting text fields
+  - Clear visual feedback for active tabs
 - PDF download functionality with proper URL handling
 - Automatic text field positioning for all table columns
 - **Docker containerization** (Dockerfile, docker-compose.yml)
