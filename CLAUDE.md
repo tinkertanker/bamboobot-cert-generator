@@ -85,8 +85,9 @@ npm test -- __tests__/components/Button.test.tsx
 2. **No Authentication**: The app is currently open access
 3. **Text Formatting**: 
    - Backend supports Helvetica, Times, and Courier fonts with bold/italic variants
-   - **Frontend has complete font controls** (size, family, bold, italic)
+   - **Frontend has complete font controls** (size, family, bold, italic, color)
    - Click any text field to access formatting panel with live preview
+   - Apply formatting to all fields with one click
 4. **Coordinate System**: PDF uses bottom-left origin (0,0), while UI uses top-left origin - conversion happens in the API
 5. **Drag System**: Uses pointer events for precise positioning with visual feedback and touch support
 6. **Production Mode**: Next.js doesn't serve dynamic files from public/ in production, hence the file serving API
@@ -110,8 +111,11 @@ npm test -- __tests__/components/Button.test.tsx
   - Font size adjustment (8-72px) with slider and number input
   - Font family selection (Helvetica, Times, Courier)
   - Bold and italic toggle buttons
+  - Text color picker with hex color display
+  - Apply formatting to all fields button
   - Live preview of all formatting changes
   - Per-field formatting persistence
+  - Click-to-deselect functionality
 - **Tabbed UI with optimized layout**
   - Data and Formatting tabs for better space utilization
   - 60%/40% layout split favoring design area
@@ -125,16 +129,28 @@ npm test -- __tests__/components/Button.test.tsx
   - Dynamic file serving API for production mode
   - Volume mounts for persistent storage
   - Development mode with hot reload (docker-compose.dev.yml)
+- **Entry navigation system**
+  - Previous/Next/First/Last navigation buttons with unicode symbols
+  - Entry counter showing "X of Y"
+  - Smart button states based on position
+  - Preview updates with current entry data
+- **Professional dark green theme**
+  - Primary Dark Green (#1B4332) with gradients
+  - Medium Green (#2D6A4F) for active elements
+  - Complementary Coral (#E76F51) for action buttons
+  - Amber (#F4A261) accents for highlights
+  - Light beige background (#F5F1E8)
+  - Improved contrast and accessibility
+- **UI/UX enhancements**
+  - Generate PDF button moved to header
+  - Clean toolbar layout below preview area
+  - Proper spacing with right margin on panels
+  - Grey background (#ccc) for inactive tabs
+  - Unicode symbols throughout (no emojis)
 
 ### 🚧 Planned Features (Priority Order)
 
-**Phase 1 - Enhanced Formatting Features**
-- **Text color picker** (30 mins)
-  - Color selection for vibrant certificates
-  - Backend already supports RGB colors
-- **Apply to All Fields** button (20 mins)
-  - Apply current formatting to all fields at once
-  - Time saver for consistent styling
+**Phase 1 - Core Missing Features**
 - **Text alignment options** (30 mins)
   - Left, Center, Right alignment
   - Useful for different certificate layouts
@@ -181,3 +197,35 @@ When implementing new features:
 3. Add appropriate tests for new functionality
 4. Ensure TypeScript types are properly defined
 5. Consider scalability implications (especially for file storage and email sending)
+
+## Cleanup Plan
+
+### Temporary Files to Clean
+- `public/temp_images/` - Contains uploaded certificate templates
+- `public/generated/` - Contains generated PDF certificates
+
+### Cleanup Commands
+```bash
+# Clean all temporary uploaded images
+rm -rf public/temp_images/*
+
+# Clean all generated PDFs
+rm -rf public/generated/*
+
+# Docker cleanup (if using Docker)
+docker-compose down
+docker system prune -a  # Remove unused images
+docker volume prune     # Remove unused volumes
+```
+
+### Recommended Cleanup Schedule
+- **Development**: Clean temp files after each major feature test
+- **Production**: Implement automated cleanup (cron job) for files older than 24 hours
+- Consider implementing a cleanup API endpoint for manual cleanup
+- Add file expiration metadata to track file age
+
+### Future Improvements for File Management
+- Implement automatic cleanup service
+- Add file size limits and validation
+- Consider moving to cloud storage (S3) for better scalability
+- Add user sessions to track and cleanup user-specific files
