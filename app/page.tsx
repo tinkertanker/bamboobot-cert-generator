@@ -81,14 +81,14 @@ export default function MainPage() {
         const threshold = 10;
         
         if (x < -threshold || x > 100 + threshold || y < -threshold || y > 100 + threshold) {
-          // If dragged too far, reset to center
-          setPositions(prev => ({ ...prev, [dragInfo.key]: { x: 50, y: 50 } }));
+          // If dragged too far, reset to center but preserve other properties
+          setPositions(prev => ({ ...prev, [dragInfo.key]: { ...prev[dragInfo.key], x: 50, y: 50 } }));
         } else {
-          // Clamp the values between 0 and 100
+          // Clamp the values between 0 and 100 but preserve other properties
           const clampedX = Math.max(0, Math.min(100, x));
           const clampedY = Math.max(0, Math.min(100, y));
           
-          setPositions(prev => ({ ...prev, [dragInfo.key]: { x: clampedX, y: clampedY } }));
+          setPositions(prev => ({ ...prev, [dragInfo.key]: { ...prev[dragInfo.key], x: clampedX, y: clampedY } }));
         }
       }
     };
