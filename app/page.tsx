@@ -442,31 +442,6 @@ export default function MainPage() {
                   })}
                   </div>
                 </div>
-                <div className="absolute bottom-4 right-4">
-                  <Button
-                    onClick={() => {
-                      setUploadedFileUrl(null);
-                      setUploadedFile(null);
-                      setPositions({}); // Reset positions when clearing the image
-                      // Clear any active drag state
-                      setIsDragging(false);
-                      setDragInfo(null);
-                    }}
-                    className="text-white"
-                    style={{
-                      background: 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)',
-                      borderColor: '#E76F51',
-                      boxShadow: '0 2px 4px rgba(231, 111, 81, 0.2)'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #D65A3A 0%, #E76F51 100%)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)';
-                    }}>
-                    Clear
-                  </Button>
-                </div>
               </>
             ) : (
               <div 
@@ -504,6 +479,84 @@ export default function MainPage() {
               </div>
             )}
           </div>
+          
+          {/* Toolbar */}
+          {uploadedFileUrl && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex justify-between items-center">
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => {
+                      setUploadedFileUrl(null);
+                      setUploadedFile(null);
+                      setPositions({}); // Reset positions when clearing the image
+                      // Clear any active drag state
+                      setIsDragging(false);
+                      setDragInfo(null);
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="text-white"
+                    style={{
+                      background: 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)',
+                      borderColor: '#2D6A4F',
+                      boxShadow: '0 1px 3px rgba(45, 106, 79, 0.2)'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #40916C 0%, #52B788 100%)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)';
+                    }}
+                  >
+                    Clear Template
+                  </Button>
+                </div>
+                
+                {/* Navigation buttons - right aligned */}
+                {tableData.length > 0 && (
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled
+                      className="text-gray-400 border-gray-300 px-2"
+                      title="Coming soon: First entry"
+                    >
+                      ⏮
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled
+                      className="text-gray-400 border-gray-300 px-2"
+                      title="Coming soon: Previous entry"
+                    >
+                      ◀
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled
+                      className="text-gray-400 border-gray-300 px-2"
+                      title="Coming soon: Next entry"
+                    >
+                      ▶
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled
+                      className="text-gray-400 border-gray-300 px-2"
+                      title="Coming soon: Last entry"
+                    >
+                      ⏭
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         <div className="bg-card p-4 rounded-lg shadow">
           {/* Tab Navigation */}
@@ -825,11 +878,11 @@ export default function MainPage() {
                 </div>
               ) : (
                 <div className="p-6 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
-                  <div className="mb-3">📝</div>
+                  <div className="mb-3 text-2xl">✎</div>
                   <p className="text-sm font-medium mb-1">Select a text field to format</p>
                   <p className="text-xs text-gray-400 mb-2">Click on any text field in the certificate preview</p>
                   {tableData.length > 0 && (
-                    <p className="text-xs text-blue-600">💡 Selected fields have a green border</p>
+                    <p className="text-xs text-blue-600">◯ Selected fields have a green border</p>
                   )}
                 </div>
               )}
