@@ -355,11 +355,10 @@ export default function MainPage() {
   return (
     <div className="flex flex-col h-screen">
       <header className="bg-primary text-primary-foreground py-4 px-6">
-        <h1 className="text-2xl font-bold">Cert Generator Again</h1>
+        <h1 className="text-2xl font-bold">Bamboobot</h1>
       </header>
       <main className="flex-1 grid grid-cols-[60%_40%] gap-6 p-6">
         <div className="bg-card p-4 rounded-lg shadow">
-          <h2 className="text-lg font-medium mb-4">Design</h2>
           <div className="relative w-full image-container"> {/* Add image-container class */}
             {isLoading && <Spinner />} {/* Show spinner while loading */}
             {uploadedFileUrl ? (
