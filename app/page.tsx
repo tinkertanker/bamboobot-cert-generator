@@ -19,6 +19,7 @@ interface Position {
   fontFamily?: 'Helvetica' | 'Times' | 'Courier';
   bold?: boolean;
   italic?: boolean;
+  color?: string;
 }
 
 interface Positions {
@@ -131,7 +132,7 @@ export default function MainPage() {
         
         Object.keys(tableData[0]).forEach((key, index) => {
           if (!newPositions[key]) {
-            newPositions[key] = { x: 50, y: 50 + index * 10, fontSize: 24, fontFamily: 'Helvetica' };
+            newPositions[key] = { x: 50, y: 50 + index * 10, fontSize: 24, fontFamily: 'Helvetica', color: '#000000' };
             hasNewPositions = true;
           }
         });
@@ -234,6 +235,16 @@ export default function MainPage() {
     });
   };
 
+  // Helper function to convert hex color to RGB array
+  const hexToRgb = (hex: string): [number, number, number] => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? [
+      parseInt(result[1], 16) / 255,
+      parseInt(result[2], 16) / 255,
+      parseInt(result[3], 16) / 255
+    ] : [0, 0, 0]; // Default to black if parsing fails
+  };
+
   const generatePdf = async () => {
     setIsGenerating(true);
     try {
@@ -253,12 +264,14 @@ export default function MainPage() {
           templateFilename: uploadedFile,
           uiContainerDimensions: containerDimensions,
           data: tableData.map(row => {
-            const entry: { [key: string]: { text: string; uiMeasurements?: { width: number; height: number; actualHeight: number } } } = {};
+            const entry: { [key: string]: { text: string; color?: [number, number, number]; uiMeasurements?: { width: number; height: number; actualHeight: number } } } = {};
             Object.keys(row).forEach(key => {
               const fontSize = 24; // Current UI font size
               const measurements = measureText(row[key], fontSize, '500');
+              const position = positions[key];
               entry[key] = { 
                 text: row[key],
+                color: position?.color ? hexToRgb(position.color) : hexToRgb('#000000'),
                 uiMeasurements: measurements
               };
             });
@@ -377,6 +390,7 @@ export default function MainPage() {
                     const fontFamily = positions[key]?.fontFamily || 'Helvetica';
                     const isBold = positions[key]?.bold || false;
                     const isItalic = positions[key]?.italic || false;
+                    const textColor = positions[key]?.color || '#000000';
                     
                     // Map font names to CSS font families
                     const fontFamilyMap = {
@@ -393,6 +407,7 @@ export default function MainPage() {
                       fontFamily: fontFamilyMap[fontFamily],
                       fontWeight: isBold ? 'bold' : 'normal',
                       fontStyle: isItalic ? 'italic' : 'normal',
+                      color: textColor,
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -690,6 +705,30 @@ export default function MainPage() {
                       >
                         <em>I</em>
                       </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Text Color Picker */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-2 block">Text Color</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={positions[selectedField]?.color || '#000000'}
+                        onChange={(e) => {
+                          setPositions(prev => ({
+                            ...prev,
+                            [selectedField]: {
+                              ...prev[selectedField],
+                              color: e.target.value
+                            }
+                          }));
+                        }}
+                        className="w-10 h-8 rounded border border-gray-300 cursor-pointer"
+                      />
+                      <span className="text-xs text-gray-500 font-mono">
+                        {positions[selectedField]?.color || '#000000'}
+                      </span>
                     </div>
                   </div>
                 </div>
