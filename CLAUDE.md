@@ -85,8 +85,8 @@ npm test -- __tests__/components/Button.test.tsx
 2. **No Authentication**: The app is currently open access
 3. **Text Formatting**: 
    - Backend supports Helvetica, Times, and Courier fonts with bold/italic variants
-   - **Frontend lacks UI controls** for font formatting (users cannot change fonts/sizes)
-   - Font formatting is currently hardcoded to Helvetica 24px in the UI
+   - **Frontend has complete font controls** (size, family, bold, italic)
+   - Click any text field to access formatting panel with live preview
 4. **Coordinate System**: PDF uses bottom-left origin (0,0), while UI uses top-left origin - conversion happens in the API
 5. **Drag System**: Uses pointer events for precise positioning with visual feedback and touch support
 6. **Production Mode**: Next.js doesn't serve dynamic files from public/ in production, hence the file serving API
@@ -106,7 +106,12 @@ npm test -- __tests__/components/Button.test.tsx
   - Container-dimension-based font scaling for accurate UI-to-PDF matching
   - Proper coordinate conversion (UI top-left to PDF bottom-left origin)
   - Text centering and positioning that matches UI preview exactly
-- Font formatting backend support (Helvetica, Times, Courier with bold/italic variants)
+- **Complete font formatting UI controls**
+  - Font size adjustment (8-72px) with slider and number input
+  - Font family selection (Helvetica, Times, Courier)
+  - Bold and italic toggle buttons
+  - Live preview of all formatting changes
+  - Per-field formatting persistence
 - PDF download functionality with proper URL handling
 - Automatic text field positioning for all table columns
 - **Docker containerization** (Dockerfile, docker-compose.yml)
@@ -114,20 +119,29 @@ npm test -- __tests__/components/Button.test.tsx
   - Non-root user security
   - Dynamic file serving API for production mode
   - Volume mounts for persistent storage
+  - Development mode with hot reload (docker-compose.dev.yml)
 
 ### 🚧 Planned Features (Priority Order)
 
-**Phase 1 - Critical UI Missing Features**
-- **Frontend font formatting controls** (IMMEDIATE PRIORITY)
-  - Font size adjustment controls for each text field
-  - Font family selection (Helvetica, Times, Courier)
-  - Bold/italic toggle buttons
-  - Text color picker
-  - Font weight and style preview in UI
-- **Enhanced text field management**
-  - Individual field formatting persistence
-  - Text alignment options (left, center, right)
-  - Field deletion and reordering capabilities
+**Phase 1 - Enhanced Formatting Features**
+- **Text color picker** (30 mins)
+  - Color selection for vibrant certificates
+  - Backend already supports RGB colors
+- **Apply to All Fields** button (20 mins)
+  - Apply current formatting to all fields at once
+  - Time saver for consistent styling
+- **Text alignment options** (30 mins)
+  - Left, Center, Right alignment
+  - Useful for different certificate layouts
+- **Reset/Clear formatting** (15 mins)
+  - Reset button to restore defaults
+  - Clear all formatting with one click
+- **Format templates** (45 mins)
+  - Save/load formatting presets
+  - Quick apply saved styles
+- **Keyboard shortcuts** (20 mins)
+  - Ctrl/Cmd + B for bold
+  - Ctrl/Cmd + I for italic
 
 **Phase 2 - Core Missing Features**
 - Email functionality (SMTP, bulk sending, templates)
