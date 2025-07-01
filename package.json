@@ -1,6 +1,7 @@
 {
-  "name": "certgen-fe2",
-  "version": "0.1.0",
+  "name": "bamboobot-certificate-generator",
+  "version": "1.0.0",
+  "description": "Professional certificate generator with drag-and-drop text positioning, advanced formatting, and bulk PDF generation",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -1,6 +1,6 @@
 # Testing Documentation
 
-This directory contains the unit tests for the Certificate Generator application.
+This directory contains the unit tests for the Bamboobot Certificate Generator application.
 
 ## Setup
 

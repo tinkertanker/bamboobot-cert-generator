@@ -1,16 +1,24 @@
-# Certificate Generator
+# Bamboobot Certificate Generator
 
-A Next.js application for generating certificates from uploaded image templates. This tool allows users to upload an image, convert it to a PDF template, add text fields with drag-and-drop positioning, and generate certificates in bulk from tabular data.
+A professional Next.js application for generating certificates from uploaded image templates. Bamboobot allows users to upload an image, convert it to a PDF template, add text fields with drag-and-drop positioning, and generate certificates in bulk from tabular data.
 
 ## Features
 
 - **Image Template Upload** - Support for JPG/PNG images with automatic PDF conversion
 - **Drag & Drop File Upload** - Intuitive file upload with visual feedback
-- **Precision Text Positioning** - Pointer-based drag system with visual feedback
-- **Interactive Font Controls** - Click text fields to adjust font size (8-72px) with live preview
+- **Precision Text Positioning** - Pointer-based drag system with visual feedback and touch support
+- **Advanced Text Formatting** - Complete font controls with live preview:
+  - Font size adjustment (8-72px) with slider and number input
+  - Font family selection (Helvetica, Times, Courier)
+  - Bold and italic styling
+  - Text color picker with hex display
+  - Text alignment (left, center, right) with visual bracket indicators
+  - Apply formatting to all fields with one click
+- **Smart Entry Navigation** - Previous/Next/First/Last navigation with entry counter
 - **Bulk Data Import** - TSV/CSV support with header row toggle
 - **Batch Certificate Generation** - Generate multiple certificates from tabular data
 - **Live Preview** - Real-time preview matching final PDF output
+- **Professional UI** - Dark green theme with coral accents and clean spacing
 - **Docker Support** - Production-ready containerization with development hot reload
 
 ## Getting Started
@@ -57,9 +65,24 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 3. **Position Text**: Drag text fields to desired positions on the template
 4. **Format Text**: Click any text field to open formatting controls
    - Adjust font size with slider (8-72px) or number input
-   - See changes instantly in the preview
-5. **Generate PDFs**: Click "Generate PDF" to create certificates for all data rows
-6. **Download**: Download the generated PDF with all certificates
+   - Select font family (Helvetica, Times, Courier)
+   - Toggle bold and italic styling
+   - Choose text color with color picker
+   - Set text alignment (left, center, right) with visual indicators
+   - Apply current formatting to all fields at once
+5. **Navigate Entries**: Use Previous/Next buttons to preview different certificate entries
+6. **Generate PDFs**: Click "Generate PDF" to create certificates for all data rows
+7. **Download**: Download the generated PDF with all certificates
+
+## Visual Features
+
+- **Alignment Indicators**: Visual bracket-style markers show text alignment:
+  - Left: L-shaped brackets at left corners
+  - Center: Clean horizontal lines at center
+  - Right: Backwards L-shaped brackets at right corners
+- **Smart Drag Behavior**: Text fields use correct anchor points based on alignment
+- **Live Preview**: All formatting changes appear instantly in the preview
+- **Clean Interface**: Professional dark green theme with intuitive spacing
 
 ## Project Structure
 
@@ -157,6 +180,22 @@ docker-compose -f docker-compose.dev.yml down
 - [shadcn/ui](https://ui.shadcn.com/) - Modern UI components
 - [Docker](https://www.docker.com/) - Containerization for production
 - [Jest](https://jestjs.io/) - Testing framework
+
+## Cleanup
+
+### Temporary Files
+```bash
+# Clean all temporary uploaded images
+rm -rf public/temp_images/*
+
+# Clean all generated PDFs
+rm -rf public/generated/*
+
+# Docker cleanup
+docker-compose down
+docker system prune -a  # Remove unused images
+docker volume prune     # Remove unused volumes
+```
 
 ## Contributing
 
