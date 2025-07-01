@@ -36,12 +36,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { mode = 'single', templateFilename, data, positions, uiContainerDimensions }: { 
+    const { mode = 'single', templateFilename, data, positions, uiContainerDimensions, namingColumn }: { 
       mode?: 'single' | 'individual';
       templateFilename: string; 
       data: Entry[]; 
       positions: Record<string, Position>;
       uiContainerDimensions?: { width: number; height: number };
+      namingColumn?: string;
     } = req.body;
     const templatePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename); // Standardized path
 
@@ -166,8 +167,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const sessionDir = path.join(outputDir, `individual_${timestamp}`);
       await fsPromises.mkdir(sessionDir, { recursive: true });
       
+      // Track used filenames to handle duplicates
+      const usedFilenames = new Set<string>();
+      
       const files = await Promise.all(generatedPdfs.map(async (pdfBytes, index) => {
-        const filename = `certificate_${index + 1}.pdf`;
+        // Generate filename based on naming column
+        let baseFilename = `certificate_${index + 1}`;
+        
+        if (namingColumn && data[index]) {
+          const entryData = data[index];
+          const namingValue = Object.entries(entryData).find(([key]) => key === namingColumn)?.[1]?.text;
+          
+          if (namingValue) {
+            // Sanitize filename
+            baseFilename = namingValue.replace(/[^a-zA-Z0-9-_]/g, '_');
+          }
+        }
+        
+        // Handle duplicates
+        let filename = `${baseFilename}.pdf`;
+        let counter = 1;
+        while (usedFilenames.has(filename)) {
+          filename = `${baseFilename}-${counter}.pdf`;
+          counter++;
+        }
+        usedFilenames.add(filename);
+        
         const filePath = path.join(sessionDir, filename);
         await fsPromises.writeFile(filePath, pdfBytes);
         

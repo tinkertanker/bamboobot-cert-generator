@@ -418,6 +418,7 @@ export default function MainPage() {
           mode: 'individual',
           templateFilename: uploadedFile,
           uiContainerDimensions: containerDimensions,
+          namingColumn: selectedNamingColumn,
           data: tableData.map(row => {
             const entry: { [key: string]: { text: string; color?: [number, number, number]; uiMeasurements?: { width: number; height: number; actualHeight: number } } } = {};
             Object.keys(row).forEach(key => {
@@ -1423,6 +1424,22 @@ export default function MainPage() {
                               className="h-8 w-8 p-0"
                             >
                               <ExternalLink className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              title="Download PDF"
+                              onClick={() => {
+                                // Download with custom filename
+                                fetch(file.url)
+                                  .then(response => response.blob())
+                                  .then(blob => {
+                                    saveAs(blob, filename);
+                                  });
+                              }}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Download className="h-4 w-4" />
                             </Button>
                             {hasEmailColumn && (
                               <Button
