@@ -1362,8 +1362,8 @@ export default function MainPage() {
                 {/* File Naming Controls */}
                 <div className="mb-4 p-4 bg-gray-50 rounded-lg">
                   <div className="grid grid-cols-12 items-center gap-4">
-                    <label className="font-medium col-span-3">Use this field for filenames:</label>
-                    <div className="col-span-9">
+                    <label className="font-medium col-span-4">Use this field for download filename:</label>
+                    <div className="col-span-8">
                       <Select
                         value={selectedNamingColumn}
                         onChange={(e) => setSelectedNamingColumn(e.target.value)}
