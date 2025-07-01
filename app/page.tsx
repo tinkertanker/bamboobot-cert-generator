@@ -20,6 +20,7 @@ interface Position {
   bold?: boolean;
   italic?: boolean;
   color?: string;
+  alignment?: 'left' | 'center' | 'right';
 }
 
 interface Positions {
@@ -246,6 +247,68 @@ export default function MainPage() {
   const goToNext = () => setCurrentPreviewIndex(prev => Math.min(tableData.length - 1, prev + 1));
   const goToLast = () => setCurrentPreviewIndex(tableData.length - 1);
 
+  // Helper function to change alignment while keeping visual position
+  const changeAlignment = useCallback((key: string, newAlignment: 'left' | 'center' | 'right') => {
+    setPositions(prev => {
+      const currentPos = prev[key];
+      if (!currentPos) return prev;
+      
+      const currentAlignment = currentPos.alignment || 'left';
+      if (currentAlignment === newAlignment) return prev;
+      
+      // Get the text element to measure actual width
+      const textElement = document.querySelector(`[data-key="${key}"]`) as HTMLElement;
+      if (!textElement) {
+        // Fallback: just change alignment without position adjustment
+        return {
+          ...prev,
+          [key]: { ...currentPos, alignment: newAlignment }
+        };
+      }
+      
+      const containerElement = document.querySelector('.image-container img') as HTMLImageElement;
+      if (!containerElement) {
+        return {
+          ...prev,
+          [key]: { ...currentPos, alignment: newAlignment }
+        };
+      }
+      
+      // Get actual text width in pixels
+      const textRect = textElement.getBoundingClientRect();
+      const containerRect = containerElement.getBoundingClientRect();
+      const textWidthPercent = (textRect.width / containerRect.width) * 100;
+      
+      let xAdjustment = 0;
+      
+      // Calculate position adjustment to keep text visually in same place
+      if (currentAlignment === 'left' && newAlignment === 'center') {
+        xAdjustment = textWidthPercent / 2;
+      } else if (currentAlignment === 'left' && newAlignment === 'right') {
+        xAdjustment = textWidthPercent;
+      } else if (currentAlignment === 'center' && newAlignment === 'left') {
+        xAdjustment = -textWidthPercent / 2;
+      } else if (currentAlignment === 'center' && newAlignment === 'right') {
+        xAdjustment = textWidthPercent / 2;
+      } else if (currentAlignment === 'right' && newAlignment === 'left') {
+        xAdjustment = -textWidthPercent;
+      } else if (currentAlignment === 'right' && newAlignment === 'center') {
+        xAdjustment = -textWidthPercent / 2;
+      }
+      
+      const newX = Math.max(0, Math.min(100, currentPos.x + xAdjustment));
+      
+      return {
+        ...prev,
+        [key]: {
+          ...currentPos,
+          alignment: newAlignment,
+          x: newX
+        }
+      };
+    });
+  }, []);
+
   // Helper function to convert hex color to RGB array
   const hexToRgb = (hex: string): [number, number, number] => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -297,7 +360,8 @@ export default function MainPage() {
                 fontSize: pos.fontSize || 24, // Use custom fontSize or default to 24
                 font: pos.fontFamily || 'Helvetica', // Send font family to backend
                 bold: pos.bold || false, // Send bold state
-                oblique: pos.italic || false // Send italic state (backend uses 'oblique')
+                oblique: pos.italic || false, // Send italic state (backend uses 'oblique')
+                alignment: pos.alignment || 'left' // Send alignment
               }
             ])
           )
@@ -347,8 +411,22 @@ export default function MainPage() {
     const element = event.currentTarget as HTMLElement;
     const rect = element.getBoundingClientRect();
     
-    // Calculate offset from element center (accounting for transform: translate(-50%, -50%))
-    const offsetX = event.clientX - (rect.left + rect.width / 2);
+    // Get current alignment to calculate correct anchor point
+    const currentAlignment = positions[key]?.alignment || 'left';
+    
+    // Calculate anchor point based on alignment
+    let anchorX: number;
+    if (currentAlignment === 'center') {
+      anchorX = rect.left + rect.width / 2;
+    } else if (currentAlignment === 'right') {
+      anchorX = rect.right;
+    } else {
+      // left alignment
+      anchorX = rect.left;
+    }
+    
+    // Calculate offset from the alignment anchor point
+    const offsetX = event.clientX - anchorX;
     const offsetY = event.clientY - (rect.top + rect.height / 2);
     
     setDragInfo({
@@ -361,7 +439,7 @@ export default function MainPage() {
     
     // Capture pointer for smooth dragging
     element.setPointerCapture(event.pointerId);
-  }, []);
+  }, [positions]);
 
   const handlePointerUp = useCallback((event: React.PointerEvent) => {
     if (!isDragging || !dragInfo || event.pointerId !== dragInfo.pointerId) return;
@@ -440,6 +518,7 @@ export default function MainPage() {
                     const isBold = positions[key]?.bold || false;
                     const isItalic = positions[key]?.italic || false;
                     const textColor = positions[key]?.color || '#000000';
+                    const alignment = positions[key]?.alignment || 'left';
                     
                     // Map font names to CSS font families
                     const fontFamilyMap = {
@@ -448,10 +527,13 @@ export default function MainPage() {
                       'Courier': 'Courier, "Courier New", monospace'
                     };
                     
+                    // Calculate transform based on alignment
+                    const transformX = alignment === 'center' ? '-50%' : alignment === 'right' ? '-100%' : '0%';
+                    
                     const style = {
                       left: `${positions[key]?.x ?? 50}%`,
                       top: `${positions[key]?.y ?? (50 + index * 10)}%`,
-                      transform: 'translate(-50%, -50%)',
+                      transform: `translate(${transformX}, -50%)`,
                       fontSize: `${fontSize}px`,
                       fontFamily: fontFamilyMap[fontFamily],
                       fontWeight: isBold ? 'bold' : 'normal',
@@ -475,12 +557,75 @@ export default function MainPage() {
                     return (
                       <div
                         key={key}
-                        className="absolute"
+                        data-key={key}
+                        className="absolute relative"
                         style={style}
                         onPointerDown={(e) => handlePointerDown(e, key)}
                         onPointerUp={handlePointerUp}
                         onPointerCancel={handlePointerUp}
                       >
+                        {/* Alignment indicator - bracket style */}
+                        {isSelected && (
+                          <>
+                            {/* Left alignment indicator */}
+                            {alignment === 'left' && (
+                              <>
+                                <div className="absolute pointer-events-none" style={{
+                                  left: '-2px', top: '-2px', width: '4px', height: '8px',
+                                  backgroundColor: '#E76F51'
+                                }} />
+                                <div className="absolute pointer-events-none" style={{
+                                  left: '-2px', top: '-2px', width: '8px', height: '4px',
+                                  backgroundColor: '#E76F51'
+                                }} />
+                                <div className="absolute pointer-events-none" style={{
+                                  left: '-2px', bottom: '-2px', width: '4px', height: '8px',
+                                  backgroundColor: '#E76F51'
+                                }} />
+                                <div className="absolute pointer-events-none" style={{
+                                  left: '-2px', bottom: '-2px', width: '8px', height: '4px',
+                                  backgroundColor: '#E76F51'
+                                }} />
+                              </>
+                            )}
+                            
+                            {/* Center alignment indicator */}
+                            {alignment === 'center' && (
+                              <>
+                                <div className="absolute pointer-events-none" style={{
+                                  left: 'calc(50% - 6px)', top: '-2px', width: '12px', height: '4px',
+                                  backgroundColor: '#E76F51'
+                                }} />
+                                <div className="absolute pointer-events-none" style={{
+                                  left: 'calc(50% - 6px)', bottom: '-2px', width: '12px', height: '4px',
+                                  backgroundColor: '#E76F51'
+                                }} />
+                              </>
+                            )}
+                            
+                            {/* Right alignment indicator */}
+                            {alignment === 'right' && (
+                              <>
+                                <div className="absolute pointer-events-none" style={{
+                                  right: '-2px', top: '-2px', width: '4px', height: '8px',
+                                  backgroundColor: '#E76F51'
+                                }} />
+                                <div className="absolute pointer-events-none" style={{
+                                  right: '-2px', top: '-2px', width: '8px', height: '4px',
+                                  backgroundColor: '#E76F51'
+                                }} />
+                                <div className="absolute pointer-events-none" style={{
+                                  right: '-2px', bottom: '-2px', width: '4px', height: '8px',
+                                  backgroundColor: '#E76F51'
+                                }} />
+                                <div className="absolute pointer-events-none" style={{
+                                  right: '-2px', bottom: '-2px', width: '8px', height: '4px',
+                                  backgroundColor: '#E76F51'
+                                }} />
+                              </>
+                            )}
+                          </>
+                        )}
                         {value}
                       </div>
                     );
@@ -873,6 +1018,67 @@ export default function MainPage() {
                     </div>
                   </div>
                   
+                  {/* Text Alignment */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-2 block">Alignment</label>
+                    <div className="flex gap-1">
+                      <Button
+                        variant={positions[selectedField]?.alignment === 'left' || !positions[selectedField]?.alignment ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          if (selectedField) {
+                            changeAlignment(selectedField, 'left');
+                          }
+                        }}
+                        className="flex-1 h-8"
+                        style={{
+                          backgroundColor: positions[selectedField]?.alignment === 'left' || !positions[selectedField]?.alignment ? '#2D6A4F' : 'transparent',
+                          borderColor: '#2D6A4F',
+                          color: positions[selectedField]?.alignment === 'left' || !positions[selectedField]?.alignment ? 'white' : '#2D6A4F'
+                        }}
+                        title="Align left"
+                      >
+                        ⬛◻◻
+                      </Button>
+                      <Button
+                        variant={positions[selectedField]?.alignment === 'center' ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          if (selectedField) {
+                            changeAlignment(selectedField, 'center');
+                          }
+                        }}
+                        className="flex-1 h-8"
+                        style={{
+                          backgroundColor: positions[selectedField]?.alignment === 'center' ? '#2D6A4F' : 'transparent',
+                          borderColor: '#2D6A4F',
+                          color: positions[selectedField]?.alignment === 'center' ? 'white' : '#2D6A4F'
+                        }}
+                        title="Align center"
+                      >
+                        ◻⬛◻
+                      </Button>
+                      <Button
+                        variant={positions[selectedField]?.alignment === 'right' ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          if (selectedField) {
+                            changeAlignment(selectedField, 'right');
+                          }
+                        }}
+                        className="flex-1 h-8"
+                        style={{
+                          backgroundColor: positions[selectedField]?.alignment === 'right' ? '#2D6A4F' : 'transparent',
+                          borderColor: '#2D6A4F',
+                          color: positions[selectedField]?.alignment === 'right' ? 'white' : '#2D6A4F'
+                        }}
+                        title="Align right"
+                      >
+                        ◻◻⬛
+                      </Button>
+                    </div>
+                  </div>
+                  
                   {/* Apply to All Button - More prominent placement */}
                   <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
                     <button
@@ -889,7 +1095,8 @@ export default function MainPage() {
                                 fontFamily: currentFormatting.fontFamily,
                                 bold: currentFormatting.bold,
                                 italic: currentFormatting.italic,
-                                color: currentFormatting.color
+                                color: currentFormatting.color,
+                                alignment: currentFormatting.alignment
                               };
                             }
                           });

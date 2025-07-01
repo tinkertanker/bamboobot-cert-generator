@@ -12,6 +12,7 @@ interface Position {
   font?: 'Times' | 'Courier' | 'Helvetica';
   bold?: boolean;
   oblique?: boolean;
+  alignment?: 'left' | 'center' | 'right';
 }
 
 interface Entry {
@@ -123,17 +124,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             adjustedFontSize = baseFontSize * scaleFactor * FONT_SIZE_MULTIPLIER;
           }
 
-          // Calculate text dimensions for centering
+          // Calculate text dimensions for alignment
           const textWidth = font.widthOfTextAtSize(entryValue.text, adjustedFontSize);
+          const alignment = position.alignment || 'left';
           
-          // Center the text like in the UI (translate(-50%, -50%))
-          const centeredX = x - (textWidth / 2);
+          // Calculate X position based on alignment
+          let finalX: number;
+          if (alignment === 'center') {
+            finalX = x - (textWidth / 2);
+          } else if (alignment === 'right') {
+            finalX = x - textWidth;
+          } else {
+            // left alignment
+            finalX = x;
+          }
+          
           // For Y centering, use a smaller adjustment to sit better on lines
           const centeredY = height * (1 - position.y) - (adjustedFontSize * 0.36);
 
-          console.log(`Drawing text: ${entryValue.text}, x: ${centeredX}, y: ${centeredY}, size: ${adjustedFontSize}, color: ${color}, font: ${font}`);
+          console.log(`Drawing text: ${entryValue.text}, x: ${finalX}, y: ${centeredY}, size: ${adjustedFontSize}, alignment: ${alignment}, color: ${color}, font: ${font}`);
           page.drawText(entryValue.text, {
-            x: centeredX,
+            x: finalX,
             y: centeredY,
             size: adjustedFontSize,
             color: color,
