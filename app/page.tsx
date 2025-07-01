@@ -7,7 +7,7 @@ import { Select } from "@/components/ui/select";
 import Spinner from "@/components/Spinner";
 import { useTable, Column, ColumnInstance, HeaderGroup, Row, Cell } from "react-table";
 import { saveAs } from 'file-saver';
-import { ExternalLink, Mail, Download, FolderOpen, FileText, Check, X } from 'lucide-react';
+import { ExternalLink, Mail, Download, FolderOpen, FileText, Check, X, SkipBack, ChevronLeft, ChevronRight, SkipForward, AlignLeft, AlignCenter, AlignRight, Edit3 } from 'lucide-react';
 
 interface TableData {
   [key: string]: string;
@@ -830,7 +830,7 @@ export default function MainPage() {
                         title="First entry"
                         onClick={goToFirst}
                       >
-                        ⏮
+                        <SkipBack className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
@@ -840,7 +840,7 @@ export default function MainPage() {
                         title="Previous entry"
                         onClick={goToPrevious}
                       >
-                        ◀
+                        <ChevronLeft className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
@@ -850,7 +850,7 @@ export default function MainPage() {
                         title="Next entry"
                         onClick={goToNext}
                       >
-                        ▶
+                        <ChevronRight className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
@@ -860,7 +860,7 @@ export default function MainPage() {
                         title="Last entry"
                         onClick={goToLast}
                       >
-                        ⏭
+                        <SkipForward className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -986,7 +986,7 @@ export default function MainPage() {
                       size="sm"
                       onClick={() => setSelectedField(null)}
                     >
-                      ✕
+                      <X className="h-4 w-4" />
                     </Button>
                   </div>
                   
@@ -1153,7 +1153,7 @@ export default function MainPage() {
                         }}
                         title="Align left"
                       >
-                        ⬛◻◻
+                        <AlignLeft className="h-4 w-4" />
                       </Button>
                       <Button
                         variant={positions[selectedField]?.alignment === 'center' ? "default" : "outline"}
@@ -1171,7 +1171,7 @@ export default function MainPage() {
                         }}
                         title="Align center"
                       >
-                        ◻⬛◻
+                        <AlignCenter className="h-4 w-4" />
                       </Button>
                       <Button
                         variant={positions[selectedField]?.alignment === 'right' ? "default" : "outline"}
@@ -1189,7 +1189,7 @@ export default function MainPage() {
                         }}
                         title="Align right"
                       >
-                        ◻◻⬛
+                        <AlignRight className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -1248,17 +1248,23 @@ export default function MainPage() {
                            borderColor: '#52B788',
                            color: '#1B4332'
                          }}>
-                      ✓ Formatting applied to all fields
+                      <Check className="h-4 w-4 inline mr-1" />
+                      Formatting applied to all fields
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="p-6 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
-                  <div className="mb-3 text-2xl">✎</div>
+                  <div className="mb-3 flex justify-center">
+                    <Edit3 className="h-8 w-8" />
+                  </div>
                   <p className="text-sm font-medium mb-1">Select a text field to format</p>
                   <p className="text-xs text-gray-400 mb-2">Click on any text field in the certificate preview</p>
                   {tableData.length > 0 && (
-                    <p className="text-xs text-blue-600">◯ Selected fields have a green border</p>
+                    <p className="text-xs text-blue-600 flex items-center justify-center gap-1">
+                      <span className="w-2 h-2 rounded-full border border-blue-600"></span>
+                      Selected fields have a green border
+                    </p>
                   )}
                 </div>
               )}
