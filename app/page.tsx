@@ -863,8 +863,11 @@ export default function MainPage() {
           {activeTab === 'formatting' && (
             <div>
               {selectedField ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-white rounded border relative">
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between p-3 rounded-lg relative" style={{
+                    backgroundColor: '#FFFEF7',
+                    border: '1px solid #dddddd'
+                  }}>
                     <h3 className="font-medium text-sm">Field: {selectedField}</h3>
                     <Button 
                       variant="outline" 
@@ -876,7 +879,7 @@ export default function MainPage() {
                   </div>
                   
                   {/* Compact Font Size + Family Row */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-xs font-medium text-gray-600 mb-1 block">Font Size</label>
                       <div className="flex items-center space-x-1">
@@ -947,7 +950,7 @@ export default function MainPage() {
                   
                   {/* Font Style Buttons */}
                   <div>
-                    <label className="text-xs font-medium text-gray-600 mb-2 block">Font Style</label>
+                    <label className="text-xs font-medium text-gray-600 mb-3 block">Font Style</label>
                     <div className="flex gap-2">
                       <Button
                         variant={positions[selectedField]?.bold ? "default" : "outline"}
@@ -996,7 +999,7 @@ export default function MainPage() {
                   
                   {/* Text Color Picker */}
                   <div>
-                    <label className="text-xs font-medium text-gray-600 mb-2 block">Text Color</label>
+                    <label className="text-xs font-medium text-gray-600 mb-3 block">Text Color</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="color"
@@ -1020,7 +1023,7 @@ export default function MainPage() {
                   
                   {/* Text Alignment */}
                   <div>
-                    <label className="text-xs font-medium text-gray-600 mb-2 block">Alignment</label>
+                    <label className="text-xs font-medium text-gray-600 mb-3 block">Alignment</label>
                     <div className="flex gap-1">
                       <Button
                         variant={positions[selectedField]?.alignment === 'left' || !positions[selectedField]?.alignment ? "default" : "outline"}
@@ -1080,7 +1083,7 @@ export default function MainPage() {
                   </div>
                   
                   {/* Apply to All Button - More prominent placement */}
-                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                  <div>
                     <button
                       onClick={() => {
                         // Apply current field's formatting to all fields
