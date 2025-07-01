@@ -4,9 +4,9 @@ import { useState, useMemo, ChangeEvent, useCallback, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import Spinner from "@/components/Spinner"; // Update the import path
-import { useTable, Column, ColumnInstance, HeaderGroup, Row, Cell } from "react-table"; // Import react-table
-import { saveAs } from 'file-saver'; // Add this import
+import Spinner from "@/components/Spinner";
+import { useTable, Column, ColumnInstance, HeaderGroup, Row, Cell } from "react-table";
+import { saveAs } from 'file-saver';
 
 interface TableData {
   [key: string]: string;
@@ -27,17 +27,18 @@ interface Positions {
   [key: string]: Position;
 }
 
+const DEFAULT_FONT_SIZE = 24;
+
 export default function MainPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
-  // State variables for the application
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false); // Add loading state
-  const [tableData, setTableData] = useState<TableData[]>([]); // Explicitly define the type for table data
-  const [isFirstRowHeader, setIsFirstRowHeader] = useState<boolean>(false); // New state for header toggle
-  const [tableInput, setTableInput] = useState<string>(""); // New state for table input
-  const [positions, setPositions] = useState<Positions>({}); // Add new state for positions
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [tableData, setTableData] = useState<TableData[]>([]);
+  const [isFirstRowHeader, setIsFirstRowHeader] = useState<boolean>(false);
+  const [tableInput, setTableInput] = useState<string>("");
+  const [positions, setPositions] = useState<Positions>({});
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [selectedField, setSelectedField] = useState<string | null>(null);
@@ -138,7 +139,7 @@ export default function MainPage() {
         
         Object.keys(tableData[0]).forEach((key, index) => {
           if (!newPositions[key]) {
-            newPositions[key] = { x: 50, y: 50 + index * 10, fontSize: 24, fontFamily: 'Helvetica', color: '#000000' };
+            newPositions[key] = { x: 50, y: 50 + index * 10, fontSize: DEFAULT_FONT_SIZE, fontFamily: 'Helvetica', color: '#000000' };
             hasNewPositions = true;
           }
         });
@@ -151,7 +152,7 @@ export default function MainPage() {
   const processFile = async (file: File) => {
     if (file && (file.type === 'image/jpeg' || file.type === 'image/png')) {
       setUploadedFile(file);
-      setIsLoading(true); // Set loading to true
+      setIsLoading(true);
       const formData = new FormData();
       formData.append("template", file);
       console.log("Uploading file to API...");
@@ -163,11 +164,11 @@ export default function MainPage() {
         const data = await response.json();
         console.log(data.message);
         setUploadedFile(data.filename);
-        setUploadedFileUrl(data.image); // Set the image URL
+        setUploadedFileUrl(data.image);
       } catch (error) {
         console.error("Error uploading file:", error);
       } finally {
-        setIsLoading(false); // Set loading to false after upload
+        setIsLoading(false);
       }
     } else {
       alert("Please upload a JPEG or PNG file.");
@@ -204,8 +205,6 @@ export default function MainPage() {
     }
   };
 
-  // Event handlers for form elements
-
 
   const processTableData = (input: string, useHeaderRow: boolean = isFirstRowHeader) => {
     const rows = input.trim().split("\n").map(row => row.split("\t"));
@@ -227,7 +226,7 @@ export default function MainPage() {
     const newInput = event.target.value;
     setTableInput(newInput);
     if (newInput.trim() === '') {
-      setTableData([]); // Clear the table data when input is empty
+      setTableData([]);
     } else {
       processTableData(newInput, isFirstRowHeader);
     }
@@ -340,7 +339,7 @@ export default function MainPage() {
           data: tableData.map(row => {
             const entry: { [key: string]: { text: string; color?: [number, number, number]; uiMeasurements?: { width: number; height: number; actualHeight: number } } } = {};
             Object.keys(row).forEach(key => {
-              const fontSize = 24; // Current UI font size
+              const fontSize = DEFAULT_FONT_SIZE;
               const measurements = measureText(row[key], fontSize, '500');
               const position = positions[key];
               entry[key] = { 
@@ -355,13 +354,13 @@ export default function MainPage() {
             Object.entries(positions).map(([key, pos]) => [
               key,
               {
-                x: pos.x / 100, // Convert percentage to 0-1 range
-                y: pos.y / 100, // Convert percentage to 0-1 range (no inversion)
-                fontSize: pos.fontSize || 24, // Use custom fontSize or default to 24
-                font: pos.fontFamily || 'Helvetica', // Send font family to backend
-                bold: pos.bold || false, // Send bold state
-                oblique: pos.italic || false, // Send italic state (backend uses 'oblique')
-                alignment: pos.alignment || 'left' // Send alignment
+                x: pos.x / 100,
+                y: pos.y / 100,
+                fontSize: pos.fontSize || DEFAULT_FONT_SIZE,
+                font: pos.fontFamily || 'Helvetica',
+                bold: pos.bold || false,
+                oblique: pos.italic || false,
+                alignment: pos.alignment || 'left'
               }
             ])
           )
@@ -497,7 +496,7 @@ export default function MainPage() {
               <>
                 <div className="border-4 border-gray-700 inline-block relative w-full">
                   <img
-                    src={uploadedFileUrl} // Use the uploaded file URL
+                    src={uploadedFileUrl}
                     alt="Certificate Template"
                     className="w-full h-auto block"
                   />
@@ -513,7 +512,7 @@ export default function MainPage() {
                     {tableData.length > 0 && Object.entries(tableData[currentPreviewIndex] || tableData[0]).map(([key, value], index) => {
                     const isCurrentlyDragging = isDragging && dragInfo?.key === key;
                     const isSelected = selectedField === key;
-                    const fontSize = positions[key]?.fontSize || 24;
+                    const fontSize = positions[key]?.fontSize || DEFAULT_FONT_SIZE;
                     const fontFamily = positions[key]?.fontFamily || 'Helvetica';
                     const isBold = positions[key]?.bold || false;
                     const isItalic = positions[key]?.italic || false;
@@ -679,8 +678,7 @@ export default function MainPage() {
                     onClick={() => {
                       setUploadedFileUrl(null);
                       setUploadedFile(null);
-                      setPositions({}); // Reset positions when clearing the image
-                      // Clear any active drag state
+                      setPositions({});
                       setIsDragging(false);
                       setDragInfo(null);
                     }}
@@ -781,13 +779,14 @@ export default function MainPage() {
             >
               Formatting
               {selectedField && (
-                <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
+                <span className={`ml-1 px-1.5 py-0.5 text-xs ${
                   activeTab === 'formatting' 
                     ? 'text-amber-600' 
                     : 'text-green-800'
                 }`}
                 style={{
-                  backgroundColor: activeTab === 'formatting' ? '#F4A261' : '#D1FAE5'
+                  backgroundColor: activeTab === 'formatting' ? '#F4A261' : '#D1FAE5',
+                  borderRadius: '4px'
                 }}>
                   {selectedField}
                 </span>
@@ -878,18 +877,18 @@ export default function MainPage() {
                     </Button>
                   </div>
                   
-                  {/* Compact Font Size + Family Row */}
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* Size, Style, Formatting Row */}
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <label className="text-xs font-medium text-gray-600 mb-1 block">Font Size</label>
-                      <div className="flex items-center space-x-1">
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Size</label>
+                      <div className="flex items-center space-x-2">
                         <input
                           type="number"
                           min="8"
                           max="72"
-                          value={positions[selectedField]?.fontSize || 24}
+                          value={positions[selectedField]?.fontSize || DEFAULT_FONT_SIZE}
                           onChange={(e) => {
-                            const newFontSize = parseInt(e.target.value) || 24;
+                            const newFontSize = parseInt(e.target.value) || DEFAULT_FONT_SIZE;
                             setPositions(prev => ({
                               ...prev,
                               [selectedField]: {
@@ -898,14 +897,62 @@ export default function MainPage() {
                               }
                             }));
                           }}
-                          className="w-12 px-1 py-1 border rounded text-xs"
+                          className="w-16 h-10 px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
-                        <span className="text-xs text-gray-500">px</span>
+                        <span className="text-sm text-gray-500">px</span>
                       </div>
                     </div>
                     
                     <div>
-                      <label className="text-xs font-medium text-gray-600 mb-1 block">Font Family</label>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Style</label>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant={positions[selectedField]?.bold ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => {
+                            setPositions(prev => ({
+                              ...prev,
+                              [selectedField]: {
+                                ...prev[selectedField],
+                                bold: !prev[selectedField]?.bold
+                              }
+                            }));
+                          }}
+                          className="h-10 w-10"
+                          style={{
+                            backgroundColor: positions[selectedField]?.bold ? '#2D6A4F' : 'transparent',
+                            borderColor: '#2D6A4F',
+                            color: positions[selectedField]?.bold ? 'white' : '#2D6A4F'
+                          }}
+                        >
+                          <strong>B</strong>
+                        </Button>
+                        <Button
+                          variant={positions[selectedField]?.italic ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => {
+                            setPositions(prev => ({
+                              ...prev,
+                              [selectedField]: {
+                                ...prev[selectedField],
+                                italic: !prev[selectedField]?.italic
+                              }
+                            }));
+                          }}
+                          className="h-10 w-10"
+                          style={{
+                            backgroundColor: positions[selectedField]?.italic ? '#2D6A4F' : 'transparent',
+                            borderColor: '#2D6A4F',
+                            color: positions[selectedField]?.italic ? 'white' : '#2D6A4F'
+                          }}
+                        >
+                          <em>I</em>
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Formatting</label>
                       <Select
                         value={positions[selectedField]?.fontFamily || 'Helvetica'}
                         onChange={(e) => {
@@ -948,54 +995,6 @@ export default function MainPage() {
                     />
                   </div>
                   
-                  {/* Font Style Buttons */}
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 mb-3 block">Font Style</label>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={positions[selectedField]?.bold ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          setPositions(prev => ({
-                            ...prev,
-                            [selectedField]: {
-                              ...prev[selectedField],
-                              bold: !prev[selectedField]?.bold
-                            }
-                          }));
-                        }}
-                        className="flex-1 h-8"
-                        style={{
-                          backgroundColor: positions[selectedField]?.bold ? '#2D6A4F' : 'transparent',
-                          borderColor: '#2D6A4F',
-                          color: positions[selectedField]?.bold ? 'white' : '#2D6A4F'
-                        }}
-                      >
-                        <strong>B</strong>
-                      </Button>
-                      <Button
-                        variant={positions[selectedField]?.italic ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          setPositions(prev => ({
-                            ...prev,
-                            [selectedField]: {
-                              ...prev[selectedField],
-                              italic: !prev[selectedField]?.italic
-                            }
-                          }));
-                        }}
-                        className="flex-1 h-8"
-                        style={{
-                          backgroundColor: positions[selectedField]?.italic ? '#2D6A4F' : 'transparent',
-                          borderColor: '#2D6A4F',
-                          color: positions[selectedField]?.italic ? 'white' : '#2D6A4F'
-                        }}
-                      >
-                        <em>I</em>
-                      </Button>
-                    </div>
-                  </div>
                   
                   {/* Text Color Picker */}
                   <div>
@@ -1086,7 +1085,6 @@ export default function MainPage() {
                   <div>
                     <button
                       onClick={() => {
-                        // Apply current field's formatting to all fields
                         const currentFormatting = positions[selectedField];
                         if (currentFormatting && tableData.length > 0) {
                           const updatedPositions = { ...positions };
@@ -1105,7 +1103,6 @@ export default function MainPage() {
                           });
                           setPositions(updatedPositions);
                           
-                          // Show success message
                           setShowAppliedMessage(true);
                           setTimeout(() => setShowAppliedMessage(false), 2000);
                         }
