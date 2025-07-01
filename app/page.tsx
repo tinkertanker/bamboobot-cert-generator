@@ -909,7 +909,7 @@ export default function MainPage() {
 
           {/* Tab Content */}
           {activeTab === 'data' && (
-            <div>
+            <div className="flex flex-col h-full">
               <div className="flex items-center mb-4">
                 <input
                   type="checkbox"
@@ -922,53 +922,69 @@ export default function MainPage() {
                   Treat first row as header
                 </label>
               </div>
-              <Textarea
-                value={tableInput}
-                onChange={handleTableDataChange}
-                placeholder="Paste tabular data here"
-                className="w-full h-32 resize-none"
-              />
-              {tableData.length > 0 && (
-                <div className="mt-4">
-                  <table {...getTableProps()} className="min-w-full bg-white">
-                    <thead>
-                      {headerGroups.map((headerGroup: HeaderGroup<TableData>) => (
-                        <tr
-                          {...headerGroup.getHeaderGroupProps()}
-                          key={headerGroup.id}>
-                          {headerGroup.headers.map(
-                            (column: ColumnInstance<TableData>) => (
-                              <th
-                                {...column.getHeaderProps()}
-                                className="px-4 py-2 border"
-                                key={column.id}>
-                                {column.render("Header")}
-                              </th>
-                            )
-                          )}
-                        </tr>
-                      ))}
-                    </thead>
-                    <tbody {...getTableBodyProps()}>
-                      {rows.map((row: Row<TableData>) => {
-                        prepareRow(row);
-                        return (
-                          <tr {...row.getRowProps()} key={row.getRowProps().key}>
-                            {row.cells.map((cell: Cell<TableData>) => (
-                              <td
-                                {...cell.getCellProps()}
-                                className="px-4 py-2 border"
-                                key={cell.getCellProps().key}>
-                                {cell.render("Cell")}
-                              </td>
-                            ))}
+              <div className="flex flex-col h-[480px]">
+                <Textarea
+                  value={tableInput}
+                  onChange={handleTableDataChange}
+                  placeholder="Paste tabular data here"
+                  className="w-full resize-none"
+                  style={{ height: '154px' }}
+                />
+                {tableData.length > 0 && (
+                  <div className="mt-4 flex-1 min-h-0">
+                    <div className="h-full overflow-y-auto border border-gray-200 rounded-lg">
+                      <table {...getTableProps()} className="min-w-full bg-white">
+                        <thead className="sticky top-0" style={{ backgroundColor: '#cccccc' }}>
+                        {headerGroups.map((headerGroup: HeaderGroup<TableData>) => (
+                          <tr
+                            {...headerGroup.getHeaderGroupProps()}
+                            key={headerGroup.id}>
+                            {headerGroup.headers.map(
+                              (column: ColumnInstance<TableData>) => (
+                                <th
+                                  {...column.getHeaderProps()}
+                                  className="px-4 py-2 border-b border-gray-200 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  key={column.id}>
+                                  {column.render("Header")}
+                                </th>
+                              )
+                            )}
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        ))}
+                      </thead>
+                      <tbody {...getTableBodyProps()}>
+                        {rows.map((row: Row<TableData>, index) => {
+                          prepareRow(row);
+                          const isCurrentRow = index === currentPreviewIndex;
+                          return (
+                            <tr 
+                              {...row.getRowProps()} 
+                              key={row.getRowProps().key}
+                              className={`${isCurrentRow ? '' : 'hover:bg-gray-50'} transition-colors cursor-pointer`}
+                              style={{
+                                backgroundColor: isCurrentRow ? '#FFFBEB' : 'transparent',
+                                borderColor: isCurrentRow ? '#FDE68A' : 'transparent'
+                              }}
+                              onClick={() => setCurrentPreviewIndex(index)}
+                              title={isCurrentRow ? "Currently viewing this entry" : "Click to view this entry"}
+                            >
+                              {row.cells.map((cell: Cell<TableData>) => (
+                                <td
+                                  {...cell.getCellProps()}
+                                  className={`px-4 py-2 border-b border-gray-200 text-sm ${isCurrentRow ? 'text-amber-900 font-medium' : 'text-gray-900'}`}
+                                  key={cell.getCellProps().key}>
+                                  {cell.render("Cell")}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              )}
+                )}
+              </div>
             </div>
           )}
 
