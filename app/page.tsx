@@ -1155,7 +1155,7 @@ export default function MainPage() {
       </main>
       {(isGenerating || generatedPdfUrl) && (
         <div className="fixed inset-0 z-50 overflow-auto bg-primary bg-opacity-50 flex items-center justify-center">
-          <div className="relative bg-secondary w-11/12 md:w-3/4 lg:w-1/2 max-w-4xl mx-auto rounded-lg shadow-lg p-6">
+          <div className="relative bg-secondary w-3/4 max-w-6xl mx-auto rounded-lg shadow-lg p-6">
             {isGenerating ? (
               <div className="flex flex-col items-center justify-center h-64">
                 <Spinner />
@@ -1178,15 +1178,15 @@ export default function MainPage() {
                     onClick={handleDownloadPdf}
                     className="text-white"
                     style={{
-                      background: 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)',
-                      borderColor: '#2D6A4F',
-                      boxShadow: '0 2px 4px rgba(45, 106, 79, 0.2)'
+                      background: 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)',
+                      borderColor: '#E76F51',
+                      boxShadow: '0 2px 4px rgba(231, 111, 81, 0.2)'
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #40916C 0%, #52B788 100%)';
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #F4A261 0%, #E9C46A 100%)';
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)';
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)';
                     }}>
                     Download PDF
                   </Button>
