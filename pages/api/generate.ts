@@ -36,7 +36,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { templateFilename, data, positions, uiContainerDimensions }: { 
+    const { mode = 'single', templateFilename, data, positions, uiContainerDimensions }: { 
+      mode?: 'single' | 'individual';
       templateFilename: string; 
       data: Entry[]; 
       positions: Record<string, Position>;
@@ -156,26 +157,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return pdf.save();
     }));
 
-    const mergedPdf = await PDFDocument.create();
-    for (const pdfBytes of generatedPdfs) {
-      const pdf = await PDFDocument.load(pdfBytes);
-      const [page] = await mergedPdf.copyPages(pdf, [0]);
-      mergedPdf.addPage(page);
-    }
-
-    const pdfBytes = await mergedPdf.save();
-
     const outputDir = path.join(process.cwd(), 'public', 'generated');
     await fsPromises.mkdir(outputDir, { recursive: true });
 
-    const outputFilename = `certificates_${Date.now()}.pdf`;
-    const outputPath = path.join(outputDir, outputFilename);
-    await fsPromises.writeFile(outputPath, pdfBytes);
+    if (mode === 'individual') {
+      // Generate individual PDFs
+      const timestamp = Date.now();
+      const sessionDir = path.join(outputDir, `individual_${timestamp}`);
+      await fsPromises.mkdir(sessionDir, { recursive: true });
+      
+      const files = await Promise.all(generatedPdfs.map(async (pdfBytes, index) => {
+        const filename = `certificate_${index + 1}.pdf`;
+        const filePath = path.join(sessionDir, filename);
+        await fsPromises.writeFile(filePath, pdfBytes);
+        
+        return {
+          filename,
+          url: `/api/files/generated/individual_${timestamp}/${filename}`,
+          originalIndex: index
+        };
+      }));
 
-    return res.status(200).json({
-      message: 'Certificates generated successfully',
-      outputPath: `/api/files/generated/${outputFilename}`
-    });
+      return res.status(200).json({
+        message: 'Individual certificates generated successfully',
+        mode: 'individual',
+        files
+      });
+    } else {
+      // Merge PDFs into single file (existing behavior)
+      const mergedPdf = await PDFDocument.create();
+      for (const pdfBytes of generatedPdfs) {
+        const pdf = await PDFDocument.load(pdfBytes);
+        const [page] = await mergedPdf.copyPages(pdf, [0]);
+        mergedPdf.addPage(page);
+      }
+
+      const pdfBytes = await mergedPdf.save();
+      const outputFilename = `certificates_${Date.now()}.pdf`;
+      const outputPath = path.join(outputDir, outputFilename);
+      await fsPromises.writeFile(outputPath, pdfBytes);
+
+      return res.status(200).json({
+        message: 'Certificates generated successfully',
+        outputPath: `/api/files/generated/${outputFilename}`
+      });
+    }
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });

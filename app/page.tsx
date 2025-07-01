@@ -45,6 +45,9 @@ export default function MainPage() {
   const [activeTab, setActiveTab] = useState<'data' | 'formatting'>('data');
   const [showAppliedMessage, setShowAppliedMessage] = useState<boolean>(false);
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number>(0);
+  const [individualPdfsData, setIndividualPdfsData] = useState<any[] | null>(null);
+  const [isGeneratingIndividual, setIsGeneratingIndividual] = useState<boolean>(false);
+  const [selectedNamingColumn, setSelectedNamingColumn] = useState<string>('');
   
   // Pointer events state for dragging
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -376,6 +379,70 @@ export default function MainPage() {
     }
   };
 
+  const generateIndividualPdfs = async () => {
+    setIsGeneratingIndividual(true);
+    try {
+      // Measure actual container dimensions
+      const containerElement = document.querySelector('.image-container img') as HTMLImageElement;
+      const containerDimensions = containerElement ? {
+        width: containerElement.offsetWidth,
+        height: containerElement.offsetHeight
+      } : { width: 600, height: 400 }; // Fallback dimensions
+
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          mode: 'individual',
+          templateFilename: uploadedFile,
+          uiContainerDimensions: containerDimensions,
+          data: tableData.map(row => {
+            const entry: { [key: string]: { text: string; color?: [number, number, number]; uiMeasurements?: { width: number; height: number; actualHeight: number } } } = {};
+            Object.keys(row).forEach(key => {
+              const fontSize = DEFAULT_FONT_SIZE;
+              const measurements = measureText(row[key], fontSize, '500');
+              const position = positions[key];
+              entry[key] = { 
+                text: row[key],
+                color: position?.color ? hexToRgb(position.color) : hexToRgb('#000000'),
+                uiMeasurements: measurements
+              };
+            });
+            return entry;
+          }),
+          positions: Object.fromEntries(
+            Object.entries(positions).map(([key, pos]) => [
+              key,
+              {
+                x: pos.x / 100,
+                y: pos.y / 100,
+                fontSize: pos.fontSize || DEFAULT_FONT_SIZE,
+                font: pos.fontFamily || 'Helvetica',
+                bold: pos.bold || false,
+                oblique: pos.italic || false,
+                alignment: pos.alignment || 'left'
+              }
+            ])
+          )
+        })
+      });
+      const data = await response.json();
+      
+      // Set initial naming column to first column
+      if (tableData.length > 0 && !selectedNamingColumn) {
+        setSelectedNamingColumn(Object.keys(tableData[0])[0]);
+      }
+      
+      setIndividualPdfsData(data.files);
+      setIsGeneratingIndividual(false);
+    } catch (error) {
+      console.error("Error generating individual PDFs:", error);
+      setIsGeneratingIndividual(false);
+    }
+  };
+
   const handleDownloadPdf = () => {
     if (pdfDownloadUrl) {
       // Create full URL from relative path
@@ -461,31 +528,58 @@ export default function MainPage() {
       }}>
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold" style={{color: '#F4A261'}}>Bamboobot</h1>
-          <Button
-            onClick={generatePdf}
-            disabled={!uploadedFile || isGenerating}
-            className="text-white font-semibold px-6"
-            style={{
-              background: !uploadedFile || isGenerating 
-                ? 'linear-gradient(135deg, #6B7280 0%, #9CA3AF 100%)' 
-                : 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)',
-              borderColor: '#E76F51',
-              boxShadow: !uploadedFile || isGenerating 
-                ? '0 2px 4px rgba(107, 114, 128, 0.2)'
-                : '0 2px 4px rgba(231, 111, 81, 0.2)'
-            }}
-            onMouseOver={(e) => {
-              if (!(!uploadedFile || isGenerating)) {
-                e.currentTarget.style.background = 'linear-gradient(135deg, #D65A3A 0%, #E76F51 100%)';
-              }
-            }}
-            onMouseOut={(e) => {
-              if (!(!uploadedFile || isGenerating)) {
-                e.currentTarget.style.background = 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)';
-              }
-            }}>
-            {isGenerating ? "Generating..." : "Generate PDF"}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={generatePdf}
+              disabled={!uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0}
+              className="text-white font-semibold px-6"
+              style={{
+                background: !uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0
+                  ? 'linear-gradient(135deg, #6B7280 0%, #9CA3AF 100%)' 
+                  : 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)',
+                borderColor: '#E76F51',
+                boxShadow: !uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0
+                  ? '0 2px 4px rgba(107, 114, 128, 0.2)'
+                  : '0 2px 4px rgba(231, 111, 81, 0.2)'
+              }}
+              onMouseOver={(e) => {
+                if (!(!uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0)) {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #D65A3A 0%, #E76F51 100%)';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!(!uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0)) {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)';
+                }
+              }}>
+              {isGenerating ? "Generating..." : "Generate PDF"}
+            </Button>
+            <Button
+              onClick={generateIndividualPdfs}
+              disabled={!uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0}
+              className="text-white font-semibold px-6"
+              style={{
+                background: !uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0
+                  ? 'linear-gradient(135deg, #6B7280 0%, #9CA3AF 100%)' 
+                  : 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)',
+                borderColor: '#2D6A4F',
+                boxShadow: !uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0
+                  ? '0 2px 4px rgba(107, 114, 128, 0.2)'
+                  : '0 2px 4px rgba(45, 106, 79, 0.2)'
+              }}
+              onMouseOver={(e) => {
+                if (!(!uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0)) {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #40916C 0%, #52B788 100%)';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!(!uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0)) {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)';
+                }
+              }}>
+              {isGeneratingIndividual ? "Generating..." : "Generate Individual PDFs"}
+            </Button>
+          </div>
         </div>
       </header>
       <main className="flex-1 grid grid-cols-[60%_40%] gap-6 p-6">
@@ -1203,6 +1297,154 @@ export default function MainPage() {
                     onMouseOut={(e) => {
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}>Close</Button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
+      
+      {/* Individual PDFs Modal */}
+      {(isGeneratingIndividual || individualPdfsData) && (
+        <div className="fixed inset-0 z-50 overflow-auto bg-primary bg-opacity-50 flex items-center justify-center">
+          <div className="relative bg-secondary w-3/4 max-w-6xl mx-auto rounded-lg shadow-lg p-6">
+            {isGeneratingIndividual ? (
+              <div className="flex flex-col items-center justify-center h-64">
+                <Spinner />
+                <p className="mt-4 text-lg">Generating Individual PDFs...</p>
+              </div>
+            ) : individualPdfsData ? (
+              <>
+                <h2 className="text-2xl font-bold mb-4">Generated {individualPdfsData.length} Individual Certificates</h2>
+                
+                {/* File Naming Controls */}
+                <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <span className="font-medium">📁 File Naming:</span>
+                    <label className="text-sm">Use column:</label>
+                    <Select
+                      value={selectedNamingColumn}
+                      onChange={(e) => setSelectedNamingColumn(e.target.value)}
+                      className="text-sm"
+                    >
+                      {tableData.length > 0 && Object.keys(tableData[0]).map(column => (
+                        <option key={column} value={column}>{column}</option>
+                      ))}
+                    </Select>
+                    <span className="text-sm text-gray-500">for filenames</span>
+                  </div>
+                </div>
+                
+                {/* Files List */}
+                <div className="bg-gray-100 p-4 rounded-lg mb-4 max-h-96 overflow-y-auto">
+                  <h3 className="font-medium mb-2">📋 Files Ready:</h3>
+                  <div className="space-y-2">
+                    {individualPdfsData.map((file, index) => {
+                      // Generate filename based on selected column
+                      const baseFilename = tableData[index] && selectedNamingColumn 
+                        ? tableData[index][selectedNamingColumn] || `Certificate-${index + 1}`
+                        : `Certificate-${index + 1}`;
+                      
+                      // Sanitize filename
+                      const sanitizedFilename = baseFilename.replace(/[^a-zA-Z0-9-_]/g, '_');
+                      
+                      // Handle duplicates
+                      const duplicateCount = individualPdfsData
+                        .slice(0, index)
+                        .filter((_, i) => {
+                          const prevBase = tableData[i] && selectedNamingColumn 
+                            ? tableData[i][selectedNamingColumn] || `Certificate-${i + 1}`
+                            : `Certificate-${i + 1}`;
+                          return prevBase === baseFilename;
+                        }).length;
+                      
+                      const filename = duplicateCount > 0 
+                        ? `${sanitizedFilename}-${duplicateCount}.pdf`
+                        : `${sanitizedFilename}.pdf`;
+                      
+                      return (
+                        <div key={index} className="flex items-center justify-between p-2 bg-white rounded border border-gray-200">
+                          <span className="flex items-center gap-2">
+                            <span className="text-green-600">✓</span>
+                            <span className="font-mono text-sm">{filename}</span>
+                          </span>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              title="Preview"
+                              onClick={() => {
+                                // TODO: Implement preview
+                                window.open(file.url, '_blank');
+                              }}
+                            >
+                              👁️
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              title="Email"
+                              disabled
+                            >
+                              📧
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex justify-between">
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => {
+                        // TODO: Implement ZIP download
+                        alert('ZIP download will be implemented soon!');
+                      }}
+                      className="text-white"
+                      style={{
+                        background: 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)',
+                        borderColor: '#E76F51',
+                        boxShadow: '0 2px 4px rgba(231, 111, 81, 0.2)'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.background = 'linear-gradient(135deg, #F4A261 0%, #E9C46A 100%)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.background = 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)';
+                      }}>
+                      📥 Download All (ZIP)
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        alert('Email functionality will be implemented soon!');
+                      }}
+                      variant="outline"
+                      disabled
+                    >
+                      📧 Email All
+                    </Button>
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      setIndividualPdfsData(null);
+                      setSelectedNamingColumn('');
+                    }}
+                    variant="outline"
+                    style={{
+                      borderColor: '#6B7280',
+                      color: '#6B7280'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#F3F4F6';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}>
+                    Close
+                  </Button>
                 </div>
               </>
             ) : null}

@@ -148,12 +148,39 @@ npm test -- __tests__/components/Button.test.tsx
   - Grey background (#ccc) for inactive tabs
   - Unicode symbols throughout (no emojis)
 
+### 🚧 Current Development: Individual PDF Generation
+
+**Implementation Plan:**
+1. **UI Changes**:
+   - Two generate buttons: "Generate PDF" (single merged) and "Generate Individual PDFs"
+   - New modal for individual PDFs with file listing
+   
+2. **Individual PDFs Modal Design**:
+   - 75% screen width (consistent with merged PDF modal)
+   - Column dropdown to select naming source (defaults to first column)
+   - File list with preview/email icons per file
+   - Bulk actions: Download All (ZIP), Email All
+   - Auto-handles duplicates with numbering (John.pdf, John-1.pdf, John-2.pdf)
+
+3. **API Changes**:
+   - `/api/generate` accepts `mode: 'single' | 'individual'` parameter
+   - Individual mode returns array of file info with URLs
+   - Files saved to temp directory with unique folder
+
+4. **Naming Strategy**:
+   - Default: Use first column values + ".pdf"
+   - User can change to any column via dropdown
+   - Sanitize filenames for filesystem compatibility
+   - Handle empty/null values gracefully
+
 ### 🚧 Planned Features (Priority Order)
 
 **Phase 1 - Core Missing Features**
-- **Text alignment options** (30 mins)
-  - Left, Center, Right alignment
-  - Useful for different certificate layouts
+- **Individual PDF generation** (IN PROGRESS)
+  - Separate PDFs for each certificate
+  - Custom file naming based on data columns
+  - ZIP download for all files
+  - Preview individual certificates
 - **Reset/Clear formatting** (15 mins)
   - Reset button to restore defaults
   - Clear all formatting with one click
@@ -166,7 +193,7 @@ npm test -- __tests__/components/Button.test.tsx
 
 **Phase 2 - Core Missing Features**
 - Email functionality (SMTP, bulk sending, templates)
-- Individual PDF generation with ZIP download option
+- Integration with individual PDFs for direct emailing
 
 **Phase 3 - Enhanced Functionality**
 - PDF template support (currently only images)
