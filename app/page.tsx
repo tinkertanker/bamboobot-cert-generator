@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import Spinner from "@/components/Spinner";
 import { useTable, Column, ColumnInstance, HeaderGroup, Row, Cell } from "react-table";
 import { saveAs } from 'file-saver';
+import { ExternalLink, Mail, Download, FolderOpen, FileText, Check, X } from 'lucide-react';
 
 interface TableData {
   [key: string]: string;
@@ -379,6 +380,24 @@ export default function MainPage() {
     }
   };
 
+  // Function to detect if any column contains email addresses
+  const hasEmailColumn = useMemo(() => {
+    if (tableData.length === 0) return false;
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    // Check each column for email patterns
+    const columns = Object.keys(tableData[0]);
+    return columns.some(column => {
+      // Check if at least 50% of non-empty values in this column are emails
+      const values = tableData.map(row => row[column]).filter(val => val && val.trim());
+      if (values.length === 0) return false;
+      
+      const emailCount = values.filter(val => emailRegex.test(val.trim())).length;
+      return emailCount / values.length >= 0.5;
+    });
+  }, [tableData]);
+
   const generateIndividualPdfs = async () => {
     setIsGeneratingIndividual(true);
     try {
@@ -561,20 +580,20 @@ export default function MainPage() {
               style={{
                 background: !uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0
                   ? 'linear-gradient(135deg, #6B7280 0%, #9CA3AF 100%)' 
-                  : 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)',
-                borderColor: '#2D6A4F',
+                  : 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)',
+                borderColor: '#E76F51',
                 boxShadow: !uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0
                   ? '0 2px 4px rgba(107, 114, 128, 0.2)'
-                  : '0 2px 4px rgba(45, 106, 79, 0.2)'
+                  : '0 2px 4px rgba(231, 111, 81, 0.2)'
               }}
               onMouseOver={(e) => {
                 if (!(!uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0)) {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, #40916C 0%, #52B788 100%)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #D65A3A 0%, #E76F51 100%)';
                 }
               }}
               onMouseOut={(e) => {
                 if (!(!uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0)) {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)';
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)';
                 }
               }}>
               {isGeneratingIndividual ? "Generating..." : "Generate Individual PDFs"}
@@ -1319,25 +1338,28 @@ export default function MainPage() {
                 
                 {/* File Naming Controls */}
                 <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <span className="font-medium">📁 File Naming:</span>
-                    <label className="text-sm">Use column:</label>
-                    <Select
-                      value={selectedNamingColumn}
-                      onChange={(e) => setSelectedNamingColumn(e.target.value)}
-                      className="text-sm"
-                    >
-                      {tableData.length > 0 && Object.keys(tableData[0]).map(column => (
-                        <option key={column} value={column}>{column}</option>
-                      ))}
-                    </Select>
-                    <span className="text-sm text-gray-500">for filenames</span>
+                  <div className="grid grid-cols-12 items-center gap-4">
+                    <label className="font-medium col-span-3">Use this field for filenames:</label>
+                    <div className="col-span-9">
+                      <Select
+                        value={selectedNamingColumn}
+                        onChange={(e) => setSelectedNamingColumn(e.target.value)}
+                        className="text-sm w-full"
+                      >
+                        {tableData.length > 0 && Object.keys(tableData[0]).map(column => (
+                          <option key={column} value={column}>{column}</option>
+                        ))}
+                      </Select>
+                    </div>
                   </div>
                 </div>
                 
                 {/* Files List */}
                 <div className="bg-gray-100 p-4 rounded-lg mb-4 max-h-96 overflow-y-auto">
-                  <h3 className="font-medium mb-2">📋 Files Ready:</h3>
+                  <div className="flex items-center gap-2 mb-2">
+                    <FileText className="h-4 w-4" />
+                    <h3 className="font-medium">Files Ready:</h3>
+                  </div>
                   <div className="space-y-2">
                     {individualPdfsData.map((file, index) => {
                       // Generate filename based on selected column
@@ -1365,29 +1387,32 @@ export default function MainPage() {
                       return (
                         <div key={index} className="flex items-center justify-between p-2 bg-white rounded border border-gray-200">
                           <span className="flex items-center gap-2">
-                            <span className="text-green-600">✓</span>
+                            <Check className="h-4 w-4 text-green-600" />
                             <span className="font-mono text-sm">{filename}</span>
                           </span>
                           <div className="flex gap-2">
                             <Button
                               size="sm"
                               variant="outline"
-                              title="Preview"
+                              title="Open PDF"
                               onClick={() => {
-                                // TODO: Implement preview
                                 window.open(file.url, '_blank');
                               }}
+                              className="h-8 w-8 p-0"
                             >
-                              👁️
+                              <ExternalLink className="h-4 w-4" />
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              title="Email"
-                              disabled
-                            >
-                              📧
-                            </Button>
+                            {hasEmailColumn && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                title="Email"
+                                disabled
+                                className="h-8 w-8 p-0"
+                              >
+                                <Mail className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       );
@@ -1403,7 +1428,7 @@ export default function MainPage() {
                         // TODO: Implement ZIP download
                         alert('ZIP download will be implemented soon!');
                       }}
-                      className="text-white"
+                      className="text-white flex items-center gap-2"
                       style={{
                         background: 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)',
                         borderColor: '#E76F51',
@@ -1415,17 +1440,22 @@ export default function MainPage() {
                       onMouseOut={(e) => {
                         e.currentTarget.style.background = 'linear-gradient(135deg, #E76F51 0%, #F4A261 100%)';
                       }}>
-                      📥 Download All (ZIP)
+                      <Download className="h-4 w-4" />
+                      Download All (ZIP)
                     </Button>
-                    <Button 
-                      onClick={() => {
-                        alert('Email functionality will be implemented soon!');
-                      }}
-                      variant="outline"
-                      disabled
-                    >
-                      📧 Email All
-                    </Button>
+                    {hasEmailColumn && (
+                      <Button 
+                        onClick={() => {
+                          alert('Email functionality will be implemented soon!');
+                        }}
+                        variant="outline"
+                        disabled
+                        className="flex items-center gap-2"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Email All
+                      </Button>
+                    )}
                   </div>
                   <Button 
                     onClick={() => {
@@ -1442,7 +1472,10 @@ export default function MainPage() {
                     }}
                     onMouseOut={(e) => {
                       e.currentTarget.style.backgroundColor = 'transparent';
-                    }}>
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <X className="h-4 w-4" />
                     Close
                   </Button>
                 </div>
