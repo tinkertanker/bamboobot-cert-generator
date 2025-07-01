@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useMemo, ChangeEvent, useCallback, useEffect } from "react";
+import Image from "next/image";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import Spinner from "@/components/Spinner";
 import { useTable, Column, ColumnInstance, HeaderGroup, Row, Cell } from "react-table";
 import { saveAs } from 'file-saver';
-import { ExternalLink, Mail, Download, FolderOpen, FileText, Check, X, SkipBack, ChevronLeft, ChevronRight, SkipForward, AlignLeft, AlignCenter, AlignRight, Edit3 } from 'lucide-react';
+import { ExternalLink, Mail, Download, FileText, Check, X, SkipBack, ChevronLeft, ChevronRight, SkipForward, AlignLeft, AlignCenter, AlignRight, Edit3 } from 'lucide-react';
 
 interface TableData {
   [key: string]: string;
@@ -46,7 +47,7 @@ export default function MainPage() {
   const [activeTab, setActiveTab] = useState<'data' | 'formatting'>('data');
   const [showAppliedMessage, setShowAppliedMessage] = useState<boolean>(false);
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number>(0);
-  const [individualPdfsData, setIndividualPdfsData] = useState<any[] | null>(null);
+  const [individualPdfsData, setIndividualPdfsData] = useState<{filename: string; url: string; originalIndex: number}[] | null>(null);
   const [isGeneratingIndividual, setIsGeneratingIndividual] = useState<boolean>(false);
   const [selectedNamingColumn, setSelectedNamingColumn] = useState<string>('');
   
@@ -546,7 +547,10 @@ export default function MainPage() {
         boxShadow: '0 2px 4px rgba(27, 67, 50, 0.1)'
       }}>
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold" style={{color: '#F4A261'}}>Bamboobot</h1>
+          <div className="flex items-center gap-3">
+            <Image src="/bamboobot-icon.png" alt="Bamboobot" width={32} height={32} className="w-8 h-8" />
+            <h1 className="text-2xl font-bold" style={{color: '#F4A261'}}>Bamboobot</h1>
+          </div>
           <div className="flex gap-2">
             <Button
               onClick={generatePdf}
@@ -935,22 +939,20 @@ export default function MainPage() {
                     <div className="h-full overflow-y-auto border border-gray-200 rounded-lg">
                       <table {...getTableProps()} className="min-w-full bg-white">
                         <thead className="sticky top-0" style={{ backgroundColor: '#cccccc' }}>
-                        {headerGroups.map((headerGroup: HeaderGroup<TableData>) => (
-                          <tr
-                            {...headerGroup.getHeaderGroupProps()}
-                            key={headerGroup.id}>
-                            {headerGroup.headers.map(
-                              (column: ColumnInstance<TableData>) => (
-                                <th
-                                  {...column.getHeaderProps()}
-                                  className="px-4 py-2 border-b border-gray-200 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                  key={column.id}>
-                                  {column.render("Header")}
-                                </th>
-                              )
-                            )}
-                          </tr>
-                        ))}
+                          {headerGroups.map((headerGroup: HeaderGroup<TableData>, index) => (
+                            <tr
+                              key={headerGroup.id || `header-${index}`}>
+                              {headerGroup.headers.map(
+                                (column: ColumnInstance<TableData>) => (
+                                  <th
+                                    className="px-4 py-2 border-b border-gray-200 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    key={column.id}>
+                                    {column.render("Header")}
+                                  </th>
+                                )
+                              )}
+                            </tr>
+                          ))}
                       </thead>
                       <tbody {...getTableBodyProps()}>
                         {rows.map((row: Row<TableData>, index) => {
@@ -958,8 +960,7 @@ export default function MainPage() {
                           const isCurrentRow = index === currentPreviewIndex;
                           return (
                             <tr 
-                              {...row.getRowProps()} 
-                              key={row.getRowProps().key}
+                              key={row.id || index}
                               className={`${isCurrentRow ? '' : 'hover:bg-gray-50'} transition-colors cursor-pointer`}
                               style={{
                                 backgroundColor: isCurrentRow ? '#FFFBEB' : 'transparent',
@@ -970,9 +971,8 @@ export default function MainPage() {
                             >
                               {row.cells.map((cell: Cell<TableData>) => (
                                 <td
-                                  {...cell.getCellProps()}
                                   className={`px-4 py-2 border-b border-gray-200 text-sm ${isCurrentRow ? 'text-amber-900 font-medium' : 'text-gray-900'}`}
-                                  key={cell.getCellProps().key}>
+                                  key={cell.column.id}>
                                   {cell.render("Cell")}
                                 </td>
                               ))}
