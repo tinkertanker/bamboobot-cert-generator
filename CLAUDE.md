@@ -176,11 +176,13 @@ npm test -- __tests__/components/Button.test.tsx
 ### 🚧 Planned Features (Priority Order)
 
 **Phase 1 - Core Missing Features**
-- **Individual PDF generation** (IN PROGRESS)
-  - Separate PDFs for each certificate
-  - Custom file naming based on data columns
-  - ZIP download for all files
-  - Preview individual certificates
+- **Individual PDF generation** (COMPLETED)
+  - ✅ Separate PDFs for each certificate
+  - ✅ Custom file naming based on data columns (for downloads)
+  - ✅ ZIP download for all files with custom names
+  - ✅ Individual file download with custom names
+  - ✅ Preview individual certificates in modal
+  - ✅ Open/Download buttons for each PDF
 - **Reset/Clear formatting** (15 mins)
   - Reset button to restore defaults
   - Clear all formatting with one click
