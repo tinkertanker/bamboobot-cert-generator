@@ -17,6 +17,8 @@ A professional Next.js application for generating certificates from uploaded ima
 - **Smart Entry Navigation** - Previous/Next/First/Last navigation with entry counter
 - **Bulk Data Import** - TSV/CSV support with header row toggle
 - **Batch Certificate Generation** - Generate multiple certificates from tabular data
+- **Individual PDF Generation** - Create separate PDFs with custom filenames
+- **ZIP Download** - Download all individual PDFs in a single ZIP file
 - **Live Preview** - Real-time preview matching final PDF output
 - **Professional UI** - Dark green theme with coral accents and clean spacing
 - **Docker Support** - Production-ready containerization with development hot reload
@@ -71,8 +73,13 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
    - Set text alignment (left, center, right) with visual indicators
    - Apply current formatting to all fields at once
 5. **Navigate Entries**: Use Previous/Next buttons to preview different certificate entries
-6. **Generate PDFs**: Click "Generate PDF" to create certificates for all data rows
-7. **Download**: Download the generated PDF with all certificates
+6. **Generate PDFs**: 
+   - Click "Generate PDF" to create a single merged PDF with all certificates
+   - Or click "Generate Individual" to create separate PDFs for each data row
+7. **Download Options**:
+   - Download the merged PDF with all certificates
+   - Download individual PDFs one by one with custom filenames
+   - Download all individual PDFs as a ZIP file for easy distribution
 
 ## Visual Features
 
@@ -92,6 +99,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - `pages/api/` - API endpoints
   - `upload.ts` - Handles image upload and PDF conversion
   - `generate.ts` - Processes certificate generation with positioned text
+  - `zip-pdfs.ts` - Creates ZIP archives of individual PDFs with custom filenames
   - `files/` - Dynamic file serving endpoints for production
     - `temp_images/[filename].ts` - Serves uploaded images
     - `generated/[filename].ts` - Serves generated PDFs
@@ -175,11 +183,29 @@ docker-compose -f docker-compose.dev.yml down
 - [TypeScript](https://www.typescriptlang.org/) - Type-safe JavaScript
 - [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
 - [pdf-lib](https://pdf-lib.js.org/) - PDF manipulation and generation
+- [archiver](https://github.com/archiverjs/node-archiver) - ZIP archive creation for bulk downloads
 - [formidable](https://github.com/node-formidable/formidable) - File upload handling
 - [react-table](https://react-table-v7.tanstack.com/) - Data table management
 - [shadcn/ui](https://ui.shadcn.com/) - Modern UI components
 - [Docker](https://www.docker.com/) - Containerization for production
 - [Jest](https://jestjs.io/) - Testing framework
+
+## About the Name
+
+Bamboobot inherits its name and icon from an early Tinkertanker project focused on PDF stamping. The bamboo metaphor resonates deeply with the essence of certificate generation and recognition:
+
+**Bamboo symbolizes:**
+- **Growth and resilience** - bends but doesn't break, much like learners who persist through challenges
+- **Integrity and uprightness** - representing the honest achievements that certificates recognize
+- **Flexibility and strength** - adapting to different learning paths while maintaining core values
+- **Continuous learning and improvement** - bamboo's rapid growth mirrors lifelong development
+
+These qualities align perfectly with what certificates aim to recognize in learners and professionals. Whether you're designing certificates for educational achievements, professional development, or skill recognition, Bamboobot embodies the spirit of:
+- **Lifelong learning** - celebrating continuous growth
+- **Personal development** - acknowledging individual progress
+- **Humble strength** - recognizing quiet determination and perseverance
+
+Just as bamboo grows steadily and stands tall, Bamboobot helps you create certificates that honor the journey of learning and achievement.
 
 ## Cleanup
 
