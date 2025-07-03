@@ -40,7 +40,7 @@ interface Position {
   x: number;
   y: number;
   fontSize?: number;
-  fontFamily?: "Helvetica" | "Times" | "Courier" | "Montserrat" | "Poppins" | "WorkSans" | "Roboto" | "SourceSansPro" | "Nunito";
+  fontFamily?: "Helvetica" | "Times" | "Courier" | "Montserrat" | "Poppins" | "WorkSans" | "Roboto" | "SourceSansPro" | "Nunito" | "GreatVibes";
   bold?: boolean;
   italic?: boolean;
   color?: string;
@@ -63,7 +63,8 @@ const FONT_CAPABILITIES = {
   WorkSans: { bold: true, italic: true },            // Complete font family - clean with character
   Roboto: { bold: true, italic: true },              // Google's flagship - excellent kerning
   SourceSansPro: { bold: true, italic: true },       // Adobe's masterpiece - professional typography
-  Nunito: { bold: true, italic: true }               // Friendly rounded - good spacing
+  Nunito: { bold: true, italic: true },              // Friendly rounded - good spacing
+  GreatVibes: { bold: false, italic: false }         // Elegant script - single weight only
 } as const;
 
 export default function MainPage() {
@@ -864,7 +865,8 @@ export default function MainPage() {
                           WorkSans: 'var(--font-work-sans), "Work Sans", sans-serif',
                           Roboto: 'var(--font-roboto), "Roboto", sans-serif',
                           SourceSansPro: 'var(--font-source-sans-pro), "Source Sans Pro", sans-serif',
-                          Nunito: 'var(--font-nunito), "Nunito", sans-serif'
+                          Nunito: 'var(--font-nunito), "Nunito", sans-serif',
+                          GreatVibes: 'var(--font-great-vibes), "Great Vibes", cursive'
                         };
 
                         // Calculate transform based on alignment
@@ -1485,7 +1487,8 @@ export default function MainPage() {
                             | "WorkSans"
                             | "Roboto"
                             | "SourceSansPro"
-                            | "Nunito";
+                            | "Nunito"
+                            | "GreatVibes";
                           const newFontCapabilities = FONT_CAPABILITIES[newFontFamily];
                           
                           setPositions((prev) => ({
@@ -1509,6 +1512,7 @@ export default function MainPage() {
                         <option value="Roboto">Roboto</option>
                         <option value="SourceSansPro">Source Sans Pro</option>
                         <option value="Nunito">Nunito</option>
+                        <option value="GreatVibes">Great Vibes</option>
                       </Select>
                     </div>
                   </div>

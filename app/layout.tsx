@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Rubik, Montserrat, Poppins, Work_Sans, Roboto, Source_Sans_3, Nunito } from "next/font/google";
+import { Rubik, Montserrat, Poppins, Work_Sans, Roboto, Source_Sans_3, Nunito, Great_Vibes } from "next/font/google";
 import "./globals.css";
 
 const rubik = Rubik({
@@ -49,6 +49,12 @@ const nunito = Nunito({
   style: ["normal", "italic"],
 });
 
+const greatVibes = Great_Vibes({
+  subsets: ["latin"],
+  variable: "--font-great-vibes",
+  weight: ["400"],
+});
+
 export const metadata: Metadata = {
   title: "Bamboobot Certificate Generator",
   description: "Professional certificate generator with drag-and-drop text positioning, advanced formatting, and bulk PDF generation. Create beautiful certificates with ease.",
@@ -66,7 +72,7 @@ export default function RootLayout({
         <link rel="icon" href="/bamboobot-icon.png" type="image/png" />
       </head>
       <body
-        className={`${rubik.variable} ${montserrat.variable} ${poppins.variable} ${workSans.variable} ${roboto.variable} ${sourceSansPro.variable} ${nunito.variable} antialiased`}
+        className={`${rubik.variable} ${montserrat.variable} ${poppins.variable} ${workSans.variable} ${roboto.variable} ${sourceSansPro.variable} ${nunito.variable} ${greatVibes.variable} antialiased`}
       >
         {children}
       </body>
