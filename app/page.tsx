@@ -50,6 +50,8 @@ export default function MainPage() {
   const [individualPdfsData, setIndividualPdfsData] = useState<{filename: string; url: string; originalIndex: number}[] | null>(null);
   const [isGeneratingIndividual, setIsGeneratingIndividual] = useState<boolean>(false);
   const [selectedNamingColumn, setSelectedNamingColumn] = useState<string>('');
+  const [showResetFieldModal, setShowResetFieldModal] = useState<boolean>(false);
+  const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
   
   // Pointer events state for dragging
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -1269,6 +1271,30 @@ export default function MainPage() {
                       Formatting applied to all fields
                     </div>
                   )}
+                  
+                  {/* Reset Buttons */}
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => setShowResetFieldModal(true)}
+                      disabled={!selectedField}
+                      title="Reset this field to default formatting"
+                      className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
+                        selectedField 
+                          ? 'text-gray-700 bg-gray-100 hover:bg-gray-200' 
+                          : 'text-gray-400 bg-gray-50 cursor-not-allowed'
+                      }`}
+                    >
+                      Reset Field
+                    </button>
+                    
+                    <button
+                      onClick={() => setShowClearAllModal(true)}
+                      title="Reset all fields to default formatting"
+                      className="flex-1 px-3 py-2 text-sm font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors duration-200"
+                    >
+                      Clear All
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="p-6 border-2 border-dashed border-gray-300 rounded-lg text-center text-gray-500">
@@ -1567,6 +1593,103 @@ export default function MainPage() {
                 </div>
               </>
             ) : null}
+          </div>
+        </div>
+      )}
+      
+      {/* Reset Field Confirmation Modal */}
+      {showResetFieldModal && selectedField && (
+        <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center">
+          <div className="relative bg-white bg-opacity-100 w-96 mx-auto rounded-lg shadow-xl p-6 border border-gray-200">
+            <h2 className="text-lg font-semibold mb-4">Reset Field Formatting</h2>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to reset the formatting for "{selectedField}" to default settings?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowResetFieldModal(false)}
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedField && positions[selectedField]) {
+                    setPositions(prev => ({
+                      ...prev,
+                      [selectedField]: {
+                        ...prev[selectedField],
+                        fontSize: DEFAULT_FONT_SIZE,
+                        fontFamily: 'Helvetica',
+                        bold: false,
+                        italic: false,
+                        color: '#000000',
+                        alignment: 'left'
+                      }
+                    }));
+                  }
+                  setShowResetFieldModal(false);
+                }}
+                className="px-4 py-2"
+                style={{
+                  backgroundColor: '#6B7280',
+                  color: 'white'
+                }}
+              >
+                Reset
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Clear All Formatting Confirmation Modal */}
+      {showClearAllModal && (
+        <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center">
+          <div className="relative bg-white bg-opacity-100 w-96 mx-auto rounded-lg shadow-xl p-6 border border-gray-200">
+            <h2 className="text-lg font-semibold mb-4">Clear All Formatting</h2>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to reset all text fields to default formatting? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowClearAllModal(false)}
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (tableData.length > 0) {
+                    const updatedPositions = { ...positions };
+                    Object.keys(tableData[0]).forEach(key => {
+                      if (updatedPositions[key]) {
+                        updatedPositions[key] = {
+                          ...updatedPositions[key],
+                          fontSize: DEFAULT_FONT_SIZE,
+                          fontFamily: 'Helvetica',
+                          bold: false,
+                          italic: false,
+                          color: '#000000',
+                          alignment: 'left'
+                        };
+                      }
+                    });
+                    setPositions(updatedPositions);
+                  }
+                  setShowClearAllModal(false);
+                }}
+                className="px-4 py-2"
+                style={{
+                  backgroundColor: '#DC2626',
+                  color: 'white'
+                }}
+              >
+                Clear All
+              </Button>
+            </div>
           </div>
         </div>
       )}
