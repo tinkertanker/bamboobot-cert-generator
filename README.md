@@ -9,7 +9,8 @@ A professional Next.js application for generating certificates from uploaded ima
 - **Precision Text Positioning** - Pointer-based drag system with visual feedback and touch support
 - **Advanced Text Formatting** - Complete font controls with live preview:
   - Font size adjustment (8-72px) with slider and number input
-  - **8 Professional Fonts**: Helvetica, Times, Courier, Dancing Script, Great Vibes, Playfair Display, Montserrat, Open Sans
+  - **9 Professional Fonts**: Helvetica, Times, Courier, Montserrat, Poppins, Work Sans, Roboto, Source Sans Pro, Nunito
+  - **Kerning-Optimized Selection**: All custom fonts chosen for excellent character spacing and professional typography
   - **Smart Font Capabilities**: Bold/italic buttons automatically disable for fonts that don't support them
   - Text color picker with hex display
   - Text alignment (left, center, right) with visual bracket indicators
@@ -211,13 +212,14 @@ Just as bamboo grows steadily and stands tall, Bamboobot helps you create certif
 
 This project includes fonts from Google Fonts, all licensed under SIL Open Font License 1.1:
 
-- **Dancing Script** by Impallari Type - Elegant casual script font
-- **Great Vibes** by TypeSETit - Luxury script font for formal certificates  
-- **Playfair Display** by Claus Eggers Sørensen - High-contrast serif for academic use
-- **Montserrat** by Julieta Ulanovsky - Modern geometric sans-serif
-- **Open Sans** by Steve Matteson - Highly readable humanist sans-serif
+- **Montserrat** by Julieta Ulanovsky - Modern geometric sans-serif with excellent readability
+- **Poppins** by Indian Type Foundry - Geometric typeface with friendly personality
+- **Work Sans** by Wei Huang - Clean humanist design with character
+- **Roboto** by Christian Robertson - Google's flagship font with superior kerning
+- **Source Sans Pro** by Paul D. Hunt (Adobe) - Professional typography masterpiece
+- **Nunito** by Vernon Adams - Friendly rounded design with excellent spacing
 
-All fonts are licensed under SIL Open Font License 1.1 (https://scripts.sil.org/OFL). The license file is included at `public/fonts/OFL.txt`.
+All fonts were specifically chosen for their excellent character spacing and kerning properties, ensuring professional-quality certificate output. All fonts are licensed under SIL Open Font License 1.1 (https://scripts.sil.org/OFL).
 
 ## Cleanup
 
