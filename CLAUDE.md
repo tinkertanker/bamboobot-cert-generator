@@ -183,9 +183,11 @@ npm test -- __tests__/components/Button.test.tsx
   - ✅ Individual file download with custom names
   - ✅ Preview individual certificates in modal
   - ✅ Open/Download buttons for each PDF
-- **Reset/Clear formatting** (15 mins)
-  - Reset button to restore defaults
-  - Clear all formatting with one click
+- **Reset/Clear formatting** (COMPLETED)
+  - ✅ Reset Field button to restore selected field to defaults
+  - ✅ Clear All button to reset all fields formatting
+  - ✅ Confirmation modals for both actions
+  - ✅ Side-by-side button layout
 - **Format templates** (45 mins)
   - Save/load formatting presets
   - Quick apply saved styles
