@@ -284,6 +284,22 @@ export default function MainPage() {
     }
   }, [selectedField, isDragging]);
 
+  // ESC key to dismiss all modals
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        // Close all modals
+        setGeneratedPdfUrl(null);
+        setIndividualPdfsData(null);
+        setShowResetFieldModal(false);
+        setShowClearAllModal(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, []);
+
   // Ensure all table columns have positions and reset preview index
   useEffect(() => {
     if (tableData.length > 0) {
