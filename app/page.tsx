@@ -101,6 +101,7 @@ export default function MainPage() {
     offsetY: number;
     pointerId: number;
   } | null>(null);
+  const [showCenterGuide, setShowCenterGuide] = useState<{horizontal: boolean, vertical: boolean}>({horizontal: false, vertical: false});
 
   // Text measurement utility for consistent sizing
   const measureText = useCallback(
@@ -160,8 +161,31 @@ export default function MainPage() {
           }));
         } else {
           // Clamp the values between 0 and 100 but preserve other properties
-          const clampedX = Math.max(0, Math.min(100, x));
-          const clampedY = Math.max(0, Math.min(100, y));
+          let clampedX = Math.max(0, Math.min(100, x));
+          let clampedY = Math.max(0, Math.min(100, y));
+          
+          // Center snapping - snap to center if within 2% threshold (closer to the line)
+          const snapThreshold = 2;
+          const centerX = 50;
+          const centerY = 50;
+          
+          let isSnappingHorizontal = false;
+          let isSnappingVertical = false;
+          
+          if (Math.abs(clampedX - centerX) <= snapThreshold) {
+            clampedX = centerX;
+            isSnappingVertical = true; // Show vertical line when snapping to X center
+          }
+          if (Math.abs(clampedY - centerY) <= snapThreshold) {
+            clampedY = centerY;
+            isSnappingHorizontal = true; // Show horizontal line when snapping to Y center
+          }
+          
+          // Show/hide center guides based on which axis is snapping
+          setShowCenterGuide({
+            horizontal: isSnappingHorizontal,
+            vertical: isSnappingVertical
+          });
 
           setPositions((prev) => ({
             ...prev,
@@ -177,6 +201,7 @@ export default function MainPage() {
 
       setIsDragging(false);
       setDragInfo(null);
+      setShowCenterGuide({horizontal: false, vertical: false});
     };
 
     if (isDragging) {
@@ -202,6 +227,63 @@ export default function MainPage() {
     };
   }, [isDragging]);
 
+  // Arrow key nudging for selected field
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!selectedField || isDragging) return;
+      
+      const nudgeAmount = event.shiftKey ? 2 : 0.5; // Larger nudge with Shift
+      
+      switch (event.key) {
+        case 'ArrowUp':
+          event.preventDefault();
+          setPositions(prev => ({
+            ...prev,
+            [selectedField]: {
+              ...prev[selectedField],
+              y: Math.max(0, (prev[selectedField]?.y || 50) - nudgeAmount)
+            }
+          }));
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          setPositions(prev => ({
+            ...prev,
+            [selectedField]: {
+              ...prev[selectedField],
+              y: Math.min(100, (prev[selectedField]?.y || 50) + nudgeAmount)
+            }
+          }));
+          break;
+        case 'ArrowLeft':
+          event.preventDefault();
+          setPositions(prev => ({
+            ...prev,
+            [selectedField]: {
+              ...prev[selectedField],
+              x: Math.max(0, (prev[selectedField]?.x || 50) - nudgeAmount)
+            }
+          }));
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          setPositions(prev => ({
+            ...prev,
+            [selectedField]: {
+              ...prev[selectedField],
+              x: Math.min(100, (prev[selectedField]?.x || 50) + nudgeAmount)
+            }
+          }));
+          break;
+      }
+    };
+
+    if (selectedField) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [selectedField, isDragging]);
+
   // Ensure all table columns have positions and reset preview index
   useEffect(() => {
     if (tableData.length > 0) {
@@ -219,7 +301,8 @@ export default function MainPage() {
               y: 50 + index * 10,
               fontSize: DEFAULT_FONT_SIZE,
               fontFamily: "Helvetica",
-              color: "#000000"
+              color: "#000000",
+              alignment: "center"
             };
             hasNewPositions = true;
           }
@@ -626,6 +709,7 @@ export default function MainPage() {
       // Select the field for formatting and switch to formatting tab
       setSelectedField(key);
       setActiveTab("formatting");
+      setShowCenterGuide({horizontal: false, vertical: false});
 
       const element = event.currentTarget as HTMLElement;
       const rect = element.getBoundingClientRect();
@@ -836,6 +920,7 @@ export default function MainPage() {
                       // Only deselect if clicking on the overlay itself, not on text fields
                       if (e.target === e.currentTarget) {
                         setSelectedField(null);
+                        setShowCenterGuide({horizontal: false, vertical: false});
                       }
                     }}>
                     {tableData.length > 0 &&
@@ -852,7 +937,7 @@ export default function MainPage() {
                         const isBold = positions[key]?.bold || false;
                         const isItalic = positions[key]?.italic || false;
                         const textColor = positions[key]?.color || "#000000";
-                        const alignment = positions[key]?.alignment || "left";
+                        const alignment = positions[key]?.alignment || "center";
 
                         // Map font names to CSS font families
                         const fontFamilyMap = {
@@ -1044,6 +1129,38 @@ export default function MainPage() {
                           </div>
                         );
                       })}
+                    
+                    {/* Center alignment guides */}
+                    <>
+                      {/* Vertical center line - shown when snapping horizontally (X-axis) */}
+                      <div
+                        className="absolute pointer-events-none border-l-2 border-dashed transition-all duration-200 ease-in-out"
+                        style={{
+                          left: "50%",
+                          top: "0%",
+                          height: "100%",
+                          marginLeft: "-1px",
+                          borderColor: "#E76F51",
+                          opacity: showCenterGuide.vertical ? 0.8 : 0,
+                          transform: showCenterGuide.vertical ? "scaleY(1)" : "scaleY(0.8)",
+                          transformOrigin: "center"
+                        }}
+                      />
+                      {/* Horizontal center line - shown when snapping vertically (Y-axis) */}
+                      <div
+                        className="absolute pointer-events-none border-t-2 border-dashed transition-all duration-200 ease-in-out"
+                        style={{
+                          top: "50%",
+                          left: "0%",
+                          width: "100%",
+                          marginTop: "-1px",
+                          borderColor: "#E76F51",
+                          opacity: showCenterGuide.horizontal ? 0.8 : 0,
+                          transform: showCenterGuide.horizontal ? "scaleX(1)" : "scaleX(0.8)",
+                          transformOrigin: "center"
+                        }}
+                      />
+                    </>
                   </div>
                 </div>
               </>
@@ -1122,6 +1239,13 @@ export default function MainPage() {
                     Clear Template
                   </Button>
                 </div>
+
+                {/* Arrow key hint - center aligned */}
+                {selectedField && (
+                  <div className="flex items-center justify-center text-xs text-gray-500">
+                    <span>Use arrow keys to nudge selected text (Shift for larger steps)</span>
+                  </div>
+                )}
 
                 {/* Navigation buttons - right aligned */}
                 {tableData.length > 0 && (
@@ -1339,7 +1463,10 @@ export default function MainPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setSelectedField(null)}>
+                      onClick={() => {
+                        setSelectedField(null);
+                        setShowCenterGuide({horizontal: false, vertical: false});
+                      }}>
                       <X className="h-4 w-4" />
                     </Button>
                   </div>

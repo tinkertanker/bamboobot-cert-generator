@@ -1,4 +1,4 @@
-const { createMocks } = require('node-mocks-http');
+import { createMocks } from 'node-mocks-http';
 import handler from '@/pages/api/zip-pdfs';
 import fs from 'fs';
 import path from 'path';

@@ -2,8 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fsPromises from 'fs/promises';
 import path from 'path';
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-const fontkit = require('fontkit');
+import * as fontkit from '@pdf-lib/fontkit';
 
 const FONT_SIZE_MULTIPLIER = 1;
 
