@@ -70,4 +70,25 @@ describe('/api/zip-pdfs', () => {
     expect(res._getHeaders()['content-type']).toBe('application/zip');
     expect(res._getHeaders()['content-disposition']).toBe('attachment; filename="certificates.zip"');
   });
+
+  it('should handle direct URLs from public folder', async () => {
+    const mockFiles = [
+      { url: '/generated/individual_456/test1.pdf', filename: 'Certificate1.pdf' },
+      { url: '/generated/individual_456/test2.pdf', filename: 'Certificate2.pdf' },
+    ];
+
+    // Mock file existence
+    (fs.existsSync as jest.Mock).mockReturnValue(true);
+    (fs.createReadStream as jest.Mock).mockReturnValue('mock-stream');
+
+    const { req, res } = createMocks({
+      method: 'POST',
+      body: { files: mockFiles },
+    });
+
+    await handler(req, res);
+
+    expect(res._getHeaders()['content-type']).toBe('application/zip');
+    expect(res._getHeaders()['content-disposition']).toBe('attachment; filename="certificates.zip"');
+  });
 });

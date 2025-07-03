@@ -3,6 +3,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fsPromises from 'fs/promises';
 import path from 'path';
 import * as fontkit from '@pdf-lib/fontkit';
+import storageConfig from '@/lib/storage-config';
 
 const FONT_SIZE_MULTIPLIER = 1;
 
@@ -325,9 +326,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const filePath = path.join(sessionDir, filename);
         await fsPromises.writeFile(filePath, pdfBytes);
         
+        // Use storage config to get the appropriate URL
+        const fileUrl = storageConfig.getFileUrl(filename, `individual_${timestamp}`);
+        
         return {
           filename,
-          url: `/api/files/generated/individual_${timestamp}/${filename}`,
+          url: fileUrl,
           originalIndex: index
         };
       }));
@@ -351,9 +355,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const outputPath = path.join(outputDir, outputFilename);
       await fsPromises.writeFile(outputPath, pdfBytes);
 
+      // Use storage config to get the appropriate URL
+      const fileUrl = storageConfig.getFileUrl(outputFilename);
+      
       return res.status(200).json({
         message: 'Certificates generated successfully',
-        outputPath: `/api/files/generated/${outputFilename}`
+        outputPath: fileUrl
       });
     }
   } catch (error) {

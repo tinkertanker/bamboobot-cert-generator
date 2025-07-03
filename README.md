@@ -191,6 +191,106 @@ docker-compose -f docker-compose.dev.yml down
 - [Docker](https://www.docker.com/) - Containerization for production
 - [Jest](https://jestjs.io/) - Testing framework
 
+## File Serving and Storage
+
+### Development Environment
+In development mode, files are served directly from the `public` directory:
+- Template images: `/temp_images/`
+- Generated PDFs: `/generated/`
+
+This avoids the 4MB API response limit and improves performance.
+
+### Production Environment
+In production, files can be served through:
+1. **Current**: API routes (fallback for Docker volumes)
+2. **Recommended**: Cloud storage (S3, Cloudflare R2, Google Cloud Storage)
+
+To configure cloud storage, set these environment variables:
+- `STORAGE_PROVIDER`: 'local' | 's3' | 'cloudflare-r2' | 'gcs'
+- `STORAGE_BUCKET`: Your storage bucket name
+- `CDN_URL`: Your CDN URL (for S3/CloudFront)
+- `R2_PUBLIC_URL`: Your R2 public URL (for Cloudflare)
+
+### Cloudflare R2 Implementation Plan
+
+**Why R2?**
+- S3-compatible API
+- No egress fees
+- Automatic CDN via Cloudflare network
+- Cost-effective for PDF storage and delivery
+
+**Implementation Steps:**
+1. **Set up R2 bucket**
+   ```bash
+   # Install Wrangler CLI
+   npm install -g wrangler
+   
+   # Create R2 bucket
+   wrangler r2 bucket create bamboobot-certificates
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+   ```
+
+3. **Environment variables needed**
+   ```env
+   STORAGE_PROVIDER=cloudflare-r2
+   R2_ACCOUNT_ID=your_account_id
+   R2_ACCESS_KEY_ID=your_access_key
+   R2_SECRET_ACCESS_KEY=your_secret_key
+   R2_BUCKET_NAME=bamboobot-certificates
+   R2_PUBLIC_URL=https://certificates.your-domain.com
+   ```
+
+4. **Update storage-config.ts**
+   - Add R2 client initialization
+   - Implement file upload to R2
+   - Generate public URLs or signed URLs
+   - Handle file deletion for cleanup
+
+5. **Modify API endpoints**
+   - `/api/generate`: Upload PDFs to R2 after generation
+   - `/api/upload`: Upload templates to R2
+   - Return R2 URLs instead of local paths
+
+6. **Optional: Set up custom domain**
+   - Configure R2 custom domain for branded URLs
+   - Enable Cloudflare caching rules
+
+**Benefits:**
+- Removes 4MB API limit completely
+- Faster global delivery via Cloudflare CDN
+- Reduced server load
+- Scalable storage solution
+
+## Development Troubleshooting
+
+### Webpack Module Not Found Error
+
+If you encounter errors like `Error: Cannot find module './682.js'` during development:
+
+**Symptoms:**
+- Error appears after making code changes
+- References missing webpack chunk files (e.g., `./682.js`)
+- Shows webpack-runtime.js in the error stack
+
+**Solution:**
+1. Stop the dev server (`Ctrl+C`)
+2. Clear the Next.js cache: `rm -rf .next`
+3. Restart the dev server: `npm run dev`
+
+**Why this happens:**
+- Next.js webpack hot module replacement (HMR) can sometimes lose track of chunk files
+- Often occurs after significant code changes or when switching between branches
+- The `.next` directory contains cached build artifacts that may become stale
+
+**Prevention tips:**
+- Consider adding `.next` to your `.gitignore` (should already be there)
+- If the issue persists, try: `npm run build && npm run dev`
+- Update Next.js to the latest version when possible
+
 ## About the Name
 
 Bamboobot inherits its name and icon from an early Tinkertanker project focused on PDF stamping. The bamboo metaphor resonates deeply with the essence of certificate generation and recognition:

@@ -4,6 +4,7 @@ import fs from 'fs'; // Importing fs for synchronous operations
 import fsPromises from 'fs/promises'; // Importing fs/promises for asynchronous operations
 import path from 'path';
 import { IncomingForm, File, Fields, Files } from 'formidable';
+import storageConfig from '@/lib/storage-config';
 
 export const config = {
   api: {
@@ -78,7 +79,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const imageFilepath = path.join(outputDir, `${path.basename(filename, fileExtension)}${fileExtension}`);
     await fsPromises.copyFile(filepath, imageFilepath);
 
-    const imageUrl = `/api/files/temp_images/${path.basename(filename, fileExtension)}${fileExtension}`; // Use API endpoint for serving the image
+    // Use storage config to get the appropriate URL
+    const imageName = `${path.basename(filename, fileExtension)}${fileExtension}`;
+    const imageUrl = storageConfig.getFileUrl(imageName, undefined, 'temp_images');
     console.log("imageUrl");
     console.log(imageUrl);
 

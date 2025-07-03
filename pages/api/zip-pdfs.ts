@@ -52,8 +52,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log(`URL path: ${urlPath}`);
         
         // Convert URL path to file system path
-        // Remove /api/files/generated/ prefix and get the actual path
-        const relativePath = urlPath.replace(/^\/api\/files\/generated\//, '');
+        // Handle both direct URLs (/generated/) and API URLs (/api/files/generated/)
+        let relativePath: string;
+        if (urlPath.startsWith('/api/files/generated/')) {
+          relativePath = urlPath.replace(/^\/api\/files\/generated\//, '');
+        } else if (urlPath.startsWith('/generated/')) {
+          relativePath = urlPath.replace(/^\/generated\//, '');
+        } else {
+          console.error(`Unexpected URL format: ${urlPath}`);
+          continue;
+        }
+        
         const filePath = path.join(process.cwd(), 'public', 'generated', relativePath);
         console.log(`File path: ${filePath}`);
         
