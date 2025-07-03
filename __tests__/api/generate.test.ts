@@ -1,7 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import * as fsPromises from 'fs/promises';
-import path from 'path';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 // Mock the modules
 jest.mock('fs/promises', () => ({

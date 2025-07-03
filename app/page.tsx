@@ -913,7 +913,7 @@ export default function MainPage() {
                           <div
                             key={key}
                             data-key={key}
-                            className="absolute relative"
+                            className="absolute"
                             style={style}
                             onPointerDown={(e) => handlePointerDown(e, key)}
                             onPointerUp={handlePointerUp}
@@ -1497,8 +1497,8 @@ export default function MainPage() {
                               ...prev[selectedField],
                               fontFamily: newFontFamily,
                               // Clear bold/italic if the new font doesn't support them
-                              ...(newFontCapabilities.bold ? {} : { bold: false }),
-                              ...(newFontCapabilities.italic ? {} : { italic: false })
+                              ...(!newFontCapabilities.bold ? { bold: false } : {}),
+                              ...(!newFontCapabilities.italic ? { italic: false } : {})
                             }
                           }));
                         }}
