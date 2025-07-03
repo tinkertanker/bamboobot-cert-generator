@@ -40,7 +40,7 @@ interface Position {
   x: number;
   y: number;
   fontSize?: number;
-  fontFamily?: "Helvetica" | "Times" | "Courier" | "DancingScript";
+  fontFamily?: "Helvetica" | "Times" | "Courier" | "DancingScript" | "GreatVibes" | "PlayfairDisplay" | "Montserrat" | "OpenSans";
   bold?: boolean;
   italic?: boolean;
   color?: string;
@@ -58,7 +58,11 @@ const FONT_CAPABILITIES = {
   Helvetica: { bold: true, italic: true },
   Times: { bold: true, italic: true },
   Courier: { bold: true, italic: true },
-  DancingScript: { bold: false, italic: false }
+  DancingScript: { bold: false, italic: false },
+  GreatVibes: { bold: false, italic: false },        // Script fonts typically don't have variants
+  PlayfairDisplay: { bold: true, italic: true },     // Full serif font family
+  Montserrat: { bold: true, italic: false },         // Has bold but no italic files
+  OpenSans: { bold: true, italic: true }             // Complete font family
 } as const;
 
 export default function MainPage() {
@@ -854,7 +858,11 @@ export default function MainPage() {
                             '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
                           Times: 'Times, "Times New Roman", Georgia, serif',
                           Courier: 'Courier, "Courier New", monospace',
-                          DancingScript: 'var(--font-dancing-script), "Dancing Script", cursive'
+                          DancingScript: 'var(--font-dancing-script), "Dancing Script", cursive',
+                          GreatVibes: 'var(--font-great-vibes), "Great Vibes", cursive',
+                          PlayfairDisplay: 'var(--font-playfair-display), "Playfair Display", serif',
+                          Montserrat: 'var(--font-montserrat), "Montserrat", sans-serif',
+                          OpenSans: 'var(--font-open-sans), "Open Sans", sans-serif'
                         };
 
                         // Calculate transform based on alignment
@@ -1470,7 +1478,11 @@ export default function MainPage() {
                             | "Helvetica"
                             | "Times"
                             | "Courier"
-                            | "DancingScript";
+                            | "DancingScript"
+                            | "GreatVibes"
+                            | "PlayfairDisplay"
+                            | "Montserrat"
+                            | "OpenSans";
                           const newFontCapabilities = FONT_CAPABILITIES[newFontFamily];
                           
                           setPositions((prev) => ({
@@ -1489,6 +1501,10 @@ export default function MainPage() {
                         <option value="Times">Times</option>
                         <option value="Courier">Courier</option>
                         <option value="DancingScript">Dancing Script</option>
+                        <option value="GreatVibes">Great Vibes</option>
+                        <option value="PlayfairDisplay">Playfair Display</option>
+                        <option value="Montserrat">Montserrat</option>
+                        <option value="OpenSans">Open Sans</option>
                       </Select>
                     </div>
                   </div>

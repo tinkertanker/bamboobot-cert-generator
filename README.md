@@ -9,8 +9,8 @@ A professional Next.js application for generating certificates from uploaded ima
 - **Precision Text Positioning** - Pointer-based drag system with visual feedback and touch support
 - **Advanced Text Formatting** - Complete font controls with live preview:
   - Font size adjustment (8-72px) with slider and number input
-  - Font family selection (Helvetica, Times, Courier)
-  - Bold and italic styling
+  - **8 Professional Fonts**: Helvetica, Times, Courier, Dancing Script, Great Vibes, Playfair Display, Montserrat, Open Sans
+  - **Smart Font Capabilities**: Bold/italic buttons automatically disable for fonts that don't support them
   - Text color picker with hex display
   - Text alignment (left, center, right) with visual bracket indicators
   - Apply formatting to all fields with one click
@@ -209,14 +209,15 @@ Just as bamboo grows steadily and stands tall, Bamboobot helps you create certif
 
 ## Font Licenses
 
-This project includes fonts from Google Fonts:
+This project includes fonts from Google Fonts, all licensed under SIL Open Font License 1.1:
 
-- **Dancing Script** by Impallari Type - Licensed under SIL Open Font License 1.1
-  - Copyright 2016 The Dancing Script Project Authors
-  - License: https://scripts.sil.org/OFL
-  - Source: https://github.com/googlefonts/DancingScript
+- **Dancing Script** by Impallari Type - Elegant casual script font
+- **Great Vibes** by TypeSETit - Luxury script font for formal certificates  
+- **Playfair Display** by Claus Eggers Sørensen - High-contrast serif for academic use
+- **Montserrat** by Julieta Ulanovsky - Modern geometric sans-serif
+- **Open Sans** by Steve Matteson - Highly readable humanist sans-serif
 
-The font license file is included at `public/fonts/OFL.txt`.
+All fonts are licensed under SIL Open Font License 1.1 (https://scripts.sil.org/OFL). The license file is included at `public/fonts/OFL.txt`.
 
 ## Cleanup
 

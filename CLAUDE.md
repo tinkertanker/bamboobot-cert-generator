@@ -83,9 +83,11 @@ npm test -- __tests__/components/Button.test.tsx
    - Production: Docker volumes mounted to `data/` directory
    - API endpoints handle dynamic file serving in production
 2. **No Authentication**: The app is currently open access
-3. **Text Formatting**: 
-   - Backend supports Helvetica, Times, and Courier fonts with bold/italic variants
-   - **Frontend has complete font controls** (size, family, bold, italic, color)
+3. **Advanced Text Formatting**: 
+   - **8 Professional Fonts**: Helvetica, Times, Courier, Dancing Script, Great Vibes, Playfair Display, Montserrat, Open Sans
+   - **Smart Font Capabilities**: Bold/italic buttons automatically disable for fonts that don't support them
+   - **Complete Font Controls**: Size (8-72px), family selection, bold, italic, color picker
+   - **Live Preview**: All formatting changes appear instantly in the UI
    - Click any text field to access formatting panel with live preview
    - Apply formatting to all fields with one click
 4. **Coordinate System**: PDF uses bottom-left origin (0,0), while UI uses top-left origin - conversion happens in the API

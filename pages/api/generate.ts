@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fsPromises from 'fs/promises';
 import path from 'path';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
 const fontkit = require('fontkit');
 
 const FONT_SIZE_MULTIPLIER = 1;
@@ -11,7 +11,7 @@ interface Position {
   fontSize?: number;
   x: number;
   y: number;
-  font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript';
+  font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript' | 'GreatVibes' | 'PlayfairDisplay' | 'Montserrat' | 'OpenSans';
   bold?: boolean;
   oblique?: boolean;
   alignment?: 'left' | 'center' | 'right';
@@ -21,7 +21,7 @@ interface Entry {
   [key: string]: {
     text: string;
     color?: [number, number, number];
-    font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript';
+    font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript' | 'GreatVibes' | 'PlayfairDisplay' | 'Montserrat' | 'OpenSans';
     bold?: boolean;
     oblique?: boolean;
     uiMeasurements?: {
@@ -51,11 +51,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const templatePdfBytes = await fsPromises.readFile(templatePath);
     const pdfDoc = await PDFDocument.load(templatePdfBytes);
 
-    // Check if we need Dancing Script fonts globally
-    const needsDancingScript = Object.values(positions).some(pos => pos.font === 'DancingScript') || 
-                               data.some(entry => Object.values(entry).some(val => val && typeof val === 'object' && val.font === 'DancingScript'));
+    // Check if we need custom fonts globally
+    const customFonts = ['DancingScript', 'GreatVibes', 'PlayfairDisplay', 'Montserrat', 'OpenSans'] as const;
+    const needsCustomFonts = customFonts.some(fontName => 
+      Object.values(positions).some(pos => pos.font === fontName) || 
+      data.some(entry => Object.values(entry).some(val => val && typeof val === 'object' && val.font === fontName))
+    );
     
-    console.log('Global Dancing Script check:', { needsDancingScript });
+    console.log('Global custom fonts check:', { needsCustomFonts });
     
     // NEW APPROACH: Process PDFs sequentially to avoid fontkit race conditions
     const generatedPdfs = [];
@@ -80,16 +83,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const courierObliqueFont = await pdf.embedFont(StandardFonts.CourierOblique);
       const courierBoldObliqueFont = await pdf.embedFont(StandardFonts.CourierBoldOblique);
       
-      // Only register fontkit and embed Dancing Script fonts if needed
-      let dancingScriptFont, dancingScriptBoldFont;
-      if (needsDancingScript) {
+      // Only register fontkit and embed custom fonts if needed
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const customFontsEmbedded: Record<string, any> = {};
+      if (needsCustomFonts) {
         // Register fontkit AFTER standard fonts are embedded
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pdf.registerFontkit(fontkit as any);
         
-        // Now embed custom fonts
-        dancingScriptFont = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/dancing-script.regular.ttf')));
-        dancingScriptBoldFont = dancingScriptFont; // Use same font for bold (no separate bold file)
+        // Embed custom fonts
+        customFontsEmbedded.DancingScript = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/dancing-script.regular.ttf')));
+        
+        customFontsEmbedded.GreatVibes = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/GreatVibes-Regular.ttf')));
+        
+        customFontsEmbedded.PlayfairDisplay = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/PlayfairDisplay-Regular.ttf')));
+        customFontsEmbedded.PlayfairDisplayBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/PlayfairDisplay-Bold.ttf')));
+        customFontsEmbedded.PlayfairDisplayItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/PlayfairDisplay-Italic.ttf')));
+        customFontsEmbedded.PlayfairDisplayBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/PlayfairDisplay-BoldItalic.ttf')));
+        
+        customFontsEmbedded.Montserrat = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Montserrat-Regular.ttf')));
+        customFontsEmbedded.MontserratBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Montserrat-Bold.ttf')));
+        
+        customFontsEmbedded.OpenSans = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/OpenSans-Regular.ttf')));
+        customFontsEmbedded.OpenSansBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/OpenSans-Bold.ttf')));
+        customFontsEmbedded.OpenSansItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/OpenSans-Italic.ttf')));
+        customFontsEmbedded.OpenSansBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/OpenSans-BoldItalic.ttf')));
       }
 
       const page = pdf.getPages()[0];
@@ -121,12 +139,54 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 : (isOblique ? courierObliqueFont : courierFont);
               break;
             case 'DancingScript':
-              if (needsDancingScript && dancingScriptFont) {
+              if (needsCustomFonts && customFontsEmbedded.DancingScript) {
                 // Dancing Script only has regular weight - ignore bold/italic requests
-                font = dancingScriptFont;
+                font = customFontsEmbedded.DancingScript;
                 console.log('Dancing Script: Using regular weight (bold/italic not supported)');
               } else {
                 console.warn('Dancing Script font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
+              break;
+            case 'GreatVibes':
+              if (needsCustomFonts && customFontsEmbedded.GreatVibes) {
+                // Great Vibes only has regular weight - ignore bold/italic requests
+                font = customFontsEmbedded.GreatVibes;
+                console.log('Great Vibes: Using regular weight (bold/italic not supported)');
+              } else {
+                console.warn('Great Vibes font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
+              break;
+            case 'PlayfairDisplay':
+              if (needsCustomFonts && customFontsEmbedded.PlayfairDisplay) {
+                font = isBold
+                  ? (isOblique ? customFontsEmbedded.PlayfairDisplayBoldItalic : customFontsEmbedded.PlayfairDisplayBold)
+                  : (isOblique ? customFontsEmbedded.PlayfairDisplayItalic : customFontsEmbedded.PlayfairDisplay);
+              } else {
+                console.warn('Playfair Display font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
+              break;
+            case 'Montserrat':
+              if (needsCustomFonts && customFontsEmbedded.Montserrat) {
+                font = isBold ? customFontsEmbedded.MontserratBold : customFontsEmbedded.Montserrat;
+                // Montserrat doesn't have italic variants in our files - ignore italic requests
+                if (isOblique) {
+                  console.log('Montserrat: Italic not available, using regular/bold only');
+                }
+              } else {
+                console.warn('Montserrat font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
+              break;
+            case 'OpenSans':
+              if (needsCustomFonts && customFontsEmbedded.OpenSans) {
+                font = isBold
+                  ? (isOblique ? customFontsEmbedded.OpenSansBoldItalic : customFontsEmbedded.OpenSansBold)
+                  : (isOblique ? customFontsEmbedded.OpenSansItalic : customFontsEmbedded.OpenSans);
+              } else {
+                console.warn('Open Sans font requested but not loaded. Falling back to Helvetica.');
                 font = helveticaFont;
               }
               break;
