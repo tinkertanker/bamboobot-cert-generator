@@ -11,7 +11,7 @@ interface Position {
   fontSize?: number;
   x: number;
   y: number;
-  font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript' | 'GreatVibes' | 'PlayfairDisplay' | 'Montserrat' | 'OpenSans';
+  font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript' | 'GreatVibes' | 'PlayfairDisplay' | 'Montserrat' | 'Lato' | 'Poppins' | 'WorkSans';
   bold?: boolean;
   oblique?: boolean;
   alignment?: 'left' | 'center' | 'right';
@@ -21,7 +21,7 @@ interface Entry {
   [key: string]: {
     text: string;
     color?: [number, number, number];
-    font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript' | 'GreatVibes' | 'PlayfairDisplay' | 'Montserrat' | 'OpenSans';
+    font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript' | 'GreatVibes' | 'PlayfairDisplay' | 'Montserrat' | 'Lato' | 'Poppins' | 'WorkSans';
     bold?: boolean;
     oblique?: boolean;
     uiMeasurements?: {
@@ -52,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const pdfDoc = await PDFDocument.load(templatePdfBytes);
 
     // Check if we need custom fonts globally
-    const customFonts = ['DancingScript', 'GreatVibes', 'PlayfairDisplay', 'Montserrat', 'OpenSans'] as const;
+    const customFonts = ['DancingScript', 'GreatVibes', 'PlayfairDisplay', 'Montserrat', 'Lato', 'Poppins', 'WorkSans'] as const;
     const needsCustomFonts = customFonts.some(fontName => 
       Object.values(positions).some(pos => pos.font === fontName) || 
       data.some(entry => Object.values(entry).some(val => val && typeof val === 'object' && val.font === fontName))
@@ -104,10 +104,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         customFontsEmbedded.Montserrat = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Montserrat-Regular.ttf')));
         customFontsEmbedded.MontserratBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Montserrat-Bold.ttf')));
         
-        customFontsEmbedded.OpenSans = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/OpenSans-Regular.ttf')));
-        customFontsEmbedded.OpenSansBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/OpenSans-Bold.ttf')));
-        customFontsEmbedded.OpenSansItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/OpenSans-Italic.ttf')));
-        customFontsEmbedded.OpenSansBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/OpenSans-BoldItalic.ttf')));
+        customFontsEmbedded.Lato = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Lato-Regular.ttf')));
+        customFontsEmbedded.LatoBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Lato-Bold.ttf')));
+        customFontsEmbedded.LatoItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Lato-Italic.ttf')));
+        customFontsEmbedded.LatoBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Lato-BoldItalic.ttf')));
+        
+        customFontsEmbedded.Poppins = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-Regular.ttf')));
+        customFontsEmbedded.PoppinsBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-Bold.ttf')));
+        customFontsEmbedded.PoppinsItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-Italic.ttf')));
+        customFontsEmbedded.PoppinsBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-BoldItalic.ttf')));
+        
+        customFontsEmbedded.WorkSans = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/WorkSans-Regular.ttf')));
+        customFontsEmbedded.WorkSansBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/WorkSans-Bold.ttf')));
+        customFontsEmbedded.WorkSansItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/WorkSans-Italic.ttf')));
+        customFontsEmbedded.WorkSansBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/WorkSans-BoldItalic.ttf')));
       }
 
       const page = pdf.getPages()[0];
@@ -180,13 +190,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 font = helveticaFont;
               }
               break;
-            case 'OpenSans':
-              if (needsCustomFonts && customFontsEmbedded.OpenSans) {
+            case 'Lato':
+              if (needsCustomFonts && customFontsEmbedded.Lato) {
                 font = isBold
-                  ? (isOblique ? customFontsEmbedded.OpenSansBoldItalic : customFontsEmbedded.OpenSansBold)
-                  : (isOblique ? customFontsEmbedded.OpenSansItalic : customFontsEmbedded.OpenSans);
+                  ? (isOblique ? customFontsEmbedded.LatoBoldItalic : customFontsEmbedded.LatoBold)
+                  : (isOblique ? customFontsEmbedded.LatoItalic : customFontsEmbedded.Lato);
               } else {
-                console.warn('Open Sans font requested but not loaded. Falling back to Helvetica.');
+                console.warn('Lato font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
+              break;
+            case 'Poppins':
+              if (needsCustomFonts && customFontsEmbedded.Poppins) {
+                font = isBold
+                  ? (isOblique ? customFontsEmbedded.PoppinsBoldItalic : customFontsEmbedded.PoppinsBold)
+                  : (isOblique ? customFontsEmbedded.PoppinsItalic : customFontsEmbedded.Poppins);
+              } else {
+                console.warn('Poppins font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
+              break;
+            case 'WorkSans':
+              if (needsCustomFonts && customFontsEmbedded.WorkSans) {
+                font = isBold
+                  ? (isOblique ? customFontsEmbedded.WorkSansBoldItalic : customFontsEmbedded.WorkSansBold)
+                  : (isOblique ? customFontsEmbedded.WorkSansItalic : customFontsEmbedded.WorkSans);
+              } else {
+                console.warn('Work Sans font requested but not loaded. Falling back to Helvetica.');
                 font = helveticaFont;
               }
               break;

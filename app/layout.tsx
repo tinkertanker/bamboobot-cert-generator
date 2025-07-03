@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Rubik, Dancing_Script, Great_Vibes, Playfair_Display, Montserrat, Open_Sans } from "next/font/google";
+import { Rubik, Dancing_Script, Great_Vibes, Playfair_Display, Montserrat, Lato, Poppins, Work_Sans } from "next/font/google";
 import "./globals.css";
 
 const rubik = Rubik({
@@ -33,9 +33,23 @@ const montserrat = Montserrat({
   weight: ["400", "700"],
 });
 
-const openSans = Open_Sans({
+const lato = Lato({
   subsets: ["latin"],
-  variable: "--font-open-sans",
+  variable: "--font-lato",
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
+});
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  variable: "--font-poppins",
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
+});
+
+const workSans = Work_Sans({
+  subsets: ["latin"],
+  variable: "--font-work-sans",
   weight: ["400", "700"],
   style: ["normal", "italic"],
 });
@@ -57,7 +71,7 @@ export default function RootLayout({
         <link rel="icon" href="/bamboobot-icon.png" type="image/png" />
       </head>
       <body
-        className={`${rubik.variable} ${dancingScript.variable} ${greatVibes.variable} ${playfairDisplay.variable} ${montserrat.variable} ${openSans.variable} antialiased`}
+        className={`${rubik.variable} ${dancingScript.variable} ${greatVibes.variable} ${playfairDisplay.variable} ${montserrat.variable} ${lato.variable} ${poppins.variable} ${workSans.variable} antialiased`}
       >
         {children}
       </body>

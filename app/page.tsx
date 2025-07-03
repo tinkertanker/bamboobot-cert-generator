@@ -40,7 +40,7 @@ interface Position {
   x: number;
   y: number;
   fontSize?: number;
-  fontFamily?: "Helvetica" | "Times" | "Courier" | "DancingScript" | "GreatVibes" | "PlayfairDisplay" | "Montserrat" | "OpenSans";
+  fontFamily?: "Helvetica" | "Times" | "Courier" | "DancingScript" | "GreatVibes" | "PlayfairDisplay" | "Montserrat" | "Lato" | "Poppins" | "WorkSans";
   bold?: boolean;
   italic?: boolean;
   color?: string;
@@ -62,7 +62,9 @@ const FONT_CAPABILITIES = {
   GreatVibes: { bold: false, italic: false },        // Script fonts typically don't have variants
   PlayfairDisplay: { bold: true, italic: true },     // Full serif font family
   Montserrat: { bold: true, italic: false },         // Has bold but no italic files
-  OpenSans: { bold: true, italic: true }             // Complete font family
+  Lato: { bold: true, italic: true },                // Complete font family - warm alternative to Open Sans
+  Poppins: { bold: true, italic: true },             // Complete font family - geometric with personality
+  WorkSans: { bold: true, italic: true }             // Complete font family - clean with character
 } as const;
 
 export default function MainPage() {
@@ -862,7 +864,9 @@ export default function MainPage() {
                           GreatVibes: 'var(--font-great-vibes), "Great Vibes", cursive',
                           PlayfairDisplay: 'var(--font-playfair-display), "Playfair Display", serif',
                           Montserrat: 'var(--font-montserrat), "Montserrat", sans-serif',
-                          OpenSans: 'var(--font-open-sans), "Open Sans", sans-serif'
+                          Lato: 'var(--font-lato), "Lato", sans-serif',
+                          Poppins: 'var(--font-poppins), "Poppins", sans-serif',
+                          WorkSans: 'var(--font-work-sans), "Work Sans", sans-serif'
                         };
 
                         // Calculate transform based on alignment
@@ -1482,7 +1486,9 @@ export default function MainPage() {
                             | "GreatVibes"
                             | "PlayfairDisplay"
                             | "Montserrat"
-                            | "OpenSans";
+                            | "Lato"
+                            | "Poppins"
+                            | "WorkSans";
                           const newFontCapabilities = FONT_CAPABILITIES[newFontFamily];
                           
                           setPositions((prev) => ({
@@ -1504,7 +1510,9 @@ export default function MainPage() {
                         <option value="GreatVibes">Great Vibes</option>
                         <option value="PlayfairDisplay">Playfair Display</option>
                         <option value="Montserrat">Montserrat</option>
-                        <option value="OpenSans">Open Sans</option>
+                        <option value="Lato">Lato</option>
+                        <option value="Poppins">Poppins</option>
+                        <option value="WorkSans">Work Sans</option>
                       </Select>
                     </div>
                   </div>
