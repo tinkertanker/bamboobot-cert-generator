@@ -10,6 +10,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         rubik: ["var(--font-rubik)", "sans-serif"],
+        dancing: ["var(--font-dancing-script)", "cursive"],
       },
       colors: {
         border: "hsl(var(--border))",

@@ -2,6 +2,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fsPromises from 'fs/promises';
 import path from 'path';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const fontkit = require('fontkit');
 
 const FONT_SIZE_MULTIPLIER = 1;
 
@@ -9,7 +11,7 @@ interface Position {
   fontSize?: number;
   x: number;
   y: number;
-  font?: 'Times' | 'Courier' | 'Helvetica';
+  font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript';
   bold?: boolean;
   oblique?: boolean;
   alignment?: 'left' | 'center' | 'right';
@@ -19,7 +21,7 @@ interface Entry {
   [key: string]: {
     text: string;
     color?: [number, number, number];
-    font?: 'Times' | 'Courier' | 'Helvetica';
+    font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript';
     bold?: boolean;
     oblique?: boolean;
     uiMeasurements?: {
@@ -49,24 +51,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const templatePdfBytes = await fsPromises.readFile(templatePath);
     const pdfDoc = await PDFDocument.load(templatePdfBytes);
 
-    const generatedPdfs = await Promise.all(data.map(async (entry: Entry) => {
+    // Check if we need Dancing Script fonts globally
+    const needsDancingScript = Object.values(positions).some(pos => pos.font === 'DancingScript') || 
+                               data.some(entry => Object.values(entry).some(val => val && typeof val === 'object' && val.font === 'DancingScript'));
+    
+    console.log('Global Dancing Script check:', { needsDancingScript });
+    
+    // NEW APPROACH: Process PDFs sequentially to avoid fontkit race conditions
+    const generatedPdfs = [];
+    
+    for (const entry of data) {
       const pdf = await PDFDocument.create();
+      
       const [templatePage] = await pdf.copyPages(pdfDoc, [0]);
       pdf.addPage(templatePage);
 
-      // Embed fonts for each individual PDF
+      // Embed standard fonts first (before fontkit registration)
       const helveticaFont = await pdf.embedFont(StandardFonts.Helvetica);
       const helveticaBoldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
-      const helveticaObliqueFont = await pdf.embedFont(StandardFonts.HelveticaOblique); // Corrected to Embed Helvetica Oblique
-      const helveticaBoldObliqueFont = await pdf.embedFont(StandardFonts.HelveticaBoldOblique); // Embed Helvetica Bold Oblique
-      const timesFont = await pdf.embedFont(StandardFonts.TimesRoman); // Embed Times New Roman
-      const timesBoldFont = await pdf.embedFont(StandardFonts.TimesRomanBold); // Embed Times Bold
-      const timesObliqueFont = await pdf.embedFont(StandardFonts.TimesRomanItalic); // Corrected to Embed Times Oblique
-      const timesBoldObliqueFont = await pdf.embedFont(StandardFonts.TimesRomanBoldItalic); // Embed Times Bold Oblique
-      const courierFont = await pdf.embedFont(StandardFonts.Courier); // Embed Courier
-      const courierBoldFont = await pdf.embedFont(StandardFonts.CourierBold); // Embed Courier Bold
-      const courierObliqueFont = await pdf.embedFont(StandardFonts.CourierOblique); // Embed Courier Oblique
-      const courierBoldObliqueFont = await pdf.embedFont(StandardFonts.CourierBoldOblique); // Embed Courier Bold Oblique
+      const helveticaObliqueFont = await pdf.embedFont(StandardFonts.HelveticaOblique);
+      const helveticaBoldObliqueFont = await pdf.embedFont(StandardFonts.HelveticaBoldOblique);
+      const timesFont = await pdf.embedFont(StandardFonts.TimesRoman);
+      const timesBoldFont = await pdf.embedFont(StandardFonts.TimesRomanBold);
+      const timesObliqueFont = await pdf.embedFont(StandardFonts.TimesRomanItalic);
+      const timesBoldObliqueFont = await pdf.embedFont(StandardFonts.TimesRomanBoldItalic);
+      const courierFont = await pdf.embedFont(StandardFonts.Courier);
+      const courierBoldFont = await pdf.embedFont(StandardFonts.CourierBold);
+      const courierObliqueFont = await pdf.embedFont(StandardFonts.CourierOblique);
+      const courierBoldObliqueFont = await pdf.embedFont(StandardFonts.CourierBoldOblique);
+      
+      // Only register fontkit and embed Dancing Script fonts if needed
+      let dancingScriptFont, dancingScriptBoldFont;
+      if (needsDancingScript) {
+        // Register fontkit AFTER standard fonts are embedded
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pdf.registerFontkit(fontkit as any);
+        
+        // Now embed custom fonts
+        dancingScriptFont = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/dancing-script.regular.ttf')));
+        dancingScriptBoldFont = dancingScriptFont; // Use same font for bold (no separate bold file)
+      }
 
       const page = pdf.getPages()[0];
       const { width, height } = page.getSize();
@@ -95,6 +119,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               font = isBold
                 ? (isOblique ? courierBoldObliqueFont : courierBoldFont)
                 : (isOblique ? courierObliqueFont : courierFont);
+              break;
+            case 'DancingScript':
+              if (needsDancingScript && dancingScriptFont) {
+                // Dancing Script only has regular weight - ignore bold/italic requests
+                font = dancingScriptFont;
+                console.log('Dancing Script: Using regular weight (bold/italic not supported)');
+              } else {
+                console.warn('Dancing Script font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
               break;
             case 'Helvetica':
               font = isBold
@@ -155,8 +189,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      return pdf.save();
-    }));
+      const pdfBytes = await pdf.save();
+      generatedPdfs.push(pdfBytes);
+    }
 
     const outputDir = path.join(process.cwd(), 'public', 'generated');
     await fsPromises.mkdir(outputDir, { recursive: true });

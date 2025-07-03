@@ -207,6 +207,17 @@ These qualities align perfectly with what certificates aim to recognize in learn
 
 Just as bamboo grows steadily and stands tall, Bamboobot helps you create certificates that honor the journey of learning and achievement.
 
+## Font Licenses
+
+This project includes fonts from Google Fonts:
+
+- **Dancing Script** by Impallari Type - Licensed under SIL Open Font License 1.1
+  - Copyright 2016 The Dancing Script Project Authors
+  - License: https://scripts.sil.org/OFL
+  - Source: https://github.com/googlefonts/DancingScript
+
+The font license file is included at `public/fonts/OFL.txt`.
+
 ## Cleanup
 
 ### Temporary Files

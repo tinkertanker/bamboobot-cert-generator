@@ -40,7 +40,7 @@ interface Position {
   x: number;
   y: number;
   fontSize?: number;
-  fontFamily?: "Helvetica" | "Times" | "Courier";
+  fontFamily?: "Helvetica" | "Times" | "Courier" | "DancingScript";
   bold?: boolean;
   italic?: boolean;
   color?: string;
@@ -52,6 +52,14 @@ interface Positions {
 }
 
 const DEFAULT_FONT_SIZE = 24;
+
+// Font capabilities configuration
+const FONT_CAPABILITIES = {
+  Helvetica: { bold: true, italic: true },
+  Times: { bold: true, italic: true },
+  Courier: { bold: true, italic: true },
+  DancingScript: { bold: false, italic: false }
+} as const;
 
 export default function MainPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -845,7 +853,8 @@ export default function MainPage() {
                           Helvetica:
                             '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
                           Times: 'Times, "Times New Roman", Georgia, serif',
-                          Courier: 'Courier, "Courier New", monospace'
+                          Courier: 'Courier, "Courier New", monospace',
+                          DancingScript: 'var(--font-dancing-script), "Dancing Script", cursive'
                         };
 
                         // Calculate transform based on alignment
@@ -1360,62 +1369,91 @@ export default function MainPage() {
                         Style
                       </label>
                       <div className="flex items-center space-x-2">
-                        <Button
-                          variant={
-                            positions[selectedField]?.bold
-                              ? "default"
-                              : "outline"
-                          }
-                          size="sm"
-                          onClick={() => {
-                            setPositions((prev) => ({
-                              ...prev,
-                              [selectedField]: {
-                                ...prev[selectedField],
-                                bold: !prev[selectedField]?.bold
-                              }
-                            }));
-                          }}
-                          className="h-10 w-10"
-                          style={{
-                            backgroundColor: positions[selectedField]?.bold
-                              ? "#2D6A4F"
-                              : "transparent",
-                            borderColor: "#2D6A4F",
-                            color: positions[selectedField]?.bold
-                              ? "white"
-                              : "#2D6A4F"
-                          }}>
-                          <strong>B</strong>
-                        </Button>
-                        <Button
-                          variant={
-                            positions[selectedField]?.italic
-                              ? "default"
-                              : "outline"
-                          }
-                          size="sm"
-                          onClick={() => {
-                            setPositions((prev) => ({
-                              ...prev,
-                              [selectedField]: {
-                                ...prev[selectedField],
-                                italic: !prev[selectedField]?.italic
-                              }
-                            }));
-                          }}
-                          className="h-10 w-10"
-                          style={{
-                            backgroundColor: positions[selectedField]?.italic
-                              ? "#2D6A4F"
-                              : "transparent",
-                            borderColor: "#2D6A4F",
-                            color: positions[selectedField]?.italic
-                              ? "white"
-                              : "#2D6A4F"
-                          }}>
-                          <em>I</em>
-                        </Button>
+                        {(() => {
+                          const currentFont = positions[selectedField]?.fontFamily || "Helvetica";
+                          const fontCapabilities = FONT_CAPABILITIES[currentFont];
+                          const boldDisabled = !fontCapabilities.bold;
+                          const italicDisabled = !fontCapabilities.italic;
+                          
+                          return (
+                            <>
+                              <Button
+                                variant={
+                                  positions[selectedField]?.bold
+                                    ? "default"
+                                    : "outline"
+                                }
+                                size="sm"
+                                disabled={boldDisabled}
+                                onClick={() => {
+                                  if (!boldDisabled) {
+                                    setPositions((prev) => ({
+                                      ...prev,
+                                      [selectedField]: {
+                                        ...prev[selectedField],
+                                        bold: !prev[selectedField]?.bold
+                                      }
+                                    }));
+                                  }
+                                }}
+                                className="h-10 w-10"
+                                style={{
+                                  backgroundColor: boldDisabled 
+                                    ? "#e5e7eb" 
+                                    : positions[selectedField]?.bold
+                                    ? "#2D6A4F"
+                                    : "transparent",
+                                  borderColor: boldDisabled ? "#d1d5db" : "#2D6A4F",
+                                  color: boldDisabled 
+                                    ? "#9ca3af" 
+                                    : positions[selectedField]?.bold
+                                    ? "white"
+                                    : "#2D6A4F",
+                                  cursor: boldDisabled ? "not-allowed" : "pointer"
+                                }}
+                                title={boldDisabled ? `Bold not supported for ${currentFont}` : "Toggle bold"}>
+                                <strong>B</strong>
+                              </Button>
+                              <Button
+                                variant={
+                                  positions[selectedField]?.italic
+                                    ? "default"
+                                    : "outline"
+                                }
+                                size="sm"
+                                disabled={italicDisabled}
+                                onClick={() => {
+                                  if (!italicDisabled) {
+                                    setPositions((prev) => ({
+                                      ...prev,
+                                      [selectedField]: {
+                                        ...prev[selectedField],
+                                        italic: !prev[selectedField]?.italic
+                                      }
+                                    }));
+                                  }
+                                }}
+                                className="h-10 w-10"
+                                style={{
+                                  backgroundColor: italicDisabled 
+                                    ? "#e5e7eb" 
+                                    : positions[selectedField]?.italic
+                                    ? "#2D6A4F"
+                                    : "transparent",
+                                  borderColor: italicDisabled ? "#d1d5db" : "#2D6A4F",
+                                  color: italicDisabled 
+                                    ? "#9ca3af" 
+                                    : positions[selectedField]?.italic
+                                    ? "white"
+                                    : "#2D6A4F",
+                                  cursor: italicDisabled ? "not-allowed" : "pointer"
+                                }}
+                                title={italicDisabled ? `Italic not supported for ${currentFont}` : "Toggle italic"}>
+                                <em>I</em>
+                              </Button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -1431,12 +1469,18 @@ export default function MainPage() {
                           const newFontFamily = e.target.value as
                             | "Helvetica"
                             | "Times"
-                            | "Courier";
+                            | "Courier"
+                            | "DancingScript";
+                          const newFontCapabilities = FONT_CAPABILITIES[newFontFamily];
+                          
                           setPositions((prev) => ({
                             ...prev,
                             [selectedField]: {
                               ...prev[selectedField],
-                              fontFamily: newFontFamily
+                              fontFamily: newFontFamily,
+                              // Clear bold/italic if the new font doesn't support them
+                              ...(!newFontCapabilities.bold && { bold: false }),
+                              ...(!newFontCapabilities.italic && { italic: false })
                             }
                           }));
                         }}
@@ -1444,6 +1488,7 @@ export default function MainPage() {
                         <option value="Helvetica">Helvetica</option>
                         <option value="Times">Times</option>
                         <option value="Courier">Courier</option>
+                        <option value="DancingScript">Dancing Script</option>
                       </Select>
                     </div>
                   </div>
