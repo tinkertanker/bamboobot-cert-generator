@@ -2044,8 +2044,7 @@ export default function MainPage() {
               Reset Field Formatting
             </h2>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to reset the formatting for "{selectedField}
-              " to default settings?
+              Are you sure you want to reset the formatting for &quot;{selectedField}&quot; to default settings?
             </p>
             <div className="flex gap-3 justify-end">
               <Button
