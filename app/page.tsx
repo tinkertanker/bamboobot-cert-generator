@@ -40,7 +40,7 @@ interface Position {
   x: number;
   y: number;
   fontSize?: number;
-  fontFamily?: "Helvetica" | "Times" | "Courier" | "DancingScript" | "GreatVibes" | "PlayfairDisplay" | "Montserrat" | "Lato" | "Poppins" | "WorkSans";
+  fontFamily?: "Helvetica" | "Times" | "Courier" | "Montserrat" | "Poppins" | "WorkSans" | "Roboto" | "SourceSansPro" | "Nunito";
   bold?: boolean;
   italic?: boolean;
   color?: string;
@@ -58,13 +58,12 @@ const FONT_CAPABILITIES = {
   Helvetica: { bold: true, italic: true },
   Times: { bold: true, italic: true },
   Courier: { bold: true, italic: true },
-  DancingScript: { bold: false, italic: false },
-  GreatVibes: { bold: false, italic: false },        // Script fonts typically don't have variants
-  PlayfairDisplay: { bold: true, italic: true },     // Full serif font family
   Montserrat: { bold: true, italic: false },         // Has bold but no italic files
-  Lato: { bold: true, italic: true },                // Complete font family - warm alternative to Open Sans
   Poppins: { bold: true, italic: true },             // Complete font family - geometric with personality
-  WorkSans: { bold: true, italic: true }             // Complete font family - clean with character
+  WorkSans: { bold: true, italic: true },            // Complete font family - clean with character
+  Roboto: { bold: true, italic: true },              // Google's flagship - excellent kerning
+  SourceSansPro: { bold: true, italic: true },       // Adobe's masterpiece - professional typography
+  Nunito: { bold: true, italic: true }               // Friendly rounded - good spacing
 } as const;
 
 export default function MainPage() {
@@ -860,13 +859,12 @@ export default function MainPage() {
                             '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
                           Times: 'Times, "Times New Roman", Georgia, serif',
                           Courier: 'Courier, "Courier New", monospace',
-                          DancingScript: 'var(--font-dancing-script), "Dancing Script", cursive',
-                          GreatVibes: 'var(--font-great-vibes), "Great Vibes", cursive',
-                          PlayfairDisplay: 'var(--font-playfair-display), "Playfair Display", serif',
                           Montserrat: 'var(--font-montserrat), "Montserrat", sans-serif',
-                          Lato: 'var(--font-lato), "Lato", sans-serif',
                           Poppins: 'var(--font-poppins), "Poppins", sans-serif',
-                          WorkSans: 'var(--font-work-sans), "Work Sans", sans-serif'
+                          WorkSans: 'var(--font-work-sans), "Work Sans", sans-serif',
+                          Roboto: 'var(--font-roboto), "Roboto", sans-serif',
+                          SourceSansPro: 'var(--font-source-sans-pro), "Source Sans Pro", sans-serif',
+                          Nunito: 'var(--font-nunito), "Nunito", sans-serif'
                         };
 
                         // Calculate transform based on alignment
@@ -1482,13 +1480,12 @@ export default function MainPage() {
                             | "Helvetica"
                             | "Times"
                             | "Courier"
-                            | "DancingScript"
-                            | "GreatVibes"
-                            | "PlayfairDisplay"
                             | "Montserrat"
-                            | "Lato"
                             | "Poppins"
-                            | "WorkSans";
+                            | "WorkSans"
+                            | "Roboto"
+                            | "SourceSansPro"
+                            | "Nunito";
                           const newFontCapabilities = FONT_CAPABILITIES[newFontFamily];
                           
                           setPositions((prev) => ({
@@ -1506,13 +1503,12 @@ export default function MainPage() {
                         <option value="Helvetica">Helvetica</option>
                         <option value="Times">Times</option>
                         <option value="Courier">Courier</option>
-                        <option value="DancingScript">Dancing Script</option>
-                        <option value="GreatVibes">Great Vibes</option>
-                        <option value="PlayfairDisplay">Playfair Display</option>
                         <option value="Montserrat">Montserrat</option>
-                        <option value="Lato">Lato</option>
                         <option value="Poppins">Poppins</option>
                         <option value="WorkSans">Work Sans</option>
+                        <option value="Roboto">Roboto</option>
+                        <option value="SourceSansPro">Source Sans Pro</option>
+                        <option value="Nunito">Nunito</option>
                       </Select>
                     </div>
                   </div>

@@ -11,7 +11,7 @@ interface Position {
   fontSize?: number;
   x: number;
   y: number;
-  font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript' | 'GreatVibes' | 'PlayfairDisplay' | 'Montserrat' | 'Lato' | 'Poppins' | 'WorkSans';
+  font?: 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 'WorkSans' | 'Roboto' | 'SourceSansPro' | 'Nunito';
   bold?: boolean;
   oblique?: boolean;
   alignment?: 'left' | 'center' | 'right';
@@ -21,7 +21,7 @@ interface Entry {
   [key: string]: {
     text: string;
     color?: [number, number, number];
-    font?: 'Times' | 'Courier' | 'Helvetica' | 'DancingScript' | 'GreatVibes' | 'PlayfairDisplay' | 'Montserrat' | 'Lato' | 'Poppins' | 'WorkSans';
+    font?: 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 'WorkSans' | 'Roboto' | 'SourceSansPro' | 'Nunito';
     bold?: boolean;
     oblique?: boolean;
     uiMeasurements?: {
@@ -52,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const pdfDoc = await PDFDocument.load(templatePdfBytes);
 
     // Check if we need custom fonts globally
-    const customFonts = ['DancingScript', 'GreatVibes', 'PlayfairDisplay', 'Montserrat', 'Lato', 'Poppins', 'WorkSans'] as const;
+    const customFonts = ['Montserrat', 'Poppins', 'WorkSans', 'Roboto', 'SourceSansPro', 'Nunito'] as const;
     const needsCustomFonts = customFonts.some(fontName => 
       Object.values(positions).some(pos => pos.font === fontName) || 
       data.some(entry => Object.values(entry).some(val => val && typeof val === 'object' && val.font === fontName))
@@ -92,22 +92,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pdf.registerFontkit(fontkit as any);
         
         // Embed custom fonts
-        customFontsEmbedded.DancingScript = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/dancing-script.regular.ttf')));
-        
-        customFontsEmbedded.GreatVibes = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/GreatVibes-Regular.ttf')));
-        
-        customFontsEmbedded.PlayfairDisplay = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/PlayfairDisplay-Regular.ttf')));
-        customFontsEmbedded.PlayfairDisplayBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/PlayfairDisplay-Bold.ttf')));
-        customFontsEmbedded.PlayfairDisplayItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/PlayfairDisplay-Italic.ttf')));
-        customFontsEmbedded.PlayfairDisplayBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/PlayfairDisplay-BoldItalic.ttf')));
-        
         customFontsEmbedded.Montserrat = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Montserrat-Regular.ttf')));
         customFontsEmbedded.MontserratBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Montserrat-Bold.ttf')));
-        
-        customFontsEmbedded.Lato = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Lato-Regular.ttf')));
-        customFontsEmbedded.LatoBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Lato-Bold.ttf')));
-        customFontsEmbedded.LatoItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Lato-Italic.ttf')));
-        customFontsEmbedded.LatoBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Lato-BoldItalic.ttf')));
         
         customFontsEmbedded.Poppins = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-Regular.ttf')));
         customFontsEmbedded.PoppinsBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-Bold.ttf')));
@@ -118,6 +104,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         customFontsEmbedded.WorkSansBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/WorkSans-Bold.ttf')));
         customFontsEmbedded.WorkSansItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/WorkSans-Italic.ttf')));
         customFontsEmbedded.WorkSansBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/WorkSans-BoldItalic.ttf')));
+        
+        customFontsEmbedded.Roboto = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Roboto-Regular.ttf')));
+        customFontsEmbedded.RobotoBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Roboto-Bold.ttf')));
+        customFontsEmbedded.RobotoItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Roboto-Italic.ttf')));
+        customFontsEmbedded.RobotoBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Roboto-BoldItalic.ttf')));
+        
+        customFontsEmbedded.SourceSansPro = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/SourceSansPro-Regular.ttf')));
+        customFontsEmbedded.SourceSansProBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/SourceSansPro-Bold.ttf')));
+        customFontsEmbedded.SourceSansProItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/SourceSansPro-Italic.ttf')));
+        customFontsEmbedded.SourceSansProBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/SourceSansPro-BoldItalic.ttf')));
+        
+        customFontsEmbedded.Nunito = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Nunito-Regular.ttf')));
+        customFontsEmbedded.NunitoBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Nunito-Bold.ttf')));
+        customFontsEmbedded.NunitoItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Nunito-Italic.ttf')));
+        customFontsEmbedded.NunitoBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Nunito-BoldItalic.ttf')));
       }
 
       const page = pdf.getPages()[0];
@@ -148,36 +149,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 ? (isOblique ? courierBoldObliqueFont : courierBoldFont)
                 : (isOblique ? courierObliqueFont : courierFont);
               break;
-            case 'DancingScript':
-              if (needsCustomFonts && customFontsEmbedded.DancingScript) {
-                // Dancing Script only has regular weight - ignore bold/italic requests
-                font = customFontsEmbedded.DancingScript;
-                console.log('Dancing Script: Using regular weight (bold/italic not supported)');
-              } else {
-                console.warn('Dancing Script font requested but not loaded. Falling back to Helvetica.');
-                font = helveticaFont;
-              }
-              break;
-            case 'GreatVibes':
-              if (needsCustomFonts && customFontsEmbedded.GreatVibes) {
-                // Great Vibes only has regular weight - ignore bold/italic requests
-                font = customFontsEmbedded.GreatVibes;
-                console.log('Great Vibes: Using regular weight (bold/italic not supported)');
-              } else {
-                console.warn('Great Vibes font requested but not loaded. Falling back to Helvetica.');
-                font = helveticaFont;
-              }
-              break;
-            case 'PlayfairDisplay':
-              if (needsCustomFonts && customFontsEmbedded.PlayfairDisplay) {
-                font = isBold
-                  ? (isOblique ? customFontsEmbedded.PlayfairDisplayBoldItalic : customFontsEmbedded.PlayfairDisplayBold)
-                  : (isOblique ? customFontsEmbedded.PlayfairDisplayItalic : customFontsEmbedded.PlayfairDisplay);
-              } else {
-                console.warn('Playfair Display font requested but not loaded. Falling back to Helvetica.');
-                font = helveticaFont;
-              }
-              break;
             case 'Montserrat':
               if (needsCustomFonts && customFontsEmbedded.Montserrat) {
                 font = isBold ? customFontsEmbedded.MontserratBold : customFontsEmbedded.Montserrat;
@@ -187,16 +158,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 }
               } else {
                 console.warn('Montserrat font requested but not loaded. Falling back to Helvetica.');
-                font = helveticaFont;
-              }
-              break;
-            case 'Lato':
-              if (needsCustomFonts && customFontsEmbedded.Lato) {
-                font = isBold
-                  ? (isOblique ? customFontsEmbedded.LatoBoldItalic : customFontsEmbedded.LatoBold)
-                  : (isOblique ? customFontsEmbedded.LatoItalic : customFontsEmbedded.Lato);
-              } else {
-                console.warn('Lato font requested but not loaded. Falling back to Helvetica.');
                 font = helveticaFont;
               }
               break;
@@ -217,6 +178,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   : (isOblique ? customFontsEmbedded.WorkSansItalic : customFontsEmbedded.WorkSans);
               } else {
                 console.warn('Work Sans font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
+              break;
+            case 'Roboto':
+              if (needsCustomFonts && customFontsEmbedded.Roboto) {
+                font = isBold
+                  ? (isOblique ? customFontsEmbedded.RobotoBoldItalic : customFontsEmbedded.RobotoBold)
+                  : (isOblique ? customFontsEmbedded.RobotoItalic : customFontsEmbedded.Roboto);
+              } else {
+                console.warn('Roboto font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
+              break;
+            case 'SourceSansPro':
+              if (needsCustomFonts && customFontsEmbedded.SourceSansPro) {
+                font = isBold
+                  ? (isOblique ? customFontsEmbedded.SourceSansProBoldItalic : customFontsEmbedded.SourceSansProBold)
+                  : (isOblique ? customFontsEmbedded.SourceSansProItalic : customFontsEmbedded.SourceSansPro);
+              } else {
+                console.warn('Source Sans Pro font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
+              break;
+            case 'Nunito':
+              if (needsCustomFonts && customFontsEmbedded.Nunito) {
+                font = isBold
+                  ? (isOblique ? customFontsEmbedded.NunitoBoldItalic : customFontsEmbedded.NunitoBold)
+                  : (isOblique ? customFontsEmbedded.NunitoItalic : customFontsEmbedded.Nunito);
+              } else {
+                console.warn('Nunito font requested but not loaded. Falling back to Helvetica.');
                 font = helveticaFont;
               }
               break;
