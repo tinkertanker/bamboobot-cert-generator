@@ -1494,8 +1494,8 @@ export default function MainPage() {
                               ...prev[selectedField],
                               fontFamily: newFontFamily,
                               // Clear bold/italic if the new font doesn't support them
-                              ...(!newFontCapabilities.bold && { bold: false }),
-                              ...(!newFontCapabilities.italic && { italic: false })
+                              ...(newFontCapabilities.bold ? {} : { bold: false }),
+                              ...(newFontCapabilities.italic ? {} : { italic: false })
                             }
                           }));
                         }}
