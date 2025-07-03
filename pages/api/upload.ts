@@ -3,7 +3,7 @@ import { PDFDocument } from 'pdf-lib';
 import fs from 'fs'; // Importing fs for synchronous operations
 import fsPromises from 'fs/promises'; // Importing fs/promises for asynchronous operations
 import path from 'path';
-import { IncomingForm, File } from 'formidable';
+import { IncomingForm, File, Fields, Files } from 'formidable';
 
 export const config = {
   api: {
@@ -28,10 +28,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     keepExtensions: true,
   });
 
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      return res.status(500).json({ error: 'Error uploading file' });
-    }
+  try {
+    const { files } = await new Promise<{fields: Fields, files: Files}>((resolve, reject) => {
+      form.parse(req, (err, fields, files) => {
+        if (err) reject(err);
+        else resolve({ fields, files });
+      });
+    });
 
     // console.log('Files structure:', JSON.stringify(files, null, 2));
 
@@ -84,5 +87,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       filename: pdfFilename,
       image: imageUrl,
     });
-  });
+  } catch (err) {
+    console.error('Upload error:', err);
+    return res.status(500).json({ error: 'Error uploading file' });
+  }
 }
