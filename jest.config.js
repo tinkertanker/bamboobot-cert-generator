@@ -9,11 +9,19 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
+  testPathIgnorePatterns: [
+    '<rootDir>/.next/',
+    '<rootDir>/node_modules/',
+    '<rootDir>/__tests__/__mocks__/', // Exclude mock files from test discovery
+  ],
   moduleNameMapper: {
     // Handle module aliases (this will be automatically configured for you soon)
     '^@/components/(.*)$': '<rootDir>/components/$1',
     '^@/pages/(.*)$': '<rootDir>/pages/$1',
     '^@/lib/(.*)$': '<rootDir>/lib/$1',
+    // Mock AWS SDK modules for testing
+    '^@aws-sdk/client-s3$': '<rootDir>/__tests__/__mocks__/@aws-sdk/client-s3.ts',
+    '^@aws-sdk/s3-request-presigner$': '<rootDir>/__tests__/__mocks__/@aws-sdk/s3-request-presigner.ts',
   },
 };
 

@@ -26,6 +26,7 @@ export async function uploadToR2(
   buffer: Buffer,
   key: string,
   contentType: string = 'application/octet-stream',
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   filename?: string
 ): Promise<UploadResult> {
   const command = new PutObjectCommand({

@@ -5,7 +5,7 @@ import fsPromises from 'fs/promises'; // Importing fs/promises for asynchronous 
 import path from 'path';
 import { IncomingForm, File, Fields, Files } from 'formidable';
 import storageConfig from '@/lib/storage-config';
-import { uploadToR2, isR2Configured } from '@/lib/r2-client';
+import { uploadToR2 } from '@/lib/r2-client';
 
 export const config = {
   api: {

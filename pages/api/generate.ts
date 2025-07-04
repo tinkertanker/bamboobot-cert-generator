@@ -4,7 +4,7 @@ import fsPromises from 'fs/promises';
 import path from 'path';
 import * as fontkit from '@pdf-lib/fontkit';
 import storageConfig from '@/lib/storage-config';
-import { uploadToR2, isR2Configured } from '@/lib/r2-client';
+import { uploadToR2 } from '@/lib/r2-client';
 import fs from 'fs';
 
 const FONT_SIZE_MULTIPLIER = 1;

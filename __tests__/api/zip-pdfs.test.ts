@@ -8,8 +8,10 @@ jest.mock('archiver', () => {
   const mockArchive = {
     pipe: jest.fn(),
     append: jest.fn(),
+    file: jest.fn(), // Add missing file method
     finalize: jest.fn().mockResolvedValue(undefined),
     on: jest.fn(),
+    pointer: jest.fn().mockReturnValue(1024), // Add pointer method for logging
   };
   return jest.fn(() => mockArchive);
 });
