@@ -22,44 +22,71 @@ A professional Next.js application for generating certificates from uploaded ima
 - **ZIP Download** - Download all individual PDFs in a single ZIP file
 - **Live Preview** - Real-time preview matching final PDF output
 - **Professional UI** - Dark green theme with coral accents and clean spacing
+- **Cloudflare R2 Integration** - Global CDN delivery with zero bandwidth costs (optional)
 - **Docker Support** - Production-ready containerization with development hot reload
 
-## Getting Started
+## Quick Start
 
-### Option 1: Docker (Recommended)
+### Option 1: Local Development (Simplest)
 
-**Production Mode:**
 ```bash
-# Build and run production version
+# Clone the repository
+git clone <repository-url>
+cd bamboobot-cert-generator
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Open http://localhost:3000
+```
+
+The app will work immediately with local file storage (no additional configuration needed).
+
+### Option 2: Docker (Recommended for Production)
+
+```bash
+# Production mode
 docker-compose up -d
 # Access at http://localhost:3000
-```
 
-**Development Mode (with hot reload):**
-```bash
-# Build and run development version with hot reload
+# Development mode with hot reload
 docker-compose -f docker-compose.dev.yml up -d
 # Access at http://localhost:3001
-# Code changes will automatically reload
 ```
 
-### Option 2: Local Development
+## Storage Configuration
 
-First, install the dependencies:
+Bamboobot supports two storage modes:
 
-```bash
-npm install
-```
+### 1. Local Storage (Default)
+- **No configuration required** - works out of the box
+- Files stored in `public/` directory
+- Perfect for development and small deployments
+- Automatic fallback if cloud storage is not configured
 
-Then, run the development server:
+### 2. Cloudflare R2 (Recommended for Production)
+- **Global CDN delivery** with edge caching
+- **Zero bandwidth costs** (no egress fees)
+- **No file size limits** (eliminates 4MB API warnings)
+- **Automatic file expiration** (configurable)
 
-```bash
-npm run dev
-```
+To enable R2:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. **Copy environment template:**
+   ```bash
+   cp .env.example .env.local
+   ```
 
-> **Note:** For the best development experience, we recommend using the Docker development setup above, which provides hot reload and ensures environment consistency.
+2. **Set up Cloudflare R2** (see detailed setup below)
+
+3. **Fill in your R2 credentials** in `.env.local`
+
+4. **Restart your application**
+
+The app automatically detects R2 configuration and switches modes seamlessly.
 
 ## How to Use
 
@@ -68,8 +95,8 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 3. **Position Text**: Drag text fields to desired positions on the template
 4. **Format Text**: Click any text field to open formatting controls
    - Adjust font size with slider (8-72px) or number input
-   - Select font family (Helvetica, Times, Courier)
-   - Toggle bold and italic styling
+   - Select from 9 professional fonts (Helvetica, Times, Courier, Montserrat, Poppins, Work Sans, Roboto, Source Sans Pro, Nunito)
+   - Toggle bold and italic styling (available fonts only)
    - Choose text color with color picker
    - Set text alignment (left, center, right) with visual indicators
    - Apply current formatting to all fields at once
@@ -92,41 +119,106 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - **Live Preview**: All formatting changes appear instantly in the preview
 - **Clean Interface**: Professional dark green theme with intuitive spacing
 
+## Cloudflare R2 Setup (Optional)
+
+### Prerequisites
+
+```bash
+# Install Wrangler CLI
+npm install -g wrangler
+
+# Login to Cloudflare
+wrangler login
+```
+
+### Setup Steps
+
+1. **Enable R2 in Cloudflare Dashboard**
+   - Go to https://dash.cloudflare.com/
+   - Navigate to R2 Object Storage
+   - Enable R2 (requires payment method, includes generous free tier)
+
+2. **Create R2 Bucket**
+   ```bash
+   wrangler r2 bucket create bamboobot-certificates
+   ```
+
+3. **Generate API Tokens**
+   - Cloudflare Dashboard → R2 → Manage R2 API Tokens
+   - Create API Token with Object Read & Write permissions
+   - Specify bucket: bamboobot-certificates
+
+4. **Configure Environment Variables**
+   ```bash
+   cp .env.example .env.local
+   # Edit .env.local with your R2 credentials
+   ```
+
+5. **Restart Application**
+   The app will automatically detect R2 configuration and use cloud storage.
+
+### R2 Benefits
+- ✅ **No bandwidth costs** - Zero egress fees
+- ✅ **Global CDN** - Automatic edge caching via Cloudflare
+- ✅ **No API limits** - Eliminates 4MB response warnings
+- ✅ **Scalable** - Handles unlimited certificates
+- ✅ **Fast downloads** - Direct CDN delivery
+- ✅ **Automatic cleanup** - Configurable file expiration
+
+## Development Commands
+
+```bash
+# Development
+npm run dev          # Start development server on http://localhost:3000
+
+# Production
+npm run build        # Build for production
+npm start           # Start production server
+
+# Docker
+docker-compose up -d    # Start with Docker Compose
+docker-compose down     # Stop containers
+docker-compose logs -f  # View logs
+
+# Testing
+npm test            # Run all tests with Jest
+npm run test:watch  # Run tests in watch mode
+
+# Linting & Cleanup
+npm run lint        # Run ESLint with Next.js configuration
+npm run cleanup     # Clean temporary files (local and Docker)
+```
+
 ## Project Structure
 
 - `app/` - Next.js app router components
 - `components/` - Reusable UI components
-- `lib/` - Utility functions
+- `lib/` - Utility functions and storage configuration
 - `pages/api/` - API endpoints
   - `upload.ts` - Handles image upload and PDF conversion
   - `generate.ts` - Processes certificate generation with positioned text
-  - `zip-pdfs.ts` - Creates ZIP archives of individual PDFs with custom filenames
+  - `zip-pdfs.ts` - Creates ZIP archives of individual PDFs
+  - `force-download.ts` - Forces file downloads (handles R2 and local files)
   - `files/` - Dynamic file serving endpoints for production
-    - `temp_images/[filename].ts` - Serves uploaded images
-    - `generated/[filename].ts` - Serves generated PDFs
-- `public/` - Static assets
-- `data/` - Docker volume mount for persistent storage
-  - `temp_images/` - Uploaded templates
-  - `generated/` - Generated certificate PDFs
+- `public/` - Static assets and local file storage
+- `scripts/` - Utility scripts for cleanup and maintenance
 
 ## Testing
 
 This project uses Jest and React Testing Library for unit and component testing.
 
-To run the tests:
-
 ```bash
+# Run all tests
 npm test
-```
 
-For continuous testing during development:
-
-```bash
+# Run tests in watch mode
 npm run test:watch
+
+# Run specific test file
+npm test -- __tests__/components/Button.test.tsx
 ```
 
 The test suite includes:
-
 - API endpoint tests
 - Component tests
 - Utility function tests
@@ -134,9 +226,7 @@ The test suite includes:
 
 ## Docker Deployment
 
-The application includes both production and development Docker configurations:
-
-**Production Deployment:**
+### Production Deployment
 ```bash
 # Build and run production version
 docker-compose up -d
@@ -151,7 +241,7 @@ docker-compose logs -f cert-generator
 docker-compose down
 ```
 
-**Development with Hot Reload:**
+### Development with Hot Reload
 ```bash
 # Start development server with hot reload
 docker-compose -f docker-compose.dev.yml up -d
@@ -163,7 +253,7 @@ docker-compose -f docker-compose.dev.yml logs -f cert-generator-dev
 docker-compose -f docker-compose.dev.yml down
 ```
 
-### Docker Features:
+### Docker Features
 - **Development Mode**: Hot reload, instant code changes, port 3001
 - **Production Mode**: Optimized build, smaller image, port 3000
 - Multi-stage build for optimized image size
@@ -172,7 +262,7 @@ docker-compose -f docker-compose.dev.yml down
 - Health checks and auto-restart
 - Alpine Linux base for minimal footprint
 
-### Quick Development Workflow:
+### Quick Development Workflow
 1. Start development server: `docker-compose -f docker-compose.dev.yml up -d`
 2. Edit code in your IDE - changes appear instantly at http://localhost:3001
 3. Test production build: `docker-compose up -d` (runs on http://localhost:3000)
@@ -188,82 +278,10 @@ docker-compose -f docker-compose.dev.yml down
 - [formidable](https://github.com/node-formidable/formidable) - File upload handling
 - [react-table](https://react-table-v7.tanstack.com/) - Data table management
 - [shadcn/ui](https://ui.shadcn.com/) - Modern UI components
+- [Cloudflare R2](https://developers.cloudflare.com/r2/) - Cloud object storage with CDN
+- [AWS SDK](https://aws.amazon.com/sdk-for-javascript/) - S3-compatible API for R2
 - [Docker](https://www.docker.com/) - Containerization for production
 - [Jest](https://jestjs.io/) - Testing framework
-
-## File Serving and Storage
-
-### Development Environment
-In development mode, files are served directly from the `public` directory:
-- Template images: `/temp_images/`
-- Generated PDFs: `/generated/`
-
-This avoids the 4MB API response limit and improves performance.
-
-### Production Environment
-In production, files can be served through:
-1. **Current**: API routes (fallback for Docker volumes)
-2. **Recommended**: Cloud storage (S3, Cloudflare R2, Google Cloud Storage)
-
-To configure cloud storage, set these environment variables:
-- `STORAGE_PROVIDER`: 'local' | 's3' | 'cloudflare-r2' | 'gcs'
-- `STORAGE_BUCKET`: Your storage bucket name
-- `CDN_URL`: Your CDN URL (for S3/CloudFront)
-- `R2_PUBLIC_URL`: Your R2 public URL (for Cloudflare)
-
-### Cloudflare R2 Implementation Plan
-
-**Why R2?**
-- S3-compatible API
-- No egress fees
-- Automatic CDN via Cloudflare network
-- Cost-effective for PDF storage and delivery
-
-**Implementation Steps:**
-1. **Set up R2 bucket**
-   ```bash
-   # Install Wrangler CLI
-   npm install -g wrangler
-   
-   # Create R2 bucket
-   wrangler r2 bucket create bamboobot-certificates
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
-   ```
-
-3. **Environment variables needed**
-   ```env
-   STORAGE_PROVIDER=cloudflare-r2
-   R2_ACCOUNT_ID=your_account_id
-   R2_ACCESS_KEY_ID=your_access_key
-   R2_SECRET_ACCESS_KEY=your_secret_key
-   R2_BUCKET_NAME=bamboobot-certificates
-   R2_PUBLIC_URL=https://certificates.your-domain.com
-   ```
-
-4. **Update storage-config.ts**
-   - Add R2 client initialization
-   - Implement file upload to R2
-   - Generate public URLs or signed URLs
-   - Handle file deletion for cleanup
-
-5. **Modify API endpoints**
-   - `/api/generate`: Upload PDFs to R2 after generation
-   - `/api/upload`: Upload templates to R2
-   - Return R2 URLs instead of local paths
-
-6. **Optional: Set up custom domain**
-   - Configure R2 custom domain for branded URLs
-   - Enable Cloudflare caching rules
-
-**Benefits:**
-- Removes 4MB API limit completely
-- Faster global delivery via Cloudflare CDN
-- Reduced server load
-- Scalable storage solution
 
 ## Development Troubleshooting
 
@@ -290,6 +308,45 @@ If you encounter errors like `Error: Cannot find module './682.js'` during devel
 - Consider adding `.next` to your `.gitignore` (should already be there)
 - If the issue persists, try: `npm run build && npm run dev`
 - Update Next.js to the latest version when possible
+
+## Cleanup
+
+### Automated Cleanup Script
+
+Use the built-in cleanup script to remove temporary files from both local development and Docker environments:
+
+```bash
+npm run cleanup
+```
+
+This script automatically cleans:
+- **Local development**: `public/temp_images/` and `public/generated/`
+- **Docker volumes**: `./data/temp_images/` and `./data/generated/`
+
+The script provides a detailed summary showing how many files were removed from each location.
+
+### Manual Cleanup
+
+**Local Development:**
+```bash
+# Clean all temporary uploaded images
+rm -rf public/temp_images/*
+
+# Clean all generated PDFs  
+rm -rf public/generated/*
+```
+
+**Docker Production:**
+```bash
+# Clean mounted volumes
+rm -rf ./data/temp_images/*
+rm -rf ./data/generated/*
+
+# Full Docker cleanup
+docker-compose down
+docker system prune -a  # Remove unused images
+docker volume prune     # Remove unused volumes
+```
 
 ## About the Name
 
@@ -320,41 +377,3 @@ This project includes fonts from Google Fonts, all licensed under SIL Open Font 
 - **Nunito** by Vernon Adams - Friendly rounded design with excellent spacing
 
 All fonts were specifically chosen for their excellent character spacing and kerning properties, ensuring professional-quality certificate output. All fonts are licensed under SIL Open Font License 1.1 (https://scripts.sil.org/OFL).
-
-## Cleanup
-
-### Automated Cleanup Script
-
-Use the built-in cleanup script to remove temporary files from both local development and Docker environments:
-
-```bash
-npm run cleanup
-```
-
-This script automatically cleans:
-- **Local development**: `public/temp_images/` and `public/generated/`
-- **Docker volumes**: `./data/temp_images/` and `./data/generated/`
-
-The script provides a detailed summary showing how many files were removed from each location.
-
-### Temporary Files
-```bash
-# Clean all temporary uploaded images
-rm -rf public/temp_images/*
-
-# Clean all generated PDFs
-rm -rf public/generated/*
-
-# Docker cleanup
-docker-compose down
-docker system prune -a  # Remove unused images
-docker volume prune     # Remove unused volumes
-```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License.
