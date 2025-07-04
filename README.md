@@ -323,6 +323,20 @@ All fonts were specifically chosen for their excellent character spacing and ker
 
 ## Cleanup
 
+### Automated Cleanup Script
+
+Use the built-in cleanup script to remove temporary files from both local development and Docker environments:
+
+```bash
+npm run cleanup
+```
+
+This script automatically cleans:
+- **Local development**: `public/temp_images/` and `public/generated/`
+- **Docker volumes**: `./data/temp_images/` and `./data/generated/`
+
+The script provides a detailed summary showing how many files were removed from each location.
+
 ### Temporary Files
 ```bash
 # Clean all temporary uploaded images
