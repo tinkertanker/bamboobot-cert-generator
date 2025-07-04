@@ -695,11 +695,9 @@ export default function MainPage() {
 
   const handleDownloadPdf = () => {
     if (pdfDownloadUrl) {
-      // Create full URL from relative path
-      const fullUrl = pdfDownloadUrl.startsWith("http")
-        ? pdfDownloadUrl
-        : `${window.location.origin}${pdfDownloadUrl}`;
-      saveAs(fullUrl, "generated_certificates.pdf");
+      // Use force-download API to ensure proper download
+      const downloadUrl = `/api/force-download?url=${encodeURIComponent(pdfDownloadUrl)}&filename=generated_certificates.pdf`;
+      window.location.href = downloadUrl;
     }
   };
 
@@ -2085,12 +2083,9 @@ export default function MainPage() {
                               variant="outline"
                               title="Download PDF"
                               onClick={() => {
-                                // Download with custom filename
-                                fetch(file.url)
-                                  .then((response) => response.blob())
-                                  .then((blob) => {
-                                    saveAs(blob, filename);
-                                  });
+                                // Use force-download API to ensure proper download
+                                const downloadUrl = `/api/force-download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(file.filename)}`;
+                                window.location.href = downloadUrl;
                               }}
                               className="h-8 w-8 p-0">
                               <Download className="h-4 w-4" />

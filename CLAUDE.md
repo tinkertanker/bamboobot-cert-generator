@@ -150,55 +150,55 @@ npm test -- __tests__/components/Button.test.tsx
   - Proper spacing with right margin on panels
   - Grey background (#ccc) for inactive tabs
   - Unicode symbols throughout (no emojis)
+- **Advanced positioning controls** (COMPLETED)
+  - ✅ Center alignment snapping (2% threshold)
+  - ✅ Orange animated guide lines with smooth transitions
+  - ✅ Arrow key nudging (0.5% increments, Shift for 2%)
+  - ✅ Visual feedback hints in UI
+  - ✅ Independent horizontal/vertical snapping
+  - ✅ ESC key to dismiss all modals
+- **Direct file serving architecture** (COMPLETED)
+  - ✅ Development: Direct /generated/ and /temp_images/ URLs
+  - ✅ Production: API route fallback for Docker volumes
+  - ✅ Eliminates 4MB API response limit warnings
+  - ✅ Future-ready storage configuration system
+  - ✅ Fixed ZIP download for both URL formats
+- **Cloudflare R2 Cloud Storage** (COMPLETED)
+  - ✅ Complete R2 bucket setup with S3-compatible API
+  - ✅ Hybrid storage: templates local, outputs to R2 cloud
+  - ✅ Signed URLs with 24-hour expiration for security
+  - ✅ Force-download API for proper file downloads
+  - ✅ ZIP downloads fetch from R2 and stream to client
+  - ✅ Preview vs download URL separation for optimal UX
+  - ✅ Global CDN delivery through Cloudflare network
+  - ✅ Zero egress fees and no API response size limits
+  - ✅ Environment configuration with .env.example
+  - ✅ R2 connection testing scripts
 
-### 🚧 Current Development: Individual PDF Generation
-
-**Implementation Plan:**
-1. **UI Changes**:
-   - Two generate buttons: "Generate PDF" (single merged) and "Generate Individual PDFs"
-   - New modal for individual PDFs with file listing
-   
-2. **Individual PDFs Modal Design**:
-   - 75% screen width (consistent with merged PDF modal)
-   - Column dropdown to select naming source (defaults to first column)
-   - File list with preview/email icons per file
-   - Bulk actions: Download All (ZIP), Email All
-   - Auto-handles duplicates with numbering (John.pdf, John-1.pdf, John-2.pdf)
-
-3. **API Changes**:
-   - `/api/generate` accepts `mode: 'single' | 'individual'` parameter
-   - Individual mode returns array of file info with URLs
-   - Files saved to temp directory with unique folder
-
-4. **Naming Strategy**:
-   - Default: Use first column values + ".pdf"
-   - User can change to any column via dropdown
-   - Sanitize filenames for filesystem compatibility
-   - Handle empty/null values gracefully
+### 🎯 Current Focus: Production Deployment
 
 ### 🚧 Planned Features (Priority Order)
 
-**Phase 1 - Core Missing Features**
-- **Individual PDF generation** (COMPLETED)
-  - ✅ Separate PDFs for each certificate
-  - ✅ Custom file naming based on data columns (for downloads)
-  - ✅ ZIP download for all files with custom names
-  - ✅ Individual file download with custom names
-  - ✅ Preview individual certificates in modal
-  - ✅ Open/Download buttons for each PDF
-- **Reset/Clear formatting** (COMPLETED)
-  - ✅ Reset Field button to restore selected field to defaults
-  - ✅ Clear All button to reset all fields formatting
-  - ✅ Confirmation modals for both actions
-  - ✅ Side-by-side button layout
+**Phase 1 - Infrastructure & Performance**
+- **R2 Custom Domain** (MEDIUM PRIORITY)
+  - Set up custom domain for branded URLs (certificates.yourdomain.com)
+  - Configure Cloudflare DNS and SSL
+  - Update R2_PUBLIC_URL environment variable
+- **R2 Lifecycle Management** (LOW PRIORITY)
+  - Implement automatic file cleanup after 7 days
+  - Add lifecycle rules for old generated PDFs
+  - Optimize storage costs
+
+**Phase 2 - User Experience Features**
 - **Format templates** (45 mins)
   - Save/load formatting presets
   - Quick apply saved styles
-- **Keyboard shortcuts** (20 mins)
+- **Keyboard shortcuts** (COMPLETED - ESC key, PENDING - Bold/Italic)
+  - ✅ ESC key to dismiss all modals
   - Ctrl/Cmd + B for bold
   - Ctrl/Cmd + I for italic
 
-**Phase 2 - Core Missing Features**
+**Phase 3 - Communication Features**
 - Email functionality (SMTP, bulk sending, templates)
 - Integration with individual PDFs for direct emailing
 
@@ -234,32 +234,64 @@ When implementing new features:
 
 ## Cleanup Plan
 
+### Current Storage Architecture (Pre-R2)
+
+**Development Environment:**
+- Files served directly from `public/` directory
+- No API size limits, faster serving
+
+**Production Environment:**
+- Files served via API routes from Docker volumes
+- Maintains compatibility with existing deployments
+
 ### Temporary Files to Clean
+
+**Local Development:**
 - `public/temp_images/` - Contains uploaded certificate templates
 - `public/generated/` - Contains generated PDF certificates
 
+**Docker Production:**
+- `./data/temp_images/` - Mounted volume for templates
+- `./data/generated/` - Mounted volume for generated PDFs
+
 ### Cleanup Commands
+
+**Local Development:**
 ```bash
 # Clean all temporary uploaded images
 rm -rf public/temp_images/*
 
-# Clean all generated PDFs
+# Clean all generated PDFs  
 rm -rf public/generated/*
+```
 
-# Docker cleanup (if using Docker)
+**Docker Production:**
+```bash
+# Clean mounted volumes
+rm -rf ./data/temp_images/*
+rm -rf ./data/generated/*
+
+# Full Docker cleanup
 docker-compose down
 docker system prune -a  # Remove unused images
 docker volume prune     # Remove unused volumes
 ```
 
-### Recommended Cleanup Schedule
-- **Development**: Clean temp files after each major feature test
-- **Production**: Implement automated cleanup (cron job) for files older than 24 hours
-- Consider implementing a cleanup API endpoint for manual cleanup
-- Add file expiration metadata to track file age
+### Post-R2 Migration Cleanup Strategy
 
-### Future Improvements for File Management
-- Implement automatic cleanup service
-- Add file size limits and validation
-- Consider moving to cloud storage (S3) for better scalability
-- Add user sessions to track and cleanup user-specific files
+**With Cloudflare R2:**
+- Files stored in cloud with automatic CDN
+- Implement R2 lifecycle rules for auto-deletion
+- Local files only used as temporary upload staging
+- Reduced local storage requirements
+
+**Recommended R2 Lifecycle:**
+- Generated PDFs: Delete after 7 days
+- Template images: Delete after 30 days (unless saved to templates)
+- Individual certificates: Delete after 24 hours
+
+### Cleanup Schedule
+- **Development**: Manual cleanup after testing sessions
+- **Production (current)**: Implement cron job for files older than 24 hours
+- **Production (post-R2)**: Automated via R2 lifecycle rules
+- **Docker**: Clean volumes during maintenance windows

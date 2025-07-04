@@ -5,6 +5,7 @@ import fsPromises from 'fs/promises'; // Importing fs/promises for asynchronous 
 import path from 'path';
 import { IncomingForm, File, Fields, Files } from 'formidable';
 import storageConfig from '@/lib/storage-config';
+import { uploadToR2, isR2Configured } from '@/lib/r2-client';
 
 export const config = {
   api: {
@@ -12,7 +13,8 @@ export const config = {
   },
 };
 
-const outputDir = path.join(process.cwd(), 'public', 'temp_images'); // New output directory
+// Always use local directory for templates (needed by generate endpoint)
+const outputDir = path.join(process.cwd(), 'public', 'temp_images');
 
 // Ensure output directory exists
 if (!fs.existsSync(outputDir)) {
@@ -72,18 +74,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const page = pdfDoc.addPage([imgWidth, imgHeight]);
     page.drawImage(image, { x: 0, y: 0, width: imgWidth, height: imgHeight });
 
-    const pdfFilepath = path.join(outputDir, pdfFilename);
-    await fsPromises.writeFile(pdfFilepath, await pdfDoc.save());
-
-    // Save the original image with the same extension
-    const imageFilepath = path.join(outputDir, `${path.basename(filename, fileExtension)}${fileExtension}`);
-    await fsPromises.copyFile(filepath, imageFilepath);
-
-    // Use storage config to get the appropriate URL
+    // Generate PDF bytes
+    const pdfBytes = await pdfDoc.save();
+    
+    // Read original image bytes
+    const originalImageBytes = await fsPromises.readFile(filepath);
     const imageName = `${path.basename(filename, fileExtension)}${fileExtension}`;
-    const imageUrl = storageConfig.getFileUrl(imageName, undefined, 'temp_images');
-    console.log("imageUrl");
-    console.log(imageUrl);
+    
+    let imageUrl: string;
+    
+    // ALWAYS save PDF locally for the generate endpoint to use
+    const pdfFilepath = path.join(outputDir, pdfFilename);
+    await fsPromises.writeFile(pdfFilepath, pdfBytes);
+    
+    if (storageConfig.isR2Enabled) {
+      console.log('Uploading to R2...');
+      
+      // Upload original image to R2 for display
+      const uploadResult = await uploadToR2(
+        Buffer.from(originalImageBytes),
+        `temp_images/${imageName}`,
+        mimetype
+      );
+      imageUrl = uploadResult.url;
+      
+      // Also save image locally as backup
+      const imageFilepath = path.join(outputDir, imageName);
+      await fsPromises.copyFile(filepath, imageFilepath);
+      
+      console.log('R2 upload successful:', imageUrl);
+    } else {
+      // Fallback to local storage
+      const imageFilepath = path.join(outputDir, imageName);
+      await fsPromises.copyFile(filepath, imageFilepath);
+      
+      imageUrl = storageConfig.getFileUrl(imageName, undefined, 'temp_images');
+    }
+    
+    console.log("imageUrl:", imageUrl);
 
     return res.status(200).json({
       message: 'Template uploaded successfully',

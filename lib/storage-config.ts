@@ -1,7 +1,12 @@
 // Storage configuration for different environments
 // This file prepares for future cloud storage integration
 
+import { uploadToR2, getPublicUrl, isR2Configured } from './r2-client';
+
 export const storageConfig = {
+  // Check if R2 is configured
+  isR2Enabled: isR2Configured() && process.env.STORAGE_PROVIDER === 'cloudflare-r2',
+  
   isDevelopment: process.env.NODE_ENV === 'development',
   
   // Future cloud storage configuration
@@ -41,13 +46,25 @@ export const storageConfig = {
     }
   },
   
-  // Future: Function to generate signed URLs for secure access
+  // Function to generate signed URLs for secure access
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getSignedUrl: async (filename: string, expiresIn: number = 3600): Promise<string> => {
-    // Placeholder for signed URL generation
-    // This would integrate with cloud storage SDKs
-    // expiresIn will be used when implementing actual signed URLs
+    if (storageConfig.isR2Enabled) {
+      return await getPublicUrl(filename);
+    }
+    // Fallback for local storage
     return storageConfig.getFileUrl(filename);
+  },
+  
+  // Upload file to storage (R2 or local)
+  uploadFile: async (buffer: Buffer, filename: string, type: 'generated' | 'temp_images', contentType?: string): Promise<string> => {
+    if (storageConfig.isR2Enabled) {
+      const key = `${type}/${filename}`;
+      const result = await uploadToR2(buffer, key, contentType);
+      return result.url;
+    }
+    // For local storage, caller should handle file writing
+    return storageConfig.getFileUrl(filename, undefined, type);
   }
 };
 

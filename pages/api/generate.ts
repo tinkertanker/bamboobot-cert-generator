@@ -4,6 +4,8 @@ import fsPromises from 'fs/promises';
 import path from 'path';
 import * as fontkit from '@pdf-lib/fontkit';
 import storageConfig from '@/lib/storage-config';
+import { uploadToR2, isR2Configured } from '@/lib/r2-client';
+import fs from 'fs';
 
 const FONT_SIZE_MULTIPLIER = 1;
 
@@ -38,6 +40,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    console.log('Generate API called with:', { mode: req.body.mode, templateFilename: req.body.templateFilename });
+    console.log('R2 enabled:', storageConfig.isR2Enabled);
+    
     const { mode = 'single', templateFilename, data, positions, uiContainerDimensions, namingColumn }: { 
       mode?: 'single' | 'individual';
       templateFilename: string; 
@@ -46,9 +51,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       uiContainerDimensions?: { width: number; height: number };
       namingColumn?: string;
     } = req.body;
-    const templatePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename); // Standardized path
-
-    const templatePdfBytes = await fsPromises.readFile(templatePath);
+    // Handle R2 storage - download template if using R2
+    let templatePdfBytes: Buffer;
+    
+    console.log('Looking for template:', templateFilename);
+    
+    if (storageConfig.isR2Enabled) {
+      // For R2, we need to handle the template differently
+      // This assumes the template was uploaded to R2 previously
+      // For now, we'll still read from local as a fallback
+      const localTemplatePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename);
+      console.log('R2 mode - checking local fallback at:', localTemplatePath);
+      if (fs.existsSync(localTemplatePath)) {
+        templatePdfBytes = await fsPromises.readFile(localTemplatePath);
+        console.log('Template found locally, size:', templatePdfBytes.length);
+      } else {
+        console.error('Template not found at:', localTemplatePath);
+        return res.status(404).json({ error: 'Template not found' });
+      }
+    } else {
+      const templatePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename);
+      console.log('Local mode - reading from:', templatePath);
+      templatePdfBytes = await fsPromises.readFile(templatePath);
+    }
+    
     const pdfDoc = await PDFDocument.load(templatePdfBytes);
 
     // Check if we need custom fonts globally
@@ -288,14 +314,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       generatedPdfs.push(pdfBytes);
     }
 
+    // Only create local directory if not using R2
     const outputDir = path.join(process.cwd(), 'public', 'generated');
-    await fsPromises.mkdir(outputDir, { recursive: true });
+    if (!storageConfig.isR2Enabled) {
+      await fsPromises.mkdir(outputDir, { recursive: true });
+    }
 
     if (mode === 'individual') {
       // Generate individual PDFs
       const timestamp = Date.now();
       const sessionDir = path.join(outputDir, `individual_${timestamp}`);
-      await fsPromises.mkdir(sessionDir, { recursive: true });
+      
+      // Only create local directory if not using R2
+      if (!storageConfig.isR2Enabled) {
+        await fsPromises.mkdir(sessionDir, { recursive: true });
+      }
       
       // Track used filenames to handle duplicates
       const usedFilenames = new Set<string>();
@@ -323,11 +356,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         usedFilenames.add(filename);
         
-        const filePath = path.join(sessionDir, filename);
-        await fsPromises.writeFile(filePath, pdfBytes);
+        let fileUrl: string;
         
-        // Use storage config to get the appropriate URL
-        const fileUrl = storageConfig.getFileUrl(filename, `individual_${timestamp}`);
+        if (storageConfig.isR2Enabled) {
+          // Upload to R2
+          const r2Key = `generated/individual_${timestamp}/${filename}`;
+          const uploadResult = await uploadToR2(Buffer.from(pdfBytes), r2Key, 'application/pdf', filename);
+          fileUrl = uploadResult.url;
+        } else {
+          // Save locally
+          const filePath = path.join(sessionDir, filename);
+          await fsPromises.writeFile(filePath, pdfBytes);
+          fileUrl = storageConfig.getFileUrl(filename, `individual_${timestamp}`);
+        }
         
         return {
           filename,
@@ -352,11 +393,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const pdfBytes = await mergedPdf.save();
       const outputFilename = `certificates_${Date.now()}.pdf`;
-      const outputPath = path.join(outputDir, outputFilename);
-      await fsPromises.writeFile(outputPath, pdfBytes);
-
-      // Use storage config to get the appropriate URL
-      const fileUrl = storageConfig.getFileUrl(outputFilename);
+      let fileUrl: string;
+      
+      if (storageConfig.isR2Enabled) {
+        // Upload to R2
+        const uploadResult = await uploadToR2(Buffer.from(pdfBytes), `generated/${outputFilename}`, 'application/pdf', outputFilename);
+        fileUrl = uploadResult.url;
+      } else {
+        // Save locally
+        const outputPath = path.join(outputDir, outputFilename);
+        await fsPromises.writeFile(outputPath, pdfBytes);
+        fileUrl = storageConfig.getFileUrl(outputFilename);
+      }
       
       return res.status(200).json({
         message: 'Certificates generated successfully',
