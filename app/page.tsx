@@ -77,6 +77,13 @@ export default function MainPage() {
   const [isFirstRowHeader, setIsFirstRowHeader] = useState<boolean>(false);
   const [useCSVMode, setUseCSVMode] = useState<boolean>(false); // Default to TSV
   const [tableInput, setTableInput] = useState<string>("");
+  const [devMode, setDevMode] = useState<boolean>(false);
+
+  // Preset data for dev mode
+  const presetCSVData = `Name,Department,Phone
+Maximilienne Featherstone-Harrington III,Executive Leadership,+1-555-MAXI-EXEC
+Bartholomäus von Quackenbusch-Wetherell,Innovation & Strategy,+1-555-BART-INNO
+Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLOB`;
   const [positions, setPositions] = useState<Positions>({});
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
@@ -476,6 +483,40 @@ export default function MainPage() {
     });
   };
 
+  const handleDevModeToggle = () => {
+    setDevMode((prev) => {
+      const newValue = !prev;
+      if (newValue) {
+        // Enable dev mode: load preset data and template
+        setUseCSVMode(true);
+        setIsFirstRowHeader(true);
+        setTableInput(presetCSVData);
+        processTableData(presetCSVData, true, true);
+        
+        // Set the uploaded file URL to the preset image
+        const presetImageUrl = "/temp_images/certificate-template.png";
+        setUploadedFileUrl(presetImageUrl);
+        
+        // Create a mock file object for the preset template (use PDF filename)
+        const mockFile = new File([""], "certificate-template.pdf", { type: "application/pdf" });
+        setUploadedFile(mockFile);
+        
+        console.log("Dev mode enabled: preset template and data loaded");
+      } else {
+        // Disable dev mode: clear data
+        setTableInput("");
+        setTableData([]);
+        setUploadedFile(null);
+        setUploadedFileUrl(null);
+        setPositions({});
+        setPdfDownloadUrl(null);
+        setGeneratedPdfUrl(null);
+        console.log("Dev mode disabled: data cleared");
+      }
+      return newValue;
+    });
+  };
+
   // Navigation functions
   const goToFirst = () => setCurrentPreviewIndex(0);
   const goToPrevious = () =>
@@ -585,7 +626,7 @@ export default function MainPage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          templateFilename: uploadedFile,
+          templateFilename: uploadedFile?.name,
           uiContainerDimensions: containerDimensions,
           data: tableData.map((row) => {
             const entry: {
@@ -682,7 +723,7 @@ export default function MainPage() {
         },
         body: JSON.stringify({
           mode: "individual",
-          templateFilename: uploadedFile,
+          templateFilename: uploadedFile?.name,
           uiContainerDimensions: containerDimensions,
           namingColumn: selectedNamingColumn,
           data: tableData.map((row) => {
@@ -837,17 +878,32 @@ export default function MainPage() {
           boxShadow: "0 2px 4px rgba(27, 67, 50, 0.1)"
         }}>
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <Image
-              src="/bamboobot-icon.png"
-              alt="Bamboobot"
-              width={32}
-              height={32}
-              className="w-8 h-8"
-            />
-            <h1 className="text-2xl font-bold" style={{ color: "#F4A261" }}>
-              Bamboobot
-            </h1>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <Image
+                src="/bamboobot-icon.png"
+                alt="Bamboobot"
+                width={32}
+                height={32}
+                className="w-8 h-8"
+              />
+              <h1 className="text-2xl font-bold" style={{ color: "#F4A261" }}>
+                Bamboobot
+              </h1>
+            </div>
+            {/* Dev Mode Toggle */}
+            <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg border">
+              <input
+                type="checkbox"
+                id="dev-mode-toggle"
+                checked={devMode}
+                onChange={handleDevModeToggle}
+                className="w-4 h-4"
+              />
+              <label htmlFor="dev-mode-toggle" className="text-sm font-medium text-gray-700">
+                Dev Mode
+              </label>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button
