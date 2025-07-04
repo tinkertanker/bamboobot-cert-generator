@@ -66,7 +66,7 @@ describe('MainPage Component', () => {
     render(<MainPage />);
     
     // Simulate entering tabular data
-    const textarea = screen.getByPlaceholderText(/Paste tabular data here/i);
+    const textarea = screen.getByPlaceholderText(/Paste TSV data here/i);
     fireEvent.change(textarea, {
       target: { value: 'Name\tRole\nJohn Doe\tDeveloper\nJane Smith\tDesigner' },
     });
@@ -85,7 +85,7 @@ describe('MainPage Component', () => {
     render(<MainPage />);
     
     // Enter data
-    const textarea = screen.getByPlaceholderText(/Paste tabular data here/i);
+    const textarea = screen.getByPlaceholderText(/Paste TSV data here/i);
     fireEvent.change(textarea, {
       target: { value: 'Header1\tHeader2\nValue1\tValue2' },
     });
