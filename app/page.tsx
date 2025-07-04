@@ -75,6 +75,7 @@ export default function MainPage() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [tableData, setTableData] = useState<TableData[]>([]);
   const [isFirstRowHeader, setIsFirstRowHeader] = useState<boolean>(false);
+  const [useCSVMode, setUseCSVMode] = useState<boolean>(false); // Default to TSV
   const [tableInput, setTableInput] = useState<string>("");
   const [positions, setPositions] = useState<Positions>({});
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
@@ -385,14 +386,51 @@ export default function MainPage() {
     }
   };
 
+  // Helper function to parse CSV with proper quote handling
+  const parseCSVRow = (row: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < row.length; i++) {
+      const char = row[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    result.push(current.trim());
+    return result;
+  };
+
   const processTableData = (
     input: string,
-    useHeaderRow: boolean = isFirstRowHeader
+    useHeaderRow: boolean = isFirstRowHeader,
+    csvMode: boolean = useCSVMode
   ) => {
-    const rows = input
-      .trim()
-      .split("\n")
-      .map((row) => row.split("\t"));
+    const trimmedInput = input.trim();
+    if (!trimmedInput) return;
+    
+    const lines = trimmedInput.split("\n");
+    if (lines.length === 0) return;
+    
+    // Use the format selected by the user toggle
+    const delimiter = csvMode ? "," : "\t";
+    console.log(`Using ${csvMode ? "CSV" : "TSV"} mode`);
+    
+    const rows = lines.map((row) => {
+      if (csvMode) {
+        return parseCSVRow(row);
+      } else {
+        return row.split(delimiter);
+      }
+    });
     if (rows.length === 0) return;
 
     const headers = useHeaderRow
@@ -423,6 +461,17 @@ export default function MainPage() {
     setIsFirstRowHeader((prev) => {
       const newValue = !prev;
       processTableData(tableInput, newValue);
+      return newValue;
+    });
+  };
+
+  const handleCSVModeToggle = () => {
+    setUseCSVMode((prev) => {
+      const newValue = !prev;
+      // Reprocess data with new format
+      if (tableInput.trim()) {
+        processTableData(tableInput, isFirstRowHeader, newValue);
+      }
       return newValue;
     });
   };
@@ -1369,23 +1418,41 @@ export default function MainPage() {
           {/* Tab Content */}
           {activeTab === "data" && (
             <div className="flex flex-col h-full">
-              <div className="flex items-center mb-4">
-                <input
-                  type="checkbox"
-                  id="header-toggle"
-                  checked={isFirstRowHeader}
-                  onChange={handleHeaderToggle}
-                  className="mr-2"
-                />
-                <label htmlFor="header-toggle" className="text-sm">
-                  Treat first row as header
-                </label>
+              <div className="flex items-center gap-6 mb-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="header-toggle"
+                    checked={isFirstRowHeader}
+                    onChange={handleHeaderToggle}
+                    className="mr-2"
+                  />
+                  <label htmlFor="header-toggle" className="text-sm">
+                    Treat first row as header
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="csv-mode-toggle"
+                    checked={useCSVMode}
+                    onChange={handleCSVModeToggle}
+                    className="mr-2"
+                  />
+                  <label htmlFor="csv-mode-toggle" className="text-sm">
+                    CSV mode (comma-separated)
+                  </label>
+                </div>
               </div>
               <div className="flex flex-col h-[480px]">
                 <Textarea
                   value={tableInput}
                   onChange={handleTableDataChange}
-                  placeholder="Paste tabular data here"
+                  placeholder={
+                    useCSVMode 
+                      ? "Paste CSV data here (e.g., John Doe,Manager,Sales)"
+                      : "Paste TSV data here (tab-separated)"
+                  }
                   className="w-full resize-none"
                   style={{ height: "154px" }}
                 />
