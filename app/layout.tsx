@@ -67,10 +67,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/bamboobot-icon.png" type="image/png" />
-      </head>
       <body
         className={`${rubik.variable} ${montserrat.variable} ${poppins.variable} ${workSans.variable} ${roboto.variable} ${sourceSansPro.variable} ${nunito.variable} ${greatVibes.variable} antialiased`}
       >
