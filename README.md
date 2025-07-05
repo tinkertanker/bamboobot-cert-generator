@@ -165,7 +165,7 @@ When using R2, files automatically expire based on type:
 
 ## About Bamboobot
 
-Bamboobot inherits its name from an early Tinkertanker PDF stamping project. Bamboo symbolizes growth, resilience, and continuous learning - qualities that certificates aim to recognize in learners and professionals.
+Bamboobot inherits its name and icon from an early Tinkertanker PDF stamping project. Bamboo symbolizes growth, resilience, and continuous learning - qualities that certificates aim to recognize in learners and professionals.
 
 ## Font Licenses
 
