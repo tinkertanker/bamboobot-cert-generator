@@ -57,10 +57,16 @@ export const storageConfig = {
   },
   
   // Upload file to storage (R2 or local)
-  uploadFile: async (buffer: Buffer, filename: string, type: 'generated' | 'temp_images', contentType?: string): Promise<string> => {
+  uploadFile: async (
+    buffer: Buffer, 
+    filename: string, 
+    type: 'generated' | 'temp_images', 
+    contentType?: string,
+    metadata?: Parameters<typeof uploadToR2>[4]
+  ): Promise<string> => {
     if (storageConfig.isR2Enabled) {
       const key = `${type}/${filename}`;
-      const result = await uploadToR2(buffer, key, contentType);
+      const result = await uploadToR2(buffer, key, contentType, filename, metadata);
       return result.url;
     }
     // For local storage, caller should handle file writing

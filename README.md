@@ -348,6 +348,53 @@ docker system prune -a  # Remove unused images
 docker volume prune     # Remove unused volumes
 ```
 
+### Cloudflare R2 Lifecycle Management
+
+When using R2 storage, Bamboobot includes intelligent lifecycle management to automatically clean up expired files while preserving important certificates:
+
+**Retention Policies:**
+- **Preview/Temporary files** (24 hours) - Quick downloads after generation
+- **Individual certificates** (90 days) - Extended retention for email links
+- **Bulk/Merged PDFs** (7 days) - Downloaded immediately by generator
+- **Template images** (permanent) - Never auto-deleted
+
+**Key Features:**
+- **Email-aware retention** - Certificates marked as emailed are kept for 90+ days
+- **Metadata tracking** - Each file stores type, creation date, and retention policy
+- **Manual cleanup API** - Run cleanup on-demand or via cron job
+- **Flexible overrides** - Extend retention for specific use cases
+
+**Setup Cleanup (Optional):**
+
+1. **Add cleanup authentication** to `.env.local`:
+   ```bash
+   CLEANUP_SECRET_KEY=your-secret-cleanup-key-here
+   ```
+
+2. **Test cleanup locally**:
+   ```bash
+   npm run test:r2-cleanup  # Dry run to preview what would be deleted
+   ```
+
+3. **Setup automated cleanup** (cron job example):
+   ```bash
+   # Run cleanup daily at 2 AM
+   0 2 * * * /path/to/bamboobot/scripts/r2-cleanup.sh
+   ```
+
+4. **Manual cleanup via API**:
+   ```bash
+   curl -X POST https://your-domain.com/api/cleanup-r2 \
+     -H "X-Cleanup-Key: your-secret-cleanup-key-here"
+   ```
+
+**Email Integration:**
+When implementing email functionality, use the `markAsEmailed` function to automatically extend retention for certificates sent via email:
+```javascript
+import { markAsEmailed } from '@/lib/r2-client';
+await markAsEmailed('generated/individual_123/cert.pdf');
+```
+
 ## About the Name
 
 Bamboobot inherits its name and icon from an early Tinkertanker project focused on PDF stamping. The bamboo metaphor resonates deeply with the essence of certificate generation and recognition:

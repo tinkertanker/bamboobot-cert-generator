@@ -12,7 +12,8 @@
     "test:watch": "jest --watch",
     "verify": "node scripts/verify-frontend.js",
     "test:build": "jest __tests__/build.test.ts",
-    "cleanup": "node scripts/cleanup.js"
+    "cleanup": "node scripts/cleanup.js",
+    "test:r2-cleanup": "npx tsx scripts/test-r2-cleanup.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.842.0",
