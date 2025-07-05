@@ -100,6 +100,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   const [showResetFieldModal, setShowResetFieldModal] =
     useState<boolean>(false);
   const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
+  const [detectedEmailColumn, setDetectedEmailColumn] = useState<string | null>(null);
+  const [emailSendingStatus, setEmailSendingStatus] = useState<{[key: number]: 'sending' | 'sent' | 'error'}>({});
 
   // Pointer events state for dragging
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -460,6 +462,38 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     return result;
   };
 
+  // Detect email column from headers and data
+  const detectEmailColumn = (headers: string[], data: TableData[]) => {
+    // First try to detect by header name
+    const emailHeaderPatterns = /^(email|e-mail|mail|email address|e-mail address|correo|courriel)$/i;
+    let emailColumn = headers.find(header => emailHeaderPatterns.test(header.trim()));
+    
+    // If not found by header, try to detect by content
+    if (!emailColumn && data.length > 0) {
+      const emailContentPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      
+      for (const header of headers) {
+        // Check if at least 50% of non-empty values in this column look like emails
+        const columnValues = data
+          .map(row => row[header])
+          .filter(val => val && val.trim() !== "");
+        
+        if (columnValues.length > 0) {
+          const emailCount = columnValues.filter(val => 
+            emailContentPattern.test(val.trim())
+          ).length;
+          
+          if (emailCount / columnValues.length >= 0.5) {
+            emailColumn = header;
+            break;
+          }
+        }
+      }
+    }
+    
+    setDetectedEmailColumn(emailColumn || null);
+  };
+
   const processTableData = (
     input: string,
     useHeaderRow: boolean = isFirstRowHeader,
@@ -496,6 +530,74 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
       return obj;
     });
     setTableData(tableData);
+    
+    // Auto-detect email column
+    detectEmailColumn(headers, tableData);
+  };
+
+  // Send individual certificate via email
+  const sendCertificateEmail = async (index: number, file: {filename: string, url: string, originalIndex: number}) => {
+    if (!detectedEmailColumn || !individualPdfsData) return;
+    
+    const recipientData = tableData[file.originalIndex || index];
+    const recipientEmail = recipientData[detectedEmailColumn];
+    
+    if (!recipientEmail) {
+      alert('No email address found for this recipient');
+      return;
+    }
+    
+    // Update sending status
+    setEmailSendingStatus(prev => ({ ...prev, [index]: 'sending' }));
+    
+    try {
+      // Get recipient name (try common name columns)
+      const nameColumns = ['Name', 'name', 'Full Name', 'full_name', 'fullname'];
+      const recipientName = nameColumns
+        .map(col => recipientData[col])
+        .find(val => val && val.trim() !== '') || 'Certificate Recipient';
+      
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: recipientEmail,
+          subject: `Your Certificate - ${file.filename.replace('.pdf', '')}`,
+          recipientName: recipientName,
+          attachmentUrl: file.url,
+          attachmentName: file.filename,
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        setEmailSendingStatus(prev => ({ ...prev, [index]: 'sent' }));
+        
+        // Mark as emailed in R2 if using cloud storage
+        if (file.url.includes('r2.cloudflarestorage.com') || 
+           (process.env.R2_PUBLIC_URL && file.url.startsWith(process.env.R2_PUBLIC_URL))) {
+          try {
+            await fetch('/api/mark-emailed', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fileUrl: file.url }),
+            });
+          } catch (error) {
+            console.warn('Failed to mark file as emailed:', error);
+          }
+        }
+      } else {
+        throw new Error(result.error || 'Failed to send email');
+      }
+    } catch (error) {
+      console.error('Email sending failed:', error);
+      setEmailSendingStatus(prev => ({ ...prev, [index]: 'error' }));
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to send email: ${errorMessage}`);
+    }
   };
 
   const handleTableDataChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -1573,7 +1675,14 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                                     <th
                                       className="px-4 py-2 border-b border-gray-200 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                                       key={column.id}>
-                                      {column.render("Header")}
+                                      <div className="flex items-center gap-2">
+                                        {column.render("Header")}
+                                        {detectedEmailColumn === column.id && (
+                                          <div title="Email column detected">
+                                            <Mail className="h-3 w-3 text-blue-600" />
+                                          </div>
+                                        )}
+                                      </div>
                                     </th>
                                   )
                                 )}
@@ -2261,11 +2370,29 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                             {hasEmailColumn && (
                               <Button
                                 size="sm"
-                                variant="outline"
-                                title="Email"
-                                disabled
-                                className="h-8 w-8 p-0">
-                                <Mail className="h-4 w-4" />
+                                variant={emailSendingStatus[index] === 'sent' ? 'default' : 'outline'}
+                                title={
+                                  emailSendingStatus[index] === 'sending' ? 'Sending email...' :
+                                  emailSendingStatus[index] === 'sent' ? 'Email sent!' :
+                                  emailSendingStatus[index] === 'error' ? 'Failed to send email' :
+                                  'Send via email'
+                                }
+                                disabled={emailSendingStatus[index] === 'sending'}
+                                onClick={() => sendCertificateEmail(index, file)}
+                                className="h-8 w-8 p-0"
+                                style={{
+                                  backgroundColor: emailSendingStatus[index] === 'sent' ? '#2D6A4F' : 
+                                                 emailSendingStatus[index] === 'error' ? '#dc2626' : 'transparent',
+                                  borderColor: emailSendingStatus[index] === 'sent' ? '#2D6A4F' : 
+                                             emailSendingStatus[index] === 'error' ? '#dc2626' : '#2D6A4F',
+                                  color: emailSendingStatus[index] === 'sent' ? 'white' : 
+                                        emailSendingStatus[index] === 'error' ? 'white' : '#2D6A4F'
+                                }}>
+                                {emailSendingStatus[index] === 'sending' ? (
+                                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Mail className="h-4 w-4" />
+                                )}
                               </Button>
                             )}
                           </div>
