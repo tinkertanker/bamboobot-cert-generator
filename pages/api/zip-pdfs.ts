@@ -50,8 +50,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         console.log(`Processing file: ${file.url} -> ${file.filename}`);
         
-        // Check if this is an R2 URL
-        if (isR2Configured() && file.url.includes('.r2.cloudflarestorage.com')) {
+        // Check if this is an R2 URL (either direct endpoint or custom domain)
+        if (isR2Configured() && (file.url.includes('.r2.cloudflarestorage.com') || (process.env.R2_PUBLIC_URL && file.url.startsWith(process.env.R2_PUBLIC_URL)))) {
           // Fetch the file from R2
           console.log('Fetching from R2:', file.url);
           const response = await fetch(file.url);

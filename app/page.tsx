@@ -2208,7 +2208,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                               title="Download PDF"
                               onClick={() => {
                                 // Use force-download API to ensure proper download
-                                const downloadUrl = `/api/force-download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(file.filename)}`;
+                                const downloadUrl = `/api/force-download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(filename)}`;
                                 window.location.href = downloadUrl;
                               }}
                               className="h-8 w-8 p-0">

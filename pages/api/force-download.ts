@@ -17,8 +17,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${downloadFilename}"`);
 
-    if (isR2Configured() && url.includes('.r2.cloudflarestorage.com')) {
-      // Fetch from R2 and stream to response
+    if (isR2Configured() && (url.includes('.r2.cloudflarestorage.com') || (process.env.R2_PUBLIC_URL && url.startsWith(process.env.R2_PUBLIC_URL)))) {
+      // Fetch from R2 (either direct endpoint or custom domain) and stream to response
       console.log('Downloading from R2:', url);
       const response = await fetch(url);
       
