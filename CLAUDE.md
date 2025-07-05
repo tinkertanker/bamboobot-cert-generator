@@ -183,32 +183,27 @@ npm test -- __tests__/components/Button.test.tsx
   - ✅ Test script for dry-run previews
   - ✅ Flexible metadata tracking for future features
 
-### 🎯 Current Focus: Production Deployment
+### 🎯 Current Focus: Email Integration
 
 ### 🚧 Planned Features (Priority Order)
 
-**Phase 1 - Infrastructure & Performance**
-- **R2 Custom Domain** (MEDIUM PRIORITY)
-  - Set up custom domain for branded URLs (certificates.yourdomain.com)
-  - Configure Cloudflare DNS and SSL
-  - Update R2_PUBLIC_URL environment variable
-- **R2 Lifecycle Management** (LOW PRIORITY)
-  - Implement automatic file cleanup after 7 days
-  - Add lifecycle rules for old generated PDFs
-  - Optimize storage costs
+**Phase 1 - Communication Features (CURRENT)**
+- **Email functionality** (HIGH PRIORITY - Next Implementation)
+  - SMTP integration for bulk certificate sending
+  - Email templates with HTML/text versions
+  - Attachment of individual PDFs directly to emails
+  - Bulk emailing with personalized messages
+  - Integration with R2 markAsEmailed for extended retention
+  - Email delivery status tracking and error handling
 
 **Phase 2 - User Experience Features**
 - **Format templates** (45 mins)
   - Save/load formatting presets
   - Quick apply saved styles
-- **Keyboard shortcuts** (COMPLETED - ESC key, PENDING - Bold/Italic)
+- **Keyboard shortcuts** (COMPLETED)
   - ✅ ESC key to dismiss all modals
-  - Ctrl/Cmd + B for bold
-  - Ctrl/Cmd + I for italic
-
-**Phase 3 - Communication Features**
-- Email functionality (SMTP, bulk sending, templates)
-- Integration with individual PDFs for direct emailing
+  - ✅ Ctrl/Cmd + B for bold toggle
+  - ✅ Ctrl/Cmd + I for italic toggle
 
 **Phase 3 - Enhanced Functionality**
 - PDF template support (currently only images)
