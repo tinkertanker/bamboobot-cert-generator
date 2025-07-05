@@ -1594,8 +1594,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                       backgroundColor: "#FFFEF7",
                       border: "1px solid #dddddd"
                     }}>
-                    <h3 className="font-medium text-sm">
-                      Field: {selectedField}
+                    <h3 className="text-sm">
+                      <span className="text-gray-500 font-normal">Field:</span> <span className="font-medium text-gray-900">{selectedField}</span>
                     </h3>
                     <Button
                       variant="outline"
