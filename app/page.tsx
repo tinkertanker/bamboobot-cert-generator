@@ -308,6 +308,50 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     return () => document.removeEventListener('keydown', handleEscKey);
   }, []);
 
+  // Bold/Italic keyboard shortcuts (Ctrl/Cmd+B for bold, Ctrl/Cmd+I for italic)
+  useEffect(() => {
+    const handleFormatShortcuts = (event: KeyboardEvent) => {
+      if (!selectedField) return;
+      
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const isCommandPressed = isMac ? event.metaKey : event.ctrlKey;
+      
+      if (!isCommandPressed) return;
+      
+      const currentFont = positions[selectedField]?.fontFamily || "Helvetica";
+      const fontCapabilities = FONT_CAPABILITIES[currentFont];
+      
+      if (event.key === 'b' || event.key === 'B') {
+        event.preventDefault();
+        if (fontCapabilities.bold) {
+          setPositions((prev) => ({
+            ...prev,
+            [selectedField]: {
+              ...prev[selectedField],
+              bold: !prev[selectedField]?.bold
+            }
+          }));
+        }
+      } else if (event.key === 'i' || event.key === 'I') {
+        event.preventDefault();
+        if (fontCapabilities.italic) {
+          setPositions((prev) => ({
+            ...prev,
+            [selectedField]: {
+              ...prev[selectedField],
+              italic: !prev[selectedField]?.italic
+            }
+          }));
+        }
+      }
+    };
+
+    if (selectedField) {
+      document.addEventListener('keydown', handleFormatShortcuts);
+      return () => document.removeEventListener('keydown', handleFormatShortcuts);
+    }
+  }, [selectedField, positions]);
+
   // Ensure all table columns have positions and reset preview index
   useEffect(() => {
     if (tableData.length > 0) {
