@@ -2,7 +2,7 @@
 
 A professional Next.js application for generating certificates from uploaded image templates. Upload an image, add draggable text fields, and generate bulk certificates from tabular data.
 
-## ✨ Features
+## Features
 
 - **Image Template Upload** - JPG/PNG with automatic PDF conversion
 - **Precision Text Positioning** - Drag-and-drop with visual feedback and keyboard nudging
@@ -15,7 +15,7 @@ A professional Next.js application for generating certificates from uploaded ima
 - **Cloud Storage** - Optional Cloudflare R2 integration with global CDN
 - **Docker Support** - Production-ready containerization
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Local Development
 ```bash
@@ -32,7 +32,7 @@ docker-compose up -d
 # Access at http://localhost:3000
 ```
 
-## 📋 How to Use
+## How to Use
 
 1. **Upload Template** - Drag & drop a JPG/PNG image
 2. **Add Data** - Paste TSV/CSV data (toggle header option if needed)
@@ -42,7 +42,7 @@ docker-compose up -d
 6. **Generate** - Create single PDF or individual PDFs
 7. **Download** - Get merged PDF, individual files, or ZIP archive
 
-## ⚙️ Configuration
+## Configuration
 
 ### Storage Options
 
@@ -54,7 +54,7 @@ docker-compose up -d
 - Global CDN delivery, zero bandwidth costs
 - Copy `.env.example` to `.env.local` and configure R2 credentials
 
-## 🛠️ Development Commands
+## Development Commands
 
 ```bash
 # Development
@@ -72,7 +72,7 @@ npm run lint        # Run ESLint
 npm run cleanup     # Clean temporary files
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 app/              # Next.js app router components
@@ -87,7 +87,7 @@ public/           # Static assets & local storage
 scripts/          # Utility scripts
 ```
 
-## 🧪 Testing
+## Testing
 
 ```bash
 npm test                    # Run all tests
@@ -95,7 +95,7 @@ npm run test:watch          # Watch mode
 npm test -- __tests__/path/to/test.tsx  # Specific test
 ```
 
-## 🐳 Docker Deployment
+## Docker Deployment
 
 ### Production
 ```bash
@@ -110,7 +110,7 @@ docker-compose -f docker-compose.dev.yml up -d
 # Access at http://localhost:3001 with instant code changes
 ```
 
-## ☁️ Cloudflare R2 Setup (Optional)
+## Cloudflare R2 Setup (Optional)
 
 1. **Enable R2** in Cloudflare Dashboard
 2. **Create bucket**: `wrangler r2 bucket create bamboobot-certificates`
@@ -131,7 +131,7 @@ docker-compose -f docker-compose.dev.yml up -d
 - ✅ Automatic file expiration (24h-90d retention policies)
 - ✅ Email-aware retention extension
 
-## 🧹 Cleanup
+## Cleanup
 
 ### Automated
 ```bash
@@ -154,7 +154,7 @@ When using R2, files automatically expire based on type:
 - **Bulk PDFs**: 7 days
 - **Previews**: 24 hours
 
-## 🔧 Technology Stack
+## Technology Stack
 
 - **Framework**: Next.js 14 with TypeScript
 - **UI**: Tailwind CSS + shadcn/ui components
@@ -163,14 +163,11 @@ When using R2, files automatically expire based on type:
 - **Testing**: Jest + React Testing Library
 - **Deployment**: Docker with multi-stage builds
 
-## 🎋 About Bamboobot
+## About Bamboobot
 
 Bamboobot inherits its name from an early Tinkertanker PDF stamping project. Bamboo symbolizes growth, resilience, and continuous learning - qualities that certificates aim to recognize in learners and professionals.
 
-## 📄 Font Licenses
+## Font Licenses
 
 All fonts (Montserrat, Poppins, Work Sans, Roboto, Source Sans Pro, Nunito) are from Google Fonts, licensed under SIL Open Font License 1.1. Selected for excellent character spacing and professional typography.
 
----
-
-For detailed setup guides, troubleshooting, and advanced configuration, see the [full documentation](docs/) or check the inline code comments.
