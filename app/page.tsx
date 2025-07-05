@@ -2017,10 +2017,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                     Click on any text field in the certificate preview
                   </p>
                   {tableData.length > 0 && (
-                    <p className="text-xs text-blue-600 flex items-center justify-center gap-1">
-                      <span className="w-2 h-2 rounded-full border border-blue-600"></span>
-                      Selected fields have a green border
-                    </p>
+                    <div className="mt-3 p-2 rounded border border-green-300 bg-green-50">
+                      <p className="text-xs text-gray-600 text-center">
+                        Selected fields have a green border
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
