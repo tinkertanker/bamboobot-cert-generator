@@ -79,7 +79,7 @@ export async function uploadToR2(
     Body: buffer,
     ContentType: contentType,
     // Store metadata as custom headers (R2/S3 compatible)
-    Metadata: fullMetadata as Record<string, string>,
+    Metadata: fullMetadata as unknown as Record<string, string>,
   });
 
   await r2Client.send(command);
@@ -149,7 +149,7 @@ export async function getFileMetadata(key: string): Promise<FileMetadata | null>
     });
     
     const response = await r2Client.send(command);
-    return response.Metadata as FileMetadata;
+    return response.Metadata as unknown as FileMetadata;
   } catch (error) {
     console.error('Error getting file metadata:', error);
     return null;

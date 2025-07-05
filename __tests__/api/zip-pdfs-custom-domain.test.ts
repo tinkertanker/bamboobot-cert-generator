@@ -1,6 +1,9 @@
 import { createMocks } from 'node-mocks-http';
 import handler from '../../pages/api/zip-pdfs';
 
+// Mock environment variables
+const originalEnv = process.env;
+
 // Mock the R2 client
 jest.mock('../../lib/r2-client', () => ({
   isR2Configured: jest.fn(),
@@ -31,6 +34,8 @@ global.fetch = jest.fn();
 describe('/api/zip-pdfs custom domain handling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Reset process.env to a fresh object
+    process.env = { ...originalEnv };
     // Reset mock functions
     Object.values(mockArchive).forEach(fn => {
       if (typeof fn === 'function') {
@@ -245,7 +250,7 @@ describe('/api/zip-pdfs custom domain handling', () => {
   });
 
   afterEach(() => {
-    // Clean up environment variables
-    delete process.env.R2_PUBLIC_URL;
+    // Restore original environment
+    process.env = originalEnv;
   });
 });

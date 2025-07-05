@@ -1,6 +1,9 @@
 import { createMocks } from 'node-mocks-http';
 import handler from '../../pages/api/force-download';
 
+// Mock environment variables
+const originalEnv = process.env;
+
 // Mock the R2 client
 jest.mock('../../lib/r2-client', () => ({
   isR2Configured: jest.fn(),
@@ -18,6 +21,8 @@ global.fetch = jest.fn();
 describe('/api/force-download', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Reset process.env to a fresh object
+    process.env = { ...originalEnv };
   });
 
   it('should reject non-string URL parameter', async () => {
@@ -189,7 +194,7 @@ describe('/api/force-download', () => {
   });
 
   afterEach(() => {
-    // Clean up environment variables
-    delete process.env.R2_PUBLIC_URL;
+    // Restore original environment
+    process.env = originalEnv;
   });
 });

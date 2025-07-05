@@ -6,3 +6,5 @@ export const S3Client = jest.fn(() => ({
 export const PutObjectCommand = jest.fn();
 export const GetObjectCommand = jest.fn();
 export const DeleteObjectCommand = jest.fn();
+export const ListObjectsV2Command = jest.fn();
+export const HeadObjectCommand = jest.fn();
