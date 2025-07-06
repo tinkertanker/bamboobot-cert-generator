@@ -26,24 +26,24 @@ export function PdfGenerationModal({
         className="relative bg-white bg-opacity-100 w-3/4 max-w-6xl mx-auto rounded-lg shadow-xl p-6 border border-gray-200"
         onClick={(e) => e.stopPropagation()}>
         {isGenerating ? (
-          <div className="flex flex-col items-center justify-center h-64 space-y-4">
+          <div className="flex flex-col items-center justify-center h-64">
             {progress !== undefined && total !== undefined ? (
-              <>
-                <h3 className="text-lg font-semibold">Generating Certificates</h3>
-                <div className="w-full max-w-md">
+              <div className="w-full max-w-md space-y-6">
+                <h3 className="text-lg font-semibold text-center">Generating Certificates</h3>
+                <div className="w-full">
                   <Progress 
                     value={progress} 
                     max={total} 
                     label={`Processing certificate ${progress} of ${total}`}
                   />
                 </div>
-                <p className="text-sm text-gray-500">Please wait...</p>
-              </>
+                <p className="text-sm text-gray-500 text-center">Please wait...</p>
+              </div>
             ) : (
-              <>
+              <div className="flex flex-col items-center space-y-4">
                 <Spinner />
-                <p className="mt-4 text-lg">Generating PDF...</p>
-              </>
+                <p className="text-lg">Generating PDF...</p>
+              </div>
             )}
           </div>
         ) : generatedPdfUrl ? (
