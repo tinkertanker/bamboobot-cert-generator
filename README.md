@@ -11,6 +11,7 @@ A professional Next.js application for generating certificates from uploaded ima
 - **Smart Entry Navigation** - Previous/Next/First/Last with entry counter  
 - **Bulk Data Import** - TSV/CSV support with header toggle
 - **Multiple Download Options** - Single PDF, individual PDFs, ZIP archives
+- **Email Delivery** - Send certificates via email with custom messages (Resend integration)
 - **Live Preview** - Real-time preview matching final PDF output
 - **Cloud Storage** - Optional Cloudflare R2 integration with global CDN
 - **Docker Support** - Production-ready containerization
@@ -39,8 +40,9 @@ docker-compose up -d
 3. **Position Text** - Drag text fields to desired positions
 4. **Format Text** - Click fields to access formatting controls
 5. **Navigate Entries** - Use Previous/Next to preview different certificates  
-6. **Generate** - Create single PDF or individual PDFs
-7. **Download** - Get merged PDF, individual files, or ZIP archive
+6. **Configure Email** (Optional) - Set up sender info and custom message if email column detected
+7. **Generate** - Create single PDF or individual PDFs
+8. **Send/Download** - Email certificates or download as PDF/ZIP
 
 ## Configuration
 
@@ -53,6 +55,18 @@ docker-compose up -d
 **Cloudflare R2 (Recommended for Production)**
 - Global CDN delivery, zero bandwidth costs
 - Copy `.env.example` to `.env.local` and configure R2 credentials
+
+### Email Configuration (Resend)
+
+1. **Sign up** at [Resend.com](https://resend.com) for a free account
+2. **Get API Key** from your Resend dashboard
+3. **Configure** `.env.local`:
+   ```bash
+   RESEND_API_KEY=re_123456789_XXXXXXXXXXXXXXXXXXXXXXXX
+   EMAIL_FROM=certificates@yourdomain.com  # Optional custom sender
+   ```
+4. **Verify Domain** (optional) - For custom sender addresses
+5. **Test** - The Email tab appears when an email column is detected in your data
 
 ## Development Commands
 
@@ -81,6 +95,7 @@ lib/              # Utilities and storage config
 pages/api/        # API endpoints
   ├── upload.ts      # Image upload & PDF conversion
   ├── generate.ts    # Certificate generation
+  ├── send-email.ts  # Email delivery with Resend
   ├── zip-pdfs.ts    # ZIP archive creation
   └── force-download.ts  # File download handling
 public/           # Static assets & local storage
@@ -130,6 +145,27 @@ docker-compose -f docker-compose.dev.yml up -d
 - ✅ No file size limits (eliminates 4MB API warnings)  
 - ✅ Automatic file expiration (24h-90d retention policies)
 - ✅ Email-aware retention extension
+
+## Email Delivery
+
+### Features
+- **Automatic Detection** - Email tab appears when email column found in data
+- **Custom Sender** - Configure sender name for personalized emails
+- **Custom Subject** - Set your own email subject line
+- **Custom Message** - Full control over email content (plain text)
+- **Delivery Options**:
+  - **Download Link** - Sends a secure link (90-day expiration)
+  - **PDF Attachment** - Attaches certificate directly to email
+- **Bulk Sending** - Send to all recipients with progress tracking
+
+### Email Column Detection
+The system automatically detects email columns by:
+- Column header containing "email", "e-mail", or "mail"
+- Valid email format in the data rows
+
+### Rate Limits
+- **Resend Free Tier**: 100 emails/day, 3000 emails/month
+- **Production**: Consider upgrading for higher limits
 
 ## Cleanup
 

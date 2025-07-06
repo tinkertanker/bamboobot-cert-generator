@@ -30,6 +30,18 @@ jest __tests__/path/to/specific.test.ts  # Run single test file
 npm run lint        # Run ESLint with Next.js configuration
 ```
 
+## Email Configuration
+
+1. **Sign up** at [Resend.com](https://resend.com)
+2. **Get API key** from dashboard
+3. **Set environment variables**:
+   ```bash
+   RESEND_API_KEY=re_xxxxx_xxxxx
+   EMAIL_FROM=noreply@yourdomain.com  # Optional
+   ```
+4. **Email tab** appears automatically when email column detected
+5. **Configure** sender name, subject, and message before sending
+
 ## Architecture
 
 ### Frontend Flow
@@ -183,18 +195,25 @@ npm test -- __tests__/components/Button.test.tsx
   - ✅ Test script for dry-run previews
   - ✅ Flexible metadata tracking for future features
 
-### 🎯 Current Focus: Email Integration
+- **Email functionality** (COMPLETED)
+  - ✅ Resend integration for certificate delivery
+  - ✅ Configurable sender name and email subject
+  - ✅ Fully customizable email messages (plain text)
+  - ✅ Choice between download link or PDF attachment
+  - ✅ Session-based Email configuration tab
+  - ✅ Automatic email column detection
+  - ✅ Integration with R2 markAsEmailed for extended retention
+  - 🚧 Bulk emailing with progress tracking (remaining feature)
+
+### 🎯 Current Focus: Frontend Polish & Bulk Email
 
 ### 🚧 Planned Features (Priority Order)
 
-**Phase 1 - Communication Features (CURRENT)**
-- **Email functionality** (HIGH PRIORITY - Next Implementation)
-  - SMTP integration for bulk certificate sending
-  - Email templates with HTML/text versions
-  - Attachment of individual PDFs directly to emails
-  - Bulk emailing with personalized messages
-  - Integration with R2 markAsEmailed for extended retention
-  - Email delivery status tracking and error handling
+**Phase 1 - Communication Features (MOSTLY COMPLETE)**
+- **Bulk email sending** (remaining email feature)
+  - Progress tracking for bulk sends
+  - Error handling and retry logic
+  - Email delivery status reporting
 
 **Phase 2 - User Experience Features**
 - **Format templates** (45 mins)
@@ -221,7 +240,7 @@ npm test -- __tests__/components/Button.test.tsx
 - Webhook notifications
 
 ### Technical Considerations for Future Development
-- **Email Service**: Consider Nodemailer, Resend, or SendGrid
+- **Email Service**: ✅ Using Resend (implemented)
 - **Storage**: Migrate from local filesystem to AWS S3 or similar
 - **Database**: Will need PostgreSQL/MongoDB for user management and templates
 - **Deployment**: Docker containers on VPS, Vercel, or cloud providers
