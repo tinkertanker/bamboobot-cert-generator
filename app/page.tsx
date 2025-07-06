@@ -1743,21 +1743,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 color: activeTab === "formatting" ? "#ffffff" : "#374151"
               }}>
               Formatting
-              {selectedField && (
-                <span
-                  className={`ml-1 px-1.5 py-0.5 text-xs ${
-                    activeTab === "formatting"
-                      ? "text-amber-600"
-                      : "text-green-800"
-                  }`}
-                  style={{
-                    backgroundColor:
-                      activeTab === "formatting" ? "#F4A261" : "#D1FAE5",
-                    borderRadius: "4px"
-                  }}>
-                  {selectedField}
-                </span>
-              )}
             </button>
             {detectedEmailColumn && (
               <button
