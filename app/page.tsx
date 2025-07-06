@@ -29,7 +29,9 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
-  Edit3
+  Edit3,
+  Eye,
+  EyeOff
 } from "lucide-react";
 
 interface TableData {
@@ -45,6 +47,7 @@ interface Position {
   italic?: boolean;
   color?: string;
   alignment?: "left" | "center" | "right";
+  isVisible?: boolean;
 }
 
 interface Positions {
@@ -379,13 +382,19 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
 
         Object.keys(tableData[0]).forEach((key, index) => {
           if (!newPositions[key]) {
+            // Check if this is an email field
+            const isEmailField = key.toLowerCase().includes('email') || 
+                               key.toLowerCase().includes('e-mail') || 
+                               key.toLowerCase().includes('mail');
+            
             newPositions[key] = {
               x: 50,
               y: 50 + index * 10,
               fontSize: DEFAULT_FONT_SIZE,
               fontFamily: "Helvetica",
               color: "#000000",
-              alignment: "center"
+              alignment: "center",
+              isVisible: !isEmailField // Hide email fields by default
             };
             hasNewPositions = true;
           }
@@ -821,6 +830,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
               };
             } = {};
             Object.keys(row).forEach((key) => {
+              // Skip hidden fields
+              if (positions[key]?.isVisible === false) {
+                return;
+              }
+              
               const fontSize = DEFAULT_FONT_SIZE;
               const measurements = measureText(row[key], fontSize, "500");
               const position = positions[key];
@@ -835,18 +849,20 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
             return entry;
           }),
           positions: Object.fromEntries(
-            Object.entries(positions).map(([key, pos]) => [
-              key,
-              {
-                x: pos.x / 100,
-                y: pos.y / 100,
-                fontSize: pos.fontSize || DEFAULT_FONT_SIZE,
-                font: pos.fontFamily || "Helvetica",
-                bold: pos.bold || false,
-                oblique: pos.italic || false,
-                alignment: pos.alignment || "left"
-              }
-            ])
+            Object.entries(positions)
+              .filter(([, pos]) => pos.isVisible !== false) // Filter out hidden fields
+              .map(([key, pos]) => [
+                key,
+                {
+                  x: pos.x / 100,
+                  y: pos.y / 100,
+                  fontSize: pos.fontSize || DEFAULT_FONT_SIZE,
+                  font: pos.fontFamily || "Helvetica",
+                  bold: pos.bold || false,
+                  oblique: pos.italic || false,
+                  alignment: pos.alignment || "left"
+                }
+              ])
           )
         })
       });
@@ -919,6 +935,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
               };
             } = {};
             Object.keys(row).forEach((key) => {
+              // Skip hidden fields
+              if (positions[key]?.isVisible === false) {
+                return;
+              }
+              
               const fontSize = DEFAULT_FONT_SIZE;
               const measurements = measureText(row[key], fontSize, "500");
               const position = positions[key];
@@ -933,18 +954,20 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
             return entry;
           }),
           positions: Object.fromEntries(
-            Object.entries(positions).map(([key, pos]) => [
-              key,
-              {
-                x: pos.x / 100,
-                y: pos.y / 100,
-                fontSize: pos.fontSize || DEFAULT_FONT_SIZE,
-                font: pos.fontFamily || "Helvetica",
-                bold: pos.bold || false,
-                oblique: pos.italic || false,
-                alignment: pos.alignment || "left"
-              }
-            ])
+            Object.entries(positions)
+              .filter(([, pos]) => pos.isVisible !== false) // Filter out hidden fields
+              .map(([key, pos]) => [
+                key,
+                {
+                  x: pos.x / 100,
+                  y: pos.y / 100,
+                  fontSize: pos.fontSize || DEFAULT_FONT_SIZE,
+                  font: pos.fontFamily || "Helvetica",
+                  bold: pos.bold || false,
+                  oblique: pos.italic || false,
+                  alignment: pos.alignment || "left"
+                }
+              ])
           )
         })
       });
@@ -1226,6 +1249,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                       Object.entries(
                         tableData[currentPreviewIndex] || tableData[0]
                       ).map(([key, value], index) => {
+                        // Skip rendering if field is hidden
+                        if (positions[key]?.isVisible === false) {
+                          return null;
+                        }
+                        
                         const isCurrentlyDragging =
                           isDragging && dragInfo?.key === key;
                         const isSelected = selectedField === key;
@@ -1939,6 +1967,41 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                                 }}
                                 title={italicDisabled ? `Italic not supported for ${currentFont}` : "Toggle italic"}>
                                 <em>I</em>
+                              </Button>
+                              <Button
+                                variant={
+                                  positions[selectedField]?.isVisible !== false
+                                    ? "default"
+                                    : "outline"
+                                }
+                                size="sm"
+                                onClick={() => {
+                                  setPositions((prev) => ({
+                                    ...prev,
+                                    [selectedField]: {
+                                      ...prev[selectedField],
+                                      isVisible: prev[selectedField]?.isVisible === false ? true : false
+                                    }
+                                  }));
+                                }}
+                                className="h-10 w-10"
+                                style={{
+                                  backgroundColor: 
+                                    positions[selectedField]?.isVisible !== false
+                                    ? "#2D6A4F"
+                                    : "transparent",
+                                  borderColor: "#2D6A4F",
+                                  color: 
+                                    positions[selectedField]?.isVisible !== false
+                                    ? "white"
+                                    : "#2D6A4F"
+                                }}
+                                title={positions[selectedField]?.isVisible !== false ? "Hide field" : "Show field"}>
+                                {positions[selectedField]?.isVisible !== false ? (
+                                  <Eye className="h-4 w-4" />
+                                ) : (
+                                  <EyeOff className="h-4 w-4" />
+                                )}
                               </Button>
                             </>
                           );
