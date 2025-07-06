@@ -18,7 +18,6 @@ import {
 } from "react-table";
 import { saveAs } from "file-saver";
 import { DEFAULT_FONT_SIZE, FONT_CAPABILITIES } from "@/utils/constants";
-import { measureText } from "@/utils/textMeasurement";
 import { useTableData, type TableData } from "@/hooks/useTableData";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { usePreview } from "@/hooks/usePreview";
@@ -26,6 +25,7 @@ import { useFileUpload } from "@/hooks/useFileUpload";
 import { usePositioning } from "@/hooks/usePositioning";
 import { useDragAndDrop } from "@/hooks/useDragAndDrop";
 import { useEmailConfig } from "@/hooks/useEmailConfig";
+import { usePdfGeneration } from "@/hooks/usePdfGeneration";
 import {
   ExternalLink,
   Mail,
@@ -68,8 +68,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     clearData
   } = useTableData();
 
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
   const [devMode, setDevMode] = useState<boolean>(false);
   // Positioning hook
   const {
@@ -78,33 +76,16 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     changeAlignment,
     clearPositions
   } = usePositioning({ tableData });
-  const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"data" | "formatting" | "email">(
     "data"
   );
   const [showAppliedMessage, setShowAppliedMessage] = useState<boolean>(false);
-  const [individualPdfsData, setIndividualPdfsData] = useState<
-    { filename: string; url: string; originalIndex: number }[] | null
-  >(null);
-  const [isGeneratingIndividual, setIsGeneratingIndividual] =
-    useState<boolean>(false);
   const [selectedNamingColumn, setSelectedNamingColumn] = useState<string>("");
   const [showResetFieldModal, setShowResetFieldModal] =
     useState<boolean>(false);
   const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
-  // Email configuration hook
-  const {
-    emailConfig,
-    setEmailConfig,
-    emailSendingStatus,
-    sendCertificateEmail,
-    hasEmailColumn
-  } = useEmailConfig({
-    detectedEmailColumn,
-    tableData,
-    individualPdfsData
-  });
+
 
   // Drag and drop hook
   const {
@@ -129,22 +110,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     }
   }, [detectedEmailColumn, activeTab]);
 
-  // Handle escape key press to close all modals
-  const handleEscapePressed = useCallback(() => {
-    setGeneratedPdfUrl(null);
-    setIndividualPdfsData(null);
-    setShowResetFieldModal(false);
-    setShowClearAllModal(false);
-  }, []);
 
-  // Keyboard shortcuts hook
-  useKeyboardShortcuts({
-    selectedField,
-    isDragging,
-    positions,
-    setPositions,
-    onEscapePressed: handleEscapePressed
-  });
 
   // Preview navigation hook
   const {
@@ -171,8 +137,55 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     clearFile
   } = useFileUpload();
 
+  // PDF generation hook (must come after file upload hook)
+  const {
+    isGenerating,
+    isGeneratingIndividual,
+    generatedPdfUrl,
+    individualPdfsData,
+    generatePdf,
+    generateIndividualPdfs,
+    handleDownloadPdf,
+    setGeneratedPdfUrl,
+    setIndividualPdfsData,
+    clearPdfData
+  } = usePdfGeneration({
+    tableData,
+    positions,
+    uploadedFile,
+    selectedNamingColumn,
+    setSelectedNamingColumn
+  });
 
+  // Email configuration hook (must come after PDF generation hook)
+  const {
+    emailConfig,
+    setEmailConfig,
+    emailSendingStatus,
+    sendCertificateEmail,
+    hasEmailColumn
+  } = useEmailConfig({
+    detectedEmailColumn,
+    tableData,
+    individualPdfsData
+  });
 
+  // Handle escape key press to close all modals
+  const handleEscapePressed = useCallback(() => {
+    setGeneratedPdfUrl(null);
+    setIndividualPdfsData(null);
+    setShowResetFieldModal(false);
+    setShowClearAllModal(false);
+  }, [setGeneratedPdfUrl, setIndividualPdfsData]);
+
+  // Keyboard shortcuts hook
+  useKeyboardShortcuts({
+    selectedField,
+    isDragging,
+    positions,
+    setPositions,
+    onEscapePressed: handleEscapePressed
+  });
 
 
 
@@ -201,8 +214,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
         clearData();
         clearFile();
         clearPositions();
-        setPdfDownloadUrl(null);
-        setGeneratedPdfUrl(null);
+        clearPdfData();
         console.log("Dev mode disabled: data cleared");
       }
       return newValue;
@@ -210,196 +222,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   };
 
 
-
-  // Helper function to convert hex color to RGB array
-  const hexToRgb = (hex: string): [number, number, number] => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result
-      ? [
-          parseInt(result[1], 16) / 255,
-          parseInt(result[2], 16) / 255,
-          parseInt(result[3], 16) / 255
-        ]
-      : [0, 0, 0]; // Default to black if parsing fails
-  };
-
-  const generatePdf = async () => {
-    setIsGenerating(true);
-    try {
-      // Measure actual container dimensions
-      const containerElement = document.querySelector(
-        ".image-container img"
-      ) as HTMLImageElement;
-      const containerDimensions = containerElement
-        ? {
-            width: containerElement.offsetWidth,
-            height: containerElement.offsetHeight
-          }
-        : { width: 600, height: 400 }; // Fallback dimensions
-
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          templateFilename: typeof uploadedFile === 'string' ? uploadedFile : uploadedFile?.name,
-          uiContainerDimensions: containerDimensions,
-          data: tableData.map((row) => {
-            const entry: {
-              [key: string]: {
-                text: string;
-                color?: [number, number, number];
-                uiMeasurements?: {
-                  width: number;
-                  height: number;
-                  actualHeight: number;
-                };
-              };
-            } = {};
-            Object.keys(row).forEach((key) => {
-              // Skip hidden fields
-              if (positions[key]?.isVisible === false) {
-                return;
-              }
-
-              const fontSize = DEFAULT_FONT_SIZE;
-              const measurements = measureText(row[key], fontSize, "500");
-              const position = positions[key];
-              entry[key] = {
-                text: row[key],
-                color: position?.color
-                  ? hexToRgb(position.color)
-                  : hexToRgb("#000000"),
-                uiMeasurements: measurements
-              };
-            });
-            return entry;
-          }),
-          positions: Object.fromEntries(
-            Object.entries(positions)
-              .filter(([, pos]) => pos.isVisible !== false) // Filter out hidden fields
-              .map(([key, pos]) => [
-                key,
-                {
-                  x: pos.x / 100,
-                  y: pos.y / 100,
-                  fontSize: pos.fontSize || DEFAULT_FONT_SIZE,
-                  font: pos.fontFamily || "Helvetica",
-                  bold: pos.bold || false,
-                  oblique: pos.italic || false,
-                  alignment: pos.alignment || "left"
-                }
-              ])
-          )
-        })
-      });
-      const data = await response.json();
-      setGeneratedPdfUrl(data.outputPath);
-      setPdfDownloadUrl(data.outputPath);
-      setIsGenerating(false);
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      setIsGenerating(false);
-    }
-  };
-
-
-  const generateIndividualPdfs = async () => {
-    setIsGeneratingIndividual(true);
-    try {
-      // Measure actual container dimensions
-      const containerElement = document.querySelector(
-        ".image-container img"
-      ) as HTMLImageElement;
-      const containerDimensions = containerElement
-        ? {
-            width: containerElement.offsetWidth,
-            height: containerElement.offsetHeight
-          }
-        : { width: 600, height: 400 }; // Fallback dimensions
-
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          mode: "individual",
-          templateFilename: typeof uploadedFile === 'string' ? uploadedFile : uploadedFile?.name,
-          uiContainerDimensions: containerDimensions,
-          namingColumn: selectedNamingColumn,
-          data: tableData.map((row) => {
-            const entry: {
-              [key: string]: {
-                text: string;
-                color?: [number, number, number];
-                uiMeasurements?: {
-                  width: number;
-                  height: number;
-                  actualHeight: number;
-                };
-              };
-            } = {};
-            Object.keys(row).forEach((key) => {
-              // Skip hidden fields
-              if (positions[key]?.isVisible === false) {
-                return;
-              }
-
-              const fontSize = DEFAULT_FONT_SIZE;
-              const measurements = measureText(row[key], fontSize, "500");
-              const position = positions[key];
-              entry[key] = {
-                text: row[key],
-                color: position?.color
-                  ? hexToRgb(position.color)
-                  : hexToRgb("#000000"),
-                uiMeasurements: measurements
-              };
-            });
-            return entry;
-          }),
-          positions: Object.fromEntries(
-            Object.entries(positions)
-              .filter(([, pos]) => pos.isVisible !== false) // Filter out hidden fields
-              .map(([key, pos]) => [
-                key,
-                {
-                  x: pos.x / 100,
-                  y: pos.y / 100,
-                  fontSize: pos.fontSize || DEFAULT_FONT_SIZE,
-                  font: pos.fontFamily || "Helvetica",
-                  bold: pos.bold || false,
-                  oblique: pos.italic || false,
-                  alignment: pos.alignment || "left"
-                }
-              ])
-          )
-        })
-      });
-      const data = await response.json();
-
-      // Set initial naming column to first column
-      if (tableData.length > 0 && !selectedNamingColumn) {
-        setSelectedNamingColumn(Object.keys(tableData[0])[0]);
-      }
-
-      setIndividualPdfsData(data.files);
-      setIsGeneratingIndividual(false);
-    } catch (error) {
-      console.error("Error generating individual PDFs:", error);
-      setIsGeneratingIndividual(false);
-    }
-  };
-
-  const handleDownloadPdf = () => {
-    if (pdfDownloadUrl) {
-      // Use force-download API to ensure proper download
-      const downloadUrl = `/api/force-download?url=${encodeURIComponent(pdfDownloadUrl)}&filename=generated_certificates.pdf`;
-      window.location.href = downloadUrl;
-    }
-  };
 
   const columns: Column<TableData>[] = useMemo(
     () =>
