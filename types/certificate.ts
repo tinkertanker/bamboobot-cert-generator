@@ -171,7 +171,7 @@ export interface CertificatePreviewProps {
 
 export interface DataPanelProps {
   tableInput: string;
-  handleTableDataChange: (value: string) => void;
+  handleTableDataChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   isFirstRowHeader: boolean;
   handleHeaderToggle: () => void;
   useCSVMode: boolean;
