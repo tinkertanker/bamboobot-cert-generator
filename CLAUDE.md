@@ -44,10 +44,33 @@ npm run lint        # Run ESLint with Next.js configuration
 
 ## Architecture
 
+### Component Architecture (Refactored 2024)
+
+The application follows a clean component-based architecture with proper separation of concerns:
+
+**Main Orchestration:**
+- `app/page.tsx` (564 lines) - Main orchestration layer managing state and coordinating components
+
+**UI Components:**
+- `components/CertificatePreview.tsx` - Certificate display with drag-and-drop text positioning
+- `components/panels/DataPanel.tsx` - Data input interface with CSV/TSV support
+- `components/panels/FormattingPanel.tsx` - Text formatting controls (fonts, colors, alignment)
+- `components/panels/EmailConfigPanel.tsx` - Email configuration settings
+
+**Modal Components:**
+- `components/modals/PdfGenerationModal.tsx` - PDF generation and preview
+- `components/modals/IndividualPdfsModal.tsx` - Individual PDF management with download/email
+- `components/modals/ConfirmationModals.tsx` - Reset and clear confirmation dialogs
+
+**Foundation:**
+- `types/certificate.ts` - Centralized TypeScript interfaces and type definitions
+- `utils/styles.ts` - Centralized color constants and theme management
+- `hooks/` - Feature-specific custom hooks for state management
+
 ### Frontend Flow
-1. **Main Page** (`app/page.tsx`): Single-page application with certificate designer
-2. **Template Upload**: Image files are uploaded via `/api/upload`, converted to PDF, and stored in `public/temp_images/`
-3. **Text Positioning**: Drag-and-drop interface allows users to position text fields on the template
+1. **Main Page** (`app/page.tsx`): Orchestrates all components and manages application state
+2. **Template Upload**: Image files uploaded via `/api/upload`, converted to PDF, stored in `public/temp_images/`
+3. **Text Positioning**: Drag-and-drop interface with precision controls and visual feedback
 4. **Data Input**: Table interface supports TSV/CSV paste with header row toggle
 5. **PDF Generation**: `/api/generate` creates individual certificates and merges them into a single PDF
 
@@ -80,13 +103,20 @@ npm test -- __tests__/components/Button.test.tsx
 
 ## Code Style Guidelines
 
-- **Imports**: Use `@/` alias for root imports (`@/components`, `@/lib`, `@/pages`)
-- **Components**: React functional components with TypeScript interfaces
-- **Styling**: Tailwind CSS classes, shadcn/ui components with `cn()` utility
+- **Imports**: Use `@/` alias for root imports (`@/components`, `@/lib`, `@/types`, `@/utils`)
+- **Components**: React functional components with TypeScript interfaces in `types/certificate.ts`
+- **Styling**: 
+  - Tailwind CSS classes with centralized color constants from `utils/styles.ts`
+  - shadcn/ui components with `cn()` utility
+  - Use `COLORS` and `GRADIENTS` constants instead of hardcoded values
 - **State**: React hooks (useState, useMemo, useCallback) with proper TypeScript typing
+- **Architecture**: 
+  - Extract complex UI into separate components in `components/` directory
+  - Use custom hooks in `hooks/` for feature-specific logic
+  - Centralize types in `types/certificate.ts`
 - **Naming**: camelCase for variables/functions, PascalCase for components/interfaces
 - **Error Handling**: Try-catch blocks for async operations, console.error for logging
-- **Types**: Explicit TypeScript interfaces for props and data structures
+- **Types**: All interfaces defined in `types/certificate.ts` for consistency
 
 ## Important Considerations
 

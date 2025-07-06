@@ -88,19 +88,49 @@ npm run cleanup     # Clean temporary files
 
 ## Project Structure
 
+### Clean Architecture (Refactored 2024)
 ```
-app/              # Next.js app router components
-components/       # Reusable UI components  
+app/
+  └── page.tsx           # Main orchestration (564 lines, down from 1500+)
+components/
+  ├── CertificatePreview.tsx    # Certificate display with drag positioning
+  ├── panels/
+  │   ├── DataPanel.tsx         # Data input interface  
+  │   ├── FormattingPanel.tsx   # Text formatting controls
+  │   └── EmailConfigPanel.tsx  # Email configuration
+  └── modals/
+      ├── PdfGenerationModal.tsx     # PDF generation display
+      ├── IndividualPdfsModal.tsx    # Individual PDF management
+      └── ConfirmationModals.tsx     # Reset confirmations
+hooks/            # Feature-specific state management
 lib/              # Utilities and storage config
 pages/api/        # API endpoints
-  ├── upload.ts      # Image upload & PDF conversion
-  ├── generate.ts    # Certificate generation
-  ├── send-email.ts  # Email delivery with Resend
-  ├── zip-pdfs.ts    # ZIP archive creation
-  └── force-download.ts  # File download handling
+  ├── upload.ts         # Image upload & PDF conversion
+  ├── generate.ts       # Certificate generation
+  ├── send-email.ts     # Email delivery with Resend
+  ├── zip-pdfs.ts       # ZIP archive creation
+  └── force-download.ts # File download handling
+types/
+  └── certificate.ts    # Centralized TypeScript interfaces
+utils/
+  └── styles.ts         # Color constants and theme management
 public/           # Static assets & local storage
 scripts/          # Utility scripts
 ```
+
+### Architecture Benefits
+- ✅ **62% code reduction** in main component (1500+ → 564 lines)
+- ✅ **Proper separation of concerns** with 9 specialized components
+- ✅ **Centralized type system** for consistency
+- ✅ **Theme management** with centralized color constants
+- ✅ **Maintainable and scalable** component architecture
+
+### Development Guidelines
+- **Types**: All interfaces centralized in `types/certificate.ts`
+- **Styling**: Use `COLORS` and `GRADIENTS` from `utils/styles.ts` instead of hardcoded values
+- **Components**: Extract complex UI into focused components with clear props
+- **Hooks**: Feature-specific logic lives in custom hooks
+- **State**: Main page orchestrates, components handle their own concerns
 
 ## Testing
 
@@ -193,9 +223,11 @@ When using R2, files automatically expire based on type:
 ## Technology Stack
 
 - **Framework**: Next.js 14 with TypeScript
-- **UI**: Tailwind CSS + shadcn/ui components
+- **Architecture**: Component-based with custom hooks and centralized state
+- **UI**: Tailwind CSS + shadcn/ui components + centralized color constants
 - **PDF**: pdf-lib for generation & manipulation
 - **Storage**: Local filesystem + optional Cloudflare R2
+- **Email**: Resend API integration
 - **Testing**: Jest + React Testing Library
 - **Deployment**: Docker with multi-stage builds
 
