@@ -15,8 +15,11 @@ export default async function handler(
     const { 
       to, 
       subject, 
-      recipientName,
+      senderName,
+      customMessage,
+      deliveryMethod,
       attachmentUrl,
+      downloadUrl,
       attachmentName 
     } = req.body;
 
@@ -24,9 +27,9 @@ export default async function handler(
       return res.status(400).json({ error: 'Missing required fields: to, subject' });
     }
 
-    // Fetch the PDF attachment if URL provided
+    // Fetch the PDF attachment if URL provided and delivery method is attachment
     let attachmentBuffer: Buffer | undefined;
-    if (attachmentUrl) {
+    if (deliveryMethod === 'attachment' && attachmentUrl) {
       try {
         const response = await fetch(attachmentUrl);
         if (!response.ok) {
@@ -55,35 +58,34 @@ export default async function handler(
         content: Buffer;
       }>;
     } = {
-      from: `Bamboobot Certificates <${fromAddress}>`,
+      from: senderName 
+        ? `${senderName} <${fromAddress}>`
+        : `Bamboobot Certificates <${fromAddress}>`,
       to: [to],
       subject: subject,
-      html: `
+      html: deliveryMethod === 'download' ? `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1B4332;">Your Certificate is Ready!</h2>
-          <p>Dear ${recipientName || 'Certificate Recipient'},</p>
-          <p>We're pleased to share your certificate with you. Please find it attached to this email.</p>
-          <p>This certificate recognizes your achievement and dedication. We hope it serves as a meaningful reminder of your accomplishment.</p>
-          <br>
-          <p>Best regards,<br>The Bamboobot Team</p>
-          <hr style="margin-top: 30px; border: none; border-top: 1px solid #e0e0e0;">
+          <div style="white-space: pre-line; margin: 20px 0;">${customMessage}</div>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${downloadUrl}" style="background-color: #2D6A4F; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">Download Certificate</a>
+          </div>
           <p style="font-size: 12px; color: #666;">
-            This email was sent by Bamboobot Certificate Generator. 
-            If you received this email in error, please disregard it.
+            <strong>Important:</strong> This download link will expire in 90 days. Please save your certificate to your device.
           </p>
         </div>
+      ` : `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="white-space: pre-line; margin: 20px 0;">${customMessage}</div>
+        </div>
       `,
-      text: `Dear ${recipientName || 'Certificate Recipient'},
+      text: deliveryMethod === 'download' ? 
+        `${customMessage}
 
-We're pleased to share your certificate with you. Please find it attached to this email.
+You can download your certificate using this secure link: ${downloadUrl}
 
-This certificate recognizes your achievement and dedication. We hope it serves as a meaningful reminder of your accomplishment.
-
-Best regards,
-The Bamboobot Team
-
----
-This email was sent by Bamboobot Certificate Generator. If you received this email in error, please disregard it.`
+Important: This download link will expire in 90 days. Please save your certificate to your device.` 
+      : 
+        customMessage
     };
 
     // Add attachment if available

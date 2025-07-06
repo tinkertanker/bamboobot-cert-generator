@@ -88,7 +88,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [selectedField, setSelectedField] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"data" | "formatting">("data");
+  const [activeTab, setActiveTab] = useState<"data" | "formatting" | "email">("data");
   const [showAppliedMessage, setShowAppliedMessage] = useState<boolean>(false);
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number>(0);
   const [individualPdfsData, setIndividualPdfsData] = useState<
@@ -102,6 +102,19 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
   const [detectedEmailColumn, setDetectedEmailColumn] = useState<string | null>(null);
   const [emailSendingStatus, setEmailSendingStatus] = useState<{[key: number]: 'sending' | 'sent' | 'error'}>({});
+  const [emailConfig, setEmailConfig] = useState<{
+    senderName: string;
+    subject: string;
+    message: string;
+    deliveryMethod: 'download' | 'attachment';
+    isConfigured: boolean;
+  }>({
+    senderName: '',
+    subject: '',
+    message: '',
+    deliveryMethod: 'download',
+    isConfigured: false
+  });
 
   // Pointer events state for dragging
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -492,6 +505,20 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     }
     
     setDetectedEmailColumn(emailColumn || null);
+    
+    // Reset email config when data changes (session-based)
+    setEmailConfig({
+      senderName: '',
+      subject: '',
+      message: '',
+      deliveryMethod: 'download',
+      isConfigured: false
+    });
+    
+    // Switch away from email tab if no email column detected
+    if (!emailColumn && activeTab === 'email') {
+      setActiveTab('data');
+    }
   };
 
   const processTableData = (
@@ -537,7 +564,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
 
   // Send individual certificate via email
   const sendCertificateEmail = async (index: number, file: {filename: string, url: string, originalIndex: number}) => {
-    if (!detectedEmailColumn || !individualPdfsData) return;
+    if (!detectedEmailColumn || !individualPdfsData || !emailConfig.isConfigured) return;
     
     const recipientData = tableData[file.originalIndex || index];
     const recipientEmail = recipientData[detectedEmailColumn];
@@ -557,6 +584,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
         .map(col => recipientData[col])
         .find(val => val && val.trim() !== '') || 'Certificate Recipient';
       
+      // Replace [Recipient Name] placeholder in message
+      const personalizedMessage = emailConfig.message.replace(/\[Recipient Name\]/g, recipientName);
+      
       const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
@@ -564,9 +594,13 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
         },
         body: JSON.stringify({
           to: recipientEmail,
-          subject: `Your Certificate - ${file.filename.replace('.pdf', '')}`,
+          subject: emailConfig.subject,
           recipientName: recipientName,
-          attachmentUrl: file.url,
+          senderName: emailConfig.senderName,
+          customMessage: personalizedMessage,
+          deliveryMethod: emailConfig.deliveryMethod,
+          attachmentUrl: emailConfig.deliveryMethod === 'attachment' ? file.url : null,
+          downloadUrl: emailConfig.deliveryMethod === 'download' ? file.url : null,
           attachmentName: file.filename,
         }),
       });
@@ -1615,6 +1649,32 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 </span>
               )}
             </button>
+            {detectedEmailColumn && (
+              <button
+                onClick={() => setActiveTab("email")}
+                className="px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center"
+                style={{
+                  backgroundColor: activeTab === "email" ? "#2D6A4F" : "#cccccc",
+                  color: activeTab === "email" ? "#ffffff" : "#374151"
+                }}>
+                Email
+                {detectedEmailColumn && !['email', 'e-mail', 'mail'].includes(detectedEmailColumn.toLowerCase()) && (
+                  <span
+                    className={`ml-1 px-1.5 py-0.5 text-xs ${
+                      activeTab === "email"
+                        ? "text-amber-600"
+                        : "text-green-800"
+                    }`}
+                    style={{
+                      backgroundColor:
+                        activeTab === "email" ? "#F4A261" : "#D1FAE5",
+                      borderRadius: "4px"
+                    }}>
+                    {detectedEmailColumn}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Tab Content */}
@@ -2180,6 +2240,152 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
               )}
             </div>
           )}
+
+          {activeTab === "email" && (
+            <div className="flex flex-col h-full p-6 space-y-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Mail className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Email Configuration</h3>
+                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                  Column: {detectedEmailColumn}
+                </span>
+              </div>
+
+              {/* Email Settings */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-700">Email Settings</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      From Name
+                    </label>
+                    <input
+                      type="text"
+                      value={emailConfig.senderName}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        setEmailConfig(prev => {
+                          const updated = { ...prev, senderName: newValue };
+                          updated.isConfigured = !!(updated.senderName && updated.subject && updated.message);
+                          return updated;
+                        });
+                      }}
+                      placeholder="e.g., Dr. Jane Smith"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Subject Line
+                    </label>
+                    <input
+                      type="text"
+                      value={emailConfig.subject}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        setEmailConfig(prev => {
+                          const updated = { ...prev, subject: newValue };
+                          updated.isConfigured = !!(updated.senderName && updated.subject && updated.message);
+                          return updated;
+                        });
+                      }}
+                      placeholder="e.g., Your Certificate of Completion"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Email Message */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-700">Email Message</h4>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Complete Email Message (Plain Text)
+                  </label>
+                  <Textarea
+                    value={emailConfig.message}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setEmailConfig(prev => {
+                        const updated = { ...prev, message: newValue };
+                        updated.isConfigured = !!(updated.senderName && updated.subject && updated.message);
+                        return updated;
+                      });
+                    }}
+                    placeholder="Hi [Recipient Name],&#10;&#10;Your certificate is ready! Please find it attached.&#10;&#10;Thanks!"
+                    rows={6}
+                    className="w-full text-sm resize-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Use [Recipient Name] to automatically insert the recipient&apos;s name
+                  </p>
+                </div>
+              </div>
+
+              {/* Delivery Method */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-700">Delivery Method</h4>
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="deliveryMethod"
+                      value="download"
+                      checked={emailConfig.deliveryMethod === 'download'}
+                      onChange={(e) => setEmailConfig(prev => ({ ...prev, deliveryMethod: e.target.value as 'download' | 'attachment' }))}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">Send as download link</div>
+                      <div className="text-xs text-gray-600">
+                        Recipients get a secure link to download their certificate.
+                        <br />
+                        <span className="text-amber-600 font-medium">
+                          Links expire in 90 days for individual certificates
+                        </span>
+                      </div>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="deliveryMethod"
+                      value="attachment"
+                      checked={emailConfig.deliveryMethod === 'attachment'}
+                      onChange={(e) => setEmailConfig(prev => ({ ...prev, deliveryMethod: e.target.value as 'download' | 'attachment' }))}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">Send as PDF attachment</div>
+                      <div className="text-xs text-gray-600">
+                        Certificate PDF is directly attached to the email.
+                        <br />
+                        <span className="text-green-600">Recipients can save immediately, no expiration</span>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Configuration Status */}
+              <div className="mt-6 p-4 rounded-lg border">
+                {emailConfig.senderName && emailConfig.subject && emailConfig.message ? (
+                  <div className="flex items-center gap-2 text-green-700">
+                    <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+                    <span className="text-sm font-medium">Email configuration complete</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-amber-700">
+                    <div className="h-2 w-2 bg-amber-500 rounded-full"></div>
+                    <span className="text-sm font-medium">
+                      Complete all fields above to enable email sending
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </main>
       {(isGenerating || generatedPdfUrl) && (
@@ -2372,12 +2578,13 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                                 size="sm"
                                 variant={emailSendingStatus[index] === 'sent' ? 'default' : 'outline'}
                                 title={
+                                  !emailConfig.isConfigured ? 'Configure email settings in Email tab first' :
                                   emailSendingStatus[index] === 'sending' ? 'Sending email...' :
                                   emailSendingStatus[index] === 'sent' ? 'Email sent!' :
                                   emailSendingStatus[index] === 'error' ? 'Failed to send email' :
                                   'Send via email'
                                 }
-                                disabled={emailSendingStatus[index] === 'sending'}
+                                disabled={emailSendingStatus[index] === 'sending' || !emailConfig.isConfigured}
                                 onClick={() => sendCertificateEmail(index, file)}
                                 className="h-8 w-8 p-0"
                                 style={{
