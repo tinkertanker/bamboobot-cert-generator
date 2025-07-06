@@ -1,0 +1,330 @@
+import React from "react";
+import { Button } from "@/components/ui/button";
+import { ActionButton } from "@/components/ui/action-button";
+import { Modal } from "@/components/ui/modal";
+import { Select } from "@/components/ui/select";
+import Spinner from "@/components/Spinner";
+import { saveAs } from "file-saver";
+import type { IndividualPdfsModalProps } from "@/types/certificate";
+import {
+  ExternalLink,
+  Download,
+  FileText,
+  Check,
+  Mail,
+  X
+} from "lucide-react";
+
+export function IndividualPdfsModal({
+  isGeneratingIndividual,
+  individualPdfsData,
+  tableData,
+  selectedNamingColumn,
+  setSelectedNamingColumn,
+  emailSendingStatus,
+  hasEmailColumn,
+  emailConfig,
+  sendCertificateEmail,
+  setIndividualPdfsData,
+  onClose
+}: IndividualPdfsModalProps) {
+  return (
+    <Modal
+      open={isGeneratingIndividual || !!individualPdfsData}
+      onClose={() => {
+        if (!isGeneratingIndividual) {
+          setIndividualPdfsData(null);
+          setSelectedNamingColumn("");
+          onClose();
+        }
+      }}
+      closeOnBackdropClick={!isGeneratingIndividual}
+      width="w-3/4 max-w-6xl"
+      className="h-auto max-h-[90vh] overflow-y-auto">
+      {isGeneratingIndividual ? (
+        <div className="flex flex-col items-center justify-center h-64">
+          <Spinner />
+          <p className="mt-4 text-lg">Generating Individual PDFs...</p>
+        </div>
+      ) : individualPdfsData ? (
+        <>
+          <h2 className="text-2xl font-bold mb-4">
+            Generated {individualPdfsData.length} Individual Certificates
+          </h2>
+
+          {/* File Naming Controls */}
+          <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-12 items-center gap-4">
+              <label className="font-medium col-span-4">
+                Use this field for download filename:
+              </label>
+              <div className="col-span-8">
+                <Select
+                  value={selectedNamingColumn}
+                  onChange={(e) =>
+                    setSelectedNamingColumn(e.target.value)
+                  }
+                  className="text-sm w-full">
+                  {tableData.length > 0 &&
+                    Object.keys(tableData[0]).map((column) => (
+                      <option key={column} value={column}>
+                        {column}
+                      </option>
+                    ))}
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {/* Files List */}
+          <div className="bg-gray-100 p-4 rounded-lg mb-4 max-h-96 overflow-y-auto">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="h-4 w-4" />
+              <h3 className="font-medium">Files Ready:</h3>
+            </div>
+            <div className="space-y-2">
+              {individualPdfsData.map((file, index) => {
+                // Generate filename based on selected column
+                const baseFilename =
+                  tableData[index] && selectedNamingColumn
+                    ? tableData[index][selectedNamingColumn] ||
+                      `Certificate-${index + 1}`
+                    : `Certificate-${index + 1}`;
+
+                // Sanitize filename
+                const sanitizedFilename = baseFilename.replace(
+                  /[^a-zA-Z0-9-_]/g,
+                  "_"
+                );
+
+                // Handle duplicates
+                const duplicateCount = individualPdfsData
+                  .slice(0, index)
+                  .filter((_, i) => {
+                    const prevBase =
+                      tableData[i] && selectedNamingColumn
+                        ? tableData[i][selectedNamingColumn] ||
+                          `Certificate-${i + 1}`
+                        : `Certificate-${i + 1}`;
+                    return prevBase === baseFilename;
+                  }).length;
+
+                const filename =
+                  duplicateCount > 0
+                    ? `${sanitizedFilename}-${duplicateCount}.pdf`
+                    : `${sanitizedFilename}.pdf`;
+
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-2 bg-white rounded border border-gray-200">
+                    <span className="flex items-center gap-2">
+                      <Check className="h-4 w-4 text-green-600" />
+                      <span className="font-mono text-sm">
+                        {filename}
+                      </span>
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Open PDF"
+                        onClick={() => {
+                          window.open(file.url, "_blank");
+                        }}
+                        className="h-8 w-8 p-0">
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Download PDF"
+                        onClick={() => {
+                          // Use force-download API to ensure proper download
+                          const downloadUrl = `/api/force-download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(filename)}`;
+                          window.location.href = downloadUrl;
+                        }}
+                        className="h-8 w-8 p-0">
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      {hasEmailColumn && (
+                        <Button
+                          size="sm"
+                          variant={
+                            emailSendingStatus[index] === "sent"
+                              ? "default"
+                              : "outline"
+                          }
+                          title={
+                            !emailConfig.isConfigured
+                              ? "Configure email settings in Email tab first"
+                              : emailSendingStatus[index] === "sending"
+                                ? "Sending email..."
+                                : emailSendingStatus[index] === "sent"
+                                  ? "Email sent!"
+                                  : emailSendingStatus[index] === "error"
+                                    ? "Failed to send email"
+                                    : "Send via email"
+                          }
+                          disabled={
+                            emailSendingStatus[index] === "sending" ||
+                            !emailConfig.isConfigured
+                          }
+                          onClick={() =>
+                            sendCertificateEmail(index, file)
+                          }
+                          className="h-8 w-8 p-0"
+                          style={{
+                            backgroundColor:
+                              emailSendingStatus[index] === "sent"
+                                ? "#2D6A4F"
+                                : emailSendingStatus[index] === "error"
+                                  ? "#dc2626"
+                                  : "transparent",
+                            borderColor:
+                              emailSendingStatus[index] === "sent"
+                                ? "#2D6A4F"
+                                : emailSendingStatus[index] === "error"
+                                  ? "#dc2626"
+                                  : "#2D6A4F",
+                            color:
+                              emailSendingStatus[index] === "sent"
+                                ? "white"
+                                : emailSendingStatus[index] === "error"
+                                  ? "white"
+                                  : "#2D6A4F"
+                          }}>
+                          {emailSendingStatus[index] === "sending" ? (
+                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Mail className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-between">
+            <div className="flex gap-2">
+              <ActionButton
+                onClick={async () => {
+                  try {
+                    // Create a list of files with their custom names
+                    const fileList = individualPdfsData.map(
+                      (file, index) => {
+                        const baseFilename =
+                          tableData[index] && selectedNamingColumn
+                            ? tableData[index][selectedNamingColumn] ||
+                              `Certificate-${index + 1}`
+                            : `Certificate-${index + 1}`;
+                        const sanitizedFilename = baseFilename.replace(
+                          /[^a-zA-Z0-9-_]/g,
+                          "_"
+                        );
+
+                        // Handle duplicates
+                        const duplicateCount = individualPdfsData
+                          .slice(0, index)
+                          .filter((_, i) => {
+                            const prevBase =
+                              tableData[i] && selectedNamingColumn
+                                ? tableData[i][selectedNamingColumn] ||
+                                  `Certificate-${i + 1}`
+                                : `Certificate-${i + 1}`;
+                            return prevBase === baseFilename;
+                          }).length;
+
+                        const filename =
+                          duplicateCount > 0
+                            ? `${sanitizedFilename}-${duplicateCount}.pdf`
+                            : `${sanitizedFilename}.pdf`;
+
+                        return {
+                          url: file.url,
+                          filename: filename
+                        };
+                      }
+                    );
+
+                    // Call the ZIP API endpoint
+                    const response = await fetch("/api/zip-pdfs", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json"
+                      },
+                      body: JSON.stringify({ files: fileList })
+                    });
+
+                    if (!response.ok) {
+                      const errorText = await response.text();
+                      console.error("ZIP API Error:", errorText);
+                      throw new Error(
+                        `Failed to create ZIP: ${response.status} ${response.statusText}`
+                      );
+                    }
+
+                    const blob = await response.blob();
+                    saveAs(
+                      blob,
+                      `certificates_${
+                        new Date().toISOString().split("T")[0]
+                      }.zip`
+                    );
+                  } catch (error) {
+                    console.error("Error creating ZIP:", error);
+                    alert("Failed to create ZIP file. Please try again.");
+                  }
+                }}
+                gradient
+                gradientType="coral"
+                className="flex items-center gap-2">
+                <Download className="h-4 w-4" />
+                Download All (ZIP)
+              </ActionButton>
+              {hasEmailColumn && (
+                <Button
+                  onClick={() => {
+                    alert(
+                      "Email functionality will be implemented soon!"
+                    );
+                  }}
+                  variant="outline"
+                  disabled
+                  className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Email All
+                </Button>
+              )}
+            </div>
+            <Button
+              onClick={() => {
+                setIndividualPdfsData(null);
+                setSelectedNamingColumn("");
+                onClose();
+              }}
+              variant="outline"
+              style={{
+                borderColor: "#6B7280",
+                color: "#6B7280"
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.backgroundColor = "#F3F4F6";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+              className="flex items-center gap-2">
+              <X className="h-4 w-4" />
+              Close
+            </Button>
+          </div>
+        </>
+      ) : null}
+    </Modal>
+  );
+}
