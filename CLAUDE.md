@@ -32,6 +32,9 @@ npm run lint        # Run ESLint with Next.js configuration
 
 ## Email Configuration
 
+The application supports two email providers: **Resend** (default) and **Amazon SES**.
+
+### Option 1: Resend (Recommended for simplicity)
 1. **Sign up** at [Resend.com](https://resend.com)
 2. **Get API key** from dashboard
 3. **Set environment variables**:
@@ -39,6 +42,20 @@ npm run lint        # Run ESLint with Next.js configuration
    RESEND_API_KEY=re_xxxxx_xxxxx
    EMAIL_FROM=noreply@yourdomain.com  # Optional
    ```
+
+### Option 2: Amazon SES (Better for high volume)
+1. **Configure SES** in AWS Console (verify domain/email)
+2. **Create IAM credentials** with SES send permissions
+3. **Set environment variables**:
+   ```bash
+   AWS_ACCESS_KEY_ID=AKIA...
+   AWS_SECRET_ACCESS_KEY=xxxxx
+   AWS_SES_REGION=us-east-1  # Your SES region
+   EMAIL_FROM=noreply@yourdomain.com  # Must be verified in SES
+   ```
+
+**Note:** The app auto-detects which provider to use based on configured environment variables. SES takes precedence if both are configured.
+
 4. **Email tab** appears automatically when email column detected
 5. **Configure** sender name, subject, and message before sending
 
@@ -237,22 +254,79 @@ npm test -- __tests__/components/Button.test.tsx
 
 ### 🎯 Current Focus: Frontend Polish & Bulk Email
 
+### 🚨 Large Dataset Considerations (400+ rows)
+
+**Current Implementation Limitations:**
+- No table virtualization - all rows render at once causing lag
+- No pagination or search/filter functionality
+- Preview navigation inefficient for large datasets
+- PDF generation could timeout (300s Next.js limit)
+- Email sending would hit rate limits (100/hour on Resend free tier)
+- Memory usage spikes with large arrays
+- ZIP downloads could crash browser
+
+**Required Optimizations for Scale:**
+1. **Table Virtualization** - Use react-window to render only visible rows
+2. **Search & Pagination** - Add filtering, sorting, and 25/50/100 rows per page
+3. **Progressive PDF Generation** - Process in batches of 50 with progress bar
+4. **Email Queue System** - Respect rate limits with retry logic
+5. **Performance Monitoring** - Track memory usage and operation times
+
+**Performance Targets:**
+- Table render: < 200ms for 400 rows
+- Search/filter: < 100ms response time
+- PDF generation: < 30s per 100 certificates
+- Memory usage: < 200MB for 1000 rows
+
 ### 🚧 Planned Features (Priority Order)
 
-**Phase 1 - Communication Features (MOSTLY COMPLETE)**
-- **Bulk email sending** (remaining email feature)
-  - Progress tracking for bulk sends
-  - Error handling and retry logic
-  - Email delivery status reporting
+**Phase 1 - Critical Performance & Email Features**
+- **Bulk email sending with queue system** (P0 - 2-3 days)
+  - **Multi-provider support**: Resend (default) and Amazon SES
+  - Auto-detect provider based on which API keys are configured
+  - Provider-specific rate limit handling (Resend: 100/hr, SES: varies by account)
+  - Email queue management with provider awareness
+  - Progress tracking UI with pause/resume
+  - Retry failed emails with exponential backoff
+  - Delivery status persistence (survives refresh)
+  - Batch processing (10 emails at a time)
+  - Email preview before bulk send
+- **Table virtualization** (P0 - 2 days)
+  - Implement react-window for large datasets
+  - Only render visible rows + buffer
+  - Maintain smooth 60fps scrolling
+- **Search and filter** (P0 - 1 day)
+  - Client-side text search across all columns
+  - Column-specific filters
+  - Clear all filters button
 
 **Phase 2 - User Experience Features**
-- **Format templates** (45 mins)
-  - Save/load formatting presets
-  - Quick apply saved styles
-- **Keyboard shortcuts** (COMPLETED)
-  - ✅ ESC key to dismiss all modals
-  - ✅ Ctrl/Cmd + B for bold toggle
-  - ✅ Ctrl/Cmd + I for italic toggle
+- **Format templates system** (P1 - 1 day)
+  - Save current formatting as named presets
+  - Default templates (Title, Body, Footer, Email)
+  - Load templates from dropdown with preview
+  - Store in localStorage initially
+  - Import/export templates as JSON
+- **Mobile responsive design** (P1 - 2 days)
+  - Stacked layout for screens < 768px
+  - Touch-optimized drag handles
+  - Collapsible panels with swipe gestures
+  - Bottom sheet for formatting options
+- **Undo/Redo system** (P2 - 2 days)
+  - Track position and formatting changes
+  - Ctrl/Cmd + Z/Y keyboard shortcuts
+  - Visual history timeline
+  - Maximum 50 history states
+- **Data management improvements** (P1 - 2 days)
+  - Column mapping UI (drag to reorder)
+  - Data validation with error highlighting
+  - Bulk find & replace
+  - Import CSV with preview
+- **Additional keyboard shortcuts**
+  - Ctrl/Cmd + S to generate PDF
+  - Arrow keys to navigate table rows
+  - Ctrl/Cmd + F to focus search
+  - Ctrl/Cmd + A to select all text fields
 
 **Phase 3 - Enhanced Functionality**
 - PDF template support (currently only images)
@@ -269,10 +343,101 @@ npm test -- __tests__/components/Button.test.tsx
 - Performance optimization (caching, CDN)
 - Webhook notifications
 
+### 🚀 Quick Wins (Can implement in < 1 day)
+
+1. **Loading states and skeletons** (2 hours)
+   - Replace blank screens with skeleton loaders
+   - Show progress for long operations
+   - Add cancel buttons where applicable
+
+2. **Better error messages** (1 hour)
+   - Replace generic errors with actionable messages
+   - Add "Try again" buttons
+   - Include troubleshooting tips
+
+3. **Data validation warnings** (2 hours)
+   - Highlight empty cells that will create blank fields
+   - Validate email addresses before sending
+   - Warn about duplicate entries
+
+4. **Entry jump navigation** (1 hour)
+   - Add input field to jump to specific entry number
+   - Keyboard shortcut (Ctrl/Cmd + G) to open jump dialog
+
+5. **Performance quick fixes** (2 hours)
+   - Add React.memo to CertificatePreview
+   - Debounce position updates (16ms for 60fps)
+   - Lazy load modal components
+
+### Implementation Notes
+
+**For Bulk Email Implementation:**
+```typescript
+// Multi-provider email system
+interface EmailProvider {
+  name: 'resend' | 'ses';
+  sendEmail: (params: EmailParams) => Promise<EmailResult>;
+  getRateLimit: () => { limit: number; window: 'hour' | 'second' };
+  isConfigured: () => boolean;
+}
+
+// Auto-detect provider based on env vars
+const getEmailProvider = (): EmailProvider => {
+  if (process.env.AWS_SES_REGION && process.env.AWS_ACCESS_KEY_ID) {
+    return new SESProvider();
+  }
+  if (process.env.RESEND_API_KEY) {
+    return new ResendProvider();
+  }
+  throw new Error('No email provider configured');
+};
+
+// Queue with provider-aware rate limiting
+interface EmailQueue {
+  items: EmailQueueItem[];
+  status: 'idle' | 'processing' | 'paused';
+  processed: number;
+  failed: number;
+  provider: 'resend' | 'ses';
+  rateLimit: { 
+    count: number; 
+    resetAt: Date;
+    limit: number; // Provider-specific limit
+  };
+}
+
+// Environment variables needed:
+// For Resend: RESEND_API_KEY
+// For SES: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SES_REGION
+// Optional: EMAIL_FROM (defaults to noreply@domain.com)
+```
+
+**For Table Virtualization:**
+```typescript
+// Replace current table with virtualized version
+import { FixedSizeList as List } from 'react-window';
+
+const VirtualizedTable = ({ data, columns }) => (
+  <List
+    height={600}
+    itemCount={data.length}
+    itemSize={35}
+    overscanCount={5} // Render 5 extra rows for smooth scrolling
+  >
+    {({ index, style }) => (
+      <div style={style}>
+        <TableRow data={data[index]} columns={columns} />
+      </div>
+    )}
+  </List>
+);
+```
+
 ### Technical Considerations for Future Development
 - **Email Service**: ✅ Using Resend (implemented)
-- **Storage**: Migrate from local filesystem to AWS S3 or similar
+- **Storage**: ✅ Using Cloudflare R2 (implemented)
 - **Database**: Will need PostgreSQL/MongoDB for user management and templates
+- **Background Jobs**: Consider BullMQ for email queue processing
 - **Deployment**: Docker containers on VPS, Vercel, or cloud providers
 
 ## Common Development Tasks
