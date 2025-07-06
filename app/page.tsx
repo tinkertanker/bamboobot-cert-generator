@@ -4,18 +4,12 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ActionButton } from "@/components/ui/action-button";
-import { Modal, ModalHeader, ModalTitle, ModalContent, ModalFooter } from "@/components/ui/modal";
-import { Select } from "@/components/ui/select";
-import Spinner from "@/components/Spinner";
 import {
   useTable,
-  Column,
-  ColumnInstance,
-  HeaderGroup,
-  Row,
-  Cell
+  Column
 } from "react-table";
-import { useTableData, type TableData } from "@/hooks/useTableData";
+import { useTableData } from "@/hooks/useTableData";
+import type { TableData } from "@/types/certificate";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { usePreview } from "@/hooks/usePreview";
 import { useFileUpload } from "@/hooks/useFileUpload";

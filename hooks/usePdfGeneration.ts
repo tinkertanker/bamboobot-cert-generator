@@ -1,8 +1,7 @@
 import { useState, useCallback } from "react";
 import { DEFAULT_FONT_SIZE } from "@/utils/constants";
 import { measureText } from "@/utils/textMeasurement";
-import type { TableData } from "./useTableData";
-import type { Positions } from "./usePositioning";
+import type { TableData, Positions, PdfFile } from "@/types/certificate";
 
 export interface UsePdfGenerationProps {
   tableData: TableData[];
@@ -17,7 +16,7 @@ export interface UsePdfGenerationReturn {
   isGeneratingIndividual: boolean;
   generatedPdfUrl: string | null;
   pdfDownloadUrl: string | null;
-  individualPdfsData: { filename: string; url: string; originalIndex: number }[] | null;
+  individualPdfsData: PdfFile[] | null;
   generatePdf: () => Promise<void>;
   generateIndividualPdfs: () => Promise<void>;
   handleDownloadPdf: () => void;

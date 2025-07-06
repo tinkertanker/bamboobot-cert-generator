@@ -66,6 +66,7 @@ export function CertificatePreview({
       {uploadedFileUrl ? (
         <>
           <div className="border-4 border-gray-700 inline-block relative w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={uploadedFileUrl}
               alt="Certificate Template"
