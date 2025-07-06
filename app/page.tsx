@@ -555,7 +555,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     if (rows.length === 0) return;
 
     const headers = useHeaderRow
-      ? rows[0]
+      ? rows[0].map((header, index) => header || `_column_${index}`) // Handle blank headers
       : rows[0].map((_, index) => `Column ${index + 1}`);
     const data = useHeaderRow ? rows.slice(1) : rows;
     const tableData = data.map((row) => {
@@ -997,9 +997,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   const columns: Column<TableData>[] = useMemo(
     () =>
       tableData.length > 0
-        ? Object.keys(tableData[0]).map((key) => ({
-            Header: key,
-            accessor: key
+        ? Object.keys(tableData[0]).map((key, index) => ({
+            Header: key || `Column ${index + 1}`, // Display name for blank headers
+            accessor: key || `_column_${index}` // Ensure valid accessor for React Table
           }))
         : [],
     [tableData]
