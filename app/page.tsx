@@ -21,6 +21,7 @@ import { DEFAULT_FONT_SIZE, FONT_CAPABILITIES } from "@/utils/constants";
 import { measureText } from "@/utils/textMeasurement";
 import { useTableData, type TableData } from "@/hooks/useTableData";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { usePreview } from "@/hooks/usePreview";
 import {
   ExternalLink,
   Mail,
@@ -102,7 +103,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     "data"
   );
   const [showAppliedMessage, setShowAppliedMessage] = useState<boolean>(false);
-  const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number>(0);
   const [individualPdfsData, setIndividualPdfsData] = useState<
     { filename: string; url: string; originalIndex: number }[] | null
   >(null);
@@ -174,6 +174,16 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     setPositions,
     onEscapePressed: handleEscapePressed
   });
+
+  // Preview navigation hook
+  const {
+    currentPreviewIndex,
+    goToFirst,
+    goToPrevious,
+    goToNext,
+    goToLast,
+    setCurrentPreviewIndex
+  } = usePreview(tableData.length);
 
   // Global pointer event handlers for smooth dragging
   useEffect(() => {
@@ -277,11 +287,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   }, [isDragging]);
 
 
-  // Ensure all table columns have positions and reset preview index
+  // Ensure all table columns have positions
   useEffect(() => {
     if (tableData.length > 0) {
-      // Reset preview index when table data changes
-      setCurrentPreviewIndex(0);
 
       setPositions((prevPositions) => {
         const newPositions = { ...prevPositions };
@@ -499,13 +507,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     });
   };
 
-  // Navigation functions
-  const goToFirst = () => setCurrentPreviewIndex(0);
-  const goToPrevious = () =>
-    setCurrentPreviewIndex((prev) => Math.max(0, prev - 1));
-  const goToNext = () =>
-    setCurrentPreviewIndex((prev) => Math.min(tableData.length - 1, prev + 1));
-  const goToLast = () => setCurrentPreviewIndex(tableData.length - 1);
 
   // Helper function to change alignment while keeping visual position
   const changeAlignment = useCallback(
