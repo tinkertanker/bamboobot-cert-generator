@@ -19,6 +19,7 @@ import {
 import { saveAs } from "file-saver";
 import { DEFAULT_FONT_SIZE, FONT_CAPABILITIES } from "@/utils/constants";
 import { measureText } from "@/utils/textMeasurement";
+import { useTableData, type TableData } from "@/hooks/useTableData";
 import {
   ExternalLink,
   Mail,
@@ -37,10 +38,6 @@ import {
   Eye,
   EyeOff
 } from "lucide-react";
-
-interface TableData {
-  [key: string]: string;
-}
 
 interface Position {
   x: number;
@@ -70,22 +67,32 @@ interface Positions {
 
 
 export default function MainPage() {
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [tableData, setTableData] = useState<TableData[]>([]);
-  const [isFirstRowHeader, setIsFirstRowHeader] = useState<boolean>(false);
-  const [useCSVMode, setUseCSVMode] = useState<boolean>(false); // Default to TSV
-  const [tableInput, setTableInput] = useState<string>("");
-  const [devMode, setDevMode] = useState<boolean>(false);
-
   // Preset data for dev mode
   const presetCSVData = `Name,Department,Phone
 Maximilienne Featherstone-Harrington III,Executive Leadership,+1-555-MAXI-EXEC
 Bartholomäus von Quackenbusch-Wetherell,Innovation & Strategy,+1-555-BART-INNO
 Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLOB`;
+
+  // Table data management via custom hook
+  const {
+    tableData,
+    tableInput,
+    isFirstRowHeader,
+    useCSVMode,
+    detectedEmailColumn,
+    handleTableDataChange,
+    handleHeaderToggle,
+    handleCSVModeToggle,
+    loadPresetData,
+    clearData
+  } = useTableData();
+
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [devMode, setDevMode] = useState<boolean>(false);
   const [positions, setPositions] = useState<Positions>({});
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
@@ -104,9 +111,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   const [showResetFieldModal, setShowResetFieldModal] =
     useState<boolean>(false);
   const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
-  const [detectedEmailColumn, setDetectedEmailColumn] = useState<string | null>(
-    null
-  );
   const [emailSendingStatus, setEmailSendingStatus] = useState<{
     [key: number]: "sending" | "sent" | "error";
   }>({});
@@ -137,6 +141,21 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     vertical: boolean;
   }>({ horizontal: false, vertical: false });
 
+  // Handle email config reset when email column changes
+  useEffect(() => {
+    setEmailConfig({
+      senderName: "",
+      subject: "",
+      message: "",
+      deliveryMethod: "download",
+      isConfigured: false
+    });
+
+    // Switch away from email tab if no email column detected
+    if (!detectedEmailColumn && activeTab === "email") {
+      setActiveTab("data");
+    }
+  }, [detectedEmailColumn, activeTab]);
 
   // Global pointer event handlers for smooth dragging
   useEffect(() => {
@@ -449,118 +468,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     }
   };
 
-  // Helper function to parse CSV with proper quote handling
-  const parseCSVRow = (row: string): string[] => {
-    const result: string[] = [];
-    let current = "";
-    let inQuotes = false;
-
-    for (let i = 0; i < row.length; i++) {
-      const char = row[i];
-
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === "," && !inQuotes) {
-        result.push(current.trim());
-        current = "";
-      } else {
-        current += char;
-      }
-    }
-
-    result.push(current.trim());
-    return result;
-  };
-
-  // Detect email column from headers and data
-  const detectEmailColumn = (headers: string[], data: TableData[]) => {
-    // First try to detect by header name
-    const emailHeaderPatterns =
-      /^(email|e-mail|mail|email address|e-mail address|correo|courriel)$/i;
-    let emailColumn = headers.find((header) =>
-      emailHeaderPatterns.test(header.trim())
-    );
-
-    // If not found by header, try to detect by content
-    if (!emailColumn && data.length > 0) {
-      const emailContentPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-      for (const header of headers) {
-        // Check if at least 50% of non-empty values in this column look like emails
-        const columnValues = data
-          .map((row) => row[header])
-          .filter((val) => val && val.trim() !== "");
-
-        if (columnValues.length > 0) {
-          const emailCount = columnValues.filter((val) =>
-            emailContentPattern.test(val.trim())
-          ).length;
-
-          if (emailCount / columnValues.length >= 0.5) {
-            emailColumn = header;
-            break;
-          }
-        }
-      }
-    }
-
-    setDetectedEmailColumn(emailColumn || null);
-
-    // Reset email config when data changes (session-based)
-    setEmailConfig({
-      senderName: "",
-      subject: "",
-      message: "",
-      deliveryMethod: "download",
-      isConfigured: false
-    });
-
-    // Switch away from email tab if no email column detected
-    if (!emailColumn && activeTab === "email") {
-      setActiveTab("data");
-    }
-  };
-
-  const processTableData = (
-    input: string,
-    useHeaderRow: boolean = isFirstRowHeader,
-    csvMode: boolean = useCSVMode
-  ) => {
-    const trimmedInput = input.trim();
-    if (!trimmedInput) return;
-
-    const lines = trimmedInput.split("\n");
-    if (lines.length === 0) return;
-
-    // Use the format selected by the user toggle
-    const delimiter = csvMode ? "," : "\t";
-    console.log(`Using ${csvMode ? "CSV" : "TSV"} mode`);
-
-    const rows = lines.map((row) => {
-      if (csvMode) {
-        return parseCSVRow(row);
-      } else {
-        return row.split(delimiter);
-      }
-    });
-    if (rows.length === 0) return;
-
-    const headers = useHeaderRow
-      ? rows[0].map((header, index) => header || `_column_${index}`) // Handle blank headers
-      : rows[0].map((_, index) => `Column ${index + 1}`);
-    const data = useHeaderRow ? rows.slice(1) : rows;
-    const tableData = data.map((row) => {
-      const obj: TableData = {};
-      headers.forEach((header, index) => {
-        obj[header] = row[index] || "";
-      });
-      return obj;
-    });
-    setTableData(tableData);
-
-    // Auto-detect email column
-    detectEmailColumn(headers, tableData);
-  };
 
   // Send individual certificate via email
   const sendCertificateEmail = async (
@@ -658,44 +565,13 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     }
   };
 
-  const handleTableDataChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    const newInput = event.target.value;
-    setTableInput(newInput);
-    if (newInput.trim() === "") {
-      setTableData([]);
-    } else {
-      processTableData(newInput, isFirstRowHeader);
-    }
-  };
-
-  const handleHeaderToggle = () => {
-    setIsFirstRowHeader((prev) => {
-      const newValue = !prev;
-      processTableData(tableInput, newValue);
-      return newValue;
-    });
-  };
-
-  const handleCSVModeToggle = () => {
-    setUseCSVMode((prev) => {
-      const newValue = !prev;
-      // Reprocess data with new format
-      if (tableInput.trim()) {
-        processTableData(tableInput, isFirstRowHeader, newValue);
-      }
-      return newValue;
-    });
-  };
 
   const handleDevModeToggle = () => {
     setDevMode((prev) => {
       const newValue = !prev;
       if (newValue) {
         // Enable dev mode: load preset data and template
-        setUseCSVMode(true);
-        setIsFirstRowHeader(true);
-        setTableInput(presetCSVData);
-        processTableData(presetCSVData, true, true);
+        loadPresetData(presetCSVData);
 
         // Set the uploaded file URL to the preset image
         const presetImageUrl = "/temp_images/certificate-template.png";
@@ -710,8 +586,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
         console.log("Dev mode enabled: preset template and data loaded");
       } else {
         // Disable dev mode: clear data
-        setTableInput("");
-        setTableData([]);
+        clearData();
         setUploadedFile(null);
         setUploadedFileUrl(null);
         setPositions({});
