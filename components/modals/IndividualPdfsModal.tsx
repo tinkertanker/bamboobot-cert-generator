@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { ActionButton } from "@/components/ui/action-button";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
-import Spinner from "@/components/Spinner";
+import { Progress } from "@/components/ui/progress";
+import SpinnerInline from "@/components/SpinnerInline";
 import { saveAs } from "file-saver";
 import type { IndividualPdfsModalProps } from "@/types/certificate";
 import {
@@ -26,8 +27,10 @@ export function IndividualPdfsModal({
   emailConfig,
   sendCertificateEmail,
   setIndividualPdfsData,
-  onClose
-}: IndividualPdfsModalProps) {
+  onClose,
+  progress,
+  total
+}: IndividualPdfsModalProps & { progress?: number; total?: number }) {
   return (
     <Modal
       open={isGeneratingIndividual || !!individualPdfsData}
@@ -43,8 +46,24 @@ export function IndividualPdfsModal({
       className="h-auto max-h-[90vh] overflow-y-auto">
       {isGeneratingIndividual ? (
         <div className="flex flex-col items-center justify-center h-64">
-          <Spinner />
-          <p className="mt-4 text-lg">Generating Individual PDFs...</p>
+          {progress !== undefined && total !== undefined ? (
+            <div className="w-full max-w-md space-y-6">
+              <h3 className="text-lg font-semibold text-center">Generating Individual PDFs</h3>
+              <div className="w-full">
+                <Progress 
+                  value={progress} 
+                  max={total} 
+                  label={`Creating PDF ${progress} of ${total}`}
+                />
+              </div>
+              <p className="text-sm text-gray-500 text-center">Please wait...</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center space-y-4">
+              <SpinnerInline size="lg" className="text-blue-600" />
+              <p className="text-lg">Generating Individual PDFs...</p>
+            </div>
+          )}
         </div>
       ) : individualPdfsData ? (
         <>
