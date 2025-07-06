@@ -36,8 +36,8 @@ export function FormattingPanel({
           <div
             className="flex items-center justify-between p-3 rounded-lg relative"
             style={{
-              backgroundColor: "#FFFEF7",
-              border: "1px solid #dddddd"
+              backgroundColor: COLORS.cardBg,
+              border: `1px solid ${COLORS.border}`
             }}>
             <h3 className="text-sm">
               <span className="text-gray-500 font-normal">Field:</span>{" "}
@@ -128,18 +128,18 @@ export function FormattingPanel({
                         className="h-10 w-10"
                         style={{
                           backgroundColor: boldDisabled
-                            ? "#e5e7eb"
+                            ? COLORS.grayDisabled
                             : positions[selectedField]?.bold
-                              ? "#2D6A4F"
+                              ? COLORS.primaryMedium
                               : "transparent",
                           borderColor: boldDisabled
-                            ? "#d1d5db"
-                            : "#2D6A4F",
+                            ? COLORS.borderDisabled
+                            : COLORS.primaryMedium,
                           color: boldDisabled
-                            ? "#9ca3af"
+                            ? COLORS.textDisabled
                             : positions[selectedField]?.bold
-                              ? "white"
-                              : "#2D6A4F",
+                              ? COLORS.white
+                              : COLORS.primaryMedium,
                           cursor: boldDisabled
                             ? "not-allowed"
                             : "pointer"
@@ -173,18 +173,18 @@ export function FormattingPanel({
                         className="h-10 w-10"
                         style={{
                           backgroundColor: italicDisabled
-                            ? "#e5e7eb"
+                            ? COLORS.grayDisabled
                             : positions[selectedField]?.italic
-                              ? "#2D6A4F"
+                              ? COLORS.primaryMedium
                               : "transparent",
                           borderColor: italicDisabled
-                            ? "#d1d5db"
-                            : "#2D6A4F",
+                            ? COLORS.borderDisabled
+                            : COLORS.primaryMedium,
                           color: italicDisabled
-                            ? "#9ca3af"
+                            ? COLORS.textDisabled
                             : positions[selectedField]?.italic
-                              ? "white"
-                              : "#2D6A4F",
+                              ? COLORS.white
+                              : COLORS.primaryMedium,
                           cursor: italicDisabled
                             ? "not-allowed"
                             : "pointer"

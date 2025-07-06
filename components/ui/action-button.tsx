@@ -3,6 +3,7 @@ import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+import { GRADIENTS } from "@/utils/styles"
 
 const actionButtonVariants = cva(
   "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
@@ -27,13 +28,13 @@ const actionButtonVariants = cva(
         icon: "h-10 w-10",
       },
       gradientType: {
-        primary: "bg-gradient-to-r from-[#1B4332] to-[#2D6A4F]",
-        coral: "bg-gradient-to-r from-[#E76F51] to-[#F4A261]",
-        green: "bg-gradient-to-r from-[#2D6A4F] to-[#40916C]",
-        amber: "bg-gradient-to-r from-[#F4A261] to-[#E9C46A]",
-        dark: "bg-gradient-to-r from-[#1B4332] to-[#081C15]",
-        success: "bg-gradient-to-r from-[#52B788] to-[#40916C]",
-        danger: "bg-gradient-to-r from-[#E76F51] to-[#D62828]",
+        primary: GRADIENTS.primaryTailwind,
+        coral: GRADIENTS.coralTailwind,
+        green: GRADIENTS.greenTailwind,
+        amber: GRADIENTS.amberTailwind,
+        dark: GRADIENTS.darkTailwind,
+        success: GRADIENTS.successTailwind,
+        danger: GRADIENTS.dangerTailwind,
       },
     },
     defaultVariants: {

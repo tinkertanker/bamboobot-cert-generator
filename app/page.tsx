@@ -36,6 +36,7 @@ import { EmailConfigPanel } from "@/components/panels/EmailConfigPanel";
 import { PdfGenerationModal } from "@/components/modals/PdfGenerationModal";
 import { IndividualPdfsModal } from "@/components/modals/IndividualPdfsModal";
 import { ConfirmationModals } from "@/components/modals/ConfirmationModals";
+import { COLORS, GRADIENTS } from "@/utils/styles";
 
 
 
@@ -233,11 +234,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   return (
     <div
       className="flex flex-col h-screen"
-      style={{ backgroundColor: "#F5F1E8" }}>
+      style={{ backgroundColor: COLORS.background }}>
       <header
         className="py-4 px-6"
         style={{
-          background: "linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)",
+          background: GRADIENTS.primary,
           boxShadow: "0 2px 4px rgba(27, 67, 50, 0.1)"
         }}>
         <div className="flex justify-between items-center">
@@ -250,7 +251,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 height={32}
                 className="w-8 h-8"
               />
-              <h1 className="text-2xl font-bold" style={{ color: "#F4A261" }}>
+              <h1 className="text-2xl font-bold" style={{ color: COLORS.amber }}>
                 Bamboobot
               </h1>
             </div>
@@ -427,8 +428,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
               onClick={() => setActiveTab("data")}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
               style={{
-                backgroundColor: activeTab === "data" ? "#2D6A4F" : "#cccccc",
-                color: activeTab === "data" ? "#ffffff" : "#374151"
+                backgroundColor: activeTab === "data" ? COLORS.tabActive : COLORS.tabInactive,
+                color: activeTab === "data" ? COLORS.tabTextActive : COLORS.tabText
               }}>
               Data
             </button>
@@ -437,8 +438,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
               style={{
                 backgroundColor:
-                  activeTab === "formatting" ? "#2D6A4F" : "#cccccc",
-                color: activeTab === "formatting" ? "#ffffff" : "#374151"
+                  activeTab === "formatting" ? COLORS.tabActive : COLORS.tabInactive,
+                color: activeTab === "formatting" ? COLORS.tabTextActive : COLORS.tabText
               }}>
               Formatting
             </button>
@@ -448,8 +449,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 className="px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center"
                 style={{
                   backgroundColor:
-                    activeTab === "email" ? "#2D6A4F" : "#cccccc",
-                  color: activeTab === "email" ? "#ffffff" : "#374151"
+                    activeTab === "email" ? COLORS.tabActive : COLORS.tabInactive,
+                  color: activeTab === "email" ? COLORS.tabTextActive : COLORS.tabText
                 }}>
                 Email
                 {detectedEmailColumn &&
@@ -464,7 +465,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                       }`}
                       style={{
                         backgroundColor:
-                          activeTab === "email" ? "#F4A261" : "#D1FAE5",
+                          activeTab === "email" ? COLORS.amber : COLORS.successLight,
                         borderRadius: "4px"
                       }}>
                       {detectedEmailColumn}
