@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ActionButton } from "@/components/ui/action-button";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import SpinnerInline from "@/components/SpinnerInline";
+import { BulkEmailModal } from "./BulkEmailModal";
 import { saveAs } from "file-saver";
 import type { IndividualPdfsModalProps } from "@/types/certificate";
 import {
@@ -31,6 +32,7 @@ export function IndividualPdfsModal({
   progress,
   total
 }: IndividualPdfsModalProps & { progress?: number; total?: number }) {
+  const [showBulkEmailModal, setShowBulkEmailModal] = useState(false);
   return (
     <Modal
       open={isGeneratingIndividual || !!individualPdfsData}
@@ -308,12 +310,14 @@ export function IndividualPdfsModal({
               {hasEmailColumn && (
                 <Button
                   onClick={() => {
-                    alert(
-                      "Email functionality will be implemented soon!"
-                    );
+                    if (emailConfig.isConfigured) {
+                      setShowBulkEmailModal(true);
+                    } else {
+                      alert("Please configure email settings in the Email tab first.");
+                    }
                   }}
                   variant="outline"
-                  disabled
+                  disabled={!emailConfig.isConfigured}
                   className="flex items-center gap-2">
                   <Mail className="h-4 w-4" />
                   Email All
@@ -342,6 +346,45 @@ export function IndividualPdfsModal({
               Close
             </Button>
           </div>
+          {/* Bulk Email Modal */}
+          {showBulkEmailModal && individualPdfsData && (
+            <BulkEmailModal
+              open={showBulkEmailModal}
+              onClose={() => setShowBulkEmailModal(false)}
+              totalEmails={individualPdfsData.length}
+              emailConfig={emailConfig}
+              certificates={individualPdfsData.map((file, index) => {
+                const email = tableData[index]?.email || '';
+                const baseFilename =
+                  tableData[index] && selectedNamingColumn
+                    ? tableData[index][selectedNamingColumn] || `Certificate-${index + 1}`
+                    : `Certificate-${index + 1}`;
+                const sanitizedFilename = baseFilename.replace(/[^a-zA-Z0-9-_]/g, "_");
+                
+                // Handle duplicates
+                const duplicateCount = individualPdfsData
+                  .slice(0, index)
+                  .filter((_, i) => {
+                    const prevBase =
+                      tableData[i] && selectedNamingColumn
+                        ? tableData[i][selectedNamingColumn] || `Certificate-${i + 1}`
+                        : `Certificate-${i + 1}`;
+                    return prevBase === baseFilename;
+                  }).length;
+
+                const filename =
+                  duplicateCount > 0
+                    ? `${sanitizedFilename}-${duplicateCount}.pdf`
+                    : `${sanitizedFilename}.pdf`;
+
+                return {
+                  email,
+                  downloadUrl: file.url,
+                  fileName: filename
+                };
+              })}
+            />
+          )}
         </>
       ) : null}
     </Modal>
