@@ -1,6 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { ActionButton } from "@/components/ui/action-button";
+import { Progress } from "@/components/ui/progress";
 import Spinner from "@/components/Spinner";
 import type { PdfGenerationModalProps } from "@/types/certificate";
 
@@ -9,8 +10,10 @@ export function PdfGenerationModal({
   generatedPdfUrl,
   handleDownloadPdf,
   setGeneratedPdfUrl,
-  onClose
-}: PdfGenerationModalProps) {
+  onClose,
+  progress,
+  total
+}: PdfGenerationModalProps & { progress?: number; total?: number }) {
   if (!isGenerating && !generatedPdfUrl) {
     return null;
   }
@@ -23,9 +26,25 @@ export function PdfGenerationModal({
         className="relative bg-white bg-opacity-100 w-3/4 max-w-6xl mx-auto rounded-lg shadow-xl p-6 border border-gray-200"
         onClick={(e) => e.stopPropagation()}>
         {isGenerating ? (
-          <div className="flex flex-col items-center justify-center h-64">
-            <Spinner />
-            <p className="mt-4 text-lg">Generating PDF...</p>
+          <div className="flex flex-col items-center justify-center h-64 space-y-4">
+            {progress !== undefined && total !== undefined ? (
+              <>
+                <h3 className="text-lg font-semibold">Generating Certificates</h3>
+                <div className="w-full max-w-md">
+                  <Progress 
+                    value={progress} 
+                    max={total} 
+                    label={`Processing certificate ${progress} of ${total}`}
+                  />
+                </div>
+                <p className="text-sm text-gray-500">Please wait...</p>
+              </>
+            ) : (
+              <>
+                <Spinner />
+                <p className="mt-4 text-lg">Generating PDF...</p>
+              </>
+            )}
           </div>
         ) : generatedPdfUrl ? (
           <>

@@ -1,10 +1,12 @@
 import { useState, useCallback } from "react";
+import { ERROR_MESSAGES } from "@/utils/errorMessages";
 
 export interface UseFileUploadReturn {
   uploadedFile: File | string | null;
   uploadedFileUrl: string | null;
   isLoading: boolean;
   isDraggingFile: boolean;
+  uploadError: { title: string; message: string; action: string } | null;
   setUploadedFile: (file: File | string | null) => void;
   setUploadedFileUrl: (url: string | null) => void;
   processFile: (file: File) => Promise<void>;
@@ -13,6 +15,7 @@ export interface UseFileUploadReturn {
   handleDragLeave: (event: React.DragEvent<HTMLDivElement>) => void;
   handleFileDrop: (event: React.DragEvent<HTMLDivElement>) => Promise<void>;
   clearFile: () => void;
+  clearError: () => void;
 }
 
 export function useFileUpload(): UseFileUploadReturn {
@@ -20,30 +23,47 @@ export function useFileUpload(): UseFileUploadReturn {
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<{ title: string; message: string; action: string } | null>(null);
 
   const processFile = useCallback(async (file: File) => {
-    if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
-      setUploadedFile(file);
-      setIsLoading(true);
-      const formData = new FormData();
-      formData.append("template", file);
-      console.log("Uploading file to API...");
-      try {
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData
-        });
-        const data = await response.json();
-        console.log(data.message);
-        setUploadedFile(data.filename);
-        setUploadedFileUrl(data.image);
-      } catch (error) {
-        console.error("Error uploading file:", error);
-      } finally {
-        setIsLoading(false);
+    setUploadError(null);
+    
+    // Check file type
+    if (!file || (file.type !== "image/jpeg" && file.type !== "image/png")) {
+      setUploadError(ERROR_MESSAGES.INVALID_FILE_TYPE);
+      return;
+    }
+    
+    // Check file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError(ERROR_MESSAGES.FILE_TOO_LARGE);
+      return;
+    }
+    
+    setUploadedFile(file);
+    setIsLoading(true);
+    const formData = new FormData();
+    formData.append("template", file);
+    
+    try {
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
       }
-    } else {
-      alert("Please upload a JPEG or PNG file.");
+      
+      const data = await response.json();
+      console.log("Template uploaded successfully");
+      setUploadedFile(data.filename);
+      setUploadedFileUrl(data.image);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      setUploadError(ERROR_MESSAGES.UPLOAD_FAILED);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -81,6 +101,11 @@ export function useFileUpload(): UseFileUploadReturn {
     setUploadedFile(null);
     setUploadedFileUrl(null);
     setIsDraggingFile(false);
+    setUploadError(null);
+  }, []);
+
+  const clearError = useCallback(() => {
+    setUploadError(null);
   }, []);
 
   return {
@@ -88,6 +113,7 @@ export function useFileUpload(): UseFileUploadReturn {
     uploadedFileUrl,
     isLoading,
     isDraggingFile,
+    uploadError,
     setUploadedFile,
     setUploadedFileUrl,
     processFile,
@@ -96,5 +122,6 @@ export function useFileUpload(): UseFileUploadReturn {
     handleDragLeave,
     handleFileDrop,
     clearFile,
+    clearError
   };
 }

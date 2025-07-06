@@ -1,6 +1,7 @@
 import React from "react";
 import { Mail } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { COLORS } from "@/utils/styles";
 import type { DataPanelProps, TableData } from "@/types/certificate";
 import type { HeaderGroup, Row, Cell, ColumnInstance } from "react-table";
@@ -20,8 +21,9 @@ export function DataPanel({
   prepareRow,
   detectedEmailColumn,
   currentPreviewIndex,
-  setCurrentPreviewIndex
-}: DataPanelProps) {
+  setCurrentPreviewIndex,
+  isProcessing = false
+}: DataPanelProps & { isProcessing?: boolean }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-6 mb-4">
@@ -62,7 +64,11 @@ export function DataPanel({
           className="w-full resize-none"
           style={{ height: "154px" }}
         />
-        {tableData.length > 0 && (
+        {isProcessing ? (
+          <div className="mt-4 flex-1 min-h-0">
+            <TableSkeleton rows={5} />
+          </div>
+        ) : tableData.length > 0 ? (
           <div className="mt-4 flex-1 min-h-0">
             <div className="h-full overflow-y-auto border border-gray-200 rounded-lg">
               <table
@@ -136,7 +142,7 @@ export function DataPanel({
               </table>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useThrottle } from "./useDebounce";
 import type { Positions, DragInfo, CenterGuideState, TabType } from "@/types/certificate";
 
 export interface UseDragAndDropProps {
@@ -30,6 +31,16 @@ export function useDragAndDrop({
     horizontal: false, 
     vertical: false 
   });
+
+  // Throttled position update for 60fps (16ms)
+  const updatePosition = useCallback((key: string, x: number, y: number) => {
+    setPositions((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], x, y }
+    }));
+  }, [setPositions]);
+
+  const throttledUpdatePosition = useThrottle(updatePosition, 16);
 
   // Global pointer event handlers for smooth dragging
   useEffect(() => {
@@ -92,10 +103,7 @@ export function useDragAndDrop({
             vertical: isSnappingVertical
           });
 
-          setPositions((prev) => ({
-            ...prev,
-            [dragInfo.key]: { ...prev[dragInfo.key], x: clampedX, y: clampedY }
-          }));
+          throttledUpdatePosition(dragInfo.key, clampedX, clampedY);
         }
       }
     };
@@ -120,7 +128,7 @@ export function useDragAndDrop({
         document.removeEventListener("pointercancel", handleGlobalPointerUp);
       };
     }
-  }, [isDragging, dragInfo, setPositions]);
+  }, [isDragging, dragInfo, throttledUpdatePosition]);
 
   // Cleanup drag state on unmount
   useEffect(() => {

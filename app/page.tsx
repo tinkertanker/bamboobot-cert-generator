@@ -30,6 +30,7 @@ import { EmailConfigPanel } from "@/components/panels/EmailConfigPanel";
 import { PdfGenerationModal } from "@/components/modals/PdfGenerationModal";
 import { IndividualPdfsModal } from "@/components/modals/IndividualPdfsModal";
 import { ConfirmationModals } from "@/components/modals/ConfirmationModals";
+import { ErrorModal } from "@/components/ui/error-alert";
 import { COLORS, GRADIENTS } from "@/utils/styles";
 
 
@@ -129,7 +130,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     handleDragOver,
     handleDragLeave,
     handleFileDrop,
-    clearFile
+    clearFile,
+    uploadError,
+    clearError
   } = useFileUpload();
 
   // PDF generation hook (must come after file upload hook)
@@ -580,6 +583,21 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
         setPositions={setPositions}
         tableData={tableData}
       />
+
+      {/* Error Modal */}
+      {uploadError && (
+        <ErrorModal
+          open={true}
+          title={uploadError.title}
+          message={uploadError.message}
+          action={uploadError.action}
+          onClose={clearError}
+          onRetry={() => {
+            clearError();
+            document.getElementById('file-upload')?.click();
+          }}
+        />
+      )}
     </div>
   );
 }

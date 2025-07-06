@@ -26,7 +26,7 @@ function UploadIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-export function CertificatePreview({
+function CertificatePreviewComponent({
   uploadedFileUrl,
   isLoading,
   tableData,
@@ -377,3 +377,22 @@ export function CertificatePreview({
     </div>
   );
 }
+
+// Memoize the component to prevent unnecessary re-renders
+export const CertificatePreview = React.memo(CertificatePreviewComponent, (prevProps, nextProps) => {
+  // Only re-render if these specific props change
+  return (
+    prevProps.uploadedFileUrl === nextProps.uploadedFileUrl &&
+    prevProps.isLoading === nextProps.isLoading &&
+    prevProps.currentPreviewIndex === nextProps.currentPreviewIndex &&
+    prevProps.selectedField === nextProps.selectedField &&
+    prevProps.isDragging === nextProps.isDragging &&
+    prevProps.isDraggingFile === nextProps.isDraggingFile &&
+    prevProps.showCenterGuide === nextProps.showCenterGuide &&
+    // Deep comparison for positions (only for the current preview)
+    JSON.stringify(prevProps.positions) === JSON.stringify(nextProps.positions) &&
+    // Deep comparison for current table data only
+    JSON.stringify(prevProps.tableData[prevProps.currentPreviewIndex]) === 
+    JSON.stringify(nextProps.tableData[nextProps.currentPreviewIndex])
+  );
+});
