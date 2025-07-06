@@ -2,7 +2,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { ActionButton } from "@/components/ui/action-button";
 import { Progress } from "@/components/ui/progress";
-import Spinner from "@/components/Spinner";
+import SpinnerInline from "@/components/SpinnerInline";
 import type { PdfGenerationModalProps } from "@/types/certificate";
 
 export function PdfGenerationModal({
@@ -41,7 +41,7 @@ export function PdfGenerationModal({
               </div>
             ) : (
               <div className="flex flex-col items-center space-y-4">
-                <Spinner />
+                <SpinnerInline size="lg" className="text-blue-600" />
                 <p className="text-lg">Generating PDF...</p>
               </div>
             )}
