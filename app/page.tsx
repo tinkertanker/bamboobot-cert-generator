@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, ChangeEvent, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { measureText } from "@/utils/textMeasurement";
 import { useTableData, type TableData } from "@/hooks/useTableData";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { usePreview } from "@/hooks/usePreview";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import {
   ExternalLink,
   Mail,
@@ -89,15 +90,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     clearData
   } = useTableData();
 
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [devMode, setDevMode] = useState<boolean>(false);
   const [positions, setPositions] = useState<Positions>({});
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
-  const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"data" | "formatting" | "email">(
     "data"
@@ -184,6 +181,21 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     goToLast,
     setCurrentPreviewIndex
   } = usePreview(tableData.length);
+
+  // File upload hook
+  const {
+    uploadedFile,
+    uploadedFileUrl,
+    isLoading,
+    isDraggingFile,
+    setUploadedFile,
+    setUploadedFileUrl,
+    handleFileUpload,
+    handleDragOver,
+    handleDragLeave,
+    handleFileDrop,
+    clearFile
+  } = useFileUpload();
 
   // Global pointer event handlers for smooth dragging
   useEffect(() => {
@@ -321,61 +333,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     }
   }, [tableData]);
 
-  const processFile = async (file: File) => {
-    if (file && (file.type === "image/jpeg" || file.type === "image/png")) {
-      setUploadedFile(file);
-      setIsLoading(true);
-      const formData = new FormData();
-      formData.append("template", file);
-      console.log("Uploading file to API...");
-      try {
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData
-        });
-        const data = await response.json();
-        console.log(data.message);
-        setUploadedFile(data.filename);
-        setUploadedFileUrl(data.image);
-      } catch (error) {
-        console.error("Error uploading file:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
-      alert("Please upload a JPEG or PNG file.");
-    }
-  };
-
-  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      await processFile(file);
-    }
-  };
-
-  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsDraggingFile(true);
-  };
-
-  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsDraggingFile(false);
-  };
-
-  const handleFileDrop = async (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsDraggingFile(false);
-
-    const file = event.dataTransfer.files?.[0];
-    if (file) {
-      await processFile(file);
-    }
-  };
 
 
   // Send individual certificate via email
@@ -496,8 +453,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
       } else {
         // Disable dev mode: clear data
         clearData();
-        setUploadedFile(null);
-        setUploadedFileUrl(null);
+        clearFile();
         setPositions({});
         setPdfDownloadUrl(null);
         setGeneratedPdfUrl(null);
@@ -609,7 +565,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          templateFilename: uploadedFile?.name,
+          templateFilename: typeof uploadedFile === 'string' ? uploadedFile : uploadedFile?.name,
           uiContainerDimensions: containerDimensions,
           data: tableData.map((row) => {
             const entry: {
@@ -713,7 +669,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
         },
         body: JSON.stringify({
           mode: "individual",
-          templateFilename: uploadedFile?.name,
+          templateFilename: typeof uploadedFile === 'string' ? uploadedFile : uploadedFile?.name,
           uiContainerDimensions: containerDimensions,
           namingColumn: selectedNamingColumn,
           data: tableData.map((row) => {
@@ -1280,8 +1236,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 <div className="flex gap-2">
                   <ActionButton
                     onClick={() => {
-                      setUploadedFileUrl(null);
-                      setUploadedFile(null);
+                      clearFile();
                       setPositions({});
                       setIsDragging(false);
                       setDragInfo(null);
