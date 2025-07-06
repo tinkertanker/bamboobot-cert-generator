@@ -106,10 +106,10 @@ export function DataPanel({
                         } transition-colors cursor-pointer`}
                         style={{
                           backgroundColor: isCurrentRow
-                            ? "#FFFBEB"
+                            ? COLORS.highlightBg
                             : "transparent",
                           borderColor: isCurrentRow
-                            ? "#FDE68A"
+                            ? COLORS.highlightBorder
                             : "transparent"
                         }}
                         onClick={() => setCurrentPreviewIndex(index)}

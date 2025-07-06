@@ -1,22 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import type { TableData } from "./useTableData";
-
-export interface EmailConfig {
-  senderName: string;
-  subject: string;
-  message: string;
-  deliveryMethod: "download" | "attachment";
-  isConfigured: boolean;
-}
-
-export interface EmailSendingStatus {
-  [key: number]: "sending" | "sent" | "error";
-}
+import type { TableData, EmailConfig, EmailSendingStatus, PdfFile } from "@/types/certificate";
 
 export interface UseEmailConfigProps {
   detectedEmailColumn: string | null;
   tableData: TableData[];
-  individualPdfsData: { filename: string; url: string; originalIndex: number }[] | null;
+  individualPdfsData: PdfFile[] | null;
 }
 
 export interface UseEmailConfigReturn {
@@ -26,7 +14,7 @@ export interface UseEmailConfigReturn {
   setEmailSendingStatus: React.Dispatch<React.SetStateAction<EmailSendingStatus>>;
   sendCertificateEmail: (
     index: number,
-    file: { filename: string; url: string; originalIndex: number }
+    file: PdfFile
   ) => Promise<void>;
   hasEmailColumn: boolean;
 }

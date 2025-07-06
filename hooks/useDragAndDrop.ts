@@ -1,25 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
-import type { Positions } from "./usePositioning";
-
-export interface DragInfo {
-  key: string;
-  offsetX: number;
-  offsetY: number;
-  pointerId: number;
-}
+import type { Positions, DragInfo, CenterGuideState, TabType } from "@/types/certificate";
 
 export interface UseDragAndDropProps {
   positions: Positions;
   setPositions: React.Dispatch<React.SetStateAction<Positions>>;
   setSelectedField: (field: string | null) => void;
-  setActiveTab: (tab: "data" | "formatting" | "email") => void;
+  setActiveTab: (tab: TabType) => void;
 }
 
 export interface UseDragAndDropReturn {
   isDragging: boolean;
   dragInfo: DragInfo | null;
-  showCenterGuide: { horizontal: boolean; vertical: boolean };
-  setShowCenterGuide: React.Dispatch<React.SetStateAction<{ horizontal: boolean; vertical: boolean }>>;
+  showCenterGuide: CenterGuideState;
+  setShowCenterGuide: React.Dispatch<React.SetStateAction<CenterGuideState>>;
   handlePointerDown: (event: React.PointerEvent, key: string) => void;
   handlePointerUp: (event: React.PointerEvent) => void;
   clearDragState: () => void;
@@ -33,10 +26,10 @@ export function useDragAndDrop({
 }: UseDragAndDropProps): UseDragAndDropReturn {
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragInfo, setDragInfo] = useState<DragInfo | null>(null);
-  const [showCenterGuide, setShowCenterGuide] = useState<{
-    horizontal: boolean;
-    vertical: boolean;
-  }>({ horizontal: false, vertical: false });
+  const [showCenterGuide, setShowCenterGuide] = useState<CenterGuideState>({ 
+    horizontal: false, 
+    vertical: false 
+  });
 
   // Global pointer event handlers for smooth dragging
   useEffect(() => {

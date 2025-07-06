@@ -1,32 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { DEFAULT_FONT_SIZE } from "@/utils/constants";
-import type { TableData } from "./useTableData";
-
-export interface Position {
-  x: number;
-  y: number;
-  fontSize?: number;
-  fontFamily?:
-    | "Helvetica"
-    | "Times"
-    | "Courier"
-    | "Montserrat"
-    | "Poppins"
-    | "WorkSans"
-    | "Roboto"
-    | "SourceSansPro"
-    | "Nunito"
-    | "GreatVibes";
-  bold?: boolean;
-  italic?: boolean;
-  color?: string;
-  alignment?: "left" | "center" | "right";
-  isVisible?: boolean;
-}
-
-export interface Positions {
-  [key: string]: Position;
-}
+import type { TableData, Position, Positions, TextAlignment } from "@/types/certificate";
 
 export interface UsePositioningProps {
   tableData: TableData[];
@@ -35,7 +9,7 @@ export interface UsePositioningProps {
 export interface UsePositioningReturn {
   positions: Positions;
   setPositions: React.Dispatch<React.SetStateAction<Positions>>;
-  changeAlignment: (key: string, newAlignment: "left" | "center" | "right") => void;
+  changeAlignment: (key: string, newAlignment: TextAlignment) => void;
   clearPositions: () => void;
 }
 
@@ -77,7 +51,7 @@ export function usePositioning({ tableData }: UsePositioningProps): UsePositioni
 
   // Helper function to change alignment while keeping visual position
   const changeAlignment = useCallback(
-    (key: string, newAlignment: "left" | "center" | "right") => {
+    (key: string, newAlignment: TextAlignment) => {
       setPositions((prev) => {
         const currentPos = prev[key];
         if (!currentPos) return prev;

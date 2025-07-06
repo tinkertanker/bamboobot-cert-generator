@@ -1,8 +1,5 @@
 import { useState, useCallback } from "react";
-
-export interface TableData {
-  [key: string]: string;
-}
+import type { TableData } from "@/types/certificate";
 
 export interface UseTableDataReturn {
   tableData: TableData[];
