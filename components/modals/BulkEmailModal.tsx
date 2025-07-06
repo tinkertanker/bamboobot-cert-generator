@@ -55,6 +55,7 @@ export function BulkEmailModal({
   });
   const [sessionId] = useState(() => `email-session-${Date.now()}`);
   const [isStarted, setIsStarted] = useState(false);
+  const [startTime, setStartTime] = useState<number>(0);
 
   // Poll for status updates
   useEffect(() => {
@@ -81,6 +82,7 @@ export function BulkEmailModal({
 
   const startSending = async () => {
     setIsStarted(true);
+    setStartTime(Date.now());
     setStatus(prev => ({ ...prev, status: 'processing' }));
 
     try {
@@ -174,19 +176,29 @@ export function BulkEmailModal({
               <span>Status:</span>
               <span className="font-medium capitalize">{status.status}</span>
             </div>
-            {status.provider && (
+            {status.processed > 0 && status.remaining > 0 && startTime > 0 && (
               <div className="flex justify-between">
-                <span>Provider:</span>
-                <span className="font-medium uppercase">{status.provider}</span>
+                <span>Speed:</span>
+                <span className="font-medium">
+                  {(() => {
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    if (elapsed < 1) return 'calculating...';
+                    const rate = status.processed / elapsed;
+                    return rate < 1 
+                      ? `~${(60 / rate).toFixed(0)} sec/email`
+                      : `~${rate.toFixed(1)} emails/sec`;
+                  })()}
+                </span>
               </div>
             )}
-            {status.rateLimit.limit > 0 && (
-              <div className="flex justify-between">
-                <span>Rate limit:</span>
+            {/* Only show rate limit if we're close to hitting it */}
+            {status.rateLimit.remaining < 10 && status.rateLimit.limit > 0 && (
+              <div className="flex justify-between text-amber-600">
+                <span>Rate limit warning:</span>
                 <span className="font-medium">
-                  {status.rateLimit.remaining}/{status.rateLimit.limit}
+                  {status.rateLimit.remaining} emails left
                   {status.rateLimit.resetIn > 0 && (
-                    <span className="text-xs text-gray-500 ml-1">
+                    <span className="text-xs ml-1">
                       (resets in {Math.ceil(status.rateLimit.resetIn / 1000)}s)
                     </span>
                   )}

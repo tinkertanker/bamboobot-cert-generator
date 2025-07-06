@@ -137,12 +137,21 @@ export class EmailQueueManager {
       console.error(`Failed to send email to ${pendingItem.to}:`, error);
       pendingItem.lastError = error instanceof Error ? error.message : 'Unknown error';
       
+      // Check if it's a rate limit error
+      const isRateLimitError = pendingItem.lastError?.toLowerCase().includes('rate limit');
+      
       // Retry logic
-      if (pendingItem.attempts < 3) {
+      if (pendingItem.attempts < 3 && !isRateLimitError) {
         pendingItem.status = 'pending'; // Will retry
       } else {
         pendingItem.status = 'failed';
         this.queue.failed++;
+        
+        // If rate limit error, pause the queue
+        if (isRateLimitError) {
+          console.log('Rate limit hit, pausing queue');
+          await this.pause();
+        }
       }
     }
 
@@ -221,8 +230,8 @@ export class EmailQueueManager {
       // SES: respect per-second rate limit
       return 1000 / this.queue.rateLimit.limit;
     } else {
-      // Resend: spread over the hour
-      return 3600000 / this.queue.rateLimit.limit; // ~36 seconds between emails for 100/hour
+      // Resend: send as fast as possible (small delay to prevent overwhelming)
+      return 100; // 100ms between emails
     }
   }
 
