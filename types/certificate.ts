@@ -161,6 +161,12 @@ export interface CertificatePreviewProps {
   handlePointerDown: (event: React.PointerEvent, key: string) => void;
   handlePointerUp: (event: React.PointerEvent) => void;
   setShowCenterGuide: React.Dispatch<React.SetStateAction<CenterGuideState>>;
+  // File upload props
+  isDraggingFile: boolean;
+  handleDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
+  handleDragLeave: (event: React.DragEvent<HTMLDivElement>) => void;
+  handleFileDrop: (event: React.DragEvent<HTMLDivElement>) => Promise<void>;
+  handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
 }
 
 export interface DataPanelProps {
