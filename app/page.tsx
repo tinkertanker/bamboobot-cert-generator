@@ -1249,11 +1249,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                       Object.entries(
                         tableData[currentPreviewIndex] || tableData[0]
                       ).map(([key, value], index) => {
-                        // Skip rendering if field is hidden
-                        if (positions[key]?.isVisible === false) {
-                          return null;
-                        }
-                        
+                        const isHidden = positions[key]?.isVisible === false;
                         const isCurrentlyDragging =
                           isDragging && dragInfo?.key === key;
                         const isSelected = selectedField === key;
@@ -1306,15 +1302,20 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                           pointerEvents: "auto" as const,
                           userSelect: "none" as const,
                           touchAction: "none",
+                          opacity: isHidden ? 0.3 : 1, // Ghost effect for hidden fields
                           backgroundColor: isCurrentlyDragging
                             ? "rgba(231, 111, 81, 0.15)"
                             : isSelected
                             ? "rgba(45, 106, 79, 0.15)"
+                            : isHidden
+                            ? "rgba(128, 128, 128, 0.1)" // Subtle grey background for hidden fields
                             : "transparent",
                           border: isCurrentlyDragging
                             ? "2px solid #E76F51"
                             : isSelected
                             ? "2px solid #2D6A4F"
+                            : isHidden
+                            ? "2px dashed #999" // Dashed border for hidden fields
                             : "2px solid transparent",
                           borderRadius: "4px",
                           padding: "2px 4px",
@@ -1453,6 +1454,18 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                               </>
                             )}
                             {value}
+                            {/* Not visible indicator */}
+                            {isHidden && (
+                              <div
+                                className="absolute pointer-events-none"
+                                style={{
+                                  top: "2px",
+                                  right: "2px",
+                                  opacity: 0.6
+                                }}>
+                                <EyeOff className="h-3 w-3" style={{ color: "#666" }} />
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -1970,7 +1983,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                               </Button>
                               <Button
                                 variant={
-                                  positions[selectedField]?.isVisible !== false
+                                  positions[selectedField]?.isVisible === false
                                     ? "default"
                                     : "outline"
                                 }
@@ -1987,12 +2000,12 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                                 className="h-10 w-10"
                                 style={{
                                   backgroundColor: 
-                                    positions[selectedField]?.isVisible !== false
+                                    positions[selectedField]?.isVisible === false
                                     ? "#2D6A4F"
                                     : "transparent",
                                   borderColor: "#2D6A4F",
                                   color: 
-                                    positions[selectedField]?.isVisible !== false
+                                    positions[selectedField]?.isVisible === false
                                     ? "white"
                                     : "#2D6A4F"
                                 }}
