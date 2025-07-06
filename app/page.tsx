@@ -40,11 +40,12 @@ export default function MainPage() {
   // STATE & DATA MANAGEMENT
   // ============================================================================
 
-  // Preset data for dev mode
-  const presetCSVData = `Name,Department,Phone
+  // Preset data for dev mode (only available in development)
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const presetCSVData = isDevelopment ? `Name,Department,Phone
 Maximilienne Featherstone-Harrington III,Executive Leadership,+1-555-MAXI-EXEC
 Bartholomäus von Quackenbusch-Wetherell,Innovation & Strategy,+1-555-BART-INNO
-Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLOB`;
+Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLOB` : '';
 
   // Table data management via custom hook
   const {
@@ -194,15 +195,19 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
 
 
   const handleDevModeToggle = () => {
+    if (!isDevelopment) return; // Safety check - only works in development
+    
     setDevMode((prev) => {
       const newValue = !prev;
       if (newValue) {
         // Enable dev mode: load preset data and template
         loadPresetData(presetCSVData);
 
-        // Set the uploaded file URL to the preset image
-        const presetImageUrl = "/temp_images/certificate-template.png";
-        setUploadedFileUrl(presetImageUrl);
+        // Set the uploaded file URL to the preset image (only in dev)
+        if (isDevelopment) {
+          const presetImageUrl = "/temp_images/certificate-template.png";
+          setUploadedFileUrl(presetImageUrl);
+        }
 
         // Create a mock file object for the preset template (use PDF filename)
         const mockFile = new File([""], "certificate-template.pdf", {
@@ -273,21 +278,23 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 Bamboobot
               </h1>
             </div>
-            {/* Dev Mode Toggle */}
-            <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg border">
-              <input
-                type="checkbox"
-                id="dev-mode-toggle"
-                checked={devMode}
-                onChange={handleDevModeToggle}
-                className="w-4 h-4"
-              />
-              <label
-                htmlFor="dev-mode-toggle"
-                className="text-sm font-medium text-gray-700">
-                Dev Mode
-              </label>
-            </div>
+            {/* Dev Mode Toggle - Only visible in development */}
+            {isDevelopment && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg border">
+                <input
+                  type="checkbox"
+                  id="dev-mode-toggle"
+                  checked={devMode}
+                  onChange={handleDevModeToggle}
+                  className="w-4 h-4"
+                />
+                <label
+                  htmlFor="dev-mode-toggle"
+                  className="text-sm font-medium text-gray-700">
+                  Dev Mode
+                </label>
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             <ActionButton
