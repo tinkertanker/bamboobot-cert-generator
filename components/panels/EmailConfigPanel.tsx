@@ -1,6 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
+import { COLORS } from "@/utils/styles";
 import type { EmailConfigPanelProps } from "@/types/certificate";
 
 export function EmailConfigPanel({
@@ -16,8 +17,8 @@ export function EmailConfigPanel({
       <div
         className="flex items-center justify-between p-3 rounded-lg relative"
         style={{
-          backgroundColor: "#FFFEF7",
-          border: "1px solid #dddddd"
+          backgroundColor: COLORS.cardBg,
+          border: `1px solid ${COLORS.border}`
         }}>
         <h3 className="text-sm">
           <span className="text-gray-500 font-normal">Field:</span>{" "}

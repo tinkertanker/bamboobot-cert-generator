@@ -220,14 +220,14 @@ export function FormattingPanel({
                           backgroundColor:
                             positions[selectedField]?.isVisible ===
                             false
-                              ? "#2D6A4F"
+                              ? COLORS.primaryMedium
                               : "transparent",
-                          borderColor: "#2D6A4F",
+                          borderColor: COLORS.primaryMedium,
                           color:
                             positions[selectedField]?.isVisible ===
                             false
-                              ? "white"
-                              : "#2D6A4F"
+                              ? COLORS.white
+                              : COLORS.primaryMedium
                         }}
                         title={
                           positions[selectedField]?.isVisible !== false
@@ -319,7 +319,7 @@ export function FormattingPanel({
             <div className="flex items-center gap-2">
               <input
                 type="color"
-                value={positions[selectedField]?.color || "#000000"}
+                value={positions[selectedField]?.color || COLORS.black}
                 onChange={(e) => {
                   setPositions((prev) => ({
                     ...prev,
@@ -332,7 +332,7 @@ export function FormattingPanel({
                 className="w-10 h-8 rounded border border-gray-300 cursor-pointer"
               />
               <span className="text-xs text-gray-500 font-mono">
-                {positions[selectedField]?.color || "#000000"}
+                {positions[selectedField]?.color || COLORS.black}
               </span>
             </div>
           </div>
@@ -361,14 +361,14 @@ export function FormattingPanel({
                   backgroundColor:
                     positions[selectedField]?.alignment === "left" ||
                     !positions[selectedField]?.alignment
-                      ? "#2D6A4F"
+                      ? COLORS.primaryMedium
                       : "transparent",
-                  borderColor: "#2D6A4F",
+                  borderColor: COLORS.primaryMedium,
                   color:
                     positions[selectedField]?.alignment === "left" ||
                     !positions[selectedField]?.alignment
-                      ? "white"
-                      : "#2D6A4F"
+                      ? COLORS.white
+                      : COLORS.primaryMedium
                 }}
                 title="Align left">
                 <AlignLeft className="h-4 w-4" />
@@ -389,13 +389,13 @@ export function FormattingPanel({
                 style={{
                   backgroundColor:
                     positions[selectedField]?.alignment === "center"
-                      ? "#2D6A4F"
+                      ? COLORS.primaryMedium
                       : "transparent",
-                  borderColor: "#2D6A4F",
+                  borderColor: COLORS.primaryMedium,
                   color:
                     positions[selectedField]?.alignment === "center"
-                      ? "white"
-                      : "#2D6A4F"
+                      ? COLORS.white
+                      : COLORS.primaryMedium
                 }}
                 title="Align center">
                 <AlignCenter className="h-4 w-4" />
@@ -416,13 +416,13 @@ export function FormattingPanel({
                 style={{
                   backgroundColor:
                     positions[selectedField]?.alignment === "right"
-                      ? "#2D6A4F"
+                      ? COLORS.primaryMedium
                       : "transparent",
-                  borderColor: "#2D6A4F",
+                  borderColor: COLORS.primaryMedium,
                   color:
                     positions[selectedField]?.alignment === "right"
-                      ? "white"
-                      : "#2D6A4F"
+                      ? COLORS.white
+                      : COLORS.primaryMedium
                 }}
                 title="Align right">
                 <AlignRight className="h-4 w-4" />
@@ -469,9 +469,9 @@ export function FormattingPanel({
             <div
               className="px-3 py-2 rounded text-sm text-center border"
               style={{
-                backgroundColor: "#D1FAE5",
-                borderColor: "#52B788",
-                color: "#1B4332"
+                backgroundColor: COLORS.successLight,
+                borderColor: COLORS.successMedium,
+                color: COLORS.primary
               }}>
               <Check className="h-4 w-4 inline mr-1" />
               Formatting applied to all fields

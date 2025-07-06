@@ -41,6 +41,10 @@ import { COLORS, GRADIENTS } from "@/utils/styles";
 
 
 export default function MainPage() {
+  // ============================================================================
+  // STATE & DATA MANAGEMENT
+  // ============================================================================
+
   // Preset data for dev mode
   const presetCSVData = `Name,Department,Phone
 Maximilienne Featherstone-Harrington III,Executive Leadership,+1-555-MAXI-EXEC
@@ -62,6 +66,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   } = useTableData();
 
   const [devMode, setDevMode] = useState<boolean>(false);
+
+  // ============================================================================
+  // CUSTOM HOOKS FOR FEATURE MANAGEMENT
+  // ============================================================================
+
   // Positioning hook
   const {
     positions,
@@ -78,7 +87,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   const [showResetFieldModal, setShowResetFieldModal] =
     useState<boolean>(false);
   const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
-
 
   // Drag and drop hook
   const {
@@ -163,6 +171,10 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     individualPdfsData
   });
 
+  // ============================================================================
+  // EVENT HANDLERS & BUSINESS LOGIC
+  // ============================================================================
+
   // Handle escape key press to close all modals
   const handleEscapePressed = useCallback(() => {
     setGeneratedPdfUrl(null);
@@ -216,6 +228,10 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
 
 
 
+  // ============================================================================
+  // TABLE CONFIGURATION
+  // ============================================================================
+
   const columns: Column<TableData>[] = useMemo(
     () =>
       tableData.length > 0
@@ -231,10 +247,15 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     useTable({ columns, data: tableData });
 
 
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+
   return (
     <div
       className="flex flex-col h-screen"
       style={{ backgroundColor: COLORS.background }}>
+      {/* Application Header */}
       <header
         className="py-4 px-6"
         style={{
@@ -303,7 +324,10 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
           </div>
         </div>
       </header>
+
+      {/* Main Content Area */}
       <main className="flex-1 grid grid-cols-[60%_40%] gap-6 p-6">
+        {/* Certificate Preview Section */}
         <div className="bg-card p-4 rounded-lg shadow">
           <CertificatePreview
             uploadedFileUrl={uploadedFileUrl}
@@ -421,6 +445,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
             </div>
           )}
         </div>
+        {/* Control Panel Section */}
         <div className="bg-card p-4 rounded-lg shadow mr-6">
           {/* Tab Navigation */}
           <div className="flex mb-4 bg-gray-100 rounded-lg p-1 gap-1">
@@ -524,6 +549,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
           )}
         </div>
       </main>
+
+      {/* Modal Components */}
       <PdfGenerationModal
         isGenerating={isGenerating}
         generatedPdfUrl={generatedPdfUrl}
