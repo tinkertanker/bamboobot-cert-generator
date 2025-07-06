@@ -88,10 +88,10 @@ npm run cleanup     # Clean temporary files
 
 ## Project Structure
 
-### Clean Architecture (Refactored 2024)
+### Clean Architecture
 ```
 app/
-  └── page.tsx           # Main orchestration (564 lines, down from 1500+)
+  └── page.tsx           # Main orchestration component
 components/
   ├── CertificatePreview.tsx    # Certificate display with drag positioning
   ├── panels/
@@ -119,11 +119,10 @@ scripts/          # Utility scripts
 ```
 
 ### Architecture Benefits
-- ✅ **62% code reduction** in main component (1500+ → 564 lines)
-- ✅ **Proper separation of concerns** with 9 specialized components
-- ✅ **Centralized type system** for consistency
-- ✅ **Theme management** with centralized color constants
-- ✅ **Maintainable and scalable** component architecture
+- **Modular design** with specialized components for each feature
+- **Centralized type system** for consistency across the application
+- **Theme management** with centralized color constants
+- **Maintainable and scalable** component architecture
 
 ### Development Guidelines
 - **Types**: All interfaces centralized in `types/certificate.ts`
