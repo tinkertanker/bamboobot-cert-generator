@@ -42,7 +42,17 @@ interface Position {
   x: number;
   y: number;
   fontSize?: number;
-  fontFamily?: "Helvetica" | "Times" | "Courier" | "Montserrat" | "Poppins" | "WorkSans" | "Roboto" | "SourceSansPro" | "Nunito" | "GreatVibes";
+  fontFamily?:
+    | "Helvetica"
+    | "Times"
+    | "Courier"
+    | "Montserrat"
+    | "Poppins"
+    | "WorkSans"
+    | "Roboto"
+    | "SourceSansPro"
+    | "Nunito"
+    | "GreatVibes";
   bold?: boolean;
   italic?: boolean;
   color?: string;
@@ -61,13 +71,13 @@ const FONT_CAPABILITIES = {
   Helvetica: { bold: true, italic: true },
   Times: { bold: true, italic: true },
   Courier: { bold: true, italic: true },
-  Montserrat: { bold: true, italic: false },         // Has bold but no italic files
-  Poppins: { bold: true, italic: true },             // Complete font family - geometric with personality
-  WorkSans: { bold: true, italic: true },            // Complete font family - clean with character
-  Roboto: { bold: true, italic: true },              // Google's flagship - excellent kerning
-  SourceSansPro: { bold: true, italic: true },       // Adobe's masterpiece - professional typography
-  Nunito: { bold: true, italic: true },              // Friendly rounded - good spacing
-  GreatVibes: { bold: false, italic: false }         // Elegant script - single weight only
+  Montserrat: { bold: true, italic: false }, // Has bold but no italic files
+  Poppins: { bold: true, italic: true }, // Complete font family - geometric with personality
+  WorkSans: { bold: true, italic: true }, // Complete font family - clean with character
+  Roboto: { bold: true, italic: true }, // Google's flagship - excellent kerning
+  SourceSansPro: { bold: true, italic: true }, // Adobe's masterpiece - professional typography
+  Nunito: { bold: true, italic: true }, // Friendly rounded - good spacing
+  GreatVibes: { bold: false, italic: false } // Elegant script - single weight only
 } as const;
 
 export default function MainPage() {
@@ -91,7 +101,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [selectedField, setSelectedField] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"data" | "formatting" | "email">("data");
+  const [activeTab, setActiveTab] = useState<"data" | "formatting" | "email">(
+    "data"
+  );
   const [showAppliedMessage, setShowAppliedMessage] = useState<boolean>(false);
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number>(0);
   const [individualPdfsData, setIndividualPdfsData] = useState<
@@ -103,19 +115,23 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   const [showResetFieldModal, setShowResetFieldModal] =
     useState<boolean>(false);
   const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
-  const [detectedEmailColumn, setDetectedEmailColumn] = useState<string | null>(null);
-  const [emailSendingStatus, setEmailSendingStatus] = useState<{[key: number]: 'sending' | 'sent' | 'error'}>({});
+  const [detectedEmailColumn, setDetectedEmailColumn] = useState<string | null>(
+    null
+  );
+  const [emailSendingStatus, setEmailSendingStatus] = useState<{
+    [key: number]: "sending" | "sent" | "error";
+  }>({});
   const [emailConfig, setEmailConfig] = useState<{
     senderName: string;
     subject: string;
     message: string;
-    deliveryMethod: 'download' | 'attachment';
+    deliveryMethod: "download" | "attachment";
     isConfigured: boolean;
   }>({
-    senderName: '',
-    subject: '',
-    message: '',
-    deliveryMethod: 'download',
+    senderName: "",
+    subject: "",
+    message: "",
+    deliveryMethod: "download",
     isConfigured: false
   });
 
@@ -127,7 +143,10 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     offsetY: number;
     pointerId: number;
   } | null>(null);
-  const [showCenterGuide, setShowCenterGuide] = useState<{horizontal: boolean, vertical: boolean}>({horizontal: false, vertical: false});
+  const [showCenterGuide, setShowCenterGuide] = useState<{
+    horizontal: boolean;
+    vertical: boolean;
+  }>({ horizontal: false, vertical: false });
 
   // Text measurement utility for consistent sizing
   const measureText = useCallback(
@@ -189,15 +208,15 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
           // Clamp the values between 0 and 100 but preserve other properties
           let clampedX = Math.max(0, Math.min(100, x));
           let clampedY = Math.max(0, Math.min(100, y));
-          
+
           // Center snapping - snap to center if within 2% threshold (closer to the line)
           const snapThreshold = 2;
           const centerX = 50;
           const centerY = 50;
-          
+
           let isSnappingHorizontal = false;
           let isSnappingVertical = false;
-          
+
           if (Math.abs(clampedX - centerX) <= snapThreshold) {
             clampedX = centerX;
             isSnappingVertical = true; // Show vertical line when snapping to X center
@@ -206,7 +225,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
             clampedY = centerY;
             isSnappingHorizontal = true; // Show horizontal line when snapping to Y center
           }
-          
+
           // Show/hide center guides based on which axis is snapping
           setShowCenterGuide({
             horizontal: isSnappingHorizontal,
@@ -227,7 +246,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
 
       setIsDragging(false);
       setDragInfo(null);
-      setShowCenterGuide({horizontal: false, vertical: false});
+      setShowCenterGuide({ horizontal: false, vertical: false });
     };
 
     if (isDragging) {
@@ -257,13 +276,13 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!selectedField || isDragging) return;
-      
+
       const nudgeAmount = event.shiftKey ? 2 : 0.5; // Larger nudge with Shift
-      
+
       switch (event.key) {
-        case 'ArrowUp':
+        case "ArrowUp":
           event.preventDefault();
-          setPositions(prev => ({
+          setPositions((prev) => ({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
@@ -271,9 +290,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
             }
           }));
           break;
-        case 'ArrowDown':
+        case "ArrowDown":
           event.preventDefault();
-          setPositions(prev => ({
+          setPositions((prev) => ({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
@@ -281,9 +300,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
             }
           }));
           break;
-        case 'ArrowLeft':
+        case "ArrowLeft":
           event.preventDefault();
-          setPositions(prev => ({
+          setPositions((prev) => ({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
@@ -291,9 +310,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
             }
           }));
           break;
-        case 'ArrowRight':
+        case "ArrowRight":
           event.preventDefault();
-          setPositions(prev => ({
+          setPositions((prev) => ({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
@@ -305,15 +324,15 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     };
 
     if (selectedField) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
     }
   }, [selectedField, isDragging]);
 
   // ESC key to dismiss all modals
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         // Close all modals
         setGeneratedPdfUrl(null);
         setIndividualPdfsData(null);
@@ -322,24 +341,24 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
       }
     };
 
-    document.addEventListener('keydown', handleEscKey);
-    return () => document.removeEventListener('keydown', handleEscKey);
+    document.addEventListener("keydown", handleEscKey);
+    return () => document.removeEventListener("keydown", handleEscKey);
   }, []);
 
   // Bold/Italic keyboard shortcuts (Ctrl/Cmd+B for bold, Ctrl/Cmd+I for italic)
   useEffect(() => {
     const handleFormatShortcuts = (event: KeyboardEvent) => {
       if (!selectedField) return;
-      
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const isCommandPressed = isMac ? event.metaKey : event.ctrlKey;
-      
+
       if (!isCommandPressed) return;
-      
+
       const currentFont = positions[selectedField]?.fontFamily || "Helvetica";
       const fontCapabilities = FONT_CAPABILITIES[currentFont];
-      
-      if (event.key === 'b' || event.key === 'B') {
+
+      if (event.key === "b" || event.key === "B") {
         event.preventDefault();
         if (fontCapabilities.bold) {
           setPositions((prev) => ({
@@ -350,7 +369,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
             }
           }));
         }
-      } else if (event.key === 'i' || event.key === 'I') {
+      } else if (event.key === "i" || event.key === "I") {
         event.preventDefault();
         if (fontCapabilities.italic) {
           setPositions((prev) => ({
@@ -365,8 +384,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     };
 
     if (selectedField) {
-      document.addEventListener('keydown', handleFormatShortcuts);
-      return () => document.removeEventListener('keydown', handleFormatShortcuts);
+      document.addEventListener("keydown", handleFormatShortcuts);
+      return () =>
+        document.removeEventListener("keydown", handleFormatShortcuts);
     }
   }, [selectedField, positions]);
 
@@ -383,10 +403,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
         Object.keys(tableData[0]).forEach((key, index) => {
           if (!newPositions[key]) {
             // Check if this is an email field
-            const isEmailField = key.toLowerCase().includes('email') || 
-                               key.toLowerCase().includes('e-mail') || 
-                               key.toLowerCase().includes('mail');
-            
+            const isEmailField =
+              key.toLowerCase().includes("email") ||
+              key.toLowerCase().includes("e-mail") ||
+              key.toLowerCase().includes("mail");
+
             newPositions[key] = {
               x: 50,
               y: 50 + index * 10,
@@ -464,22 +485,22 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   // Helper function to parse CSV with proper quote handling
   const parseCSVRow = (row: string): string[] => {
     const result: string[] = [];
-    let current = '';
+    let current = "";
     let inQuotes = false;
-    
+
     for (let i = 0; i < row.length; i++) {
       const char = row[i];
-      
+
       if (char === '"') {
         inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
+      } else if (char === "," && !inQuotes) {
         result.push(current.trim());
-        current = '';
+        current = "";
       } else {
         current += char;
       }
     }
-    
+
     result.push(current.trim());
     return result;
   };
@@ -487,24 +508,27 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   // Detect email column from headers and data
   const detectEmailColumn = (headers: string[], data: TableData[]) => {
     // First try to detect by header name
-    const emailHeaderPatterns = /^(email|e-mail|mail|email address|e-mail address|correo|courriel)$/i;
-    let emailColumn = headers.find(header => emailHeaderPatterns.test(header.trim()));
-    
+    const emailHeaderPatterns =
+      /^(email|e-mail|mail|email address|e-mail address|correo|courriel)$/i;
+    let emailColumn = headers.find((header) =>
+      emailHeaderPatterns.test(header.trim())
+    );
+
     // If not found by header, try to detect by content
     if (!emailColumn && data.length > 0) {
       const emailContentPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      
+
       for (const header of headers) {
         // Check if at least 50% of non-empty values in this column look like emails
         const columnValues = data
-          .map(row => row[header])
-          .filter(val => val && val.trim() !== "");
-        
+          .map((row) => row[header])
+          .filter((val) => val && val.trim() !== "");
+
         if (columnValues.length > 0) {
-          const emailCount = columnValues.filter(val => 
+          const emailCount = columnValues.filter((val) =>
             emailContentPattern.test(val.trim())
           ).length;
-          
+
           if (emailCount / columnValues.length >= 0.5) {
             emailColumn = header;
             break;
@@ -512,21 +536,21 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
         }
       }
     }
-    
+
     setDetectedEmailColumn(emailColumn || null);
-    
+
     // Reset email config when data changes (session-based)
     setEmailConfig({
-      senderName: '',
-      subject: '',
-      message: '',
-      deliveryMethod: 'download',
+      senderName: "",
+      subject: "",
+      message: "",
+      deliveryMethod: "download",
       isConfigured: false
     });
-    
+
     // Switch away from email tab if no email column detected
-    if (!emailColumn && activeTab === 'email') {
-      setActiveTab('data');
+    if (!emailColumn && activeTab === "email") {
+      setActiveTab("data");
     }
   };
 
@@ -537,14 +561,14 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
   ) => {
     const trimmedInput = input.trim();
     if (!trimmedInput) return;
-    
+
     const lines = trimmedInput.split("\n");
     if (lines.length === 0) return;
-    
+
     // Use the format selected by the user toggle
     const delimiter = csvMode ? "," : "\t";
     console.log(`Using ${csvMode ? "CSV" : "TSV"} mode`);
-    
+
     const rows = lines.map((row) => {
       if (csvMode) {
         return parseCSVRow(row);
@@ -566,40 +590,58 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
       return obj;
     });
     setTableData(tableData);
-    
+
     // Auto-detect email column
     detectEmailColumn(headers, tableData);
   };
 
   // Send individual certificate via email
-  const sendCertificateEmail = async (index: number, file: {filename: string, url: string, originalIndex: number}) => {
-    if (!detectedEmailColumn || !individualPdfsData || !emailConfig.isConfigured) return;
-    
+  const sendCertificateEmail = async (
+    index: number,
+    file: { filename: string; url: string; originalIndex: number }
+  ) => {
+    if (
+      !detectedEmailColumn ||
+      !individualPdfsData ||
+      !emailConfig.isConfigured
+    )
+      return;
+
     const recipientData = tableData[file.originalIndex || index];
     const recipientEmail = recipientData[detectedEmailColumn];
-    
+
     if (!recipientEmail) {
-      alert('No email address found for this recipient');
+      alert("No email address found for this recipient");
       return;
     }
-    
+
     // Update sending status
-    setEmailSendingStatus(prev => ({ ...prev, [index]: 'sending' }));
-    
+    setEmailSendingStatus((prev) => ({ ...prev, [index]: "sending" }));
+
     try {
       // Get recipient name (try common name columns)
-      const nameColumns = ['Name', 'name', 'Full Name', 'full_name', 'fullname'];
-      const recipientName = nameColumns
-        .map(col => recipientData[col])
-        .find(val => val && val.trim() !== '') || 'Certificate Recipient';
-      
+      const nameColumns = [
+        "Name",
+        "name",
+        "Full Name",
+        "full_name",
+        "fullname"
+      ];
+      const recipientName =
+        nameColumns
+          .map((col) => recipientData[col])
+          .find((val) => val && val.trim() !== "") || "Certificate Recipient";
+
       // Replace [Recipient Name] placeholder in message
-      const personalizedMessage = emailConfig.message.replace(/\[Recipient Name\]/g, recipientName);
-      
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
+      const personalizedMessage = emailConfig.message.replace(
+        /\[Recipient Name\]/g,
+        recipientName
+      );
+
+      const response = await fetch("/api/send-email", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           to: recipientEmail,
@@ -608,37 +650,43 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
           senderName: emailConfig.senderName,
           customMessage: personalizedMessage,
           deliveryMethod: emailConfig.deliveryMethod,
-          attachmentUrl: emailConfig.deliveryMethod === 'attachment' ? file.url : null,
-          downloadUrl: emailConfig.deliveryMethod === 'download' ? file.url : null,
-          attachmentName: file.filename,
-        }),
+          attachmentUrl:
+            emailConfig.deliveryMethod === "attachment" ? file.url : null,
+          downloadUrl:
+            emailConfig.deliveryMethod === "download" ? file.url : null,
+          attachmentName: file.filename
+        })
       });
-      
+
       const result = await response.json();
-      
+
       if (response.ok) {
-        setEmailSendingStatus(prev => ({ ...prev, [index]: 'sent' }));
-        
+        setEmailSendingStatus((prev) => ({ ...prev, [index]: "sent" }));
+
         // Mark as emailed in R2 if using cloud storage
-        if (file.url.includes('r2.cloudflarestorage.com') || 
-           (process.env.R2_PUBLIC_URL && file.url.startsWith(process.env.R2_PUBLIC_URL))) {
+        if (
+          file.url.includes("r2.cloudflarestorage.com") ||
+          (process.env.R2_PUBLIC_URL &&
+            file.url.startsWith(process.env.R2_PUBLIC_URL))
+        ) {
           try {
-            await fetch('/api/mark-emailed', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fileUrl: file.url }),
+            await fetch("/api/mark-emailed", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ fileUrl: file.url })
             });
           } catch (error) {
-            console.warn('Failed to mark file as emailed:', error);
+            console.warn("Failed to mark file as emailed:", error);
           }
         }
       } else {
-        throw new Error(result.error || 'Failed to send email');
+        throw new Error(result.error || "Failed to send email");
       }
     } catch (error) {
-      console.error('Email sending failed:', error);
-      setEmailSendingStatus(prev => ({ ...prev, [index]: 'error' }));
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error("Email sending failed:", error);
+      setEmailSendingStatus((prev) => ({ ...prev, [index]: "error" }));
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
       alert(`Failed to send email: ${errorMessage}`);
     }
   };
@@ -681,15 +729,17 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
         setIsFirstRowHeader(true);
         setTableInput(presetCSVData);
         processTableData(presetCSVData, true, true);
-        
+
         // Set the uploaded file URL to the preset image
         const presetImageUrl = "/temp_images/certificate-template.png";
         setUploadedFileUrl(presetImageUrl);
-        
+
         // Create a mock file object for the preset template (use PDF filename)
-        const mockFile = new File([""], "certificate-template.pdf", { type: "application/pdf" });
+        const mockFile = new File([""], "certificate-template.pdf", {
+          type: "application/pdf"
+        });
         setUploadedFile(mockFile);
-        
+
         console.log("Dev mode enabled: preset template and data loaded");
       } else {
         // Disable dev mode: clear data
@@ -834,7 +884,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
               if (positions[key]?.isVisible === false) {
                 return;
               }
-              
+
               const fontSize = DEFAULT_FONT_SIZE;
               const measurements = measureText(row[key], fontSize, "500");
               const position = positions[key];
@@ -939,7 +989,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
               if (positions[key]?.isVisible === false) {
                 return;
               }
-              
+
               const fontSize = DEFAULT_FONT_SIZE;
               const measurements = measureText(row[key], fontSize, "500");
               const position = positions[key];
@@ -1016,7 +1066,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
       // Select the field for formatting and switch to formatting tab
       setSelectedField(key);
       setActiveTab("formatting");
-      setShowCenterGuide({horizontal: false, vertical: false});
+      setShowCenterGuide({ horizontal: false, vertical: false });
 
       const element = event.currentTarget as HTMLElement;
       const rect = element.getBoundingClientRect();
@@ -1103,7 +1153,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 onChange={handleDevModeToggle}
                 className="w-4 h-4"
               />
-              <label htmlFor="dev-mode-toggle" className="text-sm font-medium text-gray-700">
+              <label
+                htmlFor="dev-mode-toggle"
+                className="text-sm font-medium text-gray-700">
                 Dev Mode
               </label>
             </div>
@@ -1242,7 +1294,10 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                       // Only deselect if clicking on the overlay itself, not on text fields
                       if (e.target === e.currentTarget) {
                         setSelectedField(null);
-                        setShowCenterGuide({horizontal: false, vertical: false});
+                        setShowCenterGuide({
+                          horizontal: false,
+                          vertical: false
+                        });
                       }
                     }}>
                     {tableData.length > 0 &&
@@ -1268,13 +1323,17 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                             '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
                           Times: 'Times, "Times New Roman", Georgia, serif',
                           Courier: 'Courier, "Courier New", monospace',
-                          Montserrat: 'var(--font-montserrat), "Montserrat", sans-serif',
+                          Montserrat:
+                            'var(--font-montserrat), "Montserrat", sans-serif',
                           Poppins: 'var(--font-poppins), "Poppins", sans-serif',
-                          WorkSans: 'var(--font-work-sans), "Work Sans", sans-serif',
+                          WorkSans:
+                            'var(--font-work-sans), "Work Sans", sans-serif',
                           Roboto: 'var(--font-roboto), "Roboto", sans-serif',
-                          SourceSansPro: 'var(--font-source-sans-pro), "Source Sans Pro", sans-serif',
+                          SourceSansPro:
+                            'var(--font-source-sans-pro), "Source Sans Pro", sans-serif',
                           Nunito: 'var(--font-nunito), "Nunito", sans-serif',
-                          GreatVibes: 'var(--font-great-vibes), "Great Vibes", cursive'
+                          GreatVibes:
+                            'var(--font-great-vibes), "Great Vibes", cursive'
                         };
 
                         // Calculate transform based on alignment
@@ -1282,8 +1341,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                           alignment === "center"
                             ? "-50%"
                             : alignment === "right"
-                            ? "-100%"
-                            : "0%";
+                              ? "-100%"
+                              : "0%";
 
                         const style = {
                           left: `${positions[key]?.x ?? 50}%`,
@@ -1306,17 +1365,17 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                           backgroundColor: isCurrentlyDragging
                             ? "rgba(231, 111, 81, 0.15)"
                             : isSelected
-                            ? "rgba(45, 106, 79, 0.15)"
-                            : isHidden
-                            ? "rgba(128, 128, 128, 0.1)" // Subtle grey background for hidden fields
-                            : "transparent",
+                              ? "rgba(45, 106, 79, 0.15)"
+                              : isHidden
+                                ? "rgba(128, 128, 128, 0.1)" // Subtle grey background for hidden fields
+                                : "transparent",
                           border: isCurrentlyDragging
                             ? "2px solid #E76F51"
                             : isSelected
-                            ? "2px solid #2D6A4F"
-                            : isHidden
-                            ? "2px dashed #999" // Dashed border for hidden fields
-                            : "2px solid transparent",
+                              ? "2px solid #2D6A4F"
+                              : isHidden
+                                ? "2px dashed #999" // Dashed border for hidden fields
+                                : "2px solid transparent",
                           borderRadius: "4px",
                           padding: "2px 4px",
                           cursor: isCurrentlyDragging ? "grabbing" : "grab"
@@ -1463,13 +1522,16 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                                   right: "2px",
                                   opacity: 0.6
                                 }}>
-                                <EyeOff className="h-3 w-3" style={{ color: "#666" }} />
+                                <EyeOff
+                                  className="h-3 w-3"
+                                  style={{ color: "#666" }}
+                                />
                               </div>
                             )}
                           </div>
                         );
                       })}
-                    
+
                     {/* Center alignment guides */}
                     <>
                       {/* Vertical center line - shown when snapping horizontally (X-axis) */}
@@ -1482,7 +1544,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                           marginLeft: "-1px",
                           borderColor: "#E76F51",
                           opacity: showCenterGuide.vertical ? 0.8 : 0,
-                          transform: showCenterGuide.vertical ? "scaleY(1)" : "scaleY(0.8)",
+                          transform: showCenterGuide.vertical
+                            ? "scaleY(1)"
+                            : "scaleY(0.8)",
                           transformOrigin: "center"
                         }}
                       />
@@ -1496,7 +1560,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                           marginTop: "-1px",
                           borderColor: "#E76F51",
                           opacity: showCenterGuide.horizontal ? 0.8 : 0,
-                          transform: showCenterGuide.horizontal ? "scaleX(1)" : "scaleX(0.8)",
+                          transform: showCenterGuide.horizontal
+                            ? "scaleX(1)"
+                            : "scaleX(0.8)",
                           transformOrigin: "center"
                         }}
                       />
@@ -1583,7 +1649,10 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 {/* Arrow key hint - center aligned */}
                 {selectedField && (
                   <div className="flex items-center justify-center text-xs text-gray-500">
-                    <span>Use arrow keys to nudge selected text (Shift for larger steps)</span>
+                    <span>
+                      Use arrow keys to nudge selected text (Shift for larger
+                      steps)
+                    </span>
                   </div>
                 )}
 
@@ -1695,25 +1764,29 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 onClick={() => setActiveTab("email")}
                 className="px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center"
                 style={{
-                  backgroundColor: activeTab === "email" ? "#2D6A4F" : "#cccccc",
+                  backgroundColor:
+                    activeTab === "email" ? "#2D6A4F" : "#cccccc",
                   color: activeTab === "email" ? "#ffffff" : "#374151"
                 }}>
                 Email
-                {detectedEmailColumn && !['email', 'e-mail', 'mail'].includes(detectedEmailColumn.toLowerCase()) && (
-                  <span
-                    className={`ml-1 px-1.5 py-0.5 text-xs ${
-                      activeTab === "email"
-                        ? "text-amber-600"
-                        : "text-green-800"
-                    }`}
-                    style={{
-                      backgroundColor:
-                        activeTab === "email" ? "#F4A261" : "#D1FAE5",
-                      borderRadius: "4px"
-                    }}>
-                    {detectedEmailColumn}
-                  </span>
-                )}
+                {detectedEmailColumn &&
+                  !["email", "e-mail", "mail"].includes(
+                    detectedEmailColumn.toLowerCase()
+                  ) && (
+                    <span
+                      className={`ml-1 px-1.5 py-0.5 text-xs ${
+                        activeTab === "email"
+                          ? "text-amber-600"
+                          : "text-green-800"
+                      }`}
+                      style={{
+                        backgroundColor:
+                          activeTab === "email" ? "#F4A261" : "#D1FAE5",
+                        borderRadius: "4px"
+                      }}>
+                      {detectedEmailColumn}
+                    </span>
+                  )}
               </button>
             )}
           </div>
@@ -1752,7 +1825,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                   value={tableInput}
                   onChange={handleTableDataChange}
                   placeholder={
-                    useCSVMode 
+                    useCSVMode
                       ? "Paste CSV data here (e.g., John Doe,Manager,Sales)"
                       : "Paste TSV data here (tab-separated)"
                   }
@@ -1849,14 +1922,20 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                       border: "1px solid #dddddd"
                     }}>
                     <h3 className="text-sm">
-                      <span className="text-gray-500 font-normal">Field:</span> <span className="font-medium text-gray-900">{selectedField}</span>
+                      <span className="text-gray-500 font-normal">Field:</span>{" "}
+                      <span className="font-medium text-gray-900">
+                        {selectedField}
+                      </span>
                     </h3>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
                         setSelectedField(null);
-                        setShowCenterGuide({horizontal: false, vertical: false});
+                        setShowCenterGuide({
+                          horizontal: false,
+                          vertical: false
+                        });
                       }}>
                       <X className="h-4 w-4" />
                     </Button>
@@ -1900,11 +1979,13 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                       </label>
                       <div className="flex items-center space-x-2">
                         {(() => {
-                          const currentFont = positions[selectedField]?.fontFamily || "Helvetica";
-                          const fontCapabilities = FONT_CAPABILITIES[currentFont];
+                          const currentFont =
+                            positions[selectedField]?.fontFamily || "Helvetica";
+                          const fontCapabilities =
+                            FONT_CAPABILITIES[currentFont];
                           const boldDisabled = !fontCapabilities.bold;
                           const italicDisabled = !fontCapabilities.italic;
-                          
+
                           return (
                             <>
                               <Button
@@ -1928,20 +2009,28 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                                 }}
                                 className="h-10 w-10"
                                 style={{
-                                  backgroundColor: boldDisabled 
-                                    ? "#e5e7eb" 
+                                  backgroundColor: boldDisabled
+                                    ? "#e5e7eb"
                                     : positions[selectedField]?.bold
-                                    ? "#2D6A4F"
-                                    : "transparent",
-                                  borderColor: boldDisabled ? "#d1d5db" : "#2D6A4F",
-                                  color: boldDisabled 
-                                    ? "#9ca3af" 
-                                    : positions[selectedField]?.bold
-                                    ? "white"
+                                      ? "#2D6A4F"
+                                      : "transparent",
+                                  borderColor: boldDisabled
+                                    ? "#d1d5db"
                                     : "#2D6A4F",
-                                  cursor: boldDisabled ? "not-allowed" : "pointer"
+                                  color: boldDisabled
+                                    ? "#9ca3af"
+                                    : positions[selectedField]?.bold
+                                      ? "white"
+                                      : "#2D6A4F",
+                                  cursor: boldDisabled
+                                    ? "not-allowed"
+                                    : "pointer"
                                 }}
-                                title={boldDisabled ? `Bold not supported for ${currentFont}` : "Toggle bold"}>
+                                title={
+                                  boldDisabled
+                                    ? `Bold not supported for ${currentFont}`
+                                    : "Toggle bold"
+                                }>
                                 <strong>B</strong>
                               </Button>
                               <Button
@@ -1965,20 +2054,28 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                                 }}
                                 className="h-10 w-10"
                                 style={{
-                                  backgroundColor: italicDisabled 
-                                    ? "#e5e7eb" 
+                                  backgroundColor: italicDisabled
+                                    ? "#e5e7eb"
                                     : positions[selectedField]?.italic
-                                    ? "#2D6A4F"
-                                    : "transparent",
-                                  borderColor: italicDisabled ? "#d1d5db" : "#2D6A4F",
-                                  color: italicDisabled 
-                                    ? "#9ca3af" 
-                                    : positions[selectedField]?.italic
-                                    ? "white"
+                                      ? "#2D6A4F"
+                                      : "transparent",
+                                  borderColor: italicDisabled
+                                    ? "#d1d5db"
                                     : "#2D6A4F",
-                                  cursor: italicDisabled ? "not-allowed" : "pointer"
+                                  color: italicDisabled
+                                    ? "#9ca3af"
+                                    : positions[selectedField]?.italic
+                                      ? "white"
+                                      : "#2D6A4F",
+                                  cursor: italicDisabled
+                                    ? "not-allowed"
+                                    : "pointer"
                                 }}
-                                title={italicDisabled ? `Italic not supported for ${currentFont}` : "Toggle italic"}>
+                                title={
+                                  italicDisabled
+                                    ? `Italic not supported for ${currentFont}`
+                                    : "Toggle italic"
+                                }>
                                 <em>I</em>
                               </Button>
                               <Button
@@ -1993,24 +2090,34 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                                     ...prev,
                                     [selectedField]: {
                                       ...prev[selectedField],
-                                      isVisible: prev[selectedField]?.isVisible === false ? true : false
+                                      isVisible:
+                                        prev[selectedField]?.isVisible === false
+                                          ? true
+                                          : false
                                     }
                                   }));
                                 }}
                                 className="h-10 w-10"
                                 style={{
-                                  backgroundColor: 
-                                    positions[selectedField]?.isVisible === false
-                                    ? "#2D6A4F"
-                                    : "transparent",
+                                  backgroundColor:
+                                    positions[selectedField]?.isVisible ===
+                                    false
+                                      ? "#2D6A4F"
+                                      : "transparent",
                                   borderColor: "#2D6A4F",
-                                  color: 
-                                    positions[selectedField]?.isVisible === false
-                                    ? "white"
-                                    : "#2D6A4F"
+                                  color:
+                                    positions[selectedField]?.isVisible ===
+                                    false
+                                      ? "white"
+                                      : "#2D6A4F"
                                 }}
-                                title={positions[selectedField]?.isVisible !== false ? "Hide field" : "Show field"}>
-                                {positions[selectedField]?.isVisible !== false ? (
+                                title={
+                                  positions[selectedField]?.isVisible !== false
+                                    ? "Hide field"
+                                    : "Show field"
+                                }>
+                                {positions[selectedField]?.isVisible !==
+                                false ? (
                                   <Eye className="h-4 w-4" />
                                 ) : (
                                   <EyeOff className="h-4 w-4" />
@@ -2042,16 +2149,21 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                             | "SourceSansPro"
                             | "Nunito"
                             | "GreatVibes";
-                          const newFontCapabilities = FONT_CAPABILITIES[newFontFamily];
-                          
+                          const newFontCapabilities =
+                            FONT_CAPABILITIES[newFontFamily];
+
                           setPositions((prev) => ({
                             ...prev,
                             [selectedField]: {
                               ...prev[selectedField],
                               fontFamily: newFontFamily,
                               // Clear bold/italic if the new font doesn't support them
-                              ...(!newFontCapabilities.bold ? { bold: false } : {}),
-                              ...(!newFontCapabilities.italic ? { italic: false } : {})
+                              ...(!newFontCapabilities.bold
+                                ? { bold: false }
+                                : {}),
+                              ...(!newFontCapabilities.italic
+                                ? { italic: false }
+                                : {})
                             }
                           }));
                         }}
@@ -2318,138 +2430,173 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
           )}
 
           {activeTab === "email" && (
-            <div className="flex flex-col h-full p-6 space-y-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Mail className="h-5 w-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Email Configuration</h3>
-                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                  Column: {detectedEmailColumn}
-                </span>
+            <div className="flex flex-col h-full space-y-6">
+              <div
+                className="flex items-center justify-between p-3 rounded-lg relative"
+                style={{
+                  backgroundColor: "#FFFEF7",
+                  border: "1px solid #dddddd"
+                }}>
+                <h3 className="text-sm">
+                  <span className="text-gray-500 font-normal">Field:</span>{" "}
+                  <span className="font-medium text-gray-900">
+                    {detectedEmailColumn}
+                  </span>
+                </h3>
+                {selectedField && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedField(null);
+                      setShowCenterGuide({
+                        horizontal: false,
+                        vertical: false
+                      });
+                    }}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
-
               {/* Email Settings */}
               <div className="space-y-4">
-                <h4 className="text-sm font-medium text-gray-700">Email Settings</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      From Name
+                    <label className="block text-sm font-medium text-gray-600 mb-1">
+                      From:
                     </label>
                     <input
                       type="text"
                       value={emailConfig.senderName}
                       onChange={(e) => {
                         const newValue = e.target.value;
-                        setEmailConfig(prev => {
+                        setEmailConfig((prev) => {
                           const updated = { ...prev, senderName: newValue };
-                          updated.isConfigured = !!(updated.senderName && updated.subject && updated.message);
+                          updated.isConfigured = !!(
+                            updated.senderName &&
+                            updated.subject &&
+                            updated.message
+                          );
                           return updated;
                         });
                       }}
-                      placeholder="e.g., Dr. Jane Smith"
+                      placeholder="Jane Smith"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Subject Line
+                    <label className="block text-sm font-medium text-gray-600 mb-1">
+                      Subject:
                     </label>
                     <input
                       type="text"
                       value={emailConfig.subject}
                       onChange={(e) => {
                         const newValue = e.target.value;
-                        setEmailConfig(prev => {
+                        setEmailConfig((prev) => {
                           const updated = { ...prev, subject: newValue };
-                          updated.isConfigured = !!(updated.senderName && updated.subject && updated.message);
+                          updated.isConfigured = !!(
+                            updated.senderName &&
+                            updated.subject &&
+                            updated.message
+                          );
                           return updated;
                         });
                       }}
-                      placeholder="e.g., Your Certificate of Completion"
+                      placeholder="Your Certificate of Completion"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Email Message */}
               <div className="space-y-4">
-                <h4 className="text-sm font-medium text-gray-700">Email Message</h4>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Complete Email Message (Plain Text)
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Message (plain text):
                   </label>
-                  <Textarea
+                  <textarea
                     value={emailConfig.message}
                     onChange={(e) => {
                       const newValue = e.target.value;
-                      setEmailConfig(prev => {
+                      setEmailConfig((prev) => {
                         const updated = { ...prev, message: newValue };
-                        updated.isConfigured = !!(updated.senderName && updated.subject && updated.message);
+                        updated.isConfigured = !!(
+                          updated.senderName &&
+                          updated.subject &&
+                          updated.message
+                        );
                         return updated;
                       });
                     }}
-                    placeholder="Hi [Recipient Name],&#10;&#10;Your certificate is ready! Please find it attached.&#10;&#10;Thanks!"
+                    placeholder={`Hi there,\n\nYour certificate is ready! Please find it attached.\n\nThanks!`}
                     rows={6}
-                    className="w-full text-sm resize-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Use [Recipient Name] to automatically insert the recipient&apos;s name
-                  </p>
                 </div>
               </div>
 
               {/* Delivery Method */}
               <div className="space-y-4">
-                <h4 className="text-sm font-medium text-gray-700">Delivery Method</h4>
-                <div className="space-y-3">
-                  <label className="flex items-start gap-3 cursor-pointer">
+                <div className="text-sm text-gray-600">
+                  <p className="font-medium mb-1">Send certificate as:</p>
+                  <label className="inline-flex items-center ml-4 cursor-pointer">
                     <input
                       type="radio"
                       name="deliveryMethod"
                       value="download"
-                      checked={emailConfig.deliveryMethod === 'download'}
-                      onChange={(e) => setEmailConfig(prev => ({ ...prev, deliveryMethod: e.target.value as 'download' | 'attachment' }))}
-                      className="mt-0.5"
+                      checked={emailConfig.deliveryMethod === "download"}
+                      onChange={(e) =>
+                        setEmailConfig((prev) => ({
+                          ...prev,
+                          deliveryMethod: e.target.value as
+                            | "download"
+                            | "attachment"
+                        }))
+                      }
+                      className="mr-2"
                     />
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">Send as download link</div>
-                      <div className="text-xs text-gray-600">
-                        Recipients get a secure link to download their certificate.
-                        <br />
-                        <span className="text-amber-600 font-medium">
-                          Links expire in 90 days for individual certificates
-                        </span>
-                      </div>
-                    </div>
+                    <span className="text-sm text-gray-700">
+                      Download link (expires 90 days)
+                    </span>
                   </label>
-                  <label className="flex items-start gap-3 cursor-pointer">
+                  <label className="inline-flex items-center ml-6 cursor-pointer">
                     <input
                       type="radio"
                       name="deliveryMethod"
                       value="attachment"
-                      checked={emailConfig.deliveryMethod === 'attachment'}
-                      onChange={(e) => setEmailConfig(prev => ({ ...prev, deliveryMethod: e.target.value as 'download' | 'attachment' }))}
-                      className="mt-0.5"
+                      checked={emailConfig.deliveryMethod === "attachment"}
+                      onChange={(e) =>
+                        setEmailConfig((prev) => ({
+                          ...prev,
+                          deliveryMethod: e.target.value as
+                            | "download"
+                            | "attachment"
+                        }))
+                      }
+                      className="mr-2"
                     />
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">Send as PDF attachment</div>
-                      <div className="text-xs text-gray-600">
-                        Certificate PDF is directly attached to the email.
-                        <br />
-                        <span className="text-green-600">Recipients can save immediately, no expiration</span>
-                      </div>
-                    </div>
+                    <span className="text-sm text-gray-700">
+                      PDF attachment
+                    </span>
                   </label>
                 </div>
               </div>
 
               {/* Configuration Status */}
               <div className="mt-6 p-4 rounded-lg border">
-                {emailConfig.senderName && emailConfig.subject && emailConfig.message ? (
+                {emailConfig.senderName &&
+                emailConfig.subject &&
+                emailConfig.message ? (
                   <div className="flex items-center gap-2 text-green-700">
                     <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm font-medium">Email configuration complete</span>
+                    <span className="text-sm">
+                      Email configuration complete.{" "}
+                      <span className="font-medium">
+                        Generate Individual PDFs
+                      </span>{" "}
+                      to send.
+                    </span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 text-amber-700">
@@ -2652,26 +2799,51 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                             {hasEmailColumn && (
                               <Button
                                 size="sm"
-                                variant={emailSendingStatus[index] === 'sent' ? 'default' : 'outline'}
-                                title={
-                                  !emailConfig.isConfigured ? 'Configure email settings in Email tab first' :
-                                  emailSendingStatus[index] === 'sending' ? 'Sending email...' :
-                                  emailSendingStatus[index] === 'sent' ? 'Email sent!' :
-                                  emailSendingStatus[index] === 'error' ? 'Failed to send email' :
-                                  'Send via email'
+                                variant={
+                                  emailSendingStatus[index] === "sent"
+                                    ? "default"
+                                    : "outline"
                                 }
-                                disabled={emailSendingStatus[index] === 'sending' || !emailConfig.isConfigured}
-                                onClick={() => sendCertificateEmail(index, file)}
+                                title={
+                                  !emailConfig.isConfigured
+                                    ? "Configure email settings in Email tab first"
+                                    : emailSendingStatus[index] === "sending"
+                                      ? "Sending email..."
+                                      : emailSendingStatus[index] === "sent"
+                                        ? "Email sent!"
+                                        : emailSendingStatus[index] === "error"
+                                          ? "Failed to send email"
+                                          : "Send via email"
+                                }
+                                disabled={
+                                  emailSendingStatus[index] === "sending" ||
+                                  !emailConfig.isConfigured
+                                }
+                                onClick={() =>
+                                  sendCertificateEmail(index, file)
+                                }
                                 className="h-8 w-8 p-0"
                                 style={{
-                                  backgroundColor: emailSendingStatus[index] === 'sent' ? '#2D6A4F' : 
-                                                 emailSendingStatus[index] === 'error' ? '#dc2626' : 'transparent',
-                                  borderColor: emailSendingStatus[index] === 'sent' ? '#2D6A4F' : 
-                                             emailSendingStatus[index] === 'error' ? '#dc2626' : '#2D6A4F',
-                                  color: emailSendingStatus[index] === 'sent' ? 'white' : 
-                                        emailSendingStatus[index] === 'error' ? 'white' : '#2D6A4F'
+                                  backgroundColor:
+                                    emailSendingStatus[index] === "sent"
+                                      ? "#2D6A4F"
+                                      : emailSendingStatus[index] === "error"
+                                        ? "#dc2626"
+                                        : "transparent",
+                                  borderColor:
+                                    emailSendingStatus[index] === "sent"
+                                      ? "#2D6A4F"
+                                      : emailSendingStatus[index] === "error"
+                                        ? "#dc2626"
+                                        : "#2D6A4F",
+                                  color:
+                                    emailSendingStatus[index] === "sent"
+                                      ? "white"
+                                      : emailSendingStatus[index] === "error"
+                                        ? "white"
+                                        : "#2D6A4F"
                                 }}>
-                                {emailSendingStatus[index] === 'sending' ? (
+                                {emailSendingStatus[index] === "sending" ? (
                                   <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                                 ) : (
                                   <Mail className="h-4 w-4" />
@@ -2829,7 +3001,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
               Reset Field Formatting
             </h2>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to reset the formatting for &quot;{selectedField}&quot; to default settings?
+              Are you sure you want to reset the formatting for &quot;
+              {selectedField}&quot; to default settings?
             </p>
             <div className="flex gap-3 justify-end">
               <Button
