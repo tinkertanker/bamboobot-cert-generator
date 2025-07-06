@@ -11,7 +11,8 @@ interface BulkEmailModalProps {
     senderName: string;
     subject: string;
     message: string;
-    sendMethod: 'link' | 'attachment';
+    deliveryMethod: 'download' | 'attachment';
+    isConfigured: boolean;
   };
   certificates: Array<{
     email: string;
@@ -88,10 +89,10 @@ export function BulkEmailModal({
         to: cert.email,
         from: emailConfig.senderName || 'Certificate Generator',
         subject: emailConfig.subject,
-        html: emailConfig.sendMethod === 'link' 
+        html: emailConfig.deliveryMethod === 'download' 
           ? buildLinkEmail(emailConfig.message, cert.downloadUrl)
           : buildAttachmentEmail(emailConfig.message),
-        attachments: emailConfig.sendMethod === 'attachment' 
+        attachments: emailConfig.deliveryMethod === 'attachment' 
           ? [{ filename: cert.fileName, path: cert.downloadUrl }]
           : undefined
       }));
