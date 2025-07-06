@@ -4,6 +4,8 @@ import { useState, useMemo, ChangeEvent, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { ActionButton } from "@/components/ui/action-button";
+import { Modal, ModalHeader, ModalTitle, ModalContent, ModalFooter } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import Spinner from "@/components/Spinner";
 import {
@@ -15,6 +17,8 @@ import {
   Cell
 } from "react-table";
 import { saveAs } from "file-saver";
+import { DEFAULT_FONT_SIZE, FONT_CAPABILITIES } from "@/utils/constants";
+import { measureText } from "@/utils/textMeasurement";
 import {
   ExternalLink,
   Mail,
@@ -64,21 +68,6 @@ interface Positions {
   [key: string]: Position;
 }
 
-const DEFAULT_FONT_SIZE = 24;
-
-// Font capabilities configuration
-const FONT_CAPABILITIES = {
-  Helvetica: { bold: true, italic: true },
-  Times: { bold: true, italic: true },
-  Courier: { bold: true, italic: true },
-  Montserrat: { bold: true, italic: false }, // Has bold but no italic files
-  Poppins: { bold: true, italic: true }, // Complete font family - geometric with personality
-  WorkSans: { bold: true, italic: true }, // Complete font family - clean with character
-  Roboto: { bold: true, italic: true }, // Google's flagship - excellent kerning
-  SourceSansPro: { bold: true, italic: true }, // Adobe's masterpiece - professional typography
-  Nunito: { bold: true, italic: true }, // Friendly rounded - good spacing
-  GreatVibes: { bold: false, italic: false } // Elegant script - single weight only
-} as const;
 
 export default function MainPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -148,28 +137,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
     vertical: boolean;
   }>({ horizontal: false, vertical: false });
 
-  // Text measurement utility for consistent sizing
-  const measureText = useCallback(
-    (
-      text: string,
-      fontSize: number,
-      fontWeight: string = "500",
-      fontFamily: string = "system-ui, sans-serif"
-    ) => {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d")!;
-      ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-      const metrics = ctx.measureText(text);
-      return {
-        width: metrics.width,
-        height: fontSize, // Approximate height - could use actualBoundingBoxAscent + actualBoundingBoxDescent for precision
-        actualHeight:
-          (metrics.actualBoundingBoxAscent || fontSize * 0.8) +
-          (metrics.actualBoundingBoxDescent || fontSize * 0.2)
-      };
-    },
-    []
-  );
 
   // Global pointer event handlers for smooth dragging
   useEffect(() => {
@@ -1161,7 +1128,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
             </div>
           </div>
           <div className="flex gap-2">
-            <Button
+            <ActionButton
               onClick={generatePdf}
               disabled={
                 !uploadedFile ||
@@ -1169,53 +1136,12 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 isGeneratingIndividual ||
                 tableData.length === 0
               }
-              className="text-white font-semibold px-6"
-              style={{
-                background:
-                  !uploadedFile ||
-                  isGenerating ||
-                  isGeneratingIndividual ||
-                  tableData.length === 0
-                    ? "linear-gradient(135deg, #6B7280 0%, #9CA3AF 100%)"
-                    : "linear-gradient(135deg, #E76F51 0%, #F4A261 100%)",
-                borderColor: "#E76F51",
-                boxShadow:
-                  !uploadedFile ||
-                  isGenerating ||
-                  isGeneratingIndividual ||
-                  tableData.length === 0
-                    ? "0 2px 4px rgba(107, 114, 128, 0.2)"
-                    : "0 2px 4px rgba(231, 111, 81, 0.2)"
-              }}
-              onMouseOver={(e) => {
-                if (
-                  !(
-                    !uploadedFile ||
-                    isGenerating ||
-                    isGeneratingIndividual ||
-                    tableData.length === 0
-                  )
-                ) {
-                  e.currentTarget.style.background =
-                    "linear-gradient(135deg, #D65A3A 0%, #E76F51 100%)";
-                }
-              }}
-              onMouseOut={(e) => {
-                if (
-                  !(
-                    !uploadedFile ||
-                    isGenerating ||
-                    isGeneratingIndividual ||
-                    tableData.length === 0
-                  )
-                ) {
-                  e.currentTarget.style.background =
-                    "linear-gradient(135deg, #E76F51 0%, #F4A261 100%)";
-                }
-              }}>
+              gradient
+              gradientType="coral"
+              className="font-semibold px-6">
               {isGenerating ? "Generating..." : "Generate PDF"}
-            </Button>
-            <Button
+            </ActionButton>
+            <ActionButton
               onClick={generateIndividualPdfs}
               disabled={
                 !uploadedFile ||
@@ -1223,54 +1149,13 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 isGeneratingIndividual ||
                 tableData.length === 0
               }
-              className="text-white font-semibold px-6"
-              style={{
-                background:
-                  !uploadedFile ||
-                  isGenerating ||
-                  isGeneratingIndividual ||
-                  tableData.length === 0
-                    ? "linear-gradient(135deg, #6B7280 0%, #9CA3AF 100%)"
-                    : "linear-gradient(135deg, #E76F51 0%, #F4A261 100%)",
-                borderColor: "#E76F51",
-                boxShadow:
-                  !uploadedFile ||
-                  isGenerating ||
-                  isGeneratingIndividual ||
-                  tableData.length === 0
-                    ? "0 2px 4px rgba(107, 114, 128, 0.2)"
-                    : "0 2px 4px rgba(231, 111, 81, 0.2)"
-              }}
-              onMouseOver={(e) => {
-                if (
-                  !(
-                    !uploadedFile ||
-                    isGenerating ||
-                    isGeneratingIndividual ||
-                    tableData.length === 0
-                  )
-                ) {
-                  e.currentTarget.style.background =
-                    "linear-gradient(135deg, #D65A3A 0%, #E76F51 100%)";
-                }
-              }}
-              onMouseOut={(e) => {
-                if (
-                  !(
-                    !uploadedFile ||
-                    isGenerating ||
-                    isGeneratingIndividual ||
-                    tableData.length === 0
-                  )
-                ) {
-                  e.currentTarget.style.background =
-                    "linear-gradient(135deg, #E76F51 0%, #F4A261 100%)";
-                }
-              }}>
+              gradient
+              gradientType="coral"
+              className="font-semibold px-6">
               {isGeneratingIndividual
                 ? "Generating..."
                 : "Generate Individual PDFs"}
-            </Button>
+            </ActionButton>
           </div>
         </div>
       </header>
@@ -1616,7 +1501,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
             <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
               <div className="flex justify-between items-center">
                 <div className="flex gap-2">
-                  <Button
+                  <ActionButton
                     onClick={() => {
                       setUploadedFileUrl(null);
                       setUploadedFile(null);
@@ -1626,24 +1511,10 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                     }}
                     variant="outline"
                     size="sm"
-                    className="text-white"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)",
-                      borderColor: "#1B4332",
-                      boxShadow: "0 1px 3px rgba(27, 67, 50, 0.2)",
-                      color: "#FFFFFF"
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.background =
-                        "linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.background =
-                        "linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)";
-                    }}>
+                    gradient
+                    gradientType="primary">
                     Clear Template
-                  </Button>
+                  </ActionButton>
                 </div>
 
                 {/* Arrow key hint - center aligned */}
@@ -2173,7 +2044,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                       type="range"
                       min="8"
                       max="72"
-                      value={positions[selectedField]?.fontSize || 24}
+                      value={positions[selectedField]?.fontSize || DEFAULT_FONT_SIZE}
                       onChange={(e) => {
                         const newFontSize = parseInt(e.target.value);
                         setPositions((prev) => ({
@@ -2309,7 +2180,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
 
                   {/* Apply to All Button - More prominent placement */}
                   <div>
-                    <button
+                    <ActionButton
                       onClick={() => {
                         const currentFormatting = positions[selectedField];
                         if (currentFormatting && tableData.length > 0) {
@@ -2334,25 +2205,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                         }
                       }}
                       title="Apply this field's formatting to all fields"
-                      className="w-full px-4 py-2 text-sm font-medium text-white rounded-md transition-all duration-200 shadow hover:shadow-md"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)",
-                        boxShadow: "0 2px 4px rgba(27, 67, 50, 0.2)",
-                        color: "#FFFFFF"
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.background =
-                          "linear-gradient(135deg, #2D6A4F 0%, #40916C 100%)";
-                        e.currentTarget.style.transform = "translateY(-1px)";
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.background =
-                          "linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)";
-                        e.currentTarget.style.transform = "translateY(0)";
-                      }}>
+                      gradient
+                      gradientType="primary"
+                      className="w-full px-4 py-2 text-sm font-medium">
                       Apply Formatting to All Fields
-                    </button>
+                    </ActionButton>
                   </div>
 
                   {/* Success message */}
@@ -2621,25 +2478,12 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                   />
                 </div>
                 <div className="flex justify-end space-x-4">
-                  <Button
+                  <ActionButton
                     onClick={handleDownloadPdf}
-                    className="text-white"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, #E76F51 0%, #F4A261 100%)",
-                      borderColor: "#E76F51",
-                      boxShadow: "0 2px 4px rgba(231, 111, 81, 0.2)"
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.background =
-                        "linear-gradient(135deg, #F4A261 0%, #E9C46A 100%)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.background =
-                        "linear-gradient(135deg, #E76F51 0%, #F4A261 100%)";
-                    }}>
+                    gradient
+                    gradientType="coral">
                     Download PDF
-                  </Button>
+                  </ActionButton>
                   <Button
                     onClick={() => setGeneratedPdfUrl(null)}
                     variant="outline"
@@ -2663,18 +2507,17 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
       )}
 
       {/* Individual PDFs Modal */}
-      {(isGeneratingIndividual || individualPdfsData) && (
-        <div
-          className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center"
-          onClick={() => {
-            if (!isGeneratingIndividual) {
-              setIndividualPdfsData(null);
-              setSelectedNamingColumn("");
-            }
-          }}>
-          <div
-            className="relative bg-white bg-opacity-100 w-3/4 max-w-6xl mx-auto rounded-lg shadow-xl p-6 border border-gray-200"
-            onClick={(e) => e.stopPropagation()}>
+      <Modal
+        open={isGeneratingIndividual || !!individualPdfsData}
+        onClose={() => {
+          if (!isGeneratingIndividual) {
+            setIndividualPdfsData(null);
+            setSelectedNamingColumn("");
+          }
+        }}
+        closeOnBackdropClick={!isGeneratingIndividual}
+        width="w-3/4 max-w-6xl"
+        className="h-auto max-h-[90vh] overflow-y-auto">
             {isGeneratingIndividual ? (
               <div className="flex flex-col items-center justify-center h-64">
                 <Spinner />
@@ -2845,7 +2688,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 {/* Action Buttons */}
                 <div className="flex justify-between">
                   <div className="flex gap-2">
-                    <Button
+                    <ActionButton
                       onClick={async () => {
                         try {
                           // Create a list of files with their custom names
@@ -2914,24 +2757,12 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                           alert("Failed to create ZIP file. Please try again.");
                         }
                       }}
-                      className="text-white flex items-center gap-2"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, #E76F51 0%, #F4A261 100%)",
-                        borderColor: "#E76F51",
-                        boxShadow: "0 2px 4px rgba(231, 111, 81, 0.2)"
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.background =
-                          "linear-gradient(135deg, #F4A261 0%, #E9C46A 100%)";
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.background =
-                          "linear-gradient(135deg, #E76F51 0%, #F4A261 100%)";
-                      }}>
+                      gradient
+                      gradientType="coral"
+                      className="flex items-center gap-2">
                       <Download className="h-4 w-4" />
                       Download All (ZIP)
-                    </Button>
+                    </ActionButton>
                     {hasEmailColumn && (
                       <Button
                         onClick={() => {
@@ -2970,114 +2801,102 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
                 </div>
               </>
             ) : null}
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Reset Field Confirmation Modal */}
-      {showResetFieldModal && selectedField && (
-        <div
-          className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center"
-          onClick={() => setShowResetFieldModal(false)}>
-          <div
-            className="relative bg-white bg-opacity-100 w-96 mx-auto rounded-lg shadow-xl p-6 border border-gray-200"
-            onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold mb-4">
-              Reset Field Formatting
-            </h2>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to reset the formatting for &quot;
-              {selectedField}&quot; to default settings?
-            </p>
-            <div className="flex gap-3 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setShowResetFieldModal(false)}
-                className="px-4 py-2">
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  if (selectedField && positions[selectedField]) {
-                    setPositions((prev) => ({
-                      ...prev,
-                      [selectedField]: {
-                        ...prev[selectedField],
-                        fontSize: DEFAULT_FONT_SIZE,
-                        fontFamily: "Helvetica",
-                        bold: false,
-                        italic: false,
-                        color: "#000000",
-                        alignment: "left"
-                      }
-                    }));
+      <Modal
+        open={showResetFieldModal && !!selectedField}
+        onClose={() => setShowResetFieldModal(false)}>
+        <ModalHeader>
+          <ModalTitle>Reset Field Formatting</ModalTitle>
+        </ModalHeader>
+        <ModalContent>
+          Are you sure you want to reset the formatting for &quot;
+          {selectedField}&quot; to default settings?
+        </ModalContent>
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => setShowResetFieldModal(false)}
+            className="px-4 py-2">
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              if (selectedField && positions[selectedField]) {
+                setPositions((prev) => ({
+                  ...prev,
+                  [selectedField]: {
+                    ...prev[selectedField],
+                    fontSize: DEFAULT_FONT_SIZE,
+                    fontFamily: "Helvetica",
+                    bold: false,
+                    italic: false,
+                    color: "#000000",
+                    alignment: "left"
                   }
-                  setShowResetFieldModal(false);
-                }}
-                className="px-4 py-2"
-                style={{
-                  backgroundColor: "#6B7280",
-                  color: "white"
-                }}>
-                Reset
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+                }));
+              }
+              setShowResetFieldModal(false);
+            }}
+            className="px-4 py-2"
+            style={{
+              backgroundColor: "#6B7280",
+              color: "white"
+            }}>
+            Reset
+          </Button>
+        </ModalFooter>
+      </Modal>
 
       {/* Clear All Formatting Confirmation Modal */}
-      {showClearAllModal && (
-        <div
-          className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center"
-          onClick={() => setShowClearAllModal(false)}>
-          <div
-            className="relative bg-white bg-opacity-100 w-96 mx-auto rounded-lg shadow-xl p-6 border border-gray-200"
-            onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold mb-4">Clear All Formatting</h2>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to reset all text fields to default
-              formatting? This action cannot be undone.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setShowClearAllModal(false)}
-                className="px-4 py-2">
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  if (tableData.length > 0) {
-                    const updatedPositions = { ...positions };
-                    Object.keys(tableData[0]).forEach((key) => {
-                      if (updatedPositions[key]) {
-                        updatedPositions[key] = {
-                          ...updatedPositions[key],
-                          fontSize: DEFAULT_FONT_SIZE,
-                          fontFamily: "Helvetica",
-                          bold: false,
-                          italic: false,
-                          color: "#000000",
-                          alignment: "left"
-                        };
-                      }
-                    });
-                    setPositions(updatedPositions);
+      <Modal
+        open={showClearAllModal}
+        onClose={() => setShowClearAllModal(false)}>
+        <ModalHeader>
+          <ModalTitle>Clear All Formatting</ModalTitle>
+        </ModalHeader>
+        <ModalContent>
+          Are you sure you want to reset all text fields to default
+          formatting? This action cannot be undone.
+        </ModalContent>
+        <ModalFooter>
+          <Button
+            variant="outline"
+            onClick={() => setShowClearAllModal(false)}
+            className="px-4 py-2">
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              if (tableData.length > 0) {
+                const updatedPositions = { ...positions };
+                Object.keys(tableData[0]).forEach((key) => {
+                  if (updatedPositions[key]) {
+                    updatedPositions[key] = {
+                      ...updatedPositions[key],
+                      fontSize: DEFAULT_FONT_SIZE,
+                      fontFamily: "Helvetica",
+                      bold: false,
+                      italic: false,
+                      color: "#000000",
+                      alignment: "left"
+                    };
                   }
-                  setShowClearAllModal(false);
-                }}
-                className="px-4 py-2"
-                style={{
-                  backgroundColor: "#DC2626",
-                  color: "white"
-                }}>
-                Clear All
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+                });
+                setPositions(updatedPositions);
+              }
+              setShowClearAllModal(false);
+            }}
+            className="px-4 py-2"
+            style={{
+              backgroundColor: "#DC2626",
+              color: "white"
+            }}>
+            Clear All
+          </Button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 }
