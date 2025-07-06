@@ -29,6 +29,7 @@ export function IndividualPdfsModal({
   sendCertificateEmail,
   setIndividualPdfsData,
   onClose,
+  detectedEmailColumn,
   progress,
   total
 }: IndividualPdfsModalProps & { progress?: number; total?: number }) {
@@ -134,16 +135,28 @@ export function IndividualPdfsModal({
                   duplicateCount > 0
                     ? `${sanitizedFilename}-${duplicateCount}.pdf`
                     : `${sanitizedFilename}.pdf`;
+                
+                // Get email from the detected email column
+                const emailAddress = detectedEmailColumn && tableData[index] 
+                  ? tableData[index][detectedEmailColumn] || ''
+                  : '';
 
                 return (
                   <div
                     key={index}
                     className="flex items-center justify-between p-2 bg-white rounded border border-gray-200">
-                    <span className="flex items-center gap-2">
+                    <span className="flex items-center gap-2 flex-1">
                       <Check className="h-4 w-4 text-green-600" />
-                      <span className="font-mono text-sm">
-                        {filename}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="font-mono text-sm">
+                          {filename}
+                        </span>
+                        {hasEmailColumn && emailAddress && (
+                          <span className="text-xs text-gray-500">
+                            → {emailAddress}
+                          </span>
+                        )}
+                      </div>
                     </span>
                     <div className="flex gap-2">
                       <Button
@@ -354,7 +367,9 @@ export function IndividualPdfsModal({
               totalEmails={individualPdfsData.length}
               emailConfig={emailConfig}
               certificates={individualPdfsData.map((file, index) => {
-                const email = tableData[index]?.email || '';
+                const email = detectedEmailColumn && tableData[index] 
+                  ? tableData[index][detectedEmailColumn] || ''
+                  : '';
                 const baseFilename =
                   tableData[index] && selectedNamingColumn
                     ? tableData[index][selectedNamingColumn] || `Certificate-${index + 1}`

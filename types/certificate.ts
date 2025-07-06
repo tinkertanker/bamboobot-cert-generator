@@ -133,6 +133,7 @@ export interface IndividualPdfsModalProps extends BaseModalProps {
   emailConfig: EmailConfig;
   sendCertificateEmail: (index: number, file: PdfFile) => Promise<void>;
   setIndividualPdfsData: (data: PdfFile[] | null) => void;
+  detectedEmailColumn: string | null;
 }
 
 export interface ConfirmationModalsProps {

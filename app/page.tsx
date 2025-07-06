@@ -574,6 +574,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLO
         emailConfig={emailConfig}
         sendCertificateEmail={sendCertificateEmail}
         setIndividualPdfsData={setIndividualPdfsData}
+        detectedEmailColumn={detectedEmailColumn}
         onClose={() => {
           setIndividualPdfsData(null);
           setSelectedNamingColumn("");

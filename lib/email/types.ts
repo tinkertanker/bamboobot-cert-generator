@@ -72,4 +72,6 @@ export interface BulkEmailProgress {
   failed: number;
   remaining: number;
   estimatedTimeRemaining?: number; // in seconds
+  currentEmail?: string;
+  currentIndex?: number;
 }

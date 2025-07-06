@@ -98,7 +98,8 @@ export class EmailQueueManager {
     this.queue.rateLimit = this.provider.getRateLimit();
 
     // Find next pending item
-    const pendingItem = this.queue.items.find(item => item.status === 'pending');
+    const pendingItemIndex = this.queue.items.findIndex(item => item.status === 'pending');
+    const pendingItem = pendingItemIndex >= 0 ? this.queue.items[pendingItemIndex] : null;
     
     if (!pendingItem) {
       // No more items to process
@@ -123,6 +124,9 @@ export class EmailQueueManager {
     // Process the item
     pendingItem.status = 'sending';
     pendingItem.attempts++;
+    
+    // Update current email in status
+    this.reportProgress(pendingItem.to, pendingItemIndex);
     
     try {
       await this.sendEmail(pendingItem);
@@ -238,7 +242,7 @@ export class EmailQueueManager {
   /**
    * Report progress
    */
-  private reportProgress(): void {
+  private reportProgress(currentEmail?: string, currentIndex?: number): void {
     if (!this.onProgress) return;
 
     const total = this.queue.items.length;
@@ -253,7 +257,9 @@ export class EmailQueueManager {
       sent,
       failed,
       remaining,
-      estimatedTimeRemaining
+      estimatedTimeRemaining,
+      currentEmail,
+      currentIndex
     });
   }
 
@@ -318,9 +324,13 @@ export class EmailQueueManager {
       remaining: number;
       resetIn: number;
     };
+    currentEmail?: string;
+    currentIndex?: number;
   } {
     const remaining = this.queue.items.filter(i => i.status === 'pending').length;
     const resetIn = Math.max(0, this.queue.rateLimit.reset.getTime() - Date.now());
+    const sendingItem = this.queue.items.find(i => i.status === 'sending');
+    const sendingIndex = sendingItem ? this.queue.items.indexOf(sendingItem) : undefined;
     
     return {
       status: this.queue.status,
@@ -333,7 +343,9 @@ export class EmailQueueManager {
         limit: this.queue.rateLimit.limit,
         remaining: this.queue.rateLimit.remaining,
         resetIn
-      }
+      },
+      currentEmail: sendingItem?.to,
+      currentIndex: sendingIndex
     };
   }
 }

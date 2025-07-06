@@ -34,6 +34,7 @@ interface EmailStatus {
     resetIn: number;
   };
   currentEmail?: string;
+  currentIndex?: number;
   error?: string;
 }
 
@@ -155,6 +156,25 @@ export function BulkEmailModal({
         </h3>
 
         <div className="space-y-4">
+          {/* Email Preview */}
+          {status.status === 'idle' && !isStarted && (
+            <div className="bg-blue-50 border border-blue-200 rounded p-3">
+              <p className="text-sm font-medium text-blue-900 mb-2">
+                Ready to send {totalEmails} emails:
+              </p>
+              <div className="max-h-32 overflow-y-auto">
+                <ul className="text-xs text-blue-700 space-y-1">
+                  {certificates.slice(0, 5).map((cert, idx) => (
+                    <li key={idx}>• {cert.email}</li>
+                  ))}
+                  {totalEmails > 5 && (
+                    <li className="text-blue-600 italic">... and {totalEmails - 5} more</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+          )}
+
           {/* Progress */}
           <div>
             <Progress 
@@ -176,6 +196,14 @@ export function BulkEmailModal({
               <span>Status:</span>
               <span className="font-medium capitalize">{status.status}</span>
             </div>
+            {status.currentEmail && status.status === 'processing' && (
+              <div className="flex justify-between">
+                <span>Sending to:</span>
+                <span className="font-medium text-sm truncate max-w-[200px]">
+                  {status.currentEmail}
+                </span>
+              </div>
+            )}
             {status.processed > 0 && status.remaining > 0 && startTime > 0 && (
               <div className="flex justify-between">
                 <span>Speed:</span>
