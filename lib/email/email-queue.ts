@@ -221,7 +221,7 @@ export class EmailQueueManager {
     const downloadUrl = item.certificateUrl;
     
     const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="font-family: Arial, sans-serif;">
         <h2>Your Certificate is Ready!</h2>
         <p>Thank you for participating. Your certificate is now available for download.</p>
         <p style="margin: 30px 0;">

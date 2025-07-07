@@ -313,7 +313,7 @@ export function BulkEmailModal({
 
 function buildLinkEmail(message: string, downloadUrl: string): string {
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="font-family: Arial, sans-serif;">
       <div style="white-space: pre-wrap;">${message}</div>
       <p style="margin: 30px 0;">
         <a href="${downloadUrl}" 
@@ -331,7 +331,7 @@ function buildLinkEmail(message: string, downloadUrl: string): string {
 
 function buildAttachmentEmail(message: string): string {
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="font-family: Arial, sans-serif;">
       <div style="white-space: pre-wrap;">${message}</div>
       <p style="color: #666; font-size: 14px; margin-top: 20px;">
         Your certificate is attached to this email.

@@ -64,7 +64,7 @@ export default async function handler(
       to: [to],
       subject: subject,
       html: deliveryMethod === 'download' ? `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="font-family: Arial, sans-serif;">
           <div style="white-space: pre-line; margin: 20px 0;">${customMessage}</div>
           <div style="text-align: center; margin: 30px 0;">
             <a href="${downloadUrl}" style="background-color: #2D6A4F; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">Download Certificate</a>
@@ -74,7 +74,7 @@ export default async function handler(
           </p>
         </div>
       ` : `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="font-family: Arial, sans-serif;">
           <div style="white-space: pre-line; margin: 20px 0;">${customMessage}</div>
         </div>
       `,
