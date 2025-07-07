@@ -2,19 +2,22 @@
 // This file prepares for future cloud storage integration
 
 import { uploadToR2, getPublicUrl, isR2Configured } from './r2-client';
+import { uploadToS3, getS3PublicUrl, isS3Configured } from './s3-client';
 
 export const storageConfig = {
   // Check if R2 is configured
   isR2Enabled: isR2Configured() && process.env.STORAGE_PROVIDER === 'cloudflare-r2',
   
+  // Check if S3 is configured
+  isS3Enabled: isS3Configured() && process.env.STORAGE_PROVIDER === 'amazon-s3',
+  
   isDevelopment: process.env.NODE_ENV === 'development',
   
-  // Future cloud storage configuration
+  // Cloud storage configuration
   cloudStorage: {
-    provider: process.env.STORAGE_PROVIDER || 'local', // 'local' | 's3' | 'cloudflare-r2' | 'gcs'
-    bucket: process.env.STORAGE_BUCKET || '',
-    region: process.env.STORAGE_REGION || '',
-    // Add more cloud-specific config here
+    provider: process.env.STORAGE_PROVIDER || 'local', // 'local' | 'amazon-s3' | 'cloudflare-r2'
+    bucket: process.env.S3_BUCKET_NAME || process.env.R2_BUCKET_NAME || '',
+    region: process.env.S3_REGION || 'auto',
   },
   
   // Maximum file size for API responses (in bytes)
@@ -31,15 +34,20 @@ export const storageConfig = {
     
     // In production, check storage provider
     switch (process.env.STORAGE_PROVIDER) {
-      case 's3':
-        // Future: Return S3 URL or CloudFront URL
-        return `https://${process.env.CDN_URL}/${type}/${path}`;
+      case 'amazon-s3':
+        // Return S3 URL or CloudFront URL
+        if (process.env.S3_CLOUDFRONT_URL) {
+          return `${process.env.S3_CLOUDFRONT_URL}/${type}/${path}`;
+        }
+        // Fallback to API route for signed URLs
+        return `/api/files/${type}/${path}`;
       case 'cloudflare-r2':
-        // Future: Return R2 public URL
-        return `https://${process.env.R2_PUBLIC_URL}/${type}/${path}`;
-      case 'gcs':
-        // Future: Return Google Cloud Storage URL
-        return `https://storage.googleapis.com/${process.env.STORAGE_BUCKET}/${type}/${path}`;
+        // Return R2 public URL if configured
+        if (process.env.R2_PUBLIC_URL) {
+          return `${process.env.R2_PUBLIC_URL}/${type}/${path}`;
+        }
+        // Fallback to API route for signed URLs
+        return `/api/files/${type}/${path}`;
       default:
         // Fallback to API route (current behavior)
         return `/api/files/${type}/${path}`;
@@ -52,11 +60,14 @@ export const storageConfig = {
     if (storageConfig.isR2Enabled) {
       return await getPublicUrl(filename);
     }
+    if (storageConfig.isS3Enabled) {
+      return await getS3PublicUrl(filename);
+    }
     // Fallback for local storage
     return storageConfig.getFileUrl(filename);
   },
   
-  // Upload file to storage (R2 or local)
+  // Upload file to storage (R2, S3 or local)
   uploadFile: async (
     buffer: Buffer, 
     filename: string, 
@@ -64,11 +75,18 @@ export const storageConfig = {
     contentType?: string,
     metadata?: Parameters<typeof uploadToR2>[4]
   ): Promise<string> => {
+    const key = `${type}/${filename}`;
+    
     if (storageConfig.isR2Enabled) {
-      const key = `${type}/${filename}`;
       const result = await uploadToR2(buffer, key, contentType, filename, metadata);
       return result.url;
     }
+    
+    if (storageConfig.isS3Enabled) {
+      const result = await uploadToS3(buffer, key, contentType, filename, metadata);
+      return result.url;
+    }
+    
     // For local storage, caller should handle file writing
     return storageConfig.getFileUrl(filename, undefined, type);
   }

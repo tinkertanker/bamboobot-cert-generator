@@ -53,9 +53,27 @@ docker-compose up -d
 - Works out of the box, no configuration needed
 - Files stored in `public/` directory
 
-**Cloudflare R2 (Recommended for Production)**
+**Cloud Storage Options:**
+
+**Cloudflare R2**
 - Global CDN delivery, zero bandwidth costs
-- Copy `.env.example` to `.env.local` and configure R2 credentials
+- No egress fees
+- S3-compatible API
+
+**Amazon S3**
+- Industry standard cloud storage
+- Optional CloudFront CDN integration
+- Flexible retention policies
+
+Configure storage in `.env.local`:
+```bash
+# Choose one:
+STORAGE_PROVIDER=local         # Default
+STORAGE_PROVIDER=cloudflare-r2 # Cloudflare R2
+STORAGE_PROVIDER=amazon-s3     # Amazon S3
+```
+
+See `.env.example` for full configuration details
 
 ### Email Configuration (Resend)
 

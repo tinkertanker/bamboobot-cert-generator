@@ -222,25 +222,28 @@ npm test -- __tests__/components/Button.test.tsx
   - ✅ Eliminates 4MB API response limit warnings
   - ✅ Future-ready storage configuration system
   - ✅ Fixed ZIP download for both URL formats
-- **Cloudflare R2 Cloud Storage** (COMPLETED)
-  - ✅ Complete R2 bucket setup with S3-compatible API
-  - ✅ Hybrid storage: templates local, outputs to R2 cloud
-  - ✅ Signed URLs with 24-hour expiration for security
+- **Cloud Storage Support** (COMPLETED)
+  - ✅ **Multi-provider support**: Cloudflare R2 and Amazon S3
+  - ✅ Auto-detect provider based on environment configuration
+  - ✅ Hybrid storage: templates local, outputs to cloud
+  - ✅ Signed URLs with configurable expiration for security
   - ✅ Force-download API for proper file downloads
-  - ✅ ZIP downloads fetch from R2 and stream to client
+  - ✅ ZIP downloads fetch from cloud and stream to client
   - ✅ Preview vs download URL separation for optimal UX
-  - ✅ Global CDN delivery through Cloudflare network
-  - ✅ Zero egress fees and no API response size limits
+  - ✅ CDN support: Cloudflare (R2) and CloudFront (S3)
+  - ✅ Zero egress fees (R2) and standard AWS pricing (S3)
   - ✅ Environment configuration with .env.example
-  - ✅ R2 connection testing scripts
-- **R2 Lifecycle Management** (COMPLETED)
+  - ✅ Connection testing scripts for both providers
+- **Cloud Storage Lifecycle Management** (COMPLETED)
   - ✅ Metadata-based retention policies (24h, 7d, 90d, permanent)
   - ✅ Smart file type detection from path patterns
   - ✅ Email-aware retention extension (markAsEmailed function)
-  - ✅ Cleanup API endpoint with authentication
-  - ✅ Manual cleanup script for cron jobs
-  - ✅ Test script for dry-run previews
+  - ✅ Unified cleanup API endpoint with authentication
+  - ✅ Provider-specific cleanup implementations
+  - ✅ Manual cleanup scripts for cron jobs
+  - ✅ Test scripts for dry-run previews
   - ✅ Flexible metadata tracking for future features
+  - ✅ Identical retention policies across R2 and S3
 
 - **Email functionality** (COMPLETED)
   - ✅ Resend integration for certificate delivery
