@@ -104,7 +104,7 @@ export class EmailQueueManager {
     
     if (!pendingItem) {
       // No more items to process
-      this.queue.status = 'idle';
+      this.queue.status = this.queue.items.length > 0 ? 'completed' : 'idle';
       this.reportProgress();
       return;
     }
@@ -329,7 +329,7 @@ export class EmailQueueManager {
    * Get full status including rate limit info
    */
   getStatus(): {
-    status: 'idle' | 'processing' | 'paused';
+    status: 'idle' | 'processing' | 'paused' | 'completed';
     processed: number;
     failed: number;
     total: number;

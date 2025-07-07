@@ -59,7 +59,7 @@ export interface EmailQueueItem {
 
 export interface EmailQueue {
   items: EmailQueueItem[];
-  status: 'idle' | 'processing' | 'paused';
+  status: 'idle' | 'processing' | 'paused' | 'completed';
   processed: number;
   failed: number;
   provider: 'resend' | 'ses';

@@ -70,7 +70,7 @@ export function BulkEmailModal({
           setStatus(prev => ({
             ...prev,
             ...data,
-            status: data.remaining === 0 && data.processed > 0 ? 'completed' : data.status
+            status: data.remaining === 0 && (data.processed + data.failed) === data.total && data.total > 0 ? 'completed' : data.status
           }));
         }
       } catch (error) {
@@ -146,7 +146,7 @@ export function BulkEmailModal({
   };
 
 
-  const progress = status.total > 0 ? (status.processed / status.total) * 100 : 0;
+  const progress = status.total > 0 ? ((status.processed + status.failed) / status.total) * 100 : 0;
 
   if (!open) return null;
 
@@ -182,7 +182,7 @@ export function BulkEmailModal({
             <Progress 
               value={progress} 
               max={100}
-              label={`${status.processed} of ${status.total} sent`}
+              label={`${status.processed + status.failed} of ${status.total} processed (${status.processed} sent${status.failed > 0 ? `, ${status.failed} failed` : ''})`}
               showPercentage
             />
             {status.failed > 0 && (
