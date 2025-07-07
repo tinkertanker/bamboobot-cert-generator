@@ -102,6 +102,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
 
   // Switch away from email tab if no email column detected
   useEffect(() => {
+    console.log("👀 Email tab visibility check - detectedEmailColumn:", detectedEmailColumn, "activeTab:", activeTab);
     if (!detectedEmailColumn && activeTab === "email") {
       setActiveTab("data");
     }
@@ -204,12 +205,16 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
     setDevMode((prev) => {
       const newValue = !prev;
       if (newValue) {
+        console.log("🔧 Dev Mode: Enabling...");
+        
         // Enable dev mode: load preset data and template
+        console.log("🔧 Dev Mode: Loading preset data...");
         loadPresetData(presetCSVData);
 
         // Set the uploaded file URL to the preset image (only in dev)
         if (isDevelopment) {
           const presetImageUrl = "/temp_images/certificate-template.png";
+          console.log("🔧 Dev Mode: Setting template image:", presetImageUrl);
           setUploadedFileUrl(presetImageUrl);
         }
 
@@ -220,10 +225,14 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
         setUploadedFile(mockFile);
 
         // Pre-fill email configuration in dev mode
-        setEmailConfig({
-          senderName: "Jane Smith",
-          subject: "Your Certificate of Completion",
-          message: `Hi there,
+        // Use setTimeout to ensure this runs after the email column detection
+        setTimeout(() => {
+          console.log("🔧 Dev Mode: Setting email config (delayed)...");
+          // Don't log detectedEmailColumn here as it might be stale from closure
+          setEmailConfig({
+            senderName: "Jane Smith",
+            subject: "Your Certificate of Completion",
+            message: `Hi there,
 
 Congratulations on completing the program! Your certificate is ready.
 
@@ -232,9 +241,11 @@ Please find your certificate attached to this email or use the download link bel
 Best regards,
 Jane Smith
 Program Coordinator`,
-          deliveryMethod: "download",
-          isConfigured: true
-        });
+            deliveryMethod: "download",
+            isConfigured: true
+          });
+          console.log("🔧 Dev Mode: Email config set!");
+        }, 500); // Increased delay to ensure email column detection completes first
 
         console.log("Dev mode enabled: preset template and data loaded");
       } else {
@@ -500,7 +511,10 @@ Program Coordinator`,
             </button>
             {detectedEmailColumn && (
               <button
-                onClick={() => setActiveTab("email")}
+                onClick={() => {
+                  console.log("📧 Email tab clicked");
+                  setActiveTab("email");
+                }}
                 className="px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center"
                 style={{
                   backgroundColor:

@@ -15,6 +15,7 @@ A professional Next.js application for generating certificates from uploaded ima
 - **Live Preview** - Real-time preview matching final PDF output
 - **Cloud Storage** - Optional Cloudflare R2 integration with global CDN
 - **Docker Support** - Production-ready containerization
+- **Dev Mode** - Quick testing with pre-loaded template, data, and email configuration
 
 ## Quick Start
 

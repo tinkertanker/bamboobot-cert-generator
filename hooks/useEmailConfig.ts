@@ -36,12 +36,21 @@ export function useEmailConfig({
 
   // Handle email config reset when email column changes
   useEffect(() => {
-    setEmailConfig({
-      senderName: "",
-      subject: "",
-      message: "",
-      deliveryMethod: "download",
-      isConfigured: false
+    console.log("📧 useEmailConfig: detectedEmailColumn changed to:", detectedEmailColumn);
+    // Only reset if email config is not already configured (e.g., not in dev mode)
+    setEmailConfig((prev) => {
+      if (prev.isConfigured) {
+        console.log("📧 useEmailConfig: Email config already configured, keeping existing config");
+        return prev;
+      }
+      console.log("📧 useEmailConfig: Resetting email config...");
+      return {
+        senderName: "",
+        subject: "",
+        message: "",
+        deliveryMethod: "download",
+        isConfigured: false
+      };
     });
   }, [detectedEmailColumn]);
 

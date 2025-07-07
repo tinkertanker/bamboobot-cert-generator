@@ -252,6 +252,14 @@ npm test -- __tests__/components/Button.test.tsx
   - ✅ Integration with R2 markAsEmailed for extended retention
   - 🚧 Bulk emailing with progress tracking (remaining feature)
 
+- **Development Mode** (COMPLETED)
+  - ✅ One-click toggle in development environment only
+  - ✅ Automatically loads preset certificate template image
+  - ✅ Pre-fills table with sample data including email addresses
+  - ✅ Pre-configures email settings (sender name, subject, message)
+  - ✅ Smart timing to ensure email config persists after column detection
+  - ✅ Accelerates testing workflow by eliminating repetitive setup
+
 ### 🎯 Current Focus: Frontend Polish & Bulk Email
 
 ### 🚨 Large Dataset Considerations (400+ rows)

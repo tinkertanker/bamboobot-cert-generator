@@ -123,6 +123,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
 
     // Auto-detect email column
     const emailCol = detectEmailColumn(headers, processedTableData);
+    console.log("📊 useTableData: Detected email column:", emailCol);
     setDetectedEmailColumn(emailCol);
   }, []);
 
