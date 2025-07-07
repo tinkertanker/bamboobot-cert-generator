@@ -1,5 +1,6 @@
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
 import type { EmailParams, EmailResult, RateLimitInfo, EmailProvider } from '../types';
+import { promises as fs } from 'fs';
 
 export class SESProvider implements EmailProvider {
   name = 'ses' as const;
@@ -67,34 +68,49 @@ export class SESProvider implements EmailProvider {
         }
       }
 
-      // Build email parameters
-      const emailParams = {
-        Source: params.from,
-        Destination: {
-          ToAddresses: [params.to]
-        },
-        Message: {
-          Subject: {
-            Data: params.subject,
-            Charset: 'UTF-8'
+      let response;
+
+      // Use SendRawEmailCommand if attachments are present
+      if (params.attachments && params.attachments.length > 0) {
+        const rawMessage = await this.buildRawEmailMessage(params);
+        const command = new SendRawEmailCommand({
+          Source: params.from,
+          Destinations: [params.to],
+          RawMessage: {
+            Data: Buffer.from(rawMessage)
+          }
+        });
+        response = await this.client.send(command);
+      } else {
+        // Use simple SendEmailCommand for text/html only emails
+        const emailParams = {
+          Source: params.from,
+          Destination: {
+            ToAddresses: [params.to]
           },
-          Body: {
-            Html: {
-              Data: params.html,
+          Message: {
+            Subject: {
+              Data: params.subject,
               Charset: 'UTF-8'
             },
-            ...(params.text && {
-              Text: {
-                Data: params.text,
+            Body: {
+              Html: {
+                Data: params.html,
                 Charset: 'UTF-8'
-              }
-            })
+              },
+              ...(params.text && {
+                Text: {
+                  Data: params.text,
+                  Charset: 'UTF-8'
+                }
+              })
+            }
           }
-        }
-      };
+        };
 
-      const command = new SendEmailCommand(emailParams);
-      const response = await this.client.send(command);
+        const command = new SendEmailCommand(emailParams);
+        response = await this.client.send(command);
+      }
 
       // Decrement rate limit
       this.rateLimit.remaining--;
@@ -113,6 +129,93 @@ export class SESProvider implements EmailProvider {
         provider: 'ses'
       };
     }
+  }
+
+  /**
+   * Build raw MIME email message with attachments
+   */
+  private async buildRawEmailMessage(params: EmailParams): Promise<string> {
+    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+    const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+
+    let message = '';
+
+    // Headers
+    message += `From: ${params.from}\r\n`;
+    message += `To: ${params.to}\r\n`;
+    message += `Subject: ${params.subject}\r\n`;
+    message += `MIME-Version: 1.0\r\n`;
+    message += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
+
+    // Body part (text/html)
+    message += `--${boundary}\r\n`;
+    message += `Content-Type: multipart/alternative; boundary="${altBoundary}"\r\n\r\n`;
+
+    // Text part
+    if (params.text) {
+      message += `--${altBoundary}\r\n`;
+      message += `Content-Type: text/plain; charset=UTF-8\r\n`;
+      message += `Content-Transfer-Encoding: 7bit\r\n\r\n`;
+      message += `${params.text}\r\n\r\n`;
+    }
+
+    // HTML part
+    message += `--${altBoundary}\r\n`;
+    message += `Content-Type: text/html; charset=UTF-8\r\n`;
+    message += `Content-Transfer-Encoding: 7bit\r\n\r\n`;
+    message += `${params.html}\r\n\r\n`;
+    message += `--${altBoundary}--\r\n`;
+
+    // Attachments
+    if (params.attachments) {
+      for (const attachment of params.attachments) {
+        let attachmentData: Buffer;
+
+        // Get attachment content
+        if (attachment.content) {
+          attachmentData = Buffer.isBuffer(attachment.content) 
+            ? attachment.content 
+            : Buffer.from(attachment.content);
+        } else if (attachment.path) {
+          // Handle file path - fetch content
+          try {
+            if (attachment.path.startsWith('http')) {
+              // URL - fetch from web
+              const response = await fetch(attachment.path);
+              const arrayBuffer = await response.arrayBuffer();
+              attachmentData = Buffer.from(arrayBuffer);
+            } else {
+              // Local file path
+              attachmentData = await fs.readFile(attachment.path);
+            }
+          } catch (error) {
+            console.error(`Failed to read attachment ${attachment.filename}:`, error);
+            continue; // Skip this attachment
+          }
+        } else {
+          console.warn(`Attachment ${attachment.filename} has no content or path`);
+          continue;
+        }
+
+        // Add attachment to message
+        message += `--${boundary}\r\n`;
+        message += `Content-Type: ${attachment.contentType || 'application/octet-stream'}; name="${attachment.filename}"\r\n`;
+        message += `Content-Transfer-Encoding: base64\r\n`;
+        message += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n\r\n`;
+        
+        // Encode attachment as base64 with line breaks
+        const base64Data = attachmentData.toString('base64');
+        for (let i = 0; i < base64Data.length; i += 76) {
+          message += base64Data.slice(i, i + 76) + '\r\n';
+        }
+        message += '\r\n';
+      }
+    }
+
+    // End boundary
+    message += `--${boundary}--\r\n`;
+
+    return message;
   }
 
   getRateLimit(): RateLimitInfo {

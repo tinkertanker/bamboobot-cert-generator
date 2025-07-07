@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { Resend } from 'resend';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { getEmailProvider } from '@/lib/email/provider-factory';
+import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
+import type { EmailAttachment } from '@/lib/email/types';
 
 export default async function handler(
   req: NextApiRequest,
@@ -27,88 +27,68 @@ export default async function handler(
       return res.status(400).json({ error: 'Missing required fields: to, subject' });
     }
 
-    // Fetch the PDF attachment if URL provided and delivery method is attachment
-    let attachmentBuffer: Buffer | undefined;
-    if (deliveryMethod === 'attachment' && attachmentUrl) {
-      try {
-        const response = await fetch(attachmentUrl);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch attachment: ${response.statusText}`);
-        }
-        const arrayBuffer = await response.arrayBuffer();
-        attachmentBuffer = Buffer.from(arrayBuffer);
-      } catch (error) {
-        console.error('Error fetching attachment:', error);
-        // Continue without attachment rather than failing entirely
-      }
-    }
+    // Get email provider (supports both Resend and SES)
+    const emailProvider = getEmailProvider();
 
     // Get from address from env or use default
-    const fromAddress = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+    const fromAddress = process.env.EMAIL_FROM || 'noreply@certificates.com';
 
-    // Create email content
-    const emailData: {
-      from: string;
-      to: string[];
-      subject: string;
-      html: string;
-      text: string;
-      attachments?: Array<{
-        filename: string;
-        content: Buffer;
-      }>;
-    } = {
-      from: senderName 
-        ? `${senderName} <${fromAddress}>`
-        : `Bamboobot Certificates <${fromAddress}>`,
-      to: [to],
-      subject: subject,
-      html: deliveryMethod === 'download' ? `
-        <div style="font-family: Arial, sans-serif;">
-          <div style="white-space: pre-line; margin: 20px 0;">${customMessage}</div>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${downloadUrl}" style="background-color: #2D6A4F; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">Download Certificate</a>
-          </div>
-          <p style="font-size: 12px; color: #666;">
-            <strong>Important:</strong> This download link will expire in 90 days. Please save your certificate to your device.
-          </p>
-        </div>
-      ` : `
-        <div style="font-family: Arial, sans-serif;">
-          <div style="white-space: pre-line; margin: 20px 0;">${customMessage}</div>
-        </div>
-      `,
-      text: deliveryMethod === 'download' ? 
-        `${customMessage}
+    // Build proper from field with sender name
+    const fromField = senderName 
+      ? `${senderName} <${fromAddress}>`
+      : `Bamboobot Certificates <${fromAddress}>`;
+
+    // Create HTML content using shared templates
+    const htmlContent = deliveryMethod === 'download' 
+      ? buildLinkEmail(customMessage, downloadUrl)
+      : buildAttachmentEmail(customMessage);
+
+    // Create text content
+    const textContent = deliveryMethod === 'download' ? 
+      `${customMessage}
 
 You can download your certificate using this secure link: ${downloadUrl}
 
 Important: This download link will expire in 90 days. Please save your certificate to your device.` 
-      : 
-        customMessage
+    : 
+      customMessage;
+
+    // Prepare email parameters using the standard EmailParams interface
+    const emailParams = {
+      to,
+      from: fromField,
+      subject,
+      html: htmlContent,
+      text: textContent,
+      attachments: undefined as EmailAttachment[] | undefined
     };
 
-    // Add attachment if available
-    if (attachmentBuffer) {
-      emailData.attachments = [{
+    // Handle attachments if delivery method is attachment
+    if (deliveryMethod === 'attachment' && attachmentUrl) {
+      emailParams.attachments = [{
         filename: attachmentName || 'certificate.pdf',
-        content: attachmentBuffer,
+        path: attachmentUrl, // Let the provider handle fetching
+        contentType: 'application/pdf'
       }];
     }
 
-    // Send email
-    const { data, error } = await resend.emails.send(emailData);
+    // Send email using the provider (works with both Resend and SES)
+    const result = await emailProvider.sendEmail(emailParams);
 
-    if (error) {
-      console.error('Resend error:', error);
-      return res.status(400).json({ error: error.message });
+    if (!result.success) {
+      console.error(`${result.provider} email error:`, result.error);
+      return res.status(400).json({ 
+        error: result.error || 'Failed to send email',
+        provider: result.provider 
+      });
     }
 
-    // Return success with email ID
+    // Return success with email ID and provider info
     res.status(200).json({ 
       success: true, 
-      emailId: data?.id,
-      message: 'Email sent successfully' 
+      emailId: result.id,
+      provider: result.provider,
+      message: `Email sent successfully via ${result.provider.toUpperCase()}` 
     });
 
   } catch (error) {
