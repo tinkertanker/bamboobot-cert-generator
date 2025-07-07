@@ -215,6 +215,23 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
         });
         setUploadedFile(mockFile);
 
+        // Pre-fill email configuration in dev mode
+        setEmailConfig({
+          senderName: "Jane Smith",
+          subject: "Your Certificate of Completion",
+          message: `Hi there,
+
+Congratulations on completing the program! Your certificate is ready.
+
+Please find your certificate attached to this email or use the download link below.
+
+Best regards,
+Jane Smith
+Program Coordinator`,
+          deliveryMethod: "download",
+          isConfigured: true
+        });
+
         console.log("Dev mode enabled: preset template and data loaded");
       } else {
         // Disable dev mode: clear data
@@ -222,6 +239,13 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
         clearFile();
         clearPositions();
         clearPdfData();
+        setEmailConfig({
+          senderName: "",
+          subject: "",
+          message: "",
+          deliveryMethod: "download",
+          isConfigured: false
+        });
         console.log("Dev mode disabled: data cleared");
       }
       return newValue;
