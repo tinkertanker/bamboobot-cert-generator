@@ -30,7 +30,7 @@ export class EmailQueueManager {
   /**
    * Add emails to the queue
    */
-  async addToQueue(emails: EmailParams[]): Promise<void> {
+  async addToQueue(emails: (EmailParams & { certificateUrl?: string })[]): Promise<void> {
     const newItems: EmailQueueItem[] = emails.map(email => ({
       id: uuidv4(),
       to: email.to,
@@ -39,6 +39,7 @@ export class EmailQueueManager {
       html: email.html,
       text: email.text,
       attachments: email.attachments,
+      certificateUrl: email.certificateUrl,
       status: 'pending',
       attempts: 0,
       createdAt: new Date()
@@ -134,6 +135,21 @@ export class EmailQueueManager {
       pendingItem.sentAt = new Date();
       this.queue.processed++;
       
+      // Mark as emailed in R2 if using cloud storage
+      if (pendingItem.certificateUrl && 
+          (pendingItem.certificateUrl.includes('r2.cloudflarestorage.com') ||
+           pendingItem.certificateUrl.includes('r2-public'))) {
+        try {
+          await fetch('/api/mark-emailed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileUrl: pendingItem.certificateUrl })
+          });
+        } catch (error) {
+          console.warn('Failed to mark file as emailed:', error);
+        }
+      }
+      
       if (this.onItemComplete) {
         this.onItemComplete(pendingItem);
       }
@@ -216,12 +232,12 @@ export class EmailQueueManager {
           </a>
         </p>
         <p style="color: #666; font-size: 14px;">
-          This link will expire in 24 hours. Please download your certificate promptly.
+          This link will expire in 90 days. Please download your certificate promptly.
         </p>
       </div>
     `;
     
-    const text = `Your Certificate is Ready!\n\nDownload your certificate here: ${downloadUrl}\n\nThis link will expire in 24 hours.`;
+    const text = `Your Certificate is Ready!\n\nDownload your certificate here: ${downloadUrl}\n\nThis link will expire in 90 days.`;
     
     return { subject, html, text };
   }

@@ -90,14 +90,16 @@ export function BulkEmailModal({
       // Prepare email data
       const emails = certificates.map(cert => ({
         to: cert.email,
-        from: emailConfig.senderName || 'Certificate Generator',
+        senderName: emailConfig.senderName,
         subject: emailConfig.subject,
         html: emailConfig.deliveryMethod === 'download' 
           ? buildLinkEmail(emailConfig.message, cert.downloadUrl)
           : buildAttachmentEmail(emailConfig.message),
+        text: emailConfig.message,
         attachments: emailConfig.deliveryMethod === 'attachment' 
           ? [{ filename: cert.fileName, path: cert.downloadUrl }]
-          : undefined
+          : undefined,
+        certificateUrl: cert.downloadUrl
       }));
 
       const response = await fetch('/api/send-bulk-email', {
@@ -321,7 +323,7 @@ function buildLinkEmail(message: string, downloadUrl: string): string {
         </a>
       </p>
       <p style="color: #666; font-size: 14px;">
-        This link will expire in 24 hours. Please download your certificate promptly.
+        This link will expire in 90 days. Please download your certificate promptly.
       </p>
     </div>
   `;

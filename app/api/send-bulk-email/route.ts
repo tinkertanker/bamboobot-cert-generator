@@ -39,13 +39,53 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Get from address from env or use default
+    const fromAddress = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+
     // Add emails to queue
-    const emailParams: EmailParams[] = emails.map(email => ({
-      to: email.to,
-      from: email.from || process.env.EMAIL_FROM || 'noreply@example.com',
-      subject: email.subject,
-      html: email.html,
-      attachments: email.attachments,
+    const emailParams: EmailParams[] = await Promise.all(emails.map(async email => {
+      let attachments = undefined;
+      
+      // Handle attachments if delivery method is attachment
+      if (email.attachments && email.attachments.length > 0) {
+        attachments = await Promise.all(email.attachments.map(async (att: { path?: string; filename: string; content?: Buffer | string }) => {
+          if (att.path) {
+            // Fetch the attachment content
+            try {
+              const response = await fetch(att.path);
+              if (!response.ok) {
+                console.error(`Failed to fetch attachment from ${att.path}`);
+                return null;
+              }
+              const arrayBuffer = await response.arrayBuffer();
+              return {
+                filename: att.filename,
+                content: Buffer.from(arrayBuffer),
+                contentType: 'application/pdf'
+              };
+            } catch (error) {
+              console.error('Error fetching attachment:', error);
+              return null;
+            }
+          }
+          return att;
+        }));
+        
+        // Filter out any failed attachments
+        attachments = attachments.filter(att => att !== null);
+      }
+      
+      return {
+        to: email.to,
+        from: email.senderName 
+          ? `${email.senderName} <${fromAddress}>`
+          : `Bamboobot Certificates <${fromAddress}>`,
+        subject: email.subject,
+        html: email.html,
+        text: email.text,
+        attachments,
+        certificateUrl: email.certificateUrl
+      };
     }));
 
     await queueManager.addToQueue(emailParams);
