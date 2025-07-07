@@ -88,6 +88,20 @@ export class EmailQueueManager {
   }
 
   /**
+   * Calculate exponential backoff delay in milliseconds
+   */
+  private calculateRetryDelay(attempts: number): number {
+    // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
+    const baseDelay = 1000; // 1 second
+    const maxDelay = 30000; // 30 seconds
+    const delay = Math.min(baseDelay * Math.pow(2, attempts - 1), maxDelay);
+    
+    // Add jitter to prevent thundering herd (±20% randomization)
+    const jitter = delay * 0.2 * (Math.random() - 0.5);
+    return Math.round(delay + jitter);
+  }
+
+  /**
    * Process the queue respecting rate limits
    */
   private async _processQueue(): Promise<void> {
@@ -98,11 +112,34 @@ export class EmailQueueManager {
     // Update rate limit info
     this.queue.rateLimit = this.provider.getRateLimit();
 
-    // Find next pending item
-    const pendingItemIndex = this.queue.items.findIndex(item => item.status === 'pending');
+    // Find next pending item that's ready for processing
+    const pendingItemIndex = this.queue.items.findIndex(item => 
+      item.status === 'pending' && 
+      (!item.nextRetryAt || item.nextRetryAt <= new Date())
+    );
     const pendingItem = pendingItemIndex >= 0 ? this.queue.items[pendingItemIndex] : null;
     
     if (!pendingItem) {
+      // Check if there are items waiting for retry
+      const waitingItems = this.queue.items.filter(item => 
+        item.status === 'pending' && item.nextRetryAt && item.nextRetryAt > new Date()
+      );
+      
+      if (waitingItems.length > 0) {
+        // Find the next retry time and schedule processing
+        const nextRetryTimes = waitingItems
+          .map(item => item.nextRetryAt!)
+          .sort((a, b) => a.getTime() - b.getTime());
+        const nextRetryTime = nextRetryTimes[0];
+        const waitTime = nextRetryTime.getTime() - Date.now();
+        
+        console.log(`All pending items are waiting for retry. Next retry in ${waitTime}ms`);
+        this.processInterval = setTimeout(() => {
+          this._processQueue();
+        }, waitTime);
+        return;
+      }
+      
       // No more items to process
       this.queue.status = this.queue.items.length > 0 ? 'completed' : 'idle';
       this.reportProgress();
@@ -160,12 +197,20 @@ export class EmailQueueManager {
       // Check if it's a rate limit error
       const isRateLimitError = pendingItem.lastError?.toLowerCase().includes('rate limit');
       
-      // Retry logic
+      // Retry logic with exponential backoff
       if (pendingItem.attempts < 3 && !isRateLimitError) {
         pendingItem.status = 'pending'; // Will retry
+        
+        // Set next retry time with exponential backoff
+        const retryDelay = this.calculateRetryDelay(pendingItem.attempts);
+        pendingItem.nextRetryAt = new Date(Date.now() + retryDelay);
+        
+        console.log(`Email to ${pendingItem.to} failed (attempt ${pendingItem.attempts}). Next retry in ${retryDelay}ms`);
       } else {
         pendingItem.status = 'failed';
         this.queue.failed++;
+        
+        console.log(`Email to ${pendingItem.to} permanently failed after ${pendingItem.attempts} attempts`);
         
         // If rate limit error, pause the queue
         if (isRateLimitError) {

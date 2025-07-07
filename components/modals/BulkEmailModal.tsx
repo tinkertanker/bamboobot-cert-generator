@@ -2,6 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { COLORS } from '@/utils/styles';
+import { EmailPreviewModal } from './EmailPreviewModal';
+import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
+import { 
+  saveEmailStatus, 
+  loadEmailStatus, 
+  clearEmailStatus, 
+  cleanupExpiredSessions,
+  formatSessionId,
+  type PersistedEmailStatus 
+} from '@/lib/email/email-persistence';
 
 interface BulkEmailModalProps {
   open: boolean;
@@ -57,6 +67,57 @@ export function BulkEmailModal({
   const [sessionId] = useState(() => `email-session-${Date.now()}`);
   const [isStarted, setIsStarted] = useState(false);
   const [startTime, setStartTime] = useState<number>(0);
+  const [showPreview, setShowPreview] = useState(false);
+  const [restoredFromStorage, setRestoredFromStorage] = useState(false);
+
+  // Restore state from localStorage when modal opens
+  useEffect(() => {
+    if (open && !restoredFromStorage) {
+      cleanupExpiredSessions();
+      
+      // Try to restore previous session for the same certificates
+      const persistedStatus = loadEmailStatus(sessionId);
+      if (persistedStatus && persistedStatus.total === totalEmails) {
+        setStatus(prev => ({
+          ...prev,
+          ...persistedStatus,
+          status: persistedStatus.status,
+          processed: persistedStatus.processed,
+          failed: persistedStatus.failed,
+          remaining: persistedStatus.remaining,
+          provider: persistedStatus.provider,
+          error: persistedStatus.error
+        }));
+        setIsStarted(persistedStatus.isStarted);
+        setStartTime(persistedStatus.startTime);
+        setRestoredFromStorage(true);
+        
+        console.log(`Restored email status from ${formatSessionId(sessionId)}`);
+      }
+    }
+  }, [open, sessionId, totalEmails, restoredFromStorage]);
+
+  // Save state to localStorage when it changes
+  useEffect(() => {
+    if (isStarted && status.total > 0) {
+      const persistedStatus: PersistedEmailStatus = {
+        sessionId,
+        status: status.status,
+        processed: status.processed,
+        failed: status.failed,
+        total: status.total,
+        remaining: status.remaining,
+        provider: status.provider,
+        startTime,
+        isStarted,
+        error: status.error,
+        items: [], // We don't persist full items array due to size constraints
+        createdAt: Date.now()
+      };
+      
+      saveEmailStatus(sessionId, persistedStatus);
+    }
+  }, [sessionId, status, isStarted, startTime]);
 
   // Poll for status updates
   useEffect(() => {
@@ -145,6 +206,14 @@ export function BulkEmailModal({
     }
   };
 
+  const handleClose = () => {
+    // Clear persisted status if email sending is completed or user cancels
+    if (status.status === 'completed' || status.status === 'error' || !isStarted) {
+      clearEmailStatus(sessionId);
+    }
+    onClose();
+  };
+
 
   const progress = status.total > 0 ? ((status.processed + status.failed) / status.total) * 100 : 0;
 
@@ -158,6 +227,15 @@ export function BulkEmailModal({
         </h3>
 
         <div className="space-y-4">
+          {/* Restoration notification */}
+          {restoredFromStorage && (
+            <div className="bg-blue-50 border border-blue-200 rounded p-3">
+              <p className="text-sm text-blue-800">
+                📄 Restored previous email session from {formatSessionId(sessionId)}
+              </p>
+            </div>
+          )}
+
           {/* Email Preview */}
           {status.status === 'idle' && !isStarted && (
             <div className="bg-blue-50 border border-blue-200 rounded p-3">
@@ -247,16 +325,25 @@ export function BulkEmailModal({
           {/* Actions */}
           <div className="flex gap-2">
             {status.status === 'idle' && !isStarted && (
-              <Button
-                onClick={startSending}
-                className="flex-1"
-                style={{ 
-                  backgroundColor: COLORS.primaryMedium,
-                  color: 'white'
-                }}
-              >
-                Start Sending
-              </Button>
+              <>
+                <Button
+                  onClick={() => setShowPreview(true)}
+                  className="flex-1"
+                  variant="outline"
+                >
+                  Preview Email
+                </Button>
+                <Button
+                  onClick={startSending}
+                  className="flex-1"
+                  style={{ 
+                    backgroundColor: COLORS.primaryMedium,
+                    color: 'white'
+                  }}
+                >
+                  Start Sending
+                </Button>
+              </>
             )}
             
             {status.status === 'processing' && (
@@ -284,7 +371,7 @@ export function BulkEmailModal({
             
             {(status.status === 'completed' || status.status === 'error') && (
               <Button
-                onClick={onClose}
+                onClick={handleClose}
                 className="flex-1"
                 style={{ 
                   backgroundColor: COLORS.primary,
@@ -297,7 +384,7 @@ export function BulkEmailModal({
             
             {status.status !== 'completed' && status.status !== 'error' && (
               <Button
-                onClick={onClose}
+                onClick={handleClose}
                 variant="outline"
                 className="flex-1"
               >
@@ -307,35 +394,18 @@ export function BulkEmailModal({
           </div>
         </div>
       </div>
+      
+      {/* Email Preview Modal */}
+      {certificates.length > 0 && (
+        <EmailPreviewModal
+          open={showPreview}
+          onClose={() => setShowPreview(false)}
+          emailConfig={emailConfig}
+          sampleEmail={certificates[0].email}
+          sampleFileName={certificates[0].fileName}
+          sampleDownloadUrl={certificates[0].downloadUrl}
+        />
+      )}
     </div>
   );
-}
-
-function buildLinkEmail(message: string, downloadUrl: string): string {
-  return `
-    <div style="font-family: Arial, sans-serif;">
-      <div style="white-space: pre-wrap;">${message}</div>
-      <p style="margin: 30px 0;">
-        <a href="${downloadUrl}" 
-           style="background-color: #2D6A4F; color: white; padding: 12px 24px; 
-                  text-decoration: none; border-radius: 5px; display: inline-block;">
-          Download Certificate
-        </a>
-      </p>
-      <p style="color: #666; font-size: 14px;">
-        This link will expire in 90 days. Please download your certificate promptly.
-      </p>
-    </div>
-  `;
-}
-
-function buildAttachmentEmail(message: string): string {
-  return `
-    <div style="font-family: Arial, sans-serif;">
-      <div style="white-space: pre-wrap;">${message}</div>
-      <p style="color: #666; font-size: 14px; margin-top: 20px;">
-        Your certificate is attached to this email.
-      </p>
-    </div>
-  `;
 }

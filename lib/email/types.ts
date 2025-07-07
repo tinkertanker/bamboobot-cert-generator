@@ -54,6 +54,7 @@ export interface EmailQueueItem {
   lastError?: string;
   createdAt: Date;
   sentAt?: Date;
+  nextRetryAt?: Date;
   provider?: 'resend' | 'ses';
 }
 
