@@ -42,10 +42,10 @@ export default function MainPage() {
 
   // Preset data for dev mode (only available in development)
   const isDevelopment = process.env.NODE_ENV === 'development';
-  const presetCSVData = isDevelopment ? `Name,Department,Phone
-Maximilienne Featherstone-Harrington III,Executive Leadership,+1-555-MAXI-EXEC
-Bartholomäus von Quackenbusch-Wetherell,Innovation & Strategy,+1-555-BART-INNO
-Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,+1-555-ANAS-GLOB` : '';
+  const presetCSVData = isDevelopment ? `Name,Department,Email
+Maximilienne Featherstone-Harrington III,Executive Leadership,a@a.com
+Bartholomäus von Quackenbusch-Wetherell,Innovation & Strategy,b@b.com
+Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
 
   // Table data management via custom hook
   const {
