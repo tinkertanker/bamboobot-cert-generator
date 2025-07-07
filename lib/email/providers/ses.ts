@@ -82,18 +82,16 @@ export class SESProvider implements EmailProvider {
             Html: {
               Data: params.html,
               Charset: 'UTF-8'
-            }
+            },
+            ...(params.text && {
+              Text: {
+                Data: params.text,
+                Charset: 'UTF-8'
+              }
+            })
           }
         }
       };
-
-      // Add text version if provided
-      if (params.text) {
-        emailParams.Message.Body.Text = {
-          Data: params.text,
-          Charset: 'UTF-8'
-        };
-      }
 
       const command = new SendEmailCommand(emailParams);
       const response = await this.client.send(command);

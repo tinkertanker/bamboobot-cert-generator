@@ -66,7 +66,7 @@ export class ResendProvider implements EmailProvider {
       this.rateLimit.remaining--;
 
       return {
-        id: response.id || '',
+        id: response.data?.id || '',
         success: true,
         provider: 'resend'
       };

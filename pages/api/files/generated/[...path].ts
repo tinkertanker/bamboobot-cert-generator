@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { lookup } from 'mime-types';
 import storageConfig from '@/lib/storage-config';
-import { getSignedUrl as getR2SignedUrl } from '@/lib/r2-client';
+import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
 import { getS3SignedUrl } from '@/lib/s3-client';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

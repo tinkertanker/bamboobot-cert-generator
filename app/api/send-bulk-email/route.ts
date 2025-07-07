@@ -187,7 +187,7 @@ export async function PUT(request: NextRequest) {
 // Cleanup old queue managers periodically
 setInterval(() => {
   const now = Date.now();
-  for (const [sessionId, manager] of queueManagers.entries()) {
+  for (const [sessionId, manager] of Array.from(queueManagers.entries())) {
     // Remove idle queues older than 1 hour
     if (manager.getStatus().status === 'idle' && 
         manager.getLastActivity() < now - 3600000) {
