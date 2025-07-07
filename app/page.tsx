@@ -194,6 +194,10 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
 
 
 
+  // ============================================================================
+  // DEV MODE HANDLER (after hooks)
+  // ============================================================================
+  
   const handleDevModeToggle = () => {
     if (!isDevelopment) return; // Safety check - only works in development
     
@@ -251,8 +255,6 @@ Program Coordinator`,
       return newValue;
     });
   };
-
-
 
   // ============================================================================
   // TABLE CONFIGURATION
