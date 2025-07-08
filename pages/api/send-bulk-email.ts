@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextApiRequest, NextApiResponse } from 'next';
 import { getEmailProvider } from '@/lib/email/provider-factory';
 import { EmailQueueManager } from '@/lib/email/email-queue';
 import { EmailParams } from '@/lib/email/types';
@@ -6,22 +6,28 @@ import { EmailParams } from '@/lib/email/types';
 // Store queue managers in memory (in production, use Redis or database)
 const queueManagers = new Map<string, EmailQueueManager>();
 
-export async function POST(request: NextRequest) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === 'POST') {
+    return handlePost(req, res);
+  } else if (req.method === 'GET') {
+    return handleGet(req, res);
+  } else if (req.method === 'PUT') {
+    return handlePut(req, res);
+  } else {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+}
+
+async function handlePost(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const { emails, config, sessionId } = await request.json();
+    const { emails, config, sessionId } = req.body;
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
-      return NextResponse.json(
-        { error: 'No emails provided' },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: 'No emails provided' });
     }
 
     if (!config || !config.senderName || !config.subject || !config.message) {
-      return NextResponse.json(
-        { error: 'Email configuration incomplete' },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: 'Email configuration incomplete' });
     }
 
     // Get or create queue manager for this session
@@ -32,10 +38,9 @@ export async function POST(request: NextRequest) {
         queueManager = new EmailQueueManager(provider);
         queueManagers.set(sessionId, queueManager);
       } catch {
-        return NextResponse.json(
-          { error: 'No email provider configured. Please set up Resend or AWS SES.' },
-          { status: 500 }
-        );
+        return res.status(500).json({
+          error: 'No email provider configured. Please set up Resend or AWS SES.'
+        });
       }
     }
 
@@ -95,35 +100,30 @@ export async function POST(request: NextRequest) {
       queueManager.processQueue().catch(console.error);
     }
 
-    return NextResponse.json({
+    return res.status(200).json({
       success: true,
       queueLength: queueManager.getQueueLength(),
       status: queueManager.getStatus(),
     });
   } catch (error) {
     console.error('Bulk email error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to send emails' },
-      { status: 500 }
-    );
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to send emails'
+    });
   }
 }
 
-export async function GET(request: NextRequest) {
+async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const { searchParams } = new URL(request.url);
-    const sessionId = searchParams.get('sessionId');
+    const { sessionId } = req.query;
 
-    if (!sessionId) {
-      return NextResponse.json(
-        { error: 'Session ID required' },
-        { status: 400 }
-      );
+    if (!sessionId || typeof sessionId !== 'string') {
+      return res.status(400).json({ error: 'Session ID required' });
     }
 
     const queueManager = queueManagers.get(sessionId);
     if (!queueManager) {
-      return NextResponse.json({
+      return res.status(200).json({
         status: 'idle',
         processed: 0,
         failed: 0,
@@ -133,34 +133,24 @@ export async function GET(request: NextRequest) {
     }
 
     const status = queueManager.getStatus();
-    return NextResponse.json(status);
+    return res.status(200).json(status);
   } catch (error) {
     console.error('Status check error:', error);
-    return NextResponse.json(
-      { error: 'Failed to get status' },
-      { status: 500 }
-    );
+    return res.status(500).json({ error: 'Failed to get status' });
   }
 }
 
-// Pause/resume endpoints
-export async function PUT(request: NextRequest) {
+async function handlePut(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const { action, sessionId } = await request.json();
+    const { action, sessionId } = req.body;
 
     if (!sessionId) {
-      return NextResponse.json(
-        { error: 'Session ID required' },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: 'Session ID required' });
     }
 
     const queueManager = queueManagers.get(sessionId);
     if (!queueManager) {
-      return NextResponse.json(
-        { error: 'No active queue found' },
-        { status: 404 }
-      );
+      return res.status(404).json({ error: 'No active queue found' });
     }
 
     if (action === 'pause') {
@@ -168,19 +158,13 @@ export async function PUT(request: NextRequest) {
     } else if (action === 'resume') {
       await queueManager.resume();
     } else {
-      return NextResponse.json(
-        { error: 'Invalid action' },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: 'Invalid action' });
     }
 
-    return NextResponse.json({ success: true });
+    return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Queue control error:', error);
-    return NextResponse.json(
-      { error: 'Failed to control queue' },
-      { status: 500 }
-    );
+    return res.status(500).json({ error: 'Failed to control queue' });
   }
 }
 

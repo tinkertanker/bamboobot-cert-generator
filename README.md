@@ -158,9 +158,6 @@ npm run cleanup     # Clean temporary files
 ```
 app/
   └── page.tsx                 # Main orchestration component
-  └── api/
-      └── send-bulk-email/     # App Router API for bulk email queue management
-          └── route.ts
 components/
   ├── CertificatePreview.tsx   # Certificate display with drag positioning
   ├── panels/
@@ -193,10 +190,11 @@ lib/
   ├── r2-client.ts          # Cloudflare R2 integration
   ├── s3-client.ts          # Amazon S3 integration
   └── storage-config.ts     # Multi-provider storage configuration
-pages/api/          # Pages Router API endpoints
+pages/api/          # API endpoints
   ├── upload.ts             # Image upload & PDF conversion
   ├── generate.ts           # Certificate generation
   ├── send-email.ts         # Individual email delivery (multi-provider)
+  ├── send-bulk-email.ts    # Bulk email queue management with retry logic
   ├── zip-pdfs.ts           # ZIP archive creation
   ├── force-download.ts     # Secure file downloads
   ├── cleanup-storage.ts    # Cloud storage cleanup
@@ -226,7 +224,7 @@ scripts/            # Cloud storage testing and maintenance
 - **Queue System** - Email queue with exponential backoff, pause/resume, and persistence
 - **Hook-Based State** - Feature-specific logic encapsulated in custom hooks
 - **Component Composition** - Modular UI components with clear responsibilities
-- **Hybrid API Architecture** - App Router for new features, Pages Router for legacy endpoints
+- **Unified API Architecture** - All endpoints use Pages Router for consistency and simplicity
 
 ### Development Guidelines
 - **Types**: All interfaces centralized in `types/certificate.ts`
