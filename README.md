@@ -6,7 +6,7 @@ A professional Next.js application for generating certificates from uploaded ima
 
 - **Image Template Upload** - JPG/PNG with automatic PDF conversion
 - **Precision Text Positioning** - Drag-and-drop with visual feedback and keyboard nudging
-- **Advanced Text Formatting** - 9 professional fonts, bold/italic, color picker, alignment controls
+- **Advanced Text Formatting** - 7 fonts, bold/italic, color picker, alignment controls
 - **Keyboard Shortcuts** - Ctrl/Cmd+B (bold), Ctrl/Cmd+I (italic), ESC (dismiss modals)
 - **Smart Entry Navigation** - Previous/Next/First/Last with entry counter  
 - **Bulk Data Import** - TSV/CSV support with header toggle

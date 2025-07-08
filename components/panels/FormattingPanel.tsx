@@ -281,8 +281,6 @@ export function FormattingPanel({
                 <option value="Courier">Courier</option>
                 <option value="Montserrat">Montserrat</option>
                 <option value="Poppins">Poppins</option>
-                <option value="WorkSans">Work Sans</option>
-                <option value="Roboto">Roboto</option>
                 <option value="SourceSansPro">Source Sans Pro</option>
                 <option value="Nunito">Nunito</option>
                 <option value="GreatVibes">Great Vibes</option>

@@ -1,6 +1,6 @@
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
-import { Rubik, Montserrat, Poppins, Work_Sans, Roboto, Source_Sans_3, Nunito, Great_Vibes } from "next/font/google";
+import { Rubik, Montserrat, Poppins, Source_Sans_3, Nunito, Great_Vibes } from "next/font/google";
 import "../styles/globals.css";
 
 const rubik = Rubik({
@@ -22,19 +22,6 @@ const poppins = Poppins({
   style: ["normal", "italic"],
 });
 
-const workSans = Work_Sans({
-  subsets: ["latin"],
-  variable: "--font-work-sans",
-  weight: ["400", "700"],
-  style: ["normal", "italic"],
-});
-
-const roboto = Roboto({
-  subsets: ["latin"],
-  variable: "--font-roboto",
-  weight: ["400", "700"],
-  style: ["normal", "italic"],
-});
 
 const sourceSansPro = Source_Sans_3({
   subsets: ["latin"],
@@ -69,7 +56,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <div
-        className={`${rubik.variable} ${montserrat.variable} ${poppins.variable} ${workSans.variable} ${roboto.variable} ${sourceSansPro.variable} ${nunito.variable} ${greatVibes.variable} antialiased`}
+        className={`${rubik.variable} ${montserrat.variable} ${poppins.variable} ${sourceSansPro.variable} ${nunito.variable} ${greatVibes.variable} antialiased`}
       >
         <Component {...pageProps} />
       </div>

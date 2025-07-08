@@ -78,7 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const pdfDoc = await PDFDocument.load(templatePdfBytes);
 
     // Check if we need custom fonts globally
-    const customFonts = ['Montserrat', 'Poppins', 'WorkSans', 'Roboto', 'SourceSansPro', 'Nunito', 'GreatVibes'] as const;
+    const customFonts = ['Montserrat', 'Poppins', 'SourceSansPro', 'Nunito', 'GreatVibes'] as const;
     const needsCustomFonts = customFonts.some(fontName => 
       Object.values(positions).some(pos => pos.font === fontName) || 
       data.some(entry => Object.values(entry).some(val => val && typeof val === 'object' && val.font === fontName))
@@ -125,16 +125,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         customFontsEmbedded.PoppinsBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-Bold.ttf')));
         customFontsEmbedded.PoppinsItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-Italic.ttf')));
         customFontsEmbedded.PoppinsBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-BoldItalic.ttf')));
-        
-        customFontsEmbedded.WorkSans = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/WorkSans-Regular.ttf')));
-        customFontsEmbedded.WorkSansBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/WorkSans-Bold.ttf')));
-        customFontsEmbedded.WorkSansItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/WorkSans-Italic.ttf')));
-        customFontsEmbedded.WorkSansBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/WorkSans-BoldItalic.ttf')));
-        
-        customFontsEmbedded.Roboto = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Roboto-Regular.ttf')));
-        customFontsEmbedded.RobotoBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Roboto-Bold.ttf')));
-        customFontsEmbedded.RobotoItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Roboto-Italic.ttf')));
-        customFontsEmbedded.RobotoBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Roboto-BoldItalic.ttf')));
         
         customFontsEmbedded.SourceSansPro = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/SourceSansPro-Regular.ttf')));
         customFontsEmbedded.SourceSansProBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/SourceSansPro-Bold.ttf')));
@@ -196,26 +186,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   : (isOblique ? customFontsEmbedded.PoppinsItalic : customFontsEmbedded.Poppins);
               } else {
                 console.warn('Poppins font requested but not loaded. Falling back to Helvetica.');
-                font = helveticaFont;
-              }
-              break;
-            case 'WorkSans':
-              if (needsCustomFonts && customFontsEmbedded.WorkSans) {
-                font = isBold
-                  ? (isOblique ? customFontsEmbedded.WorkSansBoldItalic : customFontsEmbedded.WorkSansBold)
-                  : (isOblique ? customFontsEmbedded.WorkSansItalic : customFontsEmbedded.WorkSans);
-              } else {
-                console.warn('Work Sans font requested but not loaded. Falling back to Helvetica.');
-                font = helveticaFont;
-              }
-              break;
-            case 'Roboto':
-              if (needsCustomFonts && customFontsEmbedded.Roboto) {
-                font = isBold
-                  ? (isOblique ? customFontsEmbedded.RobotoBoldItalic : customFontsEmbedded.RobotoBold)
-                  : (isOblique ? customFontsEmbedded.RobotoItalic : customFontsEmbedded.Roboto);
-              } else {
-                console.warn('Roboto font requested but not loaded. Falling back to Helvetica.');
                 font = helveticaFont;
               }
               break;

@@ -53,8 +53,6 @@ function CertificatePreviewComponent({
     Courier: 'Courier, "Courier New", monospace',
     Montserrat: 'var(--font-montserrat), "Montserrat", sans-serif',
     Poppins: 'var(--font-poppins), "Poppins", sans-serif',
-    WorkSans: 'var(--font-work-sans), "Work Sans", sans-serif',
-    Roboto: 'var(--font-roboto), "Roboto", sans-serif',
     SourceSansPro: 'var(--font-source-sans-pro), "Source Sans Pro", sans-serif',
     Nunito: 'var(--font-nunito), "Nunito", sans-serif',
     GreatVibes: 'var(--font-great-vibes), "Great Vibes", cursive'

@@ -7,8 +7,6 @@ export type FontFamily =
   | "Courier"
   | "Montserrat"
   | "Poppins"
-  | "WorkSans"
-  | "Roboto"
   | "SourceSansPro"
   | "Nunito"
   | "GreatVibes";
