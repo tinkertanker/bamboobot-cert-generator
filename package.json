@@ -4,16 +4,16 @@
   "description": "Professional certificate generator with drag-and-drop text positioning, advanced formatting, and bulk PDF generation",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "test": "jest",
-    "test:watch": "jest --watch",
+    "dev": "pnpm exec next dev",
+    "build": "pnpm exec next build",
+    "start": "pnpm exec next start",
+    "lint": "pnpm exec next lint",
+    "test": "pnpm exec jest",
+    "test:watch": "pnpm exec jest --watch",
     "verify": "node scripts/verify-frontend.js",
-    "test:build": "jest __tests__/build.test.ts",
+    "test:build": "pnpm exec jest __tests__/build.test.ts",
     "cleanup": "node scripts/cleanup.js",
-    "test:r2-cleanup": "npx tsx scripts/test-r2-cleanup.ts"
+    "test:r2-cleanup": "pnpm exec tsx scripts/test-r2-cleanup.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.842.0",
