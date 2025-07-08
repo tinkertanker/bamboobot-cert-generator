@@ -274,7 +274,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
           console.log("🔧 Dev Mode: Setting email config (delayed)...");
           // Don't log detectedEmailColumn here as it might be stale from closure
           setEmailConfig({
-            senderName: "Jane Smith",
+            senderName: "Bamboobot Testing",
             subject: "Your Certificate of Completion",
             message: `Hi there,
 
@@ -283,8 +283,8 @@ Congratulations on completing the program! Your certificate is ready.
 Please find your certificate attached to this email or use the download link below.
 
 Best regards,
-Jane Smith
-Program Coordinator`,
+Bamboobot
+Email Sending Robot`,
             deliveryMethod: "download",
             isConfigured: true
           });
