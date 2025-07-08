@@ -58,9 +58,14 @@ const ActionButton = React.forwardRef<HTMLButtonElement, ActionButtonProps>(
     
     // Apply gradient styling if gradient prop is true
     const finalVariant = gradient ? "gradient" : variant
+    
     const finalClassName = cn(
-      actionButtonVariants({ variant: finalVariant, size, className }),
-      gradient && gradientType && actionButtonVariants({ gradientType }),
+      actionButtonVariants({ 
+        variant: finalVariant, 
+        size, 
+        gradientType: gradient ? gradientType : undefined,
+        className 
+      })
     )
     
     return (
