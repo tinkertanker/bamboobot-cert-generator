@@ -28,10 +28,13 @@ pnpm run dev
 # Open http://localhost:3000
 ```
 
-### Docker (Production)
+### Docker
 ```bash
+# Production
 docker-compose up -d
-# Access at http://localhost:3000
+
+# Development with hot reload
+docker-compose -f docker-compose.dev.yml up -d
 ```
 
 ## How to Use
@@ -47,9 +50,14 @@ docker-compose up -d
 
 ## Configuration
 
-Optional: Configure cloud storage and email in `.env.local`:
+Configure cloud storage and email in `.env.local`.
 
 ### Email
+- Email tab appears when email column detected in data
+- Multi-provider support (Resend/Amazon SES)
+- Bulk sending with progress tracking and retry logic
+- Email preview before sending
+
 ```bash
 # Resend (recommended)
 RESEND_API_KEY=re_xxxxx_xxxxx
@@ -61,6 +69,14 @@ AWS_SES_REGION=us-east-1
 ```
 
 ### Cloud Storage (optional)
+If neither R2 or S3 are specified, the app defaults to local storage. 
+
+When using cloud storage (R2 or S3), files automatically expire:
+- **Templates**: Permanent
+- **Individual certificates**: 90 days (extended if emailed)
+- **Bulk PDFs**: 7 days
+- **Previews**: 24 hours
+
 ```bash
 # Cloudflare R2
 STORAGE_PROVIDER=cloudflare-r2
@@ -77,23 +93,38 @@ S3_BUCKET_NAME=your-bucket-name
 S3_REGION=us-east-1
 ```
 
+## Development
 
-## Development Commands
-
+### Commands
 ```bash
 # Development
 pnpm run dev          # Start dev server
 pnpm run build        # Build for production
 pnpm start           # Start production server
 
-# Docker
-docker-compose up -d                    # Production mode
-docker-compose -f docker-compose.dev.yml up -d  # Development with hot reload
-
 # Testing & Linting
 pnpm test            # Run tests
+pnpm run test:watch  # Watch mode
 pnpm run lint        # Run ESLint
-pnpm run cleanup     # Clean temporary files
+
+# Cleanup
+pnpm run cleanup    # Clean temporary files
+```
+
+### Manual Cleanup
+```bash
+rm -rf public/temp_images/* public/generated/*
+```
+
+### Docker Commands
+```bash
+# Production
+docker-compose up -d      # Start
+docker-compose logs -f    # View logs
+docker-compose down       # Stop
+
+# Development
+docker-compose -f docker-compose.dev.yml up -d  # Hot reload on :3001
 ```
 
 ## Project Structure
@@ -122,50 +153,6 @@ types/certificate.ts         # TypeScript interfaces
 - Use `COLORS` constants from `utils/styles.ts`
 - Extract complex UI into focused components
 
-## Testing
-
-```bash
-pnpm test                    # Run all tests
-pnpm run test:watch          # Watch mode
-pnpm test -- __tests__/path/to/test.tsx  # Specific test
-```
-
-## Docker Deployment
-
-### Production
-```bash
-docker-compose up -d      # Start production server
-docker-compose logs -f    # View logs
-docker-compose down       # Stop server
-```
-
-### Development with Hot Reload
-```bash
-docker-compose -f docker-compose.dev.yml up -d
-# Access at http://localhost:3001 with instant code changes
-```
-
-## Email Features
-
-- Email tab appears when email column detected in data
-- Multi-provider support (Resend/Amazon SES)
-- Bulk sending with progress tracking and retry logic
-- Email preview before sending
-
-## Cleanup
-
-```bash
-pnpm run cleanup  # Clean temporary files
-rm -rf public/temp_images/* public/generated/*  # Manual cleanup
-```
-
-### Cloud Storage Lifecycle
-When using cloud storage (R2 or S3), files automatically expire:
-- **Templates**: Permanent
-- **Individual certificates**: 90 days (extended if emailed)
-- **Bulk PDFs**: 7 days
-- **Previews**: 24 hours
-
 ## Technology Stack
 
 - **Framework**: Next.js 15 with TypeScript
@@ -184,5 +171,3 @@ All fonts (Montserrat, Poppins, Work Sans, Roboto, Source Sans Pro, Nunito) are 
 ## About Bamboobot
 
 Bamboobot inherits its name and icon from an early Tinkertanker PDF stamping project. Bamboo symbolizes growth, resilience, and continuous learning - qualities that certificates aim to recognize in learners and professionals.
-
-
