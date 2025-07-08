@@ -31,11 +31,20 @@ import { PdfGenerationModal } from "@/components/modals/PdfGenerationModal";
 import { IndividualPdfsModal } from "@/components/modals/IndividualPdfsModal";
 import { ConfirmationModals } from "@/components/modals/ConfirmationModals";
 import { ErrorModal } from "@/components/ui/error-alert";
+import { MobileWarningScreen } from "@/components/MobileWarningScreen";
+import { useMobileDetection } from "@/hooks/useMobileDetection";
 import { COLORS, GRADIENTS } from "@/utils/styles";
 
 
 
 export default function HomePage() {
+  // ============================================================================
+  // MOBILE DETECTION
+  // ============================================================================
+  
+  const { isMobile, isLoading: isMobileLoading } = useMobileDetection();
+  const [forceMobileAccess, setForceMobileAccess] = useState(false);
+
   // ============================================================================
   // STATE & DATA MANAGEMENT
   // ============================================================================
@@ -329,6 +338,25 @@ Email Sending Robot`,
   const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
     useTable({ columns, data: tableData });
 
+
+  // ============================================================================
+  // MOBILE DETECTION LOGIC
+  // ============================================================================
+
+  // Listen for force mobile access event
+  useEffect(() => {
+    const handleForceMobileAccess = () => {
+      setForceMobileAccess(true);
+    };
+    
+    window.addEventListener('forceMobileAccess', handleForceMobileAccess);
+    return () => window.removeEventListener('forceMobileAccess', handleForceMobileAccess);
+  }, []);
+
+  // Show mobile warning if on mobile and haven't forced access
+  if (!isMobileLoading && isMobile && !forceMobileAccess) {
+    return <MobileWarningScreen />;
+  }
 
   // ============================================================================
   // RENDER

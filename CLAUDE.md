@@ -89,9 +89,8 @@ pnpm run lint        # Run ESLint with Next.js configuration
 
 ### Medium Priority (UX Improvements)
 1. **Format Templates** - Save/load formatting presets
-2. **Mobile Responsive** - Touch-optimized interface
-3. **Data Validation** - Highlight empty cells, validate emails
-4. **Better Error Messages** - Actionable error descriptions
+2. **Data Validation** - Highlight empty cells, validate emails
+3. **Better Error Messages** - Actionable error descriptions
 
 ### Low Priority (Nice to Have)
 1. **Undo/Redo System** - Track position/formatting changes
