@@ -1,6 +1,5 @@
 import React from "react";
 import { Mail } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { COLORS } from "@/utils/styles";
 import type { DataPanelProps, TableData } from "@/types/certificate";
@@ -53,7 +52,7 @@ export function DataPanel({
         </div>
       </div>
       <div className="flex flex-col h-[480px]">
-        <Textarea
+        <textarea
           value={tableInput}
           onChange={handleTableDataChange}
           placeholder={
@@ -61,7 +60,7 @@ export function DataPanel({
               ? "Paste CSV data here (e.g., John Doe,Manager,Sales)"
               : "Paste TSV data here (tab-separated)"
           }
-          className="w-full resize-none"
+          className="w-full resize-none px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           style={{ height: "154px" }}
         />
         {isProcessing ? (
