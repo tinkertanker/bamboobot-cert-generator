@@ -35,7 +35,7 @@ import { COLORS, GRADIENTS } from "@/utils/styles";
 
 
 
-export default function MainPage() {
+export default function HomePage() {
   // ============================================================================
   // STATE & DATA MANAGEMENT
   // ============================================================================

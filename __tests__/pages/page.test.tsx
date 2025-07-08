@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import MainPage from '../../app/page';
+import MainPage from '../../pages/index';
 
 // Mock the fetch API
 global.fetch = jest.fn(() =>

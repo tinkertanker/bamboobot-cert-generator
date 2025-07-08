@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { AppProps } from 'next/app';
+import Head from 'next/head';
 import { Rubik, Montserrat, Poppins, Work_Sans, Roboto, Source_Sans_3, Nunito, Great_Vibes } from "next/font/google";
-import "./globals.css";
+import "../styles/globals.css";
 
 const rubik = Rubik({
   subsets: ["latin"],
@@ -55,23 +56,23 @@ const greatVibes = Great_Vibes({
   weight: ["400"],
 });
 
-export const metadata: Metadata = {
-  title: "Bamboobot Certificate Generator",
-  description: "Professional certificate generator with drag-and-drop text positioning, advanced formatting, and bulk PDF generation. Create beautiful certificates with ease.",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function App({ Component, pageProps }: AppProps) {
   return (
-    <html lang="en">
-      <body
+    <>
+      <Head>
+        <title>Bamboobot Certificate Generator</title>
+        <meta 
+          name="description" 
+          content="Professional certificate generator with drag-and-drop text positioning, advanced formatting, and bulk PDF generation. Create beautiful certificates with ease." 
+        />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+      <div
         className={`${rubik.variable} ${montserrat.variable} ${poppins.variable} ${workSans.variable} ${roboto.variable} ${sourceSansPro.variable} ${nunito.variable} ${greatVibes.variable} antialiased`}
       >
-        {children}
-      </body>
-    </html>
+        <Component {...pageProps} />
+      </div>
+    </>
   );
 }

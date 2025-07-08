@@ -156,8 +156,9 @@ npm run cleanup     # Clean temporary files
 
 ### Clean Architecture
 ```
-app/
-  └── page.tsx                 # Main orchestration component
+pages/
+  ├── index.tsx               # Main application page (Pages Router)
+  ├── _app.tsx                # App wrapper with fonts and global styles
 components/
   ├── CertificatePreview.tsx   # Certificate display with drag positioning
   ├── panels/
@@ -190,15 +191,15 @@ lib/
   ├── r2-client.ts          # Cloudflare R2 integration
   ├── s3-client.ts          # Amazon S3 integration
   └── storage-config.ts     # Multi-provider storage configuration
-pages/api/          # API endpoints
-  ├── upload.ts             # Image upload & PDF conversion
-  ├── generate.ts           # Certificate generation
-  ├── send-email.ts         # Individual email delivery (multi-provider)
-  ├── send-bulk-email.ts    # Bulk email queue management with retry logic
-  ├── zip-pdfs.ts           # ZIP archive creation
-  ├── force-download.ts     # Secure file downloads
-  ├── cleanup-storage.ts    # Cloud storage cleanup
-  └── mark-emailed.ts       # R2/S3 retention extension
+  └── api/                  # API endpoints
+      ├── upload.ts             # Image upload & PDF conversion
+      ├── generate.ts           # Certificate generation
+      ├── send-email.ts         # Individual email delivery (multi-provider)
+      ├── send-bulk-email.ts    # Bulk email queue management with retry logic
+      ├── zip-pdfs.ts           # ZIP archive creation
+      ├── force-download.ts     # Secure file downloads
+      ├── cleanup-storage.ts    # Cloud storage cleanup
+      └── mark-emailed.ts       # R2/S3 retention extension
 types/
   └── certificate.ts        # Centralized TypeScript interfaces
 utils/
@@ -224,7 +225,7 @@ scripts/            # Cloud storage testing and maintenance
 - **Queue System** - Email queue with exponential backoff, pause/resume, and persistence
 - **Hook-Based State** - Feature-specific logic encapsulated in custom hooks
 - **Component Composition** - Modular UI components with clear responsibilities
-- **Unified API Architecture** - All endpoints use Pages Router for consistency and simplicity
+- **Pure Pages Router Architecture** - Unified frontend and API using Pages Router for maximum consistency
 
 ### Development Guidelines
 - **Types**: All interfaces centralized in `types/certificate.ts`
