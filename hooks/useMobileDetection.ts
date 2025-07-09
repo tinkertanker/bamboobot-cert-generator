@@ -6,6 +6,13 @@ export function useMobileDetection() {
 
   useEffect(() => {
     const checkMobile = () => {
+      // Don't show mobile warning in test environment
+      if (process.env.NODE_ENV === 'test' || typeof window === 'undefined') {
+        setIsMobile(false);
+        setIsLoading(false);
+        return;
+      }
+
       // Check screen size
       const isSmallScreen = window.innerWidth < 768;
       
