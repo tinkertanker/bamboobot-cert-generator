@@ -335,7 +335,7 @@ Email Sending Robot`,
     [tableData]
   );
 
-  const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
+  const { headerGroups, rows, prepareRow } =
     useTable({ columns, data: tableData });
 
 
@@ -655,8 +655,6 @@ Email Sending Robot`,
               useCSVMode={useCSVMode}
               handleCSVModeToggle={handleCSVModeToggle}
               tableData={tableData}
-              getTableProps={getTableProps}
-              getTableBodyProps={getTableBodyProps}
               headerGroups={headerGroups}
               rows={rows}
               prepareRow={prepareRow}
