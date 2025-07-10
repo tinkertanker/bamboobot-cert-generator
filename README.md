@@ -23,8 +23,8 @@ Generate certificates from image templates with drag-and-drop text positioning a
 ```bash
 git clone <repository-url>
 cd bamboobot-cert-generator
-pnpm install
-pnpm run dev
+npm install
+npm run dev
 # Open http://localhost:3000
 ```
 
@@ -98,17 +98,17 @@ S3_REGION=us-east-1
 ### Commands
 ```bash
 # Development
-pnpm run dev          # Start dev server
-pnpm run build        # Build for production
-pnpm start           # Start production server
+npm run dev          # Start dev server
+npm run build        # Build for production
+npm start           # Start production server
 
 # Testing & Linting
-pnpm test            # Run tests
-pnpm run test:watch  # Watch mode
-pnpm run lint        # Run ESLint
+npm test            # Run tests
+npm run test:watch  # Watch mode
+npm run lint        # Run ESLint
 
 # Cleanup
-pnpm run cleanup    # Clean temporary files
+npm run cleanup    # Clean temporary files
 ```
 
 ### Manual Cleanup
@@ -156,7 +156,7 @@ types/certificate.ts         # TypeScript interfaces
 ## Technology Stack
 
 - **Framework**: Next.js 15 with TypeScript
-- **Package Manager**: pnpm
+- **Package Manager**: npm
 - **UI**: Tailwind CSS + shadcn/ui components
 - **PDF**: pdf-lib
 - **Storage**: Local, Cloudflare R2, or Amazon S3

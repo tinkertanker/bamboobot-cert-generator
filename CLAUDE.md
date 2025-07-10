@@ -10,9 +10,9 @@ Bamboobot is a Next.js certificate generator that allows users to upload image t
 
 ```bash
 # Development
-pnpm run dev          # Start development server on http://localhost:3000
-pnpm run build        # Build for production
-pnpm start           # Start production server
+npm run dev          # Start development server on http://localhost:3000
+npm run build        # Build for production
+npm start           # Start production server
 
 # Docker
 docker-compose up -d    # Start with Docker Compose
@@ -20,12 +20,12 @@ docker-compose down     # Stop containers
 docker-compose logs -f  # View logs
 
 # Testing
-pnpm test            # Run all tests with Jest
-pnpm run test:watch  # Run tests in watch mode
-pnpm test -- __tests__/path/to/specific.test.ts  # Run single test file
+npm test            # Run all tests with Jest
+npm run test:watch  # Run tests in watch mode
+npm test -- __tests__/path/to/specific.test.ts  # Run single test file
 
 # Linting
-pnpm run lint        # Run ESLint with Next.js configuration
+npm run lint        # Run ESLint with Next.js configuration
 ```
 
 ## Architecture
@@ -40,7 +40,7 @@ pnpm run lint        # Run ESLint with Next.js configuration
 - `utils/styles.ts` - Centralized color constants and theme management
 
 ### Key Technical Details
-- **Package Manager**: pnpm (migrated from npm)
+- **Package Manager**: npm
 - **Coordinate System**: PDF uses bottom-left origin (0,0), UI uses top-left - conversion in API
 - **File Storage**: 
   - Development: `public/` directory
@@ -141,7 +141,7 @@ Tests organized by type:
 
 Run specific tests:
 ```bash
-pnpm test -- __tests__/components/Button.test.tsx
+npm test -- __tests__/components/Button.test.tsx
 ```
 
 ## Cleanup
