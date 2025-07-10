@@ -26,6 +26,11 @@ npm test -- __tests__/path/to/specific.test.ts  # Run single test file
 
 # Linting
 npm run lint        # Run ESLint with Next.js configuration
+
+# Cleanup
+npm run cleanup     # Clean all temporary files
+npm run cleanup:old # Delete old generated files (7+ days PDFs, 30+ days temp images)
+npm run cleanup:old:dry # Preview what would be deleted without actually deleting
 ```
 
 ## Architecture
@@ -33,6 +38,7 @@ npm run lint        # Run ESLint with Next.js configuration
 ### Component Structure
 - `pages/index.tsx` - Main orchestration layer managing state and coordinating components
 - `components/CertificatePreview.tsx` - Certificate display with drag-and-drop text positioning
+- `components/VirtualizedTable.tsx` - Performance-optimized table for large datasets (400+ rows)
 - `components/panels/` - Data input, formatting controls, email configuration
 - `components/modals/` - PDF generation, email management, confirmation dialogs
 - `hooks/` - Feature-specific custom hooks for state management
@@ -40,13 +46,15 @@ npm run lint        # Run ESLint with Next.js configuration
 - `utils/styles.ts` - Centralized color constants and theme management
 
 ### Key Technical Details
-- **Package Manager**: npm
+- **Package Manager**: npm (migrated from pnpm)
+- **Next.js Config**: Uses `next.config.js` (CommonJS format)
 - **Coordinate System**: PDF uses bottom-left origin (0,0), UI uses top-left - conversion in API
 - **File Storage**: 
   - Development: `public/` directory
   - Production: Docker volumes + cloud storage (R2/S3)
 - **Email**: Multi-provider (Resend/SES) with auto-detection
 - **Cloud Storage**: Multi-provider (Cloudflare R2/Amazon S3) with lifecycle management
+- **Table Virtualization**: Uses react-window for datasets > 100 rows
 
 ## Code Style Guidelines
 
@@ -72,18 +80,20 @@ npm run lint        # Run ESLint with Next.js configuration
 - Cloud storage lifecycle management with retention policies
 - Docker containerization (production + development)
 - Development mode with preset data and configuration
+- **Table virtualization for large datasets (400+ rows)** - Automatic switching to react-window
+- **Automated cleanup scripts** - Remove old generated files with configurable retention
 
-### Performance Limitations (Large Datasets 400+ rows)
-- No table virtualization - all rows render causing lag
-- No pagination or search/filter functionality
-- PDF generation timeout risk (300s Next.js limit)
-- Email rate limits (Resend: 100/hour)
-- Memory usage spikes with large arrays
+### Performance Improvements & Remaining Limitations
+- ✅ **RESOLVED**: Table virtualization implemented - only visible rows render (using react-window)
+- ⚠️ No pagination or search/filter functionality
+- ⚠️ PDF generation timeout risk (300s Next.js limit) for very large batches
+- ⚠️ Email rate limits (Resend: 100/hour)
+- ⚠️ Memory usage spikes with large arrays during PDF generation
 
 ## Priority Tasks
 
 ### High Priority (Performance Critical)
-1. **Table Virtualization** - Use react-window for large datasets
+1. ~~**Table Virtualization**~~ ✅ COMPLETED - Implemented with react-window
 2. **Search & Filter** - Client-side filtering across columns
 3. **Progressive PDF Generation** - Batch processing with progress
 
@@ -123,6 +133,20 @@ npm run lint        # Run ESLint with Next.js configuration
 - Automated lifecycle management
 - CDN integration for performance
 
+## Recent Updates (July 2025)
+
+- **Table Virtualization**: Implemented react-window for tables with >100 rows
+  - Automatic switching based on dataset size
+  - Maintains all existing functionality (selection, highlighting, scrolling)
+  - Significantly improves performance for 400+ row datasets
+- **Package Manager**: Migrated from pnpm to npm
+  - All scripts and CI/CD updated
+  - Docker configurations updated
+- **Cleanup Scripts**: Added automated cleanup for old files
+  - Configurable retention periods (7 days for PDFs, 30 days for temp images)
+  - Dry-run mode for safety
+- **Config Files**: Consolidated to use `next.config.js` only
+
 ## Common Development Tasks
 
 When implementing new features:
@@ -146,13 +170,18 @@ npm test -- __tests__/components/Button.test.tsx
 
 ## Cleanup
 
-### Local Development
+### Automated Cleanup Scripts
 ```bash
-rm -rf public/temp_images/* public/generated/*
+npm run cleanup:old     # Delete old files (7+ days PDFs, 30+ days temp images)
+npm run cleanup:old:dry # Preview what would be deleted without actually deleting
 ```
 
-### Docker Production
+### Manual Cleanup
 ```bash
+# Local Development
+rm -rf public/temp_images/* public/generated/*
+
+# Docker Production
 rm -rf ./data/temp_images/* ./data/generated/*
 docker-compose down && docker system prune -a
 ```
