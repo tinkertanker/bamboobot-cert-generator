@@ -13,6 +13,8 @@
     "verify": "node scripts/verify-frontend.js",
     "test:build": "jest __tests__/build.test.ts",
     "cleanup": "node scripts/cleanup.js",
+    "cleanup:old": "node scripts/cleanup-old-files.js",
+    "cleanup:old:dry": "node scripts/cleanup-old-files.js --dry-run",
     "test:r2-cleanup": "tsx scripts/test-r2-cleanup.ts"
   },
   "dependencies": {
