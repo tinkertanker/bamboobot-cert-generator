@@ -16,23 +16,18 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    
-    - name: Setup pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: 10
         
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'pnpm'
+        cache: 'npm'
         
     - name: Install dependencies
-      run: pnpm install --frozen-lockfile
+      run: npm ci
       
     - name: Run tests
-      run: pnpm test
+      run: npm test
       
     - name: Run linting
-      run: pnpm run lint
+      run: npm run lint
