@@ -10,6 +10,7 @@ interface VirtualizedTableProps {
   currentPreviewIndex: number;
   setCurrentPreviewIndex: (index: number) => void;
   height: number;
+  originalRows?: Row<TableData>[];
 }
 
 const ROW_HEIGHT = 41; // Height of each row in pixels (py-2 + border)
@@ -19,13 +20,16 @@ export function VirtualizedTable({
   prepareRow,
   currentPreviewIndex,
   setCurrentPreviewIndex,
-  height
+  height,
+  originalRows
 }: VirtualizedTableProps) {
   const Row = useCallback(
     ({ index, style }: { index: number; style: React.CSSProperties }) => {
       const row = rows[index];
       prepareRow(row);
-      const isCurrentRow = index === currentPreviewIndex;
+      // Find the original index if filtering is applied
+      const originalIndex = originalRows ? originalRows.indexOf(row) : index;
+      const isCurrentRow = originalIndex === currentPreviewIndex;
 
       return (
         <div
@@ -39,7 +43,7 @@ export function VirtualizedTable({
             transition: "background-color 0.15s ease"
           }}
           className={!isCurrentRow ? "hover:bg-gray-50" : ""}
-          onClick={() => setCurrentPreviewIndex(index)}
+          onClick={() => setCurrentPreviewIndex(originalIndex)}
           title={
             isCurrentRow
               ? "Currently viewing this entry"
@@ -67,7 +71,7 @@ export function VirtualizedTable({
         </div>
       );
     },
-    [rows, prepareRow, currentPreviewIndex, setCurrentPreviewIndex]
+    [rows, prepareRow, currentPreviewIndex, setCurrentPreviewIndex, originalRows]
   );
 
   return (

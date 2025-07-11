@@ -1,12 +1,14 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { Mail } from "lucide-react";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { VirtualizedTable } from "@/components/VirtualizedTable";
+import { SmartSearchBar } from "@/components/SmartSearchBar";
 import { COLORS } from "@/utils/styles";
 import type { DataPanelProps, TableData } from "@/types/certificate";
 import type { HeaderGroup, Row, Cell, ColumnInstance } from "react-table";
+import { useTable } from "react-table";
 
-export function DataPanel({
+export function DataPanelWithSearch({
   tableInput,
   handleTableDataChange,
   isFirstRowHeader,
@@ -14,19 +16,52 @@ export function DataPanel({
   useCSVMode,
   handleCSVModeToggle,
   tableData,
-  headerGroups,
-  rows,
-  prepareRow,
+  headerGroups: originalHeaderGroups,
   detectedEmailColumn,
   currentPreviewIndex,
   setCurrentPreviewIndex,
   isProcessing = false
 }: Omit<DataPanelProps, 'getTableProps' | 'getTableBodyProps'> & { isProcessing?: boolean }) {
+  const [filteredData, setFilteredData] = useState<TableData[]>(tableData);
+
+  // Get column names from the first header group
+  const columnNames = useMemo(() => {
+    if (originalHeaderGroups.length > 0) {
+      return originalHeaderGroups[0].headers.map(header => header.Header as string);
+    }
+    return [];
+  }, [originalHeaderGroups]);
+
+  // Create a new table instance with filtered data
+  const columns = useMemo(() => {
+    if (originalHeaderGroups.length > 0) {
+      return originalHeaderGroups[0].headers.map(header => ({
+        Header: header.Header,
+        accessor: header.id
+      }));
+    }
+    return [];
+  }, [originalHeaderGroups]);
+
+  const {
+    getTableProps,
+    getTableBodyProps,
+    headerGroups,
+    rows,
+    prepareRow
+  } = useTable({
+    columns,
+    data: filteredData
+  });
+
+  // Update filtered data when table data changes
+  React.useEffect(() => {
+    setFilteredData(tableData);
+  }, [tableData]);
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-6">
+      <div className="flex items-center gap-6 mb-4">
         <div className="flex items-center">
           <input
             type="checkbox"
@@ -51,7 +86,6 @@ export function DataPanel({
             CSV mode (comma-separated)
           </label>
         </div>
-        </div>
       </div>
       <div className="flex flex-col h-[480px]">
         <textarea
@@ -71,21 +105,29 @@ export function DataPanel({
           </div>
         ) : tableData.length > 0 ? (
           <div className="mt-4 flex-1 min-h-0">
+            {/* Smart Search Bar */}
+            <SmartSearchBar
+              tableData={tableData}
+              onFilteredDataChange={setFilteredData}
+              columns={columnNames}
+            />
+            
             <div className="h-full border border-gray-200 rounded-lg overflow-hidden">
               {/* Table Header - Keep outside virtualization for sticky behavior */}
               <div className="overflow-x-auto">
-                <table className="min-w-full bg-white">
+                <table className="min-w-full bg-white" {...getTableProps()}>
                   <thead
                     className="sticky top-0 z-10"
                     style={{ backgroundColor: COLORS.tabInactive }}>
                     {headerGroups.map(
                       (headerGroup: HeaderGroup<TableData>, index) => (
-                        <tr key={headerGroup.id || `header-${index}`}>
+                        <tr key={headerGroup.id || `header-${index}`} {...headerGroup.getHeaderGroupProps()}>
                           {headerGroup.headers.map(
                             (column: ColumnInstance<TableData>) => (
                               <th
                                 className="px-4 py-2 border-b border-gray-200 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                                 key={column.id}
+                                {...column.getHeaderProps()}
                                 style={{
                                   width: `${100 / headerGroup.headers.length}%`
                                 }}>
@@ -111,25 +153,23 @@ export function DataPanel({
               {rows.length > 100 ? (
                 <VirtualizedTable
                   rows={rows}
-                  originalRows={rows}
                   prepareRow={prepareRow}
                   currentPreviewIndex={currentPreviewIndex}
                   setCurrentPreviewIndex={setCurrentPreviewIndex}
-                  height={300} // Fixed height for virtualized area
+                  height={250} // Reduced height to account for search bar
                 />
               ) : (
                 /* Regular table for small datasets */
-                <div className="overflow-y-auto" style={{ maxHeight: "300px" }}>
-                  <table className="min-w-full bg-white">
-                    <tbody>
-                      {rows.map((row: Row<TableData>, displayIndex) => {
+                <div className="overflow-y-auto" style={{ maxHeight: "250px" }}>
+                  <table className="min-w-full bg-white" {...getTableProps()}>
+                    <tbody {...getTableBodyProps()}>
+                      {rows.map((row: Row<TableData>, index) => {
                         prepareRow(row);
-                        // Find the original index of this row in the unfiltered data
-                        const originalIndex = rows.indexOf(row);
-                        const isCurrentRow = originalIndex === currentPreviewIndex;
+                        const isCurrentRow = index === currentPreviewIndex;
                         return (
                           <tr
-                            key={row.id || displayIndex}
+                            key={row.id || index}
+                            {...row.getRowProps()}
                             className={`${
                               isCurrentRow ? "" : "hover:bg-gray-50"
                             } transition-colors cursor-pointer`}
@@ -141,7 +181,7 @@ export function DataPanel({
                                 ? COLORS.highlightBorder
                                 : "transparent"
                             }}
-                            onClick={() => setCurrentPreviewIndex(originalIndex)}
+                            onClick={() => setCurrentPreviewIndex(index)}
                             title={
                               isCurrentRow
                                 ? "Currently viewing this entry"
@@ -155,6 +195,7 @@ export function DataPanel({
                                     : "text-gray-900"
                                 }`}
                                 key={cell.column.id}
+                                {...cell.getCellProps()}
                                 style={{
                                   width: `${100 / row.cells.length}%`
                                 }}>

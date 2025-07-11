@@ -24,7 +24,7 @@ import {
   SkipForward
 } from "lucide-react";
 import { CertificatePreview } from "@/components/CertificatePreview";
-import { DataPanel } from "@/components/panels/DataPanel";
+import { DataPanelWithSearch } from "@/components/panels/DataPanelWithSearch";
 import { FormattingPanel } from "@/components/panels/FormattingPanel";
 import { EmailConfigPanel } from "@/components/panels/EmailConfigPanel";
 import { PdfGenerationModal } from "@/components/modals/PdfGenerationModal";
@@ -647,7 +647,7 @@ Email Sending Robot`,
 
           {/* Tab Content */}
           {activeTab === "data" && (
-            <DataPanel
+            <DataPanelWithSearch
               tableInput={tableInput}
               handleTableDataChange={handleTableDataChange}
               isFirstRowHeader={isFirstRowHeader}
