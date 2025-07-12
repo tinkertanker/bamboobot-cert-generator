@@ -1,5 +1,7 @@
 // Centralized type definitions for the certificate generator
 
+import type { PdfGenerationProgress } from '@/lib/pdf/types';
+
 // Font family types
 export type FontFamily =
   | "Helvetica"
@@ -132,6 +134,13 @@ export interface IndividualPdfsModalProps extends BaseModalProps {
   sendCertificateEmail: (index: number, file: PdfFile) => Promise<void>;
   setIndividualPdfsData: (data: PdfFile[] | null) => void;
   detectedEmailColumn: string | null;
+  // Progressive generation props
+  isProgressiveMode?: boolean;
+  progressiveProgress?: PdfGenerationProgress | null;
+  progressiveError?: string | null;
+  onProgressivePause?: () => void;
+  onProgressiveResume?: () => void;
+  onProgressiveCancel?: () => void;
 }
 
 export interface ConfirmationModalsProps {

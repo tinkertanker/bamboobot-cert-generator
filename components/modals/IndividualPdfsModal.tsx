@@ -7,14 +7,20 @@ import { Progress } from "@/components/ui/progress";
 import SpinnerInline from "@/components/SpinnerInline";
 import { BulkEmailModal } from "./BulkEmailModal";
 import { saveAs } from "file-saver";
-import type { IndividualPdfsModalProps } from "@/types/certificate";
+import type { IndividualPdfsModalProps, PdfFile } from "@/types/certificate";
+import type { PdfGenerationProgress } from "@/lib/pdf/types";
 import {
   ExternalLink,
   Download,
   FileText,
   Check,
   Mail,
-  X
+  X,
+  Pause,
+  Play,
+  AlertCircle,
+  Clock,
+  CheckCircle
 } from "lucide-react";
 
 export function IndividualPdfsModal({
@@ -30,6 +36,14 @@ export function IndividualPdfsModal({
   setIndividualPdfsData,
   onClose,
   detectedEmailColumn,
+  // Progressive generation props
+  isProgressiveMode = false,
+  progressiveProgress,
+  progressiveError,
+  onProgressivePause,
+  onProgressiveResume,
+  onProgressiveCancel,
+  // Legacy progress props (for non-progressive mode)
   progress,
   total
 }: IndividualPdfsModalProps & { progress?: number; total?: number }) {
@@ -44,21 +58,127 @@ export function IndividualPdfsModal({
   
   return (
     <Modal
-      open={isGeneratingIndividual || !!individualPdfsData}
+      open={isGeneratingIndividual || !!individualPdfsData || (isProgressiveMode && !!progressiveProgress)}
       onClose={() => {
-        if (!isGeneratingIndividual) {
+        if (!isGeneratingIndividual && (!isProgressiveMode || progressiveProgress?.status === 'completed' || progressiveProgress?.status === 'error')) {
           setIndividualPdfsData(null);
           setSelectedNamingColumn("");
           setShowBulkEmailModal(false);  // Reset bulk email modal state
           onClose();
         }
       }}
-      closeOnBackdropClick={!isGeneratingIndividual}
+      closeOnBackdropClick={!isGeneratingIndividual && (!isProgressiveMode || progressiveProgress?.status === 'completed' || progressiveProgress?.status === 'error')}
       width="w-3/4 max-w-6xl"
       className="h-auto max-h-[90vh] overflow-y-auto">
       {isGeneratingIndividual ? (
-        <div className="flex flex-col items-center justify-center h-64">
-          {progress !== undefined && total !== undefined ? (
+        <div className="flex flex-col items-center justify-center">
+          {/* Progressive Generation UI */}
+          {isProgressiveMode && progressiveProgress ? (
+            <div className="w-full space-y-6">
+              <h3 className="text-2xl font-bold text-center mb-6">Generating Individual PDFs</h3>
+              
+              {/* Progress Bar */}
+              <div className="w-full max-w-2xl mx-auto">
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    {progressiveProgress.processed} of {progressiveProgress.total} processed
+                  </span>
+                  <span className="text-sm font-medium text-gray-700">
+                    {Math.round((progressiveProgress.processed / progressiveProgress.total) * 100)}%
+                  </span>
+                </div>
+                <Progress 
+                  value={progressiveProgress.processed} 
+                  max={progressiveProgress.total}
+                  className="h-3"
+                />
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
+                <div className="bg-green-50 p-4 rounded-lg text-center">
+                  <CheckCircle className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-green-700">{progressiveProgress.processed}</p>
+                  <p className="text-sm text-gray-600">Completed</p>
+                </div>
+                {progressiveProgress.failed > 0 && (
+                  <div className="bg-red-50 p-4 rounded-lg text-center">
+                    <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+                    <p className="text-2xl font-bold text-red-700">{progressiveProgress.failed}</p>
+                    <p className="text-sm text-gray-600">Failed</p>
+                  </div>
+                )}
+                <div className="bg-blue-50 p-4 rounded-lg text-center">
+                  <Clock className="h-8 w-8 text-blue-500 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-blue-700">
+                    {progressiveProgress.estimatedTimeRemaining 
+                      ? `${Math.ceil(progressiveProgress.estimatedTimeRemaining / 1000)}s`
+                      : '...'}
+                  </p>
+                  <p className="text-sm text-gray-600">Time Remaining</p>
+                </div>
+              </div>
+
+              {/* Current Item */}
+              {progressiveProgress.currentItem && (
+                <div className="text-center">
+                  <p className="text-sm text-gray-500">Currently processing:</p>
+                  <p className="font-medium">{progressiveProgress.currentItem}</p>
+                </div>
+              )}
+
+              {/* Control Buttons */}
+              <div className="flex justify-center gap-3">
+                {progressiveProgress.status === 'processing' ? (
+                  <Button
+                    onClick={onProgressivePause}
+                    variant="outline"
+                    className="flex items-center gap-2">
+                    <Pause className="h-4 w-4" />
+                    Pause
+                  </Button>
+                ) : progressiveProgress.status === 'paused' ? (
+                  <Button
+                    onClick={onProgressiveResume}
+                    variant="outline"
+                    className="flex items-center gap-2">
+                    <Play className="h-4 w-4" />
+                    Resume
+                  </Button>
+                ) : null}
+                <Button
+                  onClick={onProgressiveCancel}
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700 flex items-center gap-2">
+                  <X className="h-4 w-4" />
+                  Cancel
+                </Button>
+              </div>
+
+              {/* Errors */}
+              {progressiveProgress.errors && progressiveProgress.errors.length > 0 && (
+                <div className="mt-4 max-w-2xl mx-auto">
+                  <h4 className="font-medium text-sm text-gray-700 mb-2">Errors:</h4>
+                  <div className="max-h-32 overflow-y-auto bg-red-50 p-3 rounded text-sm">
+                    {progressiveProgress.errors.map((err, idx) => (
+                      <div key={idx} className="text-red-700">
+                        Entry {err.index + 1}: {err.error}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : progressiveError ? (
+            /* Error State */
+            <div className="text-center py-8">
+              <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Generation Failed</h3>
+              <p className="text-gray-600 mb-6">{progressiveError}</p>
+              <Button onClick={onClose} variant="outline">Close</Button>
+            </div>
+          ) : progress !== undefined && total !== undefined ? (
+            /* Regular Generation Progress */
             <div className="w-full max-w-md space-y-6">
               <h3 className="text-lg font-semibold text-center">Generating Individual PDFs</h3>
               <div className="w-full">
@@ -71,6 +191,7 @@ export function IndividualPdfsModal({
               <p className="text-sm text-gray-500 text-center">Please wait...</p>
             </div>
           ) : (
+            /* Default Loading State */
             <div className="flex flex-col items-center space-y-4">
               <SpinnerInline size="lg" className="text-blue-600" />
               <p className="text-lg">Generating Individual PDFs...</p>

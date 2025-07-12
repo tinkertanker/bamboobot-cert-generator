@@ -18,7 +18,7 @@ import { useDragAndDrop } from "@/hooks/useDragAndDrop";
 import { useEmailConfig } from "@/hooks/useEmailConfig";
 import { usePdfGeneration } from "@/hooks/usePdfGeneration";
 import { useProgressivePdfGeneration } from "@/hooks/useProgressivePdfGeneration";
-import { ProgressivePdfModal } from "@/components/modals/ProgressivePdfModal";
+// Removed ProgressivePdfModal - now using unified IndividualPdfsModal
 import { PROGRESSIVE_PDF } from "@/utils/constants";
 import {
   SkipBack,
@@ -733,8 +733,17 @@ Email Sending Robot`,
       />
 
       <IndividualPdfsModal
-        isGeneratingIndividual={isGeneratingIndividual}
-        individualPdfsData={individualPdfsData}
+        isGeneratingIndividual={isGeneratingIndividual || isProgressiveGenerating}
+        individualPdfsData={
+          individualPdfsData || 
+          (progressivePdfResults && progressivePdfResults.files.length > 0
+            ? progressivePdfResults.files.map((file) => ({
+                filename: file.filename,
+                url: file.path,
+                originalIndex: file.index
+              }))
+            : null)
+        }
         tableData={tableData}
         selectedNamingColumn={selectedNamingColumn}
         setSelectedNamingColumn={setSelectedNamingColumn}
@@ -744,9 +753,19 @@ Email Sending Robot`,
         sendCertificateEmail={sendCertificateEmail}
         setIndividualPdfsData={setIndividualPdfsData}
         detectedEmailColumn={detectedEmailColumn}
+        // Progressive generation props
+        isProgressiveMode={isProgressiveGenerating || !!progressivePdfProgress}
+        progressiveProgress={progressivePdfProgress}
+        progressiveError={progressivePdfError}
+        onProgressivePause={pauseGeneration}
+        onProgressiveResume={resumeGeneration}
+        onProgressiveCancel={cancelGeneration}
         onClose={() => {
           setIndividualPdfsData(null);
           setSelectedNamingColumn("");
+          if (isProgressiveGenerating || progressivePdfProgress) {
+            clearResults();
+          }
         }}
       />
 
@@ -761,34 +780,7 @@ Email Sending Robot`,
         tableData={tableData}
       />
 
-      {/* Progressive PDF Modal */}
-      <ProgressivePdfModal
-        open={isProgressiveGenerating || !!progressivePdfResults || !!progressivePdfError}
-        onClose={() => {
-          clearResults();
-          // If we have results, open the individual PDFs modal
-          if (progressivePdfResults && progressivePdfResults.files.length > 0) {
-            // Convert progressive results to individual PDFs format
-            const individualPdfs = progressivePdfResults.files.map((file) => ({
-              filename: file.filename,
-              url: file.path,
-              originalIndex: file.index
-            }));
-            setIndividualPdfsData(individualPdfs);
-          }
-        }}
-        progress={progressivePdfProgress}
-        results={progressivePdfResults}
-        error={progressivePdfError}
-        onPause={pauseGeneration}
-        onResume={resumeGeneration}
-        onCancel={cancelGeneration}
-        onEmailAll={() => {
-          // TODO: Implement email all functionality for progressive results
-          console.log('Email all from progressive generation');
-        }}
-        hasEmailConfig={emailConfig.isConfigured}
-      />
+      {/* Progressive PDF Modal removed - now using unified IndividualPdfsModal */}
 
       {/* Error Modal */}
       {uploadError && (
