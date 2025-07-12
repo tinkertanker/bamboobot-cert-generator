@@ -5,6 +5,8 @@ import { generateSinglePdf } from '@/lib/pdf-generator';
 import type { PdfQueueItem } from '@/lib/pdf/types';
 import path from 'path';
 import fs from 'fs/promises';
+import storageConfig from '@/lib/storage-config';
+import { uploadToR2 } from '@/lib/r2-client';
 
 const sessionManager = PdfSessionManager.getInstance();
 
@@ -208,6 +210,7 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
           : `Certificate-${item.index + 1}.pdf`;
 
         let outputPath: string;
+        let fileUrl: string;
         
         if (queue.mode === 'individual') {
           // Individual mode - save to session directory
@@ -222,9 +225,24 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
             outputPath
           );
           
-          // Return public URL
+          // Upload to R2 or return local URL
+          if (storageConfig.isR2Enabled) {
+            // Read the generated file
+            const pdfBuffer = await fs.readFile(outputPath);
+            // Upload to R2
+            const r2Key = `generated/progressive_${sessionId}/${filename}`;
+            const uploadResult = await uploadToR2(pdfBuffer, r2Key, 'application/pdf', filename);
+            fileUrl = uploadResult.url;
+            // Delete local file after upload
+            await fs.unlink(outputPath);
+          } else {
+            // Return local URL
+            fileUrl = `/generated/progressive_${sessionId}/${filename}`;
+          }
+          
+          // Return URL
           return {
-            path: `/generated/progressive_${sessionId}/${filename}`,
+            path: fileUrl,
             filename
           };
         } else {
