@@ -7,8 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import SpinnerInline from "@/components/SpinnerInline";
 import { BulkEmailModal } from "./BulkEmailModal";
 import { saveAs } from "file-saver";
-import type { IndividualPdfsModalProps, PdfFile } from "@/types/certificate";
-import type { PdfGenerationProgress } from "@/lib/pdf/types";
+import type { IndividualPdfsModalProps } from "@/types/certificate";
 import {
   ExternalLink,
   Download,

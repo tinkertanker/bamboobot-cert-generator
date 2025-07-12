@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { v4 as uuidv4 } from 'uuid';
 import { PdfSessionManager } from '@/lib/pdf/session-manager';
-import { generateSinglePdf } from '@/lib/pdf-generator';
+import { generateSinglePdf, type Entry, type Position } from '@/lib/pdf-generator';
 import type { PdfQueueItem } from '@/lib/pdf/types';
 import path from 'path';
 import fs from 'fs/promises';
@@ -206,7 +206,7 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
         const templatePath = path.join(process.cwd(), 'public', 'temp_images', queue.templateFile);
         
         const filename = queue.namingColumn && item.data[queue.namingColumn]
-          ? `${item.data[queue.namingColumn].replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`
+          ? `${String(item.data[queue.namingColumn]).replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`
           : `Certificate-${item.index + 1}.pdf`;
 
         let outputPath: string;
@@ -219,8 +219,8 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
           // Generate single PDF
           await generateSinglePdf(
             templatePath,
-            item.data,
-            queue.positions,
+            item.data as Entry,
+            queue.positions as Record<string, Position>,
             queue.uiContainerDimensions,
             outputPath
           );

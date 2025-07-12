@@ -5,7 +5,7 @@ import * as fontkit from '@pdf-lib/fontkit';
 
 const FONT_SIZE_MULTIPLIER = 1;
 
-interface Position {
+export interface Position {
   fontSize?: number;
   x: number;
   y: number;
@@ -15,7 +15,7 @@ interface Position {
   alignment?: 'left' | 'center' | 'right';
 }
 
-interface Entry {
+export interface Entry {
   [key: string]: {
     text: string;
     color?: [number, number, number];
