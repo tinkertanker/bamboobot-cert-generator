@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ActionButton } from "@/components/ui/action-button";
 import { Modal } from "@/components/ui/modal";
@@ -34,6 +34,14 @@ export function IndividualPdfsModal({
   total
 }: IndividualPdfsModalProps & { progress?: number; total?: number }) {
   const [showBulkEmailModal, setShowBulkEmailModal] = useState(false);
+  
+  // Reset bulk email modal state when the modal opens
+  useEffect(() => {
+    if (individualPdfsData) {
+      setShowBulkEmailModal(false);
+    }
+  }, [individualPdfsData]);
+  
   return (
     <Modal
       open={isGeneratingIndividual || !!individualPdfsData}
