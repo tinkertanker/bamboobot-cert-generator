@@ -110,9 +110,8 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 3. **Loading States** - Skeleton loaders and progress indicators
 
 ### Progressive PDF Enhancements
-- **Bulk Mode** - Generate single PDF with all certificates
-- **ZIP Download** - Download all PDFs as a ZIP file
-- **Email Integration** - Send emails from progressive results
+- **ZIP Download** - Download all generated PDFs as a ZIP file
+- **Email Integration from Progressive Modal** - Send emails directly from progressive generation results
 
 ### Quick Wins (< 1 day each)
 - Entry jump navigation (go to specific row)
