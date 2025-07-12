@@ -105,9 +105,7 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
    - Suggest fixes for common issues
 
 ### Low Priority (Nice to Have)
-1. **Undo/Redo System** - Track position/formatting changes
-2. **Advanced Keyboard Shortcuts** - Ctrl+P, Ctrl+Shift+P, Ctrl-1/2/3
-3. **Loading States** - Skeleton loaders and progress indicators
+1. **Loading States** - Skeleton loaders and progress indicators
 
 ### Progressive PDF Modal Enhancements
 - **ZIP Download in Progressive Modal** - Add ZIP download button (currently only in Individual PDFs modal)
