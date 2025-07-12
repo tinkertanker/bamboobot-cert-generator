@@ -109,9 +109,9 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 2. **Advanced Keyboard Shortcuts** - Ctrl+P, Ctrl+Shift+P, Ctrl-1/2/3
 3. **Loading States** - Skeleton loaders and progress indicators
 
-### Progressive PDF Enhancements
-- **ZIP Download** - Download all generated PDFs as a ZIP file
-- **Email Integration from Progressive Modal** - Send emails directly from progressive generation results
+### Progressive PDF Modal Enhancements
+- **ZIP Download in Progressive Modal** - Add ZIP download button (currently only in Individual PDFs modal)
+- **Email All from Progressive Modal** - Add email all button (currently requires closing and reopening in Individual PDFs modal)
 
 ### Quick Wins (< 1 day each)
 - Entry jump navigation (go to specific row)
