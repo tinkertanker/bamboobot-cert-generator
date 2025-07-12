@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Mail } from "lucide-react";
-import { TableSkeleton } from "@/components/ui/skeleton";
+import { ProcessingDataSkeleton } from "@/components/ui/enhanced-skeleton";
 import { VirtualizedTable } from "@/components/VirtualizedTable";
 import { SmartSearchBar } from "@/components/SmartSearchBar";
 import { COLORS } from "@/utils/styles";
@@ -101,7 +101,7 @@ export function DataPanelWithSearch({
         />
         {isProcessing ? (
           <div className="mt-4 flex-1 min-h-0">
-            <TableSkeleton rows={5} />
+            <ProcessingDataSkeleton />
           </div>
         ) : tableData.length > 0 ? (
           <div className="mt-4 flex-1 min-h-0">

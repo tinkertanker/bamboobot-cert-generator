@@ -66,6 +66,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
     isFirstRowHeader,
     useCSVMode,
     detectedEmailColumn,
+    isProcessingData,
     handleTableDataChange,
     handleHeaderToggle,
     handleCSVModeToggle,
@@ -132,7 +133,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
     goToNext,
     goToLast,
     setCurrentPreviewIndex
-  } = usePreview(tableData.length);
+  } = usePreview(tableData.length, Object.keys(positions).length);
 
   // File upload hook
   const {
@@ -691,6 +692,7 @@ Email Sending Robot`,
               detectedEmailColumn={detectedEmailColumn}
               currentPreviewIndex={currentPreviewIndex}
               setCurrentPreviewIndex={setCurrentPreviewIndex}
+              isProcessing={isProcessingData}
             />
           )}
 

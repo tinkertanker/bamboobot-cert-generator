@@ -7,6 +7,7 @@ export interface UseTableDataReturn {
   isFirstRowHeader: boolean;
   useCSVMode: boolean;
   detectedEmailColumn: string | null;
+  isProcessingData: boolean;
   handleTableDataChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleHeaderToggle: () => void;
   handleCSVModeToggle: () => void;
@@ -171,8 +172,9 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
   const [isFirstRowHeader, setIsFirstRowHeader] = useState<boolean>(false);
   const [useCSVMode, setUseCSVMode] = useState<boolean>(false); // Default to TSV
   const [detectedEmailColumn, setDetectedEmailColumn] = useState<string | null>(null);
+  const [isProcessingData, setIsProcessingData] = useState<boolean>(false);
 
-  const processTableData = useCallback((
+  const processTableData = useCallback(async (
     input: string,
     useHeaderRow: boolean,
     csvMode: boolean
@@ -184,43 +186,54 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
       return;
     }
 
+    // For large datasets, show loading state
     const lines = trimmedInput.split("\n");
-    if (lines.length === 0) return;
+    if (lines.length > 100) {
+      setIsProcessingData(true);
+      // Small delay to let UI update
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
 
-    // Use the format selected by the user toggle
-    const delimiter = csvMode ? "," : "\t";
-    console.log(`Using ${csvMode ? "CSV" : "TSV"} mode`);
+    try {
+      if (lines.length === 0) return;
 
-    const rows = lines.map((row) => {
-      if (csvMode) {
-        return parseCSVRow(row);
-      } else {
-        return row.split(delimiter);
-      }
-    });
-    if (rows.length === 0) return;
+      // Use the format selected by the user toggle
+      const delimiter = csvMode ? "," : "\t";
+      console.log(`Using ${csvMode ? "CSV" : "TSV"} mode`);
 
-    const headers = useHeaderRow
-      ? rows[0].map((header, index) => header || `_column_${index}`) // Handle blank headers
-      : rows[0].map((_, index) => `Column ${index + 1}`);
-    const data = useHeaderRow ? rows.slice(1) : rows;
-    const processedTableData = data.map((row) => {
-      const obj: TableData = {};
-      headers.forEach((header, index) => {
-        obj[header] = row[index] || "";
+      const rows = lines.map((row) => {
+        if (csvMode) {
+          return parseCSVRow(row);
+        } else {
+          return row.split(delimiter);
+        }
       });
-      return obj;
-    });
-    
-    setTableData(processedTableData);
+      if (rows.length === 0) return;
 
-    // Auto-detect email column
-    const emailCol = detectEmailColumn(headers, processedTableData);
-    console.log("📊 useTableData: Detected email column:", emailCol);
-    setDetectedEmailColumn(emailCol);
+      const headers = useHeaderRow
+        ? rows[0].map((header, index) => header || `_column_${index}`) // Handle blank headers
+        : rows[0].map((_, index) => `Column ${index + 1}`);
+      const data = useHeaderRow ? rows.slice(1) : rows;
+      const processedTableData = data.map((row) => {
+        const obj: TableData = {};
+        headers.forEach((header, index) => {
+          obj[header] = row[index] || "";
+        });
+        return obj;
+      });
+      
+      setTableData(processedTableData);
+
+      // Auto-detect email column
+      const emailCol = detectEmailColumn(headers, processedTableData);
+      console.log("📊 useTableData: Detected email column:", emailCol);
+      setDetectedEmailColumn(emailCol);
+    } finally {
+      setIsProcessingData(false);
+    }
   }, []);
 
-  const handleTableDataChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleTableDataChange = useCallback(async (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newInput = event.target.value;
     setTableInput(newInput);
     if (newInput.trim() === "") {
@@ -248,7 +261,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
       }
       
       // Process data with detected or current settings
-      processTableData(
+      await processTableData(
         newInput, 
         shouldUpdateHeaders ? detectedHeaders : isFirstRowHeader, 
         shouldUpdateCSV ? detectedCSV : useCSVMode
@@ -256,7 +269,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     }
   }, [isFirstRowHeader, useCSVMode, processTableData]);
 
-  const handleHeaderToggle = useCallback(() => {
+  const handleHeaderToggle = useCallback(async () => {
     setIsFirstRowHeader((prev) => {
       const newValue = !prev;
       if (tableInput.trim()) {
@@ -266,7 +279,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     });
   }, [tableInput, useCSVMode, processTableData]);
 
-  const handleCSVModeToggle = useCallback(() => {
+  const handleCSVModeToggle = useCallback(async () => {
     setUseCSVMode((prev) => {
       const newValue = !prev;
       // Reprocess data with new format
@@ -277,11 +290,11 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     });
   }, [tableInput, isFirstRowHeader, processTableData]);
 
-  const loadPresetData = useCallback((csvData: string) => {
+  const loadPresetData = useCallback(async (csvData: string) => {
     setUseCSVMode(true);
     setIsFirstRowHeader(true);
     setTableInput(csvData);
-    processTableData(csvData, true, true);
+    await processTableData(csvData, true, true);
   }, [processTableData]);
 
   const clearData = useCallback(() => {
@@ -296,6 +309,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     isFirstRowHeader,
     useCSVMode,
     detectedEmailColumn,
+    isProcessingData,
     handleTableDataChange,
     handleHeaderToggle,
     handleCSVModeToggle,
