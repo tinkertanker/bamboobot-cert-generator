@@ -142,12 +142,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
     }
 
     const status = queueManager.getStatus();
-    const skippedCount = emails.length - validEmails.length;
-    return res.status(200).json({
-      ...status,
-      skipped: skippedCount,
-      totalSubmitted: emails.length
-    });
+    return res.status(200).json(status);
   } catch (error) {
     console.error('Status check error:', error);
     return res.status(500).json({ error: 'Failed to get status' });

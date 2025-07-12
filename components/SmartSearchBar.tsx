@@ -331,7 +331,7 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
             <span className="text-xs text-gray-500 font-medium">
               {filteredCount}/{tableData.length}
             </span>
-            <HelpCircle className="h-4 w-4 text-gray-400" title="Search help" />
+            <HelpCircle className="h-4 w-4 text-gray-400" />
           </div>
         </div>
 

@@ -27,7 +27,7 @@ export function DataPanelWithSearch({
   // Get column names from the first header group
   const columnNames = useMemo(() => {
     if (originalHeaderGroups.length > 0) {
-      return originalHeaderGroups[0].headers.map((header: any) => header.Header as string);
+      return originalHeaderGroups[0].headers.map((header: ColumnInstance<TableData>) => header.Header as string);
     }
     return [];
   }, [originalHeaderGroups]);
@@ -35,7 +35,7 @@ export function DataPanelWithSearch({
   // Create a new table instance with filtered data
   const columns = useMemo(() => {
     if (originalHeaderGroups.length > 0) {
-      return originalHeaderGroups[0].headers.map(header => ({
+      return originalHeaderGroups[0].headers.map((header: ColumnInstance<TableData>) => ({
         Header: header.Header,
         accessor: header.id
       }));
@@ -121,13 +121,13 @@ export function DataPanelWithSearch({
                     style={{ backgroundColor: COLORS.tabInactive }}>
                     {headerGroups.map(
                       (headerGroup: HeaderGroup<TableData>, index) => (
-                        <tr key={headerGroup.id || `header-${index}`} {...headerGroup.getHeaderGroupProps()}>
+                        <tr {...headerGroup.getHeaderGroupProps()} key={headerGroup.id || `header-${index}`}>
                           {headerGroup.headers.map(
                             (column: ColumnInstance<TableData>) => (
                               <th
-                                className="px-4 py-2 border-b border-gray-200 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                key={column.id}
                                 {...column.getHeaderProps()}
+                                key={column.id}
+                                className="px-4 py-2 border-b border-gray-200 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                                 style={{
                                   width: `${100 / headerGroup.headers.length}%`
                                 }}>
@@ -168,8 +168,8 @@ export function DataPanelWithSearch({
                         const isCurrentRow = index === currentPreviewIndex;
                         return (
                           <tr
-                            key={row.id || index}
                             {...row.getRowProps()}
+                            key={row.id || index}
                             className={`${
                               isCurrentRow ? "" : "hover:bg-gray-50"
                             } transition-colors cursor-pointer`}
@@ -189,13 +189,13 @@ export function DataPanelWithSearch({
                             }>
                             {row.cells.map((cell: Cell<TableData>) => (
                               <td
+                                {...cell.getCellProps()}
+                                key={cell.column.id}
                                 className={`px-4 py-2 border-b border-gray-200 text-sm ${
                                   isCurrentRow
                                     ? "text-amber-900 font-medium"
                                     : "text-gray-900"
                                 }`}
-                                key={cell.column.id}
-                                {...cell.getCellProps()}
                                 style={{
                                   width: `${100 / row.cells.length}%`
                                 }}>
