@@ -85,8 +85,8 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 
 ### Performance Improvements & Remaining Limitations
 - ✅ **RESOLVED**: Table virtualization implemented - only visible rows render (using react-window)
-- ⚠️ No pagination or search/filter functionality
-- ⚠️ PDF generation timeout risk (300s Next.js limit) for very large batches
+- ✅ **RESOLVED**: Search & filter functionality implemented with natural language parsing
+- ✅ **RESOLVED**: Progressive PDF generation prevents timeout for large batches
 - ⚠️ Email rate limits (Resend: 100/hour)
 - ⚠️ Memory usage spikes with large arrays during PDF generation
 
@@ -94,8 +94,8 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 
 ### High Priority (Performance Critical)
 1. ~~**Table Virtualization**~~ ✅ COMPLETED - Implemented with react-window
-2. **Search & Filter** - Client-side filtering across columns
-3. **Progressive PDF Generation** - Batch processing with progress
+2. ~~**Search & Filter**~~ ✅ COMPLETED - Natural language search with column:value syntax
+3. ~~**Progressive PDF Generation**~~ ✅ COMPLETED - Batch processing with pause/resume
 
 ### Medium Priority (UX Improvements)
 1. **Format Templates** - Save/load formatting presets
@@ -139,6 +139,15 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
   - Automatic switching based on dataset size
   - Maintains all existing functionality (selection, highlighting, scrolling)
   - Significantly improves performance for 400+ row datasets
+- **Search & Filter**: Natural language search with smart parsing
+  - Column-specific search with `column:value` syntax
+  - Quick filter chips for common queries
+  - Real-time search result counting
+- **Progressive PDF Generation**: Batch processing for large datasets
+  - Automatically used for datasets > 100 entries
+  - Real-time progress tracking with time estimates
+  - Pause/Resume/Cancel functionality
+  - Prevents timeout issues for large batches
 - **Package Manager**: Migrated from pnpm to npm
   - All scripts and CI/CD updated
   - Docker configurations updated

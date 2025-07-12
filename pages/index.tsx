@@ -17,6 +17,9 @@ import { usePositioning } from "@/hooks/usePositioning";
 import { useDragAndDrop } from "@/hooks/useDragAndDrop";
 import { useEmailConfig } from "@/hooks/useEmailConfig";
 import { usePdfGeneration } from "@/hooks/usePdfGeneration";
+import { useProgressivePdfGeneration } from "@/hooks/useProgressivePdfGeneration";
+import { ProgressivePdfModal } from "@/components/modals/ProgressivePdfModal";
+import { PROGRESSIVE_PDF } from "@/utils/constants";
 import {
   SkipBack,
   ChevronLeft,
@@ -161,6 +164,25 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
     setIndividualPdfsData,
     clearPdfData
   } = usePdfGeneration({
+    tableData,
+    positions,
+    uploadedFile,
+    selectedNamingColumn,
+    setSelectedNamingColumn
+  });
+
+  // Progressive PDF generation hook
+  const {
+    isGenerating: isProgressiveGenerating,
+    progress: progressivePdfProgress,
+    results: progressivePdfResults,
+    error: progressivePdfError,
+    startProgressiveGeneration,
+    pauseGeneration,
+    resumeGeneration,
+    cancelGeneration,
+    clearResults
+  } = useProgressivePdfGeneration({
     tableData,
     positions,
     uploadedFile,
@@ -449,17 +471,25 @@ Email Sending Robot`,
               {isGenerating ? "Generating..." : "Generate PDF"}
             </ActionButton>
             <ActionButton
-              onClick={generateIndividualPdfs}
+              onClick={() => {
+                // Use progressive generation for large datasets
+                if (tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD) {
+                  startProgressiveGeneration('individual');
+                } else {
+                  generateIndividualPdfs();
+                }
+              }}
               disabled={
                 !uploadedFile ||
                 isGenerating ||
                 isGeneratingIndividual ||
+                isProgressiveGenerating ||
                 tableData.length === 0
               }
               gradient
               gradientType="coral"
               className="font-semibold px-6">
-              {isGeneratingIndividual
+              {isGeneratingIndividual || isProgressiveGenerating
                 ? "Generating..."
                 : "Generate Individual PDFs"}
             </ActionButton>
@@ -729,6 +759,35 @@ Email Sending Robot`,
         positions={positions}
         setPositions={setPositions}
         tableData={tableData}
+      />
+
+      {/* Progressive PDF Modal */}
+      <ProgressivePdfModal
+        open={isProgressiveGenerating || !!progressivePdfResults || !!progressivePdfError}
+        onClose={() => {
+          clearResults();
+          // If we have results, open the individual PDFs modal
+          if (progressivePdfResults && progressivePdfResults.files.length > 0) {
+            // Convert progressive results to individual PDFs format
+            const individualPdfs = progressivePdfResults.files.map((file) => ({
+              filename: file.filename,
+              url: file.path,
+              originalIndex: file.index
+            }));
+            setIndividualPdfsData(individualPdfs);
+          }
+        }}
+        progress={progressivePdfProgress}
+        results={progressivePdfResults}
+        error={progressivePdfError}
+        onPause={pauseGeneration}
+        onResume={resumeGeneration}
+        onCancel={cancelGeneration}
+        onEmailAll={() => {
+          // TODO: Implement email all functionality for progressive results
+          console.log('Email all from progressive generation');
+        }}
+        hasEmailConfig={emailConfig.isConfigured}
       />
 
       {/* Error Modal */}
