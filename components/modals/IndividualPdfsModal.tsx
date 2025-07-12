@@ -41,6 +41,7 @@ export function IndividualPdfsModal({
         if (!isGeneratingIndividual) {
           setIndividualPdfsData(null);
           setSelectedNamingColumn("");
+          setShowBulkEmailModal(false);  // Reset bulk email modal state
           onClose();
         }
       }}
@@ -190,17 +191,20 @@ export function IndividualPdfsModal({
                               : "outline"
                           }
                           title={
-                            !emailConfig.isConfigured
-                              ? "Configure email settings in Email tab first"
-                              : emailSendingStatus[index] === "sending"
-                                ? "Sending email..."
-                                : emailSendingStatus[index] === "sent"
-                                  ? "Email sent!"
-                                  : emailSendingStatus[index] === "error"
-                                    ? "Failed to send email"
-                                    : "Send via email"
+                            !emailAddress
+                              ? "No email address available"
+                              : !emailConfig.isConfigured
+                                ? "Configure email settings in Email tab first"
+                                : emailSendingStatus[index] === "sending"
+                                  ? "Sending email..."
+                                  : emailSendingStatus[index] === "sent"
+                                    ? "Email sent!"
+                                    : emailSendingStatus[index] === "error"
+                                      ? "Failed to send email"
+                                      : "Send via email"
                           }
                           disabled={
+                            !emailAddress ||
                             emailSendingStatus[index] === "sending" ||
                             !emailConfig.isConfigured
                           }
@@ -210,23 +214,30 @@ export function IndividualPdfsModal({
                           className="h-8 w-8 p-0"
                           style={{
                             backgroundColor:
-                              emailSendingStatus[index] === "sent"
-                                ? "#2D6A4F"
-                                : emailSendingStatus[index] === "error"
-                                  ? "#dc2626"
-                                  : "transparent",
+                              !emailAddress
+                                ? "transparent"
+                                : emailSendingStatus[index] === "sent"
+                                  ? "#2D6A4F"
+                                  : emailSendingStatus[index] === "error"
+                                    ? "#dc2626"
+                                    : "transparent",
                             borderColor:
-                              emailSendingStatus[index] === "sent"
-                                ? "#2D6A4F"
-                                : emailSendingStatus[index] === "error"
-                                  ? "#dc2626"
-                                  : "#2D6A4F",
+                              !emailAddress
+                                ? "#d1d5db"
+                                : emailSendingStatus[index] === "sent"
+                                  ? "#2D6A4F"
+                                  : emailSendingStatus[index] === "error"
+                                    ? "#dc2626"
+                                    : "#2D6A4F",
                             color:
-                              emailSendingStatus[index] === "sent"
-                                ? "white"
-                                : emailSendingStatus[index] === "error"
+                              !emailAddress
+                                ? "#9ca3af"
+                                : emailSendingStatus[index] === "sent"
                                   ? "white"
-                                  : "#2D6A4F"
+                                  : emailSendingStatus[index] === "error"
+                                    ? "white"
+                                    : "#2D6A4F",
+                            cursor: !emailAddress ? "not-allowed" : "pointer"
                           }}>
                           {emailSendingStatus[index] === "sending" ? (
                             <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -341,6 +352,7 @@ export function IndividualPdfsModal({
               onClick={() => {
                 setIndividualPdfsData(null);
                 setSelectedNamingColumn("");
+                setShowBulkEmailModal(false);  // Reset bulk email modal state
                 onClose();
               }}
               variant="outline"

@@ -27,7 +27,7 @@ export function DataPanelWithSearch({
   // Get column names from the first header group
   const columnNames = useMemo(() => {
     if (originalHeaderGroups.length > 0) {
-      return originalHeaderGroups[0].headers.map(header => header.Header as string);
+      return originalHeaderGroups[0].headers.map((header: any) => header.Header as string);
     }
     return [];
   }, [originalHeaderGroups]);

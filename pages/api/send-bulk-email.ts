@@ -47,8 +47,17 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
     // Get from address from env or use default
     const fromAddress = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
+    // Filter out emails without valid addresses
+    const validEmails = emails.filter((email: { to: string; [key: string]: unknown }) => email.to && email.to.trim() !== '');
+    
+    if (validEmails.length === 0) {
+      return res.status(400).json({ 
+        error: 'No valid email addresses found. All entries are missing email addresses.' 
+      });
+    }
+
     // Add emails to queue
-    const emailParams: EmailParams[] = await Promise.all(emails.map(async email => {
+    const emailParams: EmailParams[] = await Promise.all(validEmails.map(async email => {
       let attachments = undefined;
       
       // Handle attachments if delivery method is attachment
@@ -133,7 +142,12 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
     }
 
     const status = queueManager.getStatus();
-    return res.status(200).json(status);
+    const skippedCount = emails.length - validEmails.length;
+    return res.status(200).json({
+      ...status,
+      skipped: skippedCount,
+      totalSubmitted: emails.length
+    });
   } catch (error) {
     console.error('Status check error:', error);
     return res.status(500).json({ error: 'Failed to get status' });

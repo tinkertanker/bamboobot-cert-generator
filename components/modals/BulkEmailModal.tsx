@@ -51,16 +51,19 @@ interface EmailStatus {
 export function BulkEmailModal({ 
   open, 
   onClose, 
-  totalEmails, 
   emailConfig, 
   certificates 
 }: BulkEmailModalProps) {
+  // Filter out certificates without email addresses
+  const validCertificates = certificates.filter(cert => cert.email && cert.email.trim() !== '');
+  const skippedCount = certificates.length - validCertificates.length;
+  
   const [status, setStatus] = useState<EmailStatus>({
     status: 'idle',
     processed: 0,
     failed: 0,
-    total: totalEmails,
-    remaining: totalEmails,
+    total: validCertificates.length,
+    remaining: validCertificates.length,
     provider: '',
     rateLimit: { limit: 0, remaining: 0, resetIn: 0 }
   });
@@ -77,7 +80,7 @@ export function BulkEmailModal({
       
       // Try to restore previous session for the same certificates
       const persistedStatus = loadEmailStatus(sessionId);
-      if (persistedStatus && persistedStatus.total === totalEmails) {
+      if (persistedStatus && persistedStatus.total === validCertificates.length) {
         setStatus(prev => ({
           ...prev,
           ...persistedStatus,
@@ -95,7 +98,7 @@ export function BulkEmailModal({
         console.log(`Restored email status from ${formatSessionId(sessionId)}`);
       }
     }
-  }, [open, sessionId, totalEmails, restoredFromStorage]);
+  }, [open, sessionId, validCertificates.length, restoredFromStorage]);
 
   // Save state to localStorage when it changes
   useEffect(() => {
@@ -148,8 +151,8 @@ export function BulkEmailModal({
     setStatus(prev => ({ ...prev, status: 'processing' }));
 
     try {
-      // Prepare email data
-      const emails = certificates.map(cert => ({
+      // Prepare email data (only valid certificates)
+      const emails = validCertificates.map(cert => ({
         to: cert.email,
         senderName: emailConfig.senderName,
         subject: emailConfig.subject,
@@ -227,6 +230,17 @@ export function BulkEmailModal({
         </h3>
 
         <div className="space-y-4">
+          {/* Show error if no valid emails */}
+          {validCertificates.length === 0 && (
+            <div className="bg-red-50 border border-red-200 rounded p-4">
+              <p className="text-sm font-medium text-red-800 mb-2">
+                No valid email addresses found
+              </p>
+              <p className="text-xs text-red-700">
+                All certificates are missing email addresses. Please ensure your data includes email addresses in the detected email column.
+              </p>
+            </div>
+          )}
           {/* Restoration notification */}
           {restoredFromStorage && (
             <div className="bg-blue-50 border border-blue-200 rounded p-3">
@@ -240,15 +254,20 @@ export function BulkEmailModal({
           {status.status === 'idle' && !isStarted && (
             <div className="bg-blue-50 border border-blue-200 rounded p-3">
               <p className="text-sm font-medium text-blue-900 mb-2">
-                Ready to send {totalEmails} emails:
+                Ready to send {validCertificates.length} emails:
               </p>
+              {skippedCount > 0 && (
+                <p className="text-xs text-amber-700 mb-2">
+                  ⚠️ Skipping {skippedCount} certificate{skippedCount > 1 ? 's' : ''} without email addresses
+                </p>
+              )}
               <div className="max-h-32 overflow-y-auto">
                 <ul className="text-xs text-blue-700 space-y-1">
-                  {certificates.slice(0, 5).map((cert, idx) => (
+                  {validCertificates.slice(0, 5).map((cert, idx) => (
                     <li key={idx}>• {cert.email}</li>
                   ))}
-                  {totalEmails > 5 && (
-                    <li className="text-blue-600 italic">... and {totalEmails - 5} more</li>
+                  {validCertificates.length > 5 && (
+                    <li className="text-blue-600 italic">... and {validCertificates.length - 5} more</li>
                   )}
                 </ul>
               </div>
@@ -336,9 +355,11 @@ export function BulkEmailModal({
                 <Button
                   onClick={startSending}
                   className="flex-1"
+                  disabled={validCertificates.length === 0}
                   style={{ 
-                    backgroundColor: COLORS.primaryMedium,
-                    color: 'white'
+                    backgroundColor: validCertificates.length === 0 ? '#d1d5db' : COLORS.primaryMedium,
+                    color: validCertificates.length === 0 ? '#6b7280' : 'white',
+                    cursor: validCertificates.length === 0 ? 'not-allowed' : 'pointer'
                   }}
                 >
                   Start Sending
@@ -396,14 +417,14 @@ export function BulkEmailModal({
       </div>
       
       {/* Email Preview Modal */}
-      {certificates.length > 0 && (
+      {validCertificates.length > 0 && (
         <EmailPreviewModal
           open={showPreview}
           onClose={() => setShowPreview(false)}
           emailConfig={emailConfig}
-          sampleEmail={certificates[0].email}
-          sampleFileName={certificates[0].fileName}
-          sampleDownloadUrl={certificates[0].downloadUrl}
+          sampleEmail={validCertificates[0].email}
+          sampleFileName={validCertificates[0].fileName}
+          sampleDownloadUrl={validCertificates[0].downloadUrl}
         />
       )}
     </div>
