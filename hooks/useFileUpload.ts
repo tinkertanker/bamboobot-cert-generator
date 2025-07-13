@@ -9,7 +9,7 @@ export interface UseFileUploadReturn {
   uploadError: { title: string; message: string; action: string } | null;
   setUploadedFile: (file: File | string | null) => void;
   setUploadedFileUrl: (url: string | null) => void;
-  processFile: (file: File) => Promise<void>;
+  processFile: (file: File, isTemplate?: boolean) => Promise<void>;
   handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
   handleDragLeave: (event: React.DragEvent<HTMLDivElement>) => void;
@@ -25,7 +25,7 @@ export function useFileUpload(): UseFileUploadReturn {
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<{ title: string; message: string; action: string } | null>(null);
 
-  const processFile = useCallback(async (file: File) => {
+  const processFile = useCallback(async (file: File, isTemplate = false) => {
     setUploadError(null);
     
     // Check file type
@@ -44,6 +44,7 @@ export function useFileUpload(): UseFileUploadReturn {
     setIsLoading(true);
     const formData = new FormData();
     formData.append("template", file);
+    formData.append("isTemplate", isTemplate.toString());
     
     try {
       const response = await fetch("/api/upload", {
@@ -56,7 +57,7 @@ export function useFileUpload(): UseFileUploadReturn {
       }
       
       const data = await response.json();
-      console.log("Template uploaded successfully");
+      console.log("Template uploaded successfully", { isTemplate: data.isTemplate, storageType: data.storageType });
       setUploadedFile(data.filename);
       setUploadedFileUrl(data.image);
     } catch (error) {

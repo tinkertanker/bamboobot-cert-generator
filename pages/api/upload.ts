@@ -13,12 +13,18 @@ export const config = {
   },
 };
 
-// Always use local directory for templates (needed by generate endpoint)
-const outputDir = path.join(process.cwd(), 'public', 'temp_images');
+// Determine output directory - templates go to a permanent location in local storage
+const getTempDir = () => path.join(process.cwd(), 'public', 'temp_images');
+const getTemplateDir = () => path.join(process.cwd(), 'public', 'template_images');
 
-// Ensure output directory exists
-if (!fs.existsSync(outputDir)) {
-  fs.mkdirSync(outputDir, { recursive: true });
+// Ensure output directories exist
+const tempDir = getTempDir();
+const templateDir = getTemplateDir();
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir, { recursive: true });
+}
+if (!fs.existsSync(templateDir)) {
+  fs.mkdirSync(templateDir, { recursive: true });
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -27,18 +33,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const form = new IncomingForm({
-    uploadDir: outputDir, // Use the new output directory
+    uploadDir: tempDir, // Use temp directory for initial upload
     keepExtensions: true,
   });
 
   try {
-    const { files } = await new Promise<{fields: Fields, files: Files}>((resolve, reject) => {
+    const { fields, files } = await new Promise<{fields: Fields, files: Files}>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) reject(err);
         else resolve({ fields, files });
       });
     });
 
+    // Check if this is a template upload
+    const isTemplateField = fields.isTemplate;
+    const isTemplate = Array.isArray(isTemplateField) ? isTemplateField[0] === 'true' : isTemplateField === 'true';
+    
     // console.log('Files structure:', JSON.stringify(files, null, 2));
 
     const fileArray = files.template as File[] | File | undefined;
@@ -83,32 +93,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     let imageUrl: string;
     
+    // Determine where to save files based on whether this is a template
+    const localSaveDir = isTemplate && !storageConfig.isR2Enabled && !storageConfig.isS3Enabled 
+      ? templateDir 
+      : tempDir;
+    
     // ALWAYS save PDF locally for the generate endpoint to use
-    const pdfFilepath = path.join(outputDir, pdfFilename);
+    const pdfFilepath = path.join(localSaveDir, pdfFilename);
     await fsPromises.writeFile(pdfFilepath, pdfBytes);
     
     if (storageConfig.isR2Enabled) {
       console.log('Uploading to R2...');
       
       // Upload original image to R2 for display
+      const metadata = isTemplate ? {
+        type: 'template' as const,
+        retention: 'permanent' as const,
+        isTemplate: 'true'
+      } : undefined;
+      
       const uploadResult = await uploadToR2(
         Buffer.from(originalImageBytes),
         `temp_images/${imageName}`,
-        mimetype
+        mimetype,
+        imageName,
+        metadata
       );
       imageUrl = uploadResult.url;
       
       // Also save image locally as backup
-      const imageFilepath = path.join(outputDir, imageName);
+      const imageFilepath = path.join(localSaveDir, imageName);
       await fsPromises.copyFile(filepath, imageFilepath);
       
       console.log('R2 upload successful:', imageUrl);
     } else {
       // Fallback to local storage
-      const imageFilepath = path.join(outputDir, imageName);
+      const imageFilepath = path.join(localSaveDir, imageName);
       await fsPromises.copyFile(filepath, imageFilepath);
       
-      imageUrl = storageConfig.getFileUrl(imageName, undefined, 'temp_images');
+      // Return appropriate URL based on where file was saved
+      if (isTemplate && localSaveDir === templateDir) {
+        // For templates saved locally, return direct path
+        imageUrl = `/template_images/${imageName}`;
+      } else {
+        imageUrl = storageConfig.getFileUrl(imageName, undefined, 'temp_images');
+      }
     }
     
     console.log("imageUrl:", imageUrl);
@@ -117,6 +146,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       message: 'Template uploaded successfully',
       filename: pdfFilename,
       image: imageUrl,
+      isTemplate: isTemplate,
+      storageType: storageConfig.isR2Enabled ? 'r2' : storageConfig.isS3Enabled ? 's3' : 'local'
     });
   } catch (err) {
     console.error('Upload error:', err);

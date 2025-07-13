@@ -24,7 +24,9 @@ import {
   SkipBack,
   ChevronLeft,
   ChevronRight,
-  SkipForward
+  SkipForward,
+  FileText,
+  Save
 } from "lucide-react";
 import { CertificatePreview } from "@/components/CertificatePreview";
 import { DataPanelWithSearch } from "@/components/panels/DataPanelWithSearch";
@@ -33,10 +35,13 @@ import { EmailConfigPanel } from "@/components/panels/EmailConfigPanel";
 import { PdfGenerationModal } from "@/components/modals/PdfGenerationModal";
 import { IndividualPdfsModal } from "@/components/modals/IndividualPdfsModal";
 import { ConfirmationModals } from "@/components/modals/ConfirmationModals";
+import { SaveTemplateModal } from "@/components/modals/SaveTemplateModal";
+import { LoadTemplateModal } from "@/components/modals/LoadTemplateModal";
 import { ErrorModal } from "@/components/ui/error-alert";
 import { MobileWarningScreen } from "@/components/MobileWarningScreen";
 import { useMobileDetection } from "@/hooks/useMobileDetection";
 import { COLORS, GRADIENTS } from "@/utils/styles";
+import type { SavedTemplate } from "@/lib/template-storage";
 
 
 
@@ -98,6 +103,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
   const [showResetFieldModal, setShowResetFieldModal] =
     useState<boolean>(false);
   const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState<boolean>(false);
+  const [showLoadTemplateModal, setShowLoadTemplateModal] = useState<boolean>(false);
 
   // Drag and drop hook
   const {
@@ -215,6 +222,42 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
     setShowResetFieldModal(false);
     setShowClearAllModal(false);
   }, [setGeneratedPdfUrl, setIndividualPdfsData]);
+
+  // Template handlers
+  const handleLoadTemplate = useCallback(async (template: SavedTemplate) => {
+    // Load the positions
+    setPositions(template.positions);
+    
+    // Load the columns structure (requires table data in the same format)
+    const columns = template.columns;
+    if (columns.length > 0) {
+      // Create sample data structure with the loaded columns
+      const sampleRow: TableData = {};
+      columns.forEach(col => {
+        sampleRow[col] = '';
+      });
+      // This will help the user understand what columns are expected
+      console.log('Template expects columns:', columns);
+    }
+    
+    // Load email configuration if present
+    if (template.emailConfig) {
+      setEmailConfig(template.emailConfig);
+    }
+    
+    // Update the certificate image URL if different
+    if (template.certificateImage.url && template.certificateImage.url !== uploadedFileUrl) {
+      setUploadedFileUrl(template.certificateImage.url);
+      setUploadedFile(template.certificateImage.filename);
+    }
+    
+    console.log('Template loaded successfully:', template.name);
+  }, [setPositions, setEmailConfig, setUploadedFileUrl, setUploadedFile, uploadedFileUrl]);
+
+  const handleSaveTemplateSuccess = useCallback((templateId: string, templateName: string) => {
+    console.log('Template saved successfully:', { id: templateId, name: templateName });
+    // Could show a success message here
+  }, []);
 
   // Keyboard shortcuts hook
   useKeyboardShortcuts({
@@ -458,6 +501,25 @@ Email Sending Robot`,
             )}
           </div>
           <div className="flex gap-2">
+            {/* Template buttons */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowLoadTemplateModal(true)}
+              className="inline-flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Load Template
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSaveTemplateModal(true)}
+              disabled={!uploadedFileUrl || Object.keys(positions).length === 0}
+              className="inline-flex items-center gap-2">
+              <Save className="h-4 w-4" />
+              Save Template
+            </Button>
+            <div className="w-px bg-gray-300 mx-1" /> {/* Separator */}
             <ActionButton
               onClick={generatePdf}
               disabled={
@@ -780,6 +842,24 @@ Email Sending Robot`,
         positions={positions}
         setPositions={setPositions}
         tableData={tableData}
+      />
+
+      {/* Template Modals */}
+      <SaveTemplateModal
+        isOpen={showSaveTemplateModal}
+        onClose={() => setShowSaveTemplateModal(false)}
+        positions={positions}
+        columns={Object.keys(tableData[0] || {})}
+        emailConfig={emailConfig}
+        certificateImageUrl={uploadedFileUrl}
+        certificateFilename={uploadedFile as string}
+        onSaveSuccess={handleSaveTemplateSuccess}
+      />
+
+      <LoadTemplateModal
+        isOpen={showLoadTemplateModal}
+        onClose={() => setShowLoadTemplateModal(false)}
+        onLoadTemplate={handleLoadTemplate}
       />
 
       {/* Progressive PDF Modal removed - now using unified IndividualPdfsModal */}

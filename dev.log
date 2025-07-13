@@ -2,22 +2,71 @@
 > bamboobot-certificate-generator@1.0.0 dev
 > next dev
 
+ ⚠ Port 3000 is in use, using available port 3001 instead.
    ▲ Next.js 15.3.5
-   - Local:        http://localhost:3000
-   - Network:      http://192.168.1.75:3000
+   - Local:        http://localhost:3001
+   - Network:      http://192.168.1.71:3001
    - Environments: .env.local
 
  ✓ Starting...
- ✓ Ready in 1254ms
- ○ Compiling /loading-preview ...
- ✓ Compiled /loading-preview in 1925ms (357 modules)
- GET /loading-preview 200 in 2198ms
+ ✓ Ready in 1386ms
  ○ Compiling / ...
- ✓ Compiled / in 671ms (565 modules)
- GET / 200 in 999ms
- GET / 200 in 224ms
- ✓ Compiled in 200ms (559 modules)
- ✓ Compiled in 276ms (559 modules)
- ✓ Compiled in 111ms (346 modules)
- ✓ Compiled in 125ms (283 modules)
- ✓ Compiled in 70ms (283 modules)
+ ✓ Compiled / in 1212ms (1296 modules)
+ReferenceError: localStorage is not defined
+    at TemplateStorage.getStorageUsage (lib/template-storage.ts:238:24)
+    at TemplateStorage.getStorageInfo (lib/template-storage.ts:255:22)
+    at SaveTemplateModal (components/modals/SaveTemplateModal.tsx:86:38)
+  236 |     let totalSize = 0;
+  237 |     
+> 238 |     for (let i = 0; i < localStorage.length; i++) {
+      |                        ^
+  239 |       const key = localStorage.key(i);
+  240 |       if (!key || !key.startsWith(STORAGE_KEY_PREFIX)) continue;
+  241 |       
+ ⨯ ReferenceError: localStorage is not defined
+    at TemplateStorage.getStorageUsage (lib/template-storage.ts:238:24)
+    at TemplateStorage.getStorageInfo (lib/template-storage.ts:255:22)
+    at SaveTemplateModal (components/modals/SaveTemplateModal.tsx:86:38)
+  236 |     let totalSize = 0;
+  237 |     
+> 238 |     for (let i = 0; i < localStorage.length; i++) {
+      |                        ^
+  239 |       const key = localStorage.key(i);
+  240 |       if (!key || !key.startsWith(STORAGE_KEY_PREFIX)) continue;
+  241 |       
+ ⨯ ReferenceError: localStorage is not defined
+    at TemplateStorage.getStorageUsage (lib/template-storage.ts:238:24)
+    at TemplateStorage.getStorageInfo (lib/template-storage.ts:255:22)
+    at SaveTemplateModal (components/modals/SaveTemplateModal.tsx:86:38)
+  236 |     let totalSize = 0;
+  237 |     
+> 238 |     for (let i = 0; i < localStorage.length; i++) {
+      |                        ^
+  239 |       const key = localStorage.key(i);
+  240 |       if (!key || !key.startsWith(STORAGE_KEY_PREFIX)) continue;
+  241 |        {
+  page: '/'
+}
+ ✓ Compiled /_error in 109ms (1347  ✓ Compiled in 630ms (1347 m ⚠ Fas ✓ Compiled in 1258ms (1296 modules)
+ ✓ Compiled in 403ms (1296 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename '/Users/yingjie/Developer/tt-projects/cert-generator-again-next/.next/cache/webpack/server-development/8.pack.gz_' -> '/Users/yingjie/Developer/tt-projects/cert-generator-again-next/.next/cache/webpack/server-development/8.pack.gz'
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename '/Users/yingjie/Developer/tt-projects/cert-ge GET / 200 in 233ms
+ ✓ Compiled in 1154ms (1347 modules)
+ ✓ Compiled in 477ms (1347 modules)
+ ✓ Compiled in 1179ms (1347 modules)
+ ✓ Compiled in 709ms (1347 modules)
+ ✓ Compiled in 569ms (1347 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: invalid code -- missing end-of-block
+r pack: Error: ENOENT: no such file or directory, rename '/Users/yingjie/Developer/tt-projects/cert-generator-again-next/.next/cache/webpack/client-development/0.pack.gz_' -> '/Users/yingjie/Developer/tt-projects/cert-generator-again-next/.next/cache/webpack/client-development/0.pack.gz'
+ GET / 200 in 538ms
+ ✓ Compiled in 1070ms (1296 modules)
+ GET / 200 in 306ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 579ms (1347 modules)
+ GET /_next/static/webpack/1d4212a0fe745990.webpack.hot-update.json 404 in 812ms
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET / 200 in 237ms
+ ✓ Compiled in 715ms (1347 modules)
+ ✓ Compiled in 590ms (1347 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: invalid code -- missing end-of-block
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename '/Users/yingjie/Developer/tt-projects/cert-generator-again-next/.next/cache/webpack/server-development/0.pack.gz_' -> '/Users/yingjie/Developer/tt-projects/cert-generator-again-next/.next/cache/webpack/server-development/0.pack.gz'

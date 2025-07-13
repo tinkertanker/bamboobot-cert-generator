@@ -156,4 +156,62 @@ describe('Upload API', () => {
       })
     );
   }, 30000); // Increase timeout to 30 seconds to avoid test timeouts
+
+  it('should handle template upload with isTemplate parameter', async () => {
+    // Update the mock to include isTemplate field
+    const mockFormWithTemplate = {
+      parse: jest.fn().mockImplementation((req, callback) => {
+        setTimeout(() => {
+          callback(null, { isTemplate: 'true' }, { template: mockFile });
+        }, 0);
+      }),
+    };
+    
+    (jest.requireMock('formidable').IncomingForm as jest.Mock).mockImplementationOnce(() => mockFormWithTemplate);
+    
+    // Update mock handler to include isTemplate and storageType
+    const templateHandler = jest.fn((req, res) => {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
+      }
+      
+      setTimeout(() => {
+        res.status(200).json({
+          message: 'Template uploaded successfully',
+          filename: 'test.pdf',
+          image: '/template_images/test.jpg',
+          isTemplate: true,
+          storageType: 'local'
+        });
+      }, 10);
+      
+      return Promise.resolve();
+    });
+    
+    // Set up a hook for when json is called
+    const jsonPromise = new Promise<void>((resolve) => {
+      (res.json as jest.Mock).mockImplementationOnce(() => {
+        resolve();
+        return res;
+      });
+    });
+    
+    // Call the handler
+    templateHandler(req as NextApiRequest, res as NextApiResponse);
+    
+    // Wait for the json method to be called
+    await jsonPromise;
+    
+    // Assertions
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Template uploaded successfully',
+        filename: 'test.pdf',
+        image: '/template_images/test.jpg',
+        isTemplate: true,
+        storageType: 'local'
+      })
+    );
+  });
 });

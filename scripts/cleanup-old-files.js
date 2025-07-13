@@ -1,5 +1,16 @@
 #!/usr/bin/env node
 
+/**
+ * Cleanup script for old generated files
+ * 
+ * This script removes old files from:
+ * - public/generated: PDFs and ZIPs older than 7 days
+ * - public/temp_images: Temporary images older than 30 days
+ * 
+ * EXCLUDED from cleanup:
+ * - public/template_images: Certificate templates (permanent storage)
+ */
+
 const fs = require('fs');
 const path = require('path');
 
@@ -7,6 +18,7 @@ const path = require('path');
 const DIRECTORIES = [
   { path: 'public/generated', extensions: ['.pdf', '.zip'], daysToKeep: 7 },
   { path: 'public/temp_images', extensions: ['.png', '.jpg', '.jpeg', '.pdf'], daysToKeep: 30 }
+  // Note: public/template_images is excluded - templates are permanent
 ];
 
 const DRY_RUN = process.argv.includes('--dry-run');
