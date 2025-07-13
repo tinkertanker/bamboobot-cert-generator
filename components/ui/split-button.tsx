@@ -24,6 +24,10 @@ export interface SplitButtonProps {
   variant?: "primary" | "secondary";
   /** Custom gradient class for the button */
   gradientClass?: string;
+  /** Custom solid color for dropdown button */
+  dropdownColor?: string;
+  /** Custom hover color for dropdown button */
+  dropdownHoverColor?: string;
 }
 
 export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
@@ -35,6 +39,8 @@ export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
     className,
     variant = "primary",
     gradientClass,
+    dropdownColor,
+    dropdownHoverColor,
     ...props
   }, ref) => {
     const [isOpen, setIsOpen] = React.useState(false);
@@ -70,19 +76,15 @@ export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
 
     const mainButtonClasses = cn(
       baseClasses,
-      "px-4 py-2.5 text-sm rounded-l-lg focus:outline-none focus:ring-2 focus:ring-offset-2",
+      "px-4 py-2.5 text-sm rounded-l-lg focus:outline-none focus:ring-2 focus:ring-white/20 focus:ring-offset-0",
       gradientClass || (variant === "primary" ? "bg-gradient-to-r from-blue-600 to-blue-700" : ""),
-      disabled ? disabledClasses : enabledClasses,
-      variant === "primary" ? "focus:ring-blue-500" : "focus:ring-gray-500"
+      disabled ? disabledClasses : enabledClasses
     );
 
     const dropdownButtonClasses = cn(
       baseClasses,
-      "px-2 py-2.5 text-sm rounded-r-lg border-l focus:outline-none focus:ring-2 focus:ring-offset-2 h-full",
-      gradientClass || (variant === "primary" ? "bg-gradient-to-r from-blue-600 to-blue-700" : ""),
-      variant === "primary" ? "border-blue-500/30" : "border-gray-300",
-      disabled ? disabledClasses : enabledClasses,
-      variant === "primary" ? "focus:ring-blue-500" : "focus:ring-gray-500"
+      "px-2 py-2.5 text-sm rounded-r-lg border-l border-white/20 focus:outline-none focus:ring-2 focus:ring-white/20 focus:ring-offset-0 h-full",
+      disabled ? disabledClasses : enabledClasses
     );
 
     return (
@@ -101,6 +103,20 @@ export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
             onClick={() => setIsOpen(!isOpen)}
             disabled={disabled}
             className={dropdownButtonClasses}
+            style={{
+              backgroundColor: dropdownColor,
+              transition: 'background-color 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (dropdownHoverColor && !disabled) {
+                e.currentTarget.style.backgroundColor = dropdownHoverColor;
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (dropdownColor && !disabled) {
+                e.currentTarget.style.backgroundColor = dropdownColor;
+              }
+            }}
             aria-haspopup="true"
             aria-expanded={isOpen}
           >

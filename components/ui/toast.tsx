@@ -1,6 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { X, CheckCircle, AlertCircle, Info } from "lucide-react";
+import { TOAST } from "@/utils/constants";
 
 export interface ToastProps {
   id: string;
@@ -11,7 +12,7 @@ export interface ToastProps {
 }
 
 export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
-  ({ id, message, type = "info", duration = 3000, onClose }, ref) => {
+  ({ id, message, type = "info", duration = TOAST.DEFAULT_DURATION_MS, onClose }, ref) => {
     React.useEffect(() => {
       if (duration > 0) {
         const timer = setTimeout(() => {
@@ -38,7 +39,8 @@ export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
       <div
         ref={ref}
         className={cn(
-          "flex items-center gap-2 px-4 py-3 rounded-lg border shadow-lg animate-slide-in",
+          "flex items-center gap-2 px-4 py-3 rounded-lg border shadow-lg",
+          TOAST.ANIMATION,
           colorClasses
         )}
       >
@@ -68,7 +70,7 @@ export const ToastContainer = React.forwardRef<HTMLDivElement, ToastContainerPro
     return (
       <div
         ref={ref}
-        className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"
+        className={cn("fixed z-50 flex flex-col gap-2 pointer-events-none", TOAST.POSITION)}
       >
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto">

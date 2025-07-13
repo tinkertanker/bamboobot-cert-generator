@@ -19,7 +19,7 @@ import { useEmailConfig } from "@/hooks/useEmailConfig";
 import { usePdfGeneration } from "@/hooks/usePdfGeneration";
 import { useProgressivePdfGeneration } from "@/hooks/useProgressivePdfGeneration";
 // Removed ProgressivePdfModal - now using unified IndividualPdfsModal
-import { PROGRESSIVE_PDF } from "@/utils/constants";
+import { PROGRESSIVE_PDF, SPLIT_BUTTON_THEME, AUTOSAVE } from "@/utils/constants";
 import {
   SkipBack,
   ChevronLeft,
@@ -232,7 +232,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
       showToast({
         message: "Autosaved",
         type: "success",
-        duration: 2000
+        duration: AUTOSAVE.TOAST_DURATION_MS
       });
     }
   });
@@ -605,7 +605,9 @@ Email Sending Robot`,
                 }
               ]}
               disabled={false}
-              gradientClass="bg-gradient-to-r from-purple-600 to-blue-600"
+              gradientClass={SPLIT_BUTTON_THEME.templates.gradient}
+              dropdownColor={SPLIT_BUTTON_THEME.templates.dropdownColor}
+              dropdownHoverColor={SPLIT_BUTTON_THEME.templates.dropdownHoverColor}
             />
 
             {/* Generate Split Button */}
@@ -614,7 +616,7 @@ Email Sending Robot`,
               onClick={generatePdf}
               menuItems={[
                 {
-                  label: "One PDF",
+                  label: "Single PDF",
                   onClick: generatePdf,
                   disabled: !uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0
                 },
@@ -632,7 +634,9 @@ Email Sending Robot`,
                 }
               ]}
               disabled={!uploadedFile || isGenerating || isGeneratingIndividual || isProgressiveGenerating || tableData.length === 0}
-              gradientClass="bg-gradient-to-r from-[#E76F51] to-[#F4A261]"
+              gradientClass={SPLIT_BUTTON_THEME.generate.gradient}
+              dropdownColor={SPLIT_BUTTON_THEME.generate.dropdownColor}
+              dropdownHoverColor={SPLIT_BUTTON_THEME.generate.dropdownHoverColor}
             />
           </div>
         </div>

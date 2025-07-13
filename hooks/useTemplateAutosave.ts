@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { TemplateStorage } from '@/lib/template-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
+import { AUTOSAVE } from '@/utils/constants';
 
 interface UseTemplateAutosaveProps {
   positions: Positions;
@@ -138,10 +139,10 @@ export function useTemplateAutosave({
       return;
     }
 
-    // Set up new timeout for autosave (2 seconds)
+    // Set up new timeout for autosave
     autosaveTimeoutRef.current = setTimeout(() => {
       performAutosave();
-    }, 2000);
+    }, AUTOSAVE.DEBOUNCE_MS);
 
     // Cleanup
     return () => {
