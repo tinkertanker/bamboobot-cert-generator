@@ -25,8 +25,10 @@ import {
   ChevronLeft,
   ChevronRight,
   SkipForward,
-  FileText,
-  Save
+  Save,
+  FileUp,
+  FolderOpen,
+  Settings
 } from "lucide-react";
 import { CertificatePreview } from "@/components/CertificatePreview";
 import { DataPanelWithSearch } from "@/components/panels/DataPanelWithSearch";
@@ -37,11 +39,15 @@ import { IndividualPdfsModal } from "@/components/modals/IndividualPdfsModal";
 import { ConfirmationModals } from "@/components/modals/ConfirmationModals";
 import { SaveTemplateModal } from "@/components/modals/SaveTemplateModal";
 import { LoadTemplateModal } from "@/components/modals/LoadTemplateModal";
+import { NewTemplateModal } from "@/components/modals/NewTemplateModal";
 import { ErrorModal } from "@/components/ui/error-alert";
 import { MobileWarningScreen } from "@/components/MobileWarningScreen";
 import { useMobileDetection } from "@/hooks/useMobileDetection";
 import { COLORS, GRADIENTS } from "@/utils/styles";
 import type { SavedTemplate } from "@/lib/template-storage";
+import { SplitButton } from "@/components/ui/split-button";
+import { useToast, ToastContainer } from "@/components/ui/toast";
+import { useTemplateAutosave } from "@/hooks/useTemplateAutosave";
 
 
 
@@ -105,6 +111,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
   const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState<boolean>(false);
   const [showLoadTemplateModal, setShowLoadTemplateModal] = useState<boolean>(false);
+  const [showNewTemplateModal, setShowNewTemplateModal] = useState<boolean>(false);
 
   // Drag and drop hook
   const {
@@ -211,6 +218,25 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
     individualPdfsData
   });
 
+  // Toast notifications
+  const { toasts, showToast, hideToast } = useToast();
+
+  // Template autosave hook
+  useTemplateAutosave({
+    positions,
+    columns: Object.keys(tableData[0] || {}),
+    emailConfig,
+    certificateImageUrl: uploadedFileUrl,
+    certificateFilename: uploadedFile as string | null,
+    onAutosave: () => {
+      showToast({
+        message: "Autosaved",
+        type: "success",
+        duration: 2000
+      });
+    }
+  });
+
   // ============================================================================
   // EVENT HANDLERS & BUSINESS LOGIC
   // ============================================================================
@@ -256,8 +282,54 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
 
   const handleSaveTemplateSuccess = useCallback((templateId: string, templateName: string) => {
     console.log('Template saved successfully:', { id: templateId, name: templateName });
-    // Could show a success message here
-  }, []);
+    showToast({
+      message: `Template "${templateName}" saved successfully`,
+      type: "success",
+      duration: 3000
+    });
+    setShowSaveTemplateModal(false);
+  }, [showToast]);
+
+  // Handle new template
+  const handleNewTemplate = useCallback(() => {
+    // Check if there's any work to save
+    const hasWork = uploadedFileUrl && (Object.keys(positions).length > 0 || emailConfig);
+    
+    if (hasWork) {
+      setShowNewTemplateModal(true);
+    } else {
+      // No work to save, just clear everything
+      clearFile();
+      clearPositions();
+      clearDragState();
+      setEmailConfig({
+      senderName: "",
+      subject: "",
+      message: "",
+      deliveryMethod: "download",
+      isConfigured: false
+    });
+    }
+  }, [uploadedFileUrl, positions, emailConfig, clearFile, clearPositions, clearDragState, setEmailConfig]);
+
+  const confirmNewTemplate = useCallback(() => {
+    clearFile();
+    clearPositions();
+    clearDragState();
+    setEmailConfig({
+      senderName: "",
+      subject: "",
+      message: "",
+      deliveryMethod: "download",
+      isConfigured: false
+    });
+    setShowNewTemplateModal(false);
+    showToast({
+      message: "New template started",
+      type: "info",
+      duration: 2000
+    });
+  }, [clearFile, clearPositions, clearDragState, setEmailConfig, showToast]);
 
   // Keyboard shortcuts hook
   useKeyboardShortcuts({
@@ -500,62 +572,68 @@ Email Sending Robot`,
               </div>
             )}
           </div>
-          <div className="flex gap-2">
-            {/* Template buttons */}
-            <Button
-              variant="outline"
-              size="sm"
+          <div className="flex gap-3">
+            {/* Templates Split Button */}
+            <SplitButton
+              label="Templates"
               onClick={() => setShowLoadTemplateModal(true)}
-              className="inline-flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Load Template
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowSaveTemplateModal(true)}
-              disabled={!uploadedFileUrl || Object.keys(positions).length === 0}
-              className="inline-flex items-center gap-2">
-              <Save className="h-4 w-4" />
-              Save Template
-            </Button>
-            <div className="w-px bg-gray-300 mx-1" /> {/* Separator */}
-            <ActionButton
-              onClick={generatePdf}
-              disabled={
-                !uploadedFile ||
-                isGenerating ||
-                isGeneratingIndividual ||
-                tableData.length === 0
-              }
-              gradient
-              gradientType="coral"
-              className="font-semibold px-6">
-              {isGenerating ? "Generating..." : "Generate PDF"}
-            </ActionButton>
-            <ActionButton
-              onClick={() => {
-                // Use progressive generation for large datasets
-                if (tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD) {
-                  startProgressiveGeneration('individual');
-                } else {
-                  generateIndividualPdfs();
+              menuItems={[
+                {
+                  label: "New",
+                  icon: <FileUp className="h-4 w-4" />,
+                  onClick: handleNewTemplate,
+                  disabled: !uploadedFileUrl && Object.keys(positions).length === 0
+                },
+                {
+                  label: "Load",
+                  icon: <FolderOpen className="h-4 w-4" />,
+                  onClick: () => setShowLoadTemplateModal(true)
+                },
+                {
+                  label: "Save",
+                  icon: <Save className="h-4 w-4" />,
+                  onClick: () => setShowSaveTemplateModal(true),
+                  disabled: !uploadedFileUrl || Object.keys(positions).length === 0
+                },
+                {
+                  label: "Manage",
+                  icon: <Settings className="h-4 w-4" />,
+                  onClick: () => {
+                    setShowLoadTemplateModal(true);
+                    // Could add a separate manage modal in the future
+                  }
                 }
-              }}
-              disabled={
-                !uploadedFile ||
-                isGenerating ||
-                isGeneratingIndividual ||
-                isProgressiveGenerating ||
-                tableData.length === 0
-              }
-              gradient
-              gradientType="coral"
-              className="font-semibold px-6">
-              {isGeneratingIndividual || isProgressiveGenerating
-                ? "Generating..."
-                : "Generate Individual PDFs"}
-            </ActionButton>
+              ]}
+              disabled={false}
+              gradientClass="bg-gradient-to-r from-purple-600 to-blue-600"
+            />
+
+            {/* Generate Split Button */}
+            <SplitButton
+              label="Generate"
+              onClick={generatePdf}
+              menuItems={[
+                {
+                  label: "One PDF",
+                  onClick: generatePdf,
+                  disabled: !uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0
+                },
+                {
+                  label: "Individual PDFs",
+                  onClick: () => {
+                    // Use progressive generation for large datasets
+                    if (tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD) {
+                      startProgressiveGeneration('individual');
+                    } else {
+                      generateIndividualPdfs();
+                    }
+                  },
+                  disabled: !uploadedFile || isGenerating || isGeneratingIndividual || isProgressiveGenerating || tableData.length === 0
+                }
+              ]}
+              disabled={!uploadedFile || isGenerating || isGeneratingIndividual || isProgressiveGenerating || tableData.length === 0}
+              gradientClass="bg-gradient-to-r from-[#E76F51] to-[#F4A261]"
+            />
           </div>
         </div>
       </header>
@@ -851,8 +929,8 @@ Email Sending Robot`,
         positions={positions}
         columns={Object.keys(tableData[0] || {})}
         emailConfig={emailConfig}
-        certificateImageUrl={uploadedFileUrl}
-        certificateFilename={uploadedFile as string}
+        certificateImageUrl={uploadedFileUrl || undefined}
+        certificateFilename={uploadedFile as string || undefined}
         onSaveSuccess={handleSaveTemplateSuccess}
       />
 
@@ -861,6 +939,16 @@ Email Sending Robot`,
         onClose={() => setShowLoadTemplateModal(false)}
         onLoadTemplate={handleLoadTemplate}
       />
+
+      <NewTemplateModal
+        isOpen={showNewTemplateModal}
+        onClose={() => setShowNewTemplateModal(false)}
+        onConfirm={confirmNewTemplate}
+        hasUnsavedWork={uploadedFileUrl !== null && Object.keys(positions).length > 0}
+      />
+
+      {/* Toast Container */}
+      <ToastContainer toasts={toasts} onClose={hideToast} />
 
       {/* Progressive PDF Modal removed - now using unified IndividualPdfsModal */}
 
