@@ -13,6 +13,9 @@ export const config = {
   },
 };
 
+// Get max file size from environment or default to 10MB
+const MAX_FILE_SIZE = parseInt(process.env.MAX_UPLOAD_SIZE || '10485760'); // 10MB in bytes
+const UPLOAD_TEMP_DIR = process.env.UPLOAD_TEMP_DIR || null;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -23,15 +26,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   ensureAllDirectoriesExist();
   
   const tempDir = getTempImagesDir();
+  
+  // Create a dedicated temp directory for formidable in Docker
+  let formidableTempDir = tempDir;
+  if (process.env.NODE_ENV === 'production' || UPLOAD_TEMP_DIR) {
+    formidableTempDir = UPLOAD_TEMP_DIR || '/app/tmp/uploads';
+    try {
+      await fsPromises.mkdir(formidableTempDir, { recursive: true });
+      await fsPromises.chmod(formidableTempDir, 0o777);
+    } catch (err) {
+      console.error('Failed to create formidable temp directory:', err);
+      // Fall back to default temp directory
+      formidableTempDir = tempDir;
+    }
+  }
+  
+  console.log('Upload configuration:', {
+    tempDir,
+    formidableTempDir,
+    maxFileSize: MAX_FILE_SIZE,
+    environment: process.env.NODE_ENV
+  });
+  
   const form = new IncomingForm({
-    uploadDir: tempDir, // Use temp directory for initial upload
+    uploadDir: formidableTempDir, // Use dedicated temp directory for initial upload
     keepExtensions: true,
+    maxFileSize: MAX_FILE_SIZE,
+    multiples: false,
   });
 
   try {
     const { fields, files } = await new Promise<{fields: Fields, files: Files}>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
-        if (err) reject(err);
+        if (err) {
+          console.error('Formidable parse error:', {
+            error: err.message,
+            code: (err as Error & { code?: string }).code,
+            httpCode: (err as Error & { httpCode?: number }).httpCode,
+            stack: err.stack
+          });
+          reject(err);
+        }
         else resolve({ fields, files });
       });
     });
@@ -143,6 +178,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (err) {
     console.error('Upload error:', err);
-    return res.status(500).json({ error: 'Error uploading file' });
+    
+    const error = err as Error & { code?: string; httpCode?: number };
+    
+    // Provide more specific error messages
+    if (error.code === 'LIMIT_FILE_SIZE' || error.httpCode === 413) {
+      const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
+      return res.status(413).json({ 
+        error: `File size exceeds maximum allowed size of ${maxSizeMB}MB` 
+      });
+    }
+    
+    if (error.code === 'ENOENT') {
+      return res.status(500).json({ 
+        error: 'Server configuration error: Unable to save uploaded file. Please contact support.' 
+      });
+    }
+    
+    if (error.code === 'EACCES') {
+      return res.status(500).json({ 
+        error: 'Server configuration error: Permission denied. Please contact support.' 
+      });
+    }
+    
+    // Check for generic file size error messages
+    if (error.message && error.message.includes('maxFileSize exceeded')) {
+      const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
+      return res.status(413).json({ 
+        error: `File size exceeds maximum allowed size of ${maxSizeMB}MB` 
+      });
+    }
+    
+    return res.status(500).json({ 
+      error: process.env.NODE_ENV === 'development' 
+        ? `Error uploading file: ${error.message}` 
+        : 'Error uploading file. Please try again.'
+    });
   }
 }

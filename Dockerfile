@@ -40,11 +40,15 @@ COPY --from=builder /app/next.config.js ./next.config.js
 
 # Create required directories for file uploads and generated PDFs
 RUN mkdir -p /app/public/temp_images /app/public/generated /app/public/template_images
+# Create temp directory for formidable uploads with proper permissions
+RUN mkdir -p /app/tmp/uploads
 # Ensure proper permissions for the directories
 RUN chown -R nextjs:nodejs /app
 # Make sure the public directories are writable
 RUN chmod -R 755 /app/public
 RUN chmod -R 775 /app/public/temp_images /app/public/generated /app/public/template_images
+# Make temp directory writable for formidable
+RUN chmod -R 777 /app/tmp/uploads
 
 # Switch to non-root user
 USER nextjs
