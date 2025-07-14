@@ -6,6 +6,7 @@ import path from 'path';
 import { IncomingForm, File, Fields, Files } from 'formidable';
 import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
+import { getTempImagesDir, getTemplateImagesDir, ensureAllDirectoriesExist } from '@/lib/paths';
 
 export const config = {
   api: {
@@ -13,25 +14,16 @@ export const config = {
   },
 };
 
-// Determine output directory - templates go to a permanent location in local storage
-const getTempDir = () => path.join(process.cwd(), 'public', 'temp_images');
-const getTemplateDir = () => path.join(process.cwd(), 'public', 'template_images');
-
-// Ensure output directories exist
-const tempDir = getTempDir();
-const templateDir = getTemplateDir();
-if (!fs.existsSync(tempDir)) {
-  fs.mkdirSync(tempDir, { recursive: true });
-}
-if (!fs.existsSync(templateDir)) {
-  fs.mkdirSync(templateDir, { recursive: true });
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Ensure directories exist before processing upload
+  ensureAllDirectoriesExist();
+  
+  const tempDir = getTempImagesDir();
   const form = new IncomingForm({
     uploadDir: tempDir, // Use temp directory for initial upload
     keepExtensions: true,
@@ -94,6 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let imageUrl: string;
     
     // Determine where to save files based on whether this is a template
+    const templateDir = getTemplateImagesDir();
     const localSaveDir = isTemplate && !storageConfig.isR2Enabled && !storageConfig.isS3Enabled 
       ? templateDir 
       : tempDir;
