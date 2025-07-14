@@ -5,7 +5,10 @@ services:
       target: builder  # Use the builder stage for development
     expose:
       - 3000
+    env_file:
+      - .env.development  # Load environment variables from file
     environment:
+      # These override any values from env_file
       VIRTUAL_PORT: 3000
       VIRTUAL_HOST: ${DEV_HOST} # different subdomain for dev
       LETSENCRYPT_HOST: ${DEV_HOST}
