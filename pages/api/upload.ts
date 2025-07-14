@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PDFDocument } from 'pdf-lib';
-import fs from 'fs'; // Importing fs for synchronous operations
 import fsPromises from 'fs/promises'; // Importing fs/promises for asynchronous operations
 import path from 'path';
 import { IncomingForm, File, Fields, Files } from 'formidable';
