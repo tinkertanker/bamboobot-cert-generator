@@ -168,4 +168,44 @@ describe('useTableData Auto-Detection', () => {
       expect(result.current.useCSVMode).toBe(false);
     });
   });
+
+  describe('loadSessionData', () => {
+    it('should load session data with explicit settings (no auto-detection)', async () => {
+      const { result } = renderHook(() => useTableData());
+      
+      await act(async () => {
+        // Load CSV data but force TSV mode
+        const csvData = 'Name,Email,Department\nJohn Doe,john@example.com,Engineering';
+        await result.current.loadSessionData(csvData, false, true); // TSV mode, with headers
+      });
+      
+      // Should use TSV mode as specified, not auto-detected CSV
+      expect(result.current.useCSVMode).toBe(false);
+      expect(result.current.isFirstRowHeader).toBe(true);
+      expect(result.current.tableInput).toBe('Name,Email,Department\nJohn Doe,john@example.com,Engineering');
+      
+      // Data should be parsed as TSV (treating whole line as one column)
+      expect(result.current.tableData).toHaveLength(1);
+      expect(Object.keys(result.current.tableData[0])).toEqual(['Name,Email,Department']);
+    });
+
+    it('should load session data with CSV mode and no headers', async () => {
+      const { result } = renderHook(() => useTableData());
+      
+      await act(async () => {
+        const csvData = 'John Doe,john@example.com,Engineering\nJane Smith,jane@example.com,Marketing';
+        await result.current.loadSessionData(csvData, true, false); // CSV mode, no headers
+      });
+      
+      expect(result.current.useCSVMode).toBe(true);
+      expect(result.current.isFirstRowHeader).toBe(false);
+      expect(result.current.tableData).toHaveLength(2);
+      
+      // Should use generic column names when no headers
+      const firstRow = result.current.tableData[0];
+      expect(Object.keys(firstRow)).toEqual(['Column 1', 'Column 2', 'Column 3']);
+      expect(firstRow['Column 1']).toBe('John Doe');
+      expect(firstRow['Column 2']).toBe('john@example.com');
+    });
+  });
 });

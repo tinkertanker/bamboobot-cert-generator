@@ -230,6 +230,30 @@ export class TemplateStorage {
   }
   
   /**
+   * Get the most recently modified template
+   */
+  static async getMostRecentTemplate(): Promise<SavedTemplate | null> {
+    try {
+      const templates = await this.listTemplates();
+      
+      if (templates.length === 0) {
+        return null;
+      }
+      
+      // Sort by lastModified descending
+      templates.sort((a, b) => 
+        new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
+      );
+      
+      // Load and return the most recent template
+      return this.loadTemplate(templates[0].id);
+    } catch (error) {
+      console.error('Error getting most recent template:', error);
+      return null;
+    }
+  }
+  
+  /**
    * Check storage usage
    */
   static getStorageUsage(): number {

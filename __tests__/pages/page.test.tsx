@@ -111,7 +111,7 @@ describe('MainPage Component', () => {
 
   it('disables generate button when no file is uploaded', () => {
     render(<MainPage />);
-    const generateButton = screen.getByText(/Generate PDF/i);
+    const generateButton = screen.getByText(/Generate/i);
     expect(generateButton).toBeDisabled();
   });
 });

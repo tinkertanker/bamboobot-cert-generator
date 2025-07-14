@@ -146,16 +146,18 @@ describe('useFileUpload', () => {
       const { result } = renderHook(() => useFileUpload());
       const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
 
-      // Start upload
-      const uploadAct = act(async () => {
-        await result.current.processFile(file);
+      // Start upload without awaiting immediately
+      act(() => {
+        result.current.processFile(file);
       });
 
-      // Check loading state
-      expect(result.current.isLoading).toBe(true);
+      // Wait for loading state to be set
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(true);
+      });
 
       // Resolve upload
-      act(() => {
+      await act(async () => {
         resolvePromise!({
           ok: true,
           json: jest.fn().mockResolvedValue({
@@ -165,9 +167,10 @@ describe('useFileUpload', () => {
         });
       });
 
-      await uploadAct;
-
-      expect(result.current.isLoading).toBe(false);
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
     });
   });
 

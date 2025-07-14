@@ -19,7 +19,7 @@ import { useEmailConfig } from "@/hooks/useEmailConfig";
 import { usePdfGeneration } from "@/hooks/usePdfGeneration";
 import { useProgressivePdfGeneration } from "@/hooks/useProgressivePdfGeneration";
 // Removed ProgressivePdfModal - now using unified IndividualPdfsModal
-import { PROGRESSIVE_PDF, SPLIT_BUTTON_THEME, AUTOSAVE } from "@/utils/constants";
+import { PROGRESSIVE_PDF, SPLIT_BUTTON_THEME } from "@/utils/constants";
 import {
   SkipBack,
   ChevronLeft,
@@ -48,6 +48,9 @@ import type { SavedTemplate } from "@/lib/template-storage";
 import { SplitButton } from "@/components/ui/split-button";
 import { useToast, ToastContainer } from "@/components/ui/toast";
 import { useTemplateAutosave } from "@/hooks/useTemplateAutosave";
+import { TemplateStorage } from "@/lib/template-storage";
+import { useSessionAutosave } from "@/hooks/useSessionAutosave";
+import { SessionStorage } from "@/lib/session-storage";
 
 
 
@@ -82,7 +85,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
     handleHeaderToggle,
     handleCSVModeToggle,
     loadPresetData,
-    clearData
+    clearData,
+    loadSessionData
   } = useTableData();
 
   const [devMode, setDevMode] = useState<boolean>(false);
@@ -112,6 +116,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState<boolean>(false);
   const [showLoadTemplateModal, setShowLoadTemplateModal] = useState<boolean>(false);
   const [showNewTemplateModal, setShowNewTemplateModal] = useState<boolean>(false);
+  const [hasManuallySaved, setHasManuallySaved] = useState<boolean>(false);
+  const [currentTemplateName, setCurrentTemplateName] = useState<string | null>(null);
 
   // Drag and drop hook
   const {
@@ -221,21 +227,99 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
   // Toast notifications
   const { toasts, showToast, hideToast } = useToast();
 
-  // Template autosave hook
-  useTemplateAutosave({
+  // Template autosave hook (only enabled after manual save)
+  const {
+    manualSave
+  } = useTemplateAutosave({
     positions,
     columns: Object.keys(tableData[0] || {}),
     emailConfig,
     certificateImageUrl: uploadedFileUrl,
     certificateFilename: uploadedFile as string | null,
     onAutosave: () => {
-      showToast({
-        message: "Autosaved",
-        type: "success",
-        duration: AUTOSAVE.TOAST_DURATION_MS
-      });
-    }
+      // Silent autosave - no toast notification
+      console.log('Template autosaved');
+    },
+    enabled: hasManuallySaved
   });
+
+  // Session data autosave hook (only enabled after manual save)
+  useSessionAutosave({
+    tableData,
+    tableInput,
+    isFirstRowHeader,
+    useCSVMode,
+    enabled: hasManuallySaved && tableData.length > 0
+  });
+
+  // Load most recent template and session data on startup
+  useEffect(() => {
+    const loadStartupData = async () => {
+      try {
+        // First, try to load session data
+        const session = SessionStorage.loadSession();
+        if (session) {
+          console.log('Loading saved session data');
+          
+          // Check if session is not too old (24 hours)
+          const sessionAge = SessionStorage.getSessionAge();
+          if (sessionAge && sessionAge < 24 * 60 * 60 * 1000) {
+            // Load the table data with explicit settings
+            await loadSessionData(
+              session.tableInput,
+              session.useCSVMode,
+              session.isFirstRowHeader
+            );
+            
+            showToast({
+              message: "Session data restored",
+              type: "info",
+              duration: 2000
+            });
+          } else {
+            // Session too old, clear it
+            SessionStorage.clearSession();
+          }
+        }
+        
+        // Then load the most recent template
+        const template = await TemplateStorage.getMostRecentTemplate();
+        
+        if (template) {
+          console.log('Loading most recent template:', template.name);
+          
+          // Load the positions
+          setPositions(template.positions);
+          
+          // Load email configuration if present
+          if (template.emailConfig) {
+            setEmailConfig(template.emailConfig);
+          }
+          
+          // Load the certificate image
+          if (template.certificateImage.url) {
+            setUploadedFileUrl(template.certificateImage.url);
+            setUploadedFile(template.certificateImage.filename);
+          }
+          
+          showToast({
+            message: `Loaded template: ${template.name}`,
+            type: "info",
+            duration: 3000
+          });
+          
+          // Enable autosave since we loaded saved work
+          setHasManuallySaved(true);
+          setCurrentTemplateName(template.name);
+        }
+      } catch (error) {
+        console.error('Error loading startup data:', error);
+      }
+    };
+    
+    // Only load on initial mount
+    loadStartupData();
+  }, [loadSessionData, setEmailConfig, setPositions, setUploadedFile, setUploadedFileUrl, showToast]); // Include stable dependencies
 
   // ============================================================================
   // EVENT HANDLERS & BUSINESS LOGIC
@@ -278,6 +362,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
     }
     
     console.log('Template loaded successfully:', template.name);
+    // Enable autosave after loading a template
+    setHasManuallySaved(true);
+    setCurrentTemplateName(template.name);
   }, [setPositions, setEmailConfig, setUploadedFileUrl, setUploadedFile, uploadedFileUrl]);
 
   const handleSaveTemplateSuccess = useCallback((templateId: string, templateName: string) => {
@@ -288,7 +375,32 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
       duration: 3000
     });
     setShowSaveTemplateModal(false);
+    // Enable autosave after manual save
+    setHasManuallySaved(true);
+    setCurrentTemplateName(templateName);
   }, [showToast]);
+
+  // Save to current template (no modal)
+  const handleSaveToCurrentTemplate = useCallback(async () => {
+    if (!currentTemplateName || !uploadedFileUrl || !uploadedFile) return;
+    
+    const result = await manualSave(currentTemplateName);
+    
+    if (result.success) {
+      // Show subtle feedback that it was saved
+      showToast({
+        message: "Template saved",
+        type: "success",
+        duration: 2000
+      });
+    } else {
+      showToast({
+        message: result.error || "Failed to save template",
+        type: "error",
+        duration: 3000
+      });
+    }
+  }, [currentTemplateName, uploadedFileUrl, uploadedFile, manualSave, showToast]);
 
   // Handle new template
   const handleNewTemplate = useCallback(() => {
@@ -316,6 +428,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
     clearFile();
     clearPositions();
     clearDragState();
+    clearData(); // Clear table data
+    SessionStorage.clearSession(); // Clear saved session
     setEmailConfig({
       senderName: "",
       subject: "",
@@ -324,12 +438,14 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
       isConfigured: false
     });
     setShowNewTemplateModal(false);
+    setHasManuallySaved(false); // Reset autosave state
+    setCurrentTemplateName(null); // Reset template name
     showToast({
       message: "New template started",
       type: "info",
       duration: 2000
     });
-  }, [clearFile, clearPositions, clearDragState, setEmailConfig, showToast]);
+  }, [clearFile, clearPositions, clearDragState, clearData, setEmailConfig, showToast]);
 
   // Keyboard shortcuts hook
   useKeyboardShortcuts({
@@ -575,28 +691,41 @@ Email Sending Robot`,
           <div className="flex gap-3">
             {/* Templates Split Button */}
             <SplitButton
-              label="Templates"
-              onClick={() => setShowLoadTemplateModal(true)}
+              label={currentTemplateName ? "✓ Autosaved" : (hasManuallySaved ? "Save template" : "Load template")}
+              onClick={
+                currentTemplateName 
+                  ? handleSaveToCurrentTemplate  // Save to current template
+                  : (hasManuallySaved 
+                    ? () => setShowSaveTemplateModal(true) 
+                    : () => setShowLoadTemplateModal(true))
+              }
+              disabled={currentTemplateName ? true : false}  // Disable main button when autosaved
+              variant={currentTemplateName ? "secondary" : "primary"}  // Secondary style for autosaved
               menuItems={[
                 {
-                  label: "New",
+                  label: "New template",
                   icon: <FileUp className="h-4 w-4" />,
                   onClick: handleNewTemplate,
                   disabled: !uploadedFileUrl && Object.keys(positions).length === 0
                 },
                 {
-                  label: "Load",
+                  label: "Load template",
                   icon: <FolderOpen className="h-4 w-4" />,
                   onClick: () => setShowLoadTemplateModal(true)
                 },
-                {
-                  label: "Save",
+                ...(currentTemplateName ? [{
+                  label: "Save as new template",
                   icon: <Save className="h-4 w-4" />,
                   onClick: () => setShowSaveTemplateModal(true),
                   disabled: !uploadedFileUrl || Object.keys(positions).length === 0
-                },
+                }] : (!hasManuallySaved ? [{
+                  label: "Save template",
+                  icon: <Save className="h-4 w-4" />,
+                  onClick: () => setShowSaveTemplateModal(true),
+                  disabled: !uploadedFileUrl || Object.keys(positions).length === 0
+                }] : [])),
                 {
-                  label: "Manage",
+                  label: "Manage templates",
                   icon: <Settings className="h-4 w-4" />,
                   onClick: () => {
                     setShowLoadTemplateModal(true);
@@ -604,7 +733,6 @@ Email Sending Robot`,
                   }
                 }
               ]}
-              disabled={false}
               gradientClass={SPLIT_BUTTON_THEME.templates.gradient}
               dropdownColor={SPLIT_BUTTON_THEME.templates.dropdownColor}
               dropdownHoverColor={SPLIT_BUTTON_THEME.templates.dropdownHoverColor}

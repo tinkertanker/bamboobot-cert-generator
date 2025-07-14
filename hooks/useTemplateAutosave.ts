@@ -10,6 +10,7 @@ interface UseTemplateAutosaveProps {
   certificateImageUrl: string | null;
   certificateFilename: string | null;
   onAutosave?: (templateId: string) => void;
+  enabled?: boolean;
 }
 
 interface UseTemplateAutosaveReturn {
@@ -41,7 +42,8 @@ export function useTemplateAutosave({
   emailConfig,
   certificateImageUrl,
   certificateFilename,
-  onAutosave
+  onAutosave,
+  enabled = true
 }: UseTemplateAutosaveProps): UseTemplateAutosaveReturn {
   const [sessionName] = useState(() => generateSessionName());
   const [lastAutosaved, setLastAutosaved] = useState<Date | null>(null);
@@ -128,6 +130,11 @@ export function useTemplateAutosave({
       clearTimeout(autosaveTimeoutRef.current);
     }
 
+    // Don't autosave if disabled
+    if (!enabled) {
+      return;
+    }
+
     // Don't autosave if no certificate
     if (!certificateImageUrl || !certificateFilename) {
       return;
@@ -150,7 +157,7 @@ export function useTemplateAutosave({
         clearTimeout(autosaveTimeoutRef.current);
       }
     };
-  }, [performAutosave, certificateImageUrl, certificateFilename, serializeState]);
+  }, [performAutosave, certificateImageUrl, certificateFilename, serializeState, enabled]);
 
   return {
     sessionName,

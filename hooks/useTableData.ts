@@ -13,6 +13,7 @@ export interface UseTableDataReturn {
   handleCSVModeToggle: () => void;
   loadPresetData: (csvData: string) => void;
   clearData: () => void;
+  loadSessionData: (input: string, csvMode: boolean, headerRow: boolean) => Promise<void>;
 }
 
 // Helper function to parse CSV with proper quote handling
@@ -303,6 +304,21 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     setDetectedEmailColumn(null);
   }, []);
 
+  // Load session data with explicit settings (no auto-detection)
+  const loadSessionData = useCallback(async (
+    input: string,
+    csvMode: boolean,
+    headerRow: boolean
+  ) => {
+    setTableInput(input);
+    setUseCSVMode(csvMode);
+    setIsFirstRowHeader(headerRow);
+    
+    if (input.trim()) {
+      await processTableData(input, headerRow, csvMode);
+    }
+  }, [processTableData]);
+
   return {
     tableData,
     tableInput,
@@ -315,5 +331,6 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     handleCSVModeToggle,
     loadPresetData,
     clearData,
+    loadSessionData,
   };
 }
