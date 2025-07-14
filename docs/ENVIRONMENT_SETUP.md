@@ -4,49 +4,47 @@ This guide explains how to configure environment variables for Docker deployment
 
 ## Overview
 
-The application uses different environment files for different deployment scenarios:
-- `.env` - General environment variables (used by docker-compose for variable substitution)
-- `.env.production` - Production-specific variables (loaded into container)
-- `.env.development` - Development-specific variables (loaded into container)
+The application uses a single consolidated environment file for all deployment scenarios:
+- `.env` - All environment variables (used by docker-compose for both variable substitution and container environment)
 
 ## Setup Instructions
 
-### 1. Create the main .env file
+### 1. Create the .env file
 
-This file is used by docker-compose for variable substitution (${VARIABLE_NAME} syntax):
+This file contains all configuration for your deployment:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and set:
+Edit `.env` and configure the following sections:
+
+#### Docker Deployment Variables
 ```env
-# For production deployment
+# Required for nginx proxy setup
 PRODUCTION_HOST=bamboobot.yourdomain.com
-LETSENCRYPT_EMAIL=your-email@example.com
-
-# For development deployment (optional)
-DEV_HOST=bamboobot-dev.yourdomain.com
+DEV_HOST=bamboobot-dev.yourdomain.com  # Optional
 ```
 
-### 2. Create environment-specific files
-
-#### For Production:
-```bash
-cp .env.production.example .env.production
+#### Application Settings
+```env
+NODE_ENV=production  # or development
+NEXT_TELEMETRY_DISABLED=1
 ```
 
-Edit `.env.production` and configure:
-- Cloud storage (R2/S3) credentials
-- Email service (Resend/SES) credentials
-- Any production-specific settings
-
-#### For Development:
-```bash
-cp .env.development.example .env.development
+#### Storage Configuration
+```env
+STORAGE_PROVIDER=cloudflare-r2  # or amazon-s3 or local
+# Add provider-specific credentials as needed
 ```
 
-Edit `.env.development` with development settings (usually minimal).
+#### Email Configuration
+```env
+# Configure Resend or Amazon SES credentials
+EMAIL_FROM=certificates@yourdomain.com
+```
+
+See `.env.example` for complete configuration options and examples.
 
 ## How It Works
 
@@ -57,13 +55,11 @@ Edit `.env.development` with development settings (usually minimal).
 ## Example Production Deployment
 
 ```bash
-# 1. Set up your environment files
+# 1. Set up your environment file
 cp .env.example .env
-cp .env.production.example .env.production
 
-# 2. Edit both files with your values
-nano .env  # Set PRODUCTION_HOST and LETSENCRYPT_EMAIL
-nano .env.production  # Set cloud storage, email, etc.
+# 2. Edit with your values
+nano .env  # Configure all settings in one file
 
 # 3. Deploy
 docker-compose up -d bamboobot
@@ -71,9 +67,9 @@ docker-compose up -d bamboobot
 
 ## Security Notes
 
-- **NEVER** commit `.env`, `.env.production`, or `.env.development` files
-- These files are listed in `.gitignore` to prevent accidental commits
-- Only commit the `.example` files as templates
+- **NEVER** commit `.env` files
+- This file is listed in `.gitignore` to prevent accidental commits
+- Only commit the `.env.example` file as a template
 - Use strong, unique values for all secrets and API keys
 
 ## Environment Variables Reference
@@ -81,11 +77,10 @@ docker-compose up -d bamboobot
 ### Required for Docker Deployment
 - `PRODUCTION_HOST` - Your production domain
 - `DEV_HOST` - Your development domain (if using dev environment)
-- `LETSENCRYPT_EMAIL` - Email for SSL certificates
 
 ### Optional Services
 - **Cloud Storage**: R2 or S3 credentials
 - **Email**: Resend API key or AWS SES credentials
 - **Security**: CLEANUP_SECRET_KEY for protected endpoints
 
-See `.env.production.example` for all available options.
+See `.env.example` for all available options.

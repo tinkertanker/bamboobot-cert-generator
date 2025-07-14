@@ -6,14 +6,12 @@ services:
     expose:
       - 3000
     env_file:
-      - .env.development  # Load environment variables from file
+      - .env  # Load environment variables from file
     environment:
       # These override any values from env_file
       VIRTUAL_PORT: 3000
       VIRTUAL_HOST: ${DEV_HOST} # different subdomain for dev
-      LETSENCRYPT_HOST: ${DEV_HOST}
-      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
-      NODE_ENV: development
+      NODE_ENV: development  # Force development mode
       NEXT_TELEMETRY_DISABLED: 1
     volumes:
       # Mount source code for hot reload
@@ -28,12 +26,6 @@ services:
     networks:
       devtksg:
     restart: always
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
 networks:
   devtksg:

@@ -4,7 +4,7 @@
 import { config } from 'dotenv';
 
 // Load environment variables FIRST
-config({ path: '.env.local' });
+config({ path: '.env' });
 
 // Then import R2 client (after env is loaded)
 import { cleanupExpiredFiles, listFiles, getFileMetadata, isR2Configured } from '../lib/r2-client';
@@ -22,7 +22,7 @@ async function testCleanup() {
 
   // Check if R2 is configured
   if (!isR2Configured()) {
-    console.error('❌ R2 is not configured. Please set up your .env.local file.');
+    console.error('❌ R2 is not configured. Please set up your .env file.');
     process.exit(1);
   }
 

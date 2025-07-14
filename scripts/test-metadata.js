@@ -2,7 +2,7 @@
 const { config } = require('dotenv');
 
 // Load environment variables first
-config({ path: '.env.local' });
+config({ path: '.env' });
 
 async function testMetadata() {
   try {

@@ -2,9 +2,9 @@
 # R2 Cleanup Script - Run via cron job
 # Example cron: 0 2 * * * /path/to/r2-cleanup.sh
 
-# Load environment variables if .env.local exists
-if [ -f "$(dirname "$0")/../.env.local" ]; then
-  export $(cat "$(dirname "$0")/../.env.local" | grep -v '^#' | xargs)
+# Load environment variables if .env exists
+if [ -f "$(dirname "$0")/../.env" ]; then
+  export $(cat "$(dirname "$0")/../.env" | grep -v '^#' | xargs)
 fi
 
 # Set the API URL (adjust for your deployment)

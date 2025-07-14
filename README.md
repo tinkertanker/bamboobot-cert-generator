@@ -50,7 +50,7 @@ docker-compose -f docker-compose.dev.yml up -d
 
 ## Configuration
 
-Configure cloud storage and email in `.env.local`.
+Configure cloud storage and email in `.env`.
 
 ### Email
 - Email tab appears when email column detected in data

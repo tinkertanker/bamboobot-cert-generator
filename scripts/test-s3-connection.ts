@@ -13,7 +13,7 @@ import {
 } from '../lib/s3-client';
 
 // Load environment variables
-dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 async function testS3Connection() {
   console.log('🔧 Testing S3 Connection...\n');
