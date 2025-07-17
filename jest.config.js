@@ -19,6 +19,9 @@ const customJestConfig = {
     '^@/components/(.*)$': '<rootDir>/components/$1',
     '^@/pages/(.*)$': '<rootDir>/pages/$1',
     '^@/lib/(.*)$': '<rootDir>/lib/$1',
+    '^@/utils/(.*)$': '<rootDir>/utils/$1',
+    '^@/types/(.*)$': '<rootDir>/types/$1',
+    '^@/hooks/(.*)$': '<rootDir>/hooks/$1',
     // Mock AWS SDK modules for testing
     '^@aws-sdk/client-s3$': '<rootDir>/__tests__/__mocks__/@aws-sdk/client-s3.ts',
     '^@aws-sdk/s3-request-presigner$': '<rootDir>/__tests__/__mocks__/@aws-sdk/s3-request-presigner.ts',
