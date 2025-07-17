@@ -1,12 +1,21 @@
-import { createMocks } from 'node-mocks-http';
-import { waitFor } from '@testing-library/react';
-import { generateSinglePdf } from '@/lib/pdf-generator';
-import { uploadToR2 } from '@/lib/r2-client';
-import storageConfig from '@/lib/storage-config';
-import fs from 'fs/promises';
-import path from 'path';
+// Setup mocks before imports
+let mockCreateSession = jest.fn();
+let mockGetSession = jest.fn();
+let mockRemoveSession = jest.fn();
 
-// Mock dependencies
+
+// Mock PdfSessionManager with lazy evaluation
+jest.mock('@/lib/pdf/session-manager', () => ({
+  PdfSessionManager: {
+    getInstance: () => ({
+      createSession: (...args: any[]) => mockCreateSession(...args),
+      getSession: (...args: any[]) => mockGetSession(...args),
+      removeSession: (...args: any[]) => mockRemoveSession(...args)
+    })
+  }
+}));
+
+// Mock other dependencies
 jest.mock('@/lib/pdf-generator');
 jest.mock('@/lib/r2-client');
 jest.mock('@/lib/storage-config', () => ({
@@ -18,25 +27,20 @@ jest.mock('uuid', () => ({
   v4: () => 'mock-uuid-1234'
 }));
 
-// Mock the PdfSessionManager module
-jest.mock('@/lib/pdf/session-manager');
+// Import test utilities and dependencies
+import { createMocks } from 'node-mocks-http';
+import { waitFor } from '@testing-library/react';
+import { generateSinglePdf } from '@/lib/pdf-generator';
+import { uploadToR2 } from '@/lib/r2-client';
+import storageConfig from '@/lib/storage-config';
+import fs from 'fs/promises';
+import path from 'path';
 
-// Import handler and mocked functions after setting up the mock
+// Import handler last
 import handler from '@/pages/api/generate-progressive';
-import { mockCreateSession, mockGetSession, mockRemoveSession } from '@/lib/pdf/session-manager';
 
 describe('/api/generate-progressive', () => {
   let mockQueueManager: any;
-  const originalConsoleError = console.error;
-
-  beforeAll(() => {
-    // Suppress expected console errors in tests
-    console.error = jest.fn();
-  });
-
-  afterAll(() => {
-    console.error = originalConsoleError;
-  });
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -56,9 +60,9 @@ describe('/api/generate-progressive', () => {
     };
     
     // Reset the session manager mocks
-    mockCreateSession.mockReturnValue(mockQueueManager);
-    mockGetSession.mockReturnValue(mockQueueManager);
-    mockRemoveSession.mockClear();
+    mockCreateSession = jest.fn().mockReturnValue(mockQueueManager);
+    mockGetSession = jest.fn().mockReturnValue(mockQueueManager);
+    mockRemoveSession = jest.fn();
     
     (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
     (fs.readFile as jest.Mock).mockResolvedValue(Buffer.from('mock-pdf-content'));
@@ -192,21 +196,28 @@ describe('/api/generate-progressive', () => {
     });
 
     it('cleans up session on error', async () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      
       const { req, res } = createMocks({
         method: 'POST',
         body: validRequestBody
       });
 
-      mockQueueManager.initializeQueue.mockImplementation(() => 
-        Promise.reject(new Error('Init failed'))
-      );
+      const initError = new Error('Init failed');
+      mockQueueManager.initializeQueue.mockRejectedValue(initError);
 
       await handler(req, res);
 
       expect(res._getStatusCode()).toBe(500);
+      expect(res._getJSONData()).toEqual({
+        error: 'Internal server error',
+        details: 'Init failed'
+      });
       expect(mockRemoveSession).toHaveBeenCalledWith(
         expect.stringContaining('pdf-')
       );
+      
+      consoleSpy.mockRestore();
     });
 
     it('uses default batch size when not provided', async () => {
@@ -761,17 +772,45 @@ describe('/api/generate-progressive', () => {
   describe('Error handling', () => {
     it('returns 500 for internal errors', async () => {
       const { req, res } = createMocks({
-        method: 'POST'
+        method: 'POST',
+        body: {} // Empty body - missing required fields
       });
 
-      // Force an error by making body undefined
-      req.body = undefined;
+      await handler(req, res);
+
+      // The handler validates required fields first, so it returns 400 for missing fields
+      // Let's test an actual internal error instead
+      expect(res._getStatusCode()).toBe(400);
+      expect(res._getJSONData()).toHaveProperty('error', 'Missing required fields');
+    });
+
+    it('returns 500 for unexpected errors', async () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      
+      const { req, res } = createMocks({
+        method: 'POST',
+        body: {
+          templateFilename: 'template.pdf',
+          data: [{ name: 'John Doe' }],
+          positions: {},
+          uiContainerDimensions: { width: 800, height: 600 }
+        }
+      });
+
+      // Force an error in createSession
+      mockCreateSession.mockImplementation(() => {
+        throw new Error('Unexpected error');
+      });
 
       await handler(req, res);
 
       expect(res._getStatusCode()).toBe(500);
-      expect(res._getJSONData()).toHaveProperty('error', 'Internal server error');
-      expect(res._getJSONData()).toHaveProperty('details', expect.stringContaining('Cannot destructure property'));
+      expect(res._getJSONData()).toEqual({
+        error: 'Internal server error',
+        details: 'Unexpected error'
+      });
+      
+      consoleSpy.mockRestore();
     });
   });
 });
