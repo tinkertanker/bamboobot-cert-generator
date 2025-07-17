@@ -4,10 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ActionButton } from "@/components/ui/action-button";
-import {
-  useTable,
-  Column
-} from "react-table";
+import { useTable, Column } from "react-table";
 import { useTableData } from "@/hooks/useTableData";
 import type { TableData } from "@/types/certificate";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -52,13 +49,11 @@ import { TemplateStorage } from "@/lib/template-storage";
 import { useSessionAutosave } from "@/hooks/useSessionAutosave";
 import { SessionStorage } from "@/lib/session-storage";
 
-
-
 export default function HomePage() {
   // ============================================================================
   // MOBILE DETECTION
   // ============================================================================
-  
+
   const { isMobile, isLoading: isMobileLoading } = useMobileDetection();
   const [forceMobileAccess, setForceMobileAccess] = useState(false);
 
@@ -67,11 +62,13 @@ export default function HomePage() {
   // ============================================================================
 
   // Preset data for dev mode (only available in development)
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  const presetCSVData = isDevelopment ? `Name,Department,Email
+  const isDevelopment = process.env.NODE_ENV === "development";
+  const presetCSVData = isDevelopment
+    ? `Name,Department,Email
 Maximilienne Featherstone-Harrington III,Executive Leadership,a@a.com
 Bartholomäus von Quackenbusch-Wetherell,Innovation & Strategy,b@b.com
-Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
+Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
+    : "";
 
   // Table data management via custom hook
   const {
@@ -90,7 +87,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
   } = useTableData();
 
   const [devMode, setDevMode] = useState<boolean>(false);
-  const [emailTemplate, setEmailTemplate] = useState<string>('');
+  const [emailTemplate, setEmailTemplate] = useState<string>("");
   const [numTestEmails, setNumTestEmails] = useState<number>(10);
 
   // ============================================================================
@@ -98,12 +95,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
   // ============================================================================
 
   // Positioning hook
-  const {
-    positions,
-    setPositions,
-    changeAlignment,
-    clearPositions
-  } = usePositioning({ tableData });
+  const { positions, setPositions, changeAlignment, clearPositions } =
+    usePositioning({ tableData });
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"data" | "formatting" | "email">(
     "data"
@@ -113,11 +106,16 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
   const [showResetFieldModal, setShowResetFieldModal] =
     useState<boolean>(false);
   const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
-  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState<boolean>(false);
-  const [showLoadTemplateModal, setShowLoadTemplateModal] = useState<boolean>(false);
-  const [showNewTemplateModal, setShowNewTemplateModal] = useState<boolean>(false);
+  const [showSaveTemplateModal, setShowSaveTemplateModal] =
+    useState<boolean>(false);
+  const [showLoadTemplateModal, setShowLoadTemplateModal] =
+    useState<boolean>(false);
+  const [showNewTemplateModal, setShowNewTemplateModal] =
+    useState<boolean>(false);
   const [hasManuallySaved, setHasManuallySaved] = useState<boolean>(false);
-  const [currentTemplateName, setCurrentTemplateName] = useState<string | null>(null);
+  const [currentTemplateName, setCurrentTemplateName] = useState<string | null>(
+    null
+  );
 
   // Drag and drop hook
   const {
@@ -137,13 +135,16 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
 
   // Switch away from email tab if no email column detected
   useEffect(() => {
-    console.log("👀 Email tab visibility check - detectedEmailColumn:", detectedEmailColumn, "activeTab:", activeTab);
+    console.log(
+      "👀 Email tab visibility check - detectedEmailColumn:",
+      detectedEmailColumn,
+      "activeTab:",
+      activeTab
+    );
     if (!detectedEmailColumn && activeTab === "email") {
       setActiveTab("data");
     }
   }, [detectedEmailColumn, activeTab]);
-
-
 
   // Preview navigation hook
   const {
@@ -228,9 +229,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
   const { toasts, showToast, hideToast } = useToast();
 
   // Template autosave hook (only enabled after manual save)
-  const {
-    manualSave
-  } = useTemplateAutosave({
+  const { manualSave } = useTemplateAutosave({
     positions,
     columns: Object.keys(tableData[0] || {}),
     emailConfig,
@@ -238,7 +237,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
     certificateFilename: uploadedFile as string | null,
     onAutosave: () => {
       // Silent autosave - no toast notification
-      console.log('Template autosaved');
+      console.log("Template autosaved");
     },
     enabled: hasManuallySaved
   });
@@ -259,8 +258,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
         // First, try to load session data
         const session = SessionStorage.loadSession();
         if (session) {
-          console.log('Loading saved session data');
-          
+          console.log("Loading saved session data");
+
           // Check if session is not too old (24 hours)
           const sessionAge = SessionStorage.getSessionAge();
           if (sessionAge && sessionAge < 24 * 60 * 60 * 1000) {
@@ -270,7 +269,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
               session.useCSVMode,
               session.isFirstRowHeader
             );
-            
+
             showToast({
               message: "Session data restored",
               type: "info",
@@ -281,45 +280,52 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
             SessionStorage.clearSession();
           }
         }
-        
+
         // Then load the most recent template
         const template = await TemplateStorage.getMostRecentTemplate();
-        
+
         if (template) {
-          console.log('Loading most recent template:', template.name);
-          
+          console.log("Loading most recent template:", template.name);
+
           // Load the positions
           setPositions(template.positions);
-          
+
           // Load email configuration if present
           if (template.emailConfig) {
             setEmailConfig(template.emailConfig);
           }
-          
+
           // Load the certificate image
           if (template.certificateImage.url) {
             setUploadedFileUrl(template.certificateImage.url);
             setUploadedFile(template.certificateImage.filename);
           }
-          
+
           showToast({
             message: `Loaded template: ${template.name}`,
             type: "info",
             duration: 3000
           });
-          
+
           // Enable autosave since we loaded saved work
           setHasManuallySaved(true);
           setCurrentTemplateName(template.name);
         }
       } catch (error) {
-        console.error('Error loading startup data:', error);
+        console.error("Error loading startup data:", error);
       }
     };
-    
+
     // Only load on initial mount
     loadStartupData();
-  }, [loadSessionData, setEmailConfig, setPositions, setUploadedFile, setUploadedFileUrl, showToast]); // Include stable dependencies
+  }, [
+    loadSessionData,
+    setEmailConfig,
+    setPositions,
+    setUploadedFile,
+    setUploadedFileUrl,
+    showToast
+  ]); // Include stable dependencies
 
   // ============================================================================
   // EVENT HANDLERS & BUSINESS LOGIC
@@ -334,58 +340,76 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
   }, [setGeneratedPdfUrl, setIndividualPdfsData]);
 
   // Template handlers
-  const handleLoadTemplate = useCallback(async (template: SavedTemplate) => {
-    // Load the positions
-    setPositions(template.positions);
-    
-    // Load the columns structure (requires table data in the same format)
-    const columns = template.columns;
-    if (columns.length > 0) {
-      // Create sample data structure with the loaded columns
-      const sampleRow: TableData = {};
-      columns.forEach(col => {
-        sampleRow[col] = '';
-      });
-      // This will help the user understand what columns are expected
-      console.log('Template expects columns:', columns);
-    }
-    
-    // Load email configuration if present
-    if (template.emailConfig) {
-      setEmailConfig(template.emailConfig);
-    }
-    
-    // Update the certificate image URL if different
-    if (template.certificateImage.url && template.certificateImage.url !== uploadedFileUrl) {
-      setUploadedFileUrl(template.certificateImage.url);
-      setUploadedFile(template.certificateImage.filename);
-    }
-    
-    console.log('Template loaded successfully:', template.name);
-    // Enable autosave after loading a template
-    setHasManuallySaved(true);
-    setCurrentTemplateName(template.name);
-  }, [setPositions, setEmailConfig, setUploadedFileUrl, setUploadedFile, uploadedFileUrl]);
+  const handleLoadTemplate = useCallback(
+    async (template: SavedTemplate) => {
+      // Load the positions
+      setPositions(template.positions);
 
-  const handleSaveTemplateSuccess = useCallback((templateId: string, templateName: string) => {
-    console.log('Template saved successfully:', { id: templateId, name: templateName });
-    showToast({
-      message: `Template "${templateName}" saved successfully`,
-      type: "success",
-      duration: 3000
-    });
-    setShowSaveTemplateModal(false);
-    // Enable autosave after manual save
-    setHasManuallySaved(true);
-    setCurrentTemplateName(templateName);
-  }, [showToast]);
+      // Load the columns structure (requires table data in the same format)
+      const columns = template.columns;
+      if (columns.length > 0) {
+        // Create sample data structure with the loaded columns
+        const sampleRow: TableData = {};
+        columns.forEach((col) => {
+          sampleRow[col] = "";
+        });
+        // This will help the user understand what columns are expected
+        console.log("Template expects columns:", columns);
+      }
+
+      // Load email configuration if present
+      if (template.emailConfig) {
+        setEmailConfig(template.emailConfig);
+      }
+
+      // Update the certificate image URL if different
+      if (
+        template.certificateImage.url &&
+        template.certificateImage.url !== uploadedFileUrl
+      ) {
+        setUploadedFileUrl(template.certificateImage.url);
+        setUploadedFile(template.certificateImage.filename);
+      }
+
+      console.log("Template loaded successfully:", template.name);
+      // Enable autosave after loading a template
+      setHasManuallySaved(true);
+      setCurrentTemplateName(template.name);
+    },
+    [
+      setPositions,
+      setEmailConfig,
+      setUploadedFileUrl,
+      setUploadedFile,
+      uploadedFileUrl
+    ]
+  );
+
+  const handleSaveTemplateSuccess = useCallback(
+    (templateId: string, templateName: string) => {
+      console.log("Template saved successfully:", {
+        id: templateId,
+        name: templateName
+      });
+      showToast({
+        message: `Template "${templateName}" saved successfully`,
+        type: "success",
+        duration: 3000
+      });
+      setShowSaveTemplateModal(false);
+      // Enable autosave after manual save
+      setHasManuallySaved(true);
+      setCurrentTemplateName(templateName);
+    },
+    [showToast]
+  );
 
   // Save to current template (no modal)
   const handleSaveToCurrentTemplate = useCallback(async () => {
     if (!currentTemplateName || !uploadedFileUrl || !uploadedFile) return;
-    
+
     const result = await manualSave(currentTemplateName);
-    
+
     if (result.success) {
       // Show subtle feedback that it was saved
       showToast({
@@ -400,13 +424,20 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
         duration: 3000
       });
     }
-  }, [currentTemplateName, uploadedFileUrl, uploadedFile, manualSave, showToast]);
+  }, [
+    currentTemplateName,
+    uploadedFileUrl,
+    uploadedFile,
+    manualSave,
+    showToast
+  ]);
 
   // Handle new template
   const handleNewTemplate = useCallback(() => {
     // Check if there's any work to save
-    const hasWork = uploadedFileUrl && (Object.keys(positions).length > 0 || emailConfig);
-    
+    const hasWork =
+      uploadedFileUrl && (Object.keys(positions).length > 0 || emailConfig);
+
     if (hasWork) {
       setShowNewTemplateModal(true);
     } else {
@@ -415,14 +446,22 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
       clearPositions();
       clearDragState();
       setEmailConfig({
-      senderName: "",
-      subject: "",
-      message: "",
-      deliveryMethod: "download",
-      isConfigured: false
-    });
+        senderName: "",
+        subject: "",
+        message: "",
+        deliveryMethod: "download",
+        isConfigured: false
+      });
     }
-  }, [uploadedFileUrl, positions, emailConfig, clearFile, clearPositions, clearDragState, setEmailConfig]);
+  }, [
+    uploadedFileUrl,
+    positions,
+    emailConfig,
+    clearFile,
+    clearPositions,
+    clearDragState,
+    setEmailConfig
+  ]);
 
   const confirmNewTemplate = useCallback(() => {
     clearFile();
@@ -445,7 +484,14 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
       type: "info",
       duration: 2000
     });
-  }, [clearFile, clearPositions, clearDragState, clearData, setEmailConfig, showToast]);
+  }, [
+    clearFile,
+    clearPositions,
+    clearDragState,
+    clearData,
+    setEmailConfig,
+    showToast
+  ]);
 
   // Keyboard shortcuts hook
   useKeyboardShortcuts({
@@ -456,66 +502,90 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com` : '';
     onEscapePressed: handleEscapePressed
   });
 
-
-
-
-
   // ============================================================================
   // DEV MODE HELPER FUNCTIONS
   // ============================================================================
-  
+
   const generateEmailTestData = (baseEmail: string, count: number): string => {
-    if (!baseEmail || !baseEmail.includes('@')) {
+    if (!baseEmail || !baseEmail.includes("@")) {
       return presetCSVData; // Fallback to original preset data
     }
-    
-    const [localPart, domain] = baseEmail.split('@');
-    const headers = 'Name,Department,Email';
+
+    const [localPart, domain] = baseEmail.split("@");
+    const headers = "Name,Department,Email";
     const rows = Array.from({ length: count }, (_, i) => {
       const emailWithPlus = `${localPart}+${i + 1}@${domain}`;
       const names = [
-        'Alex Johnson', 'Jordan Smith', 'Casey Brown', 'Riley Davis', 'Morgan Wilson',
-        'Avery Miller', 'Quinn Garcia', 'Blake Martinez', 'Cameron Anderson', 'Drew Taylor',
-        'Ellis Thompson', 'Finley White', 'Harper Lewis', 'Indigo Clark', 'Jamie Rodriguez',
-        'Kai Walker', 'Lane Robinson', 'Micah Hall', 'Nova Young', 'Oakley King'
+        "Alex Johnson",
+        "Jordan Smith",
+        "Casey Brown",
+        "Riley Davis",
+        "Morgan Wilson",
+        "Avery Miller",
+        "Quinn Garcia",
+        "Blake Martinez",
+        "Cameron Anderson",
+        "Drew Taylor",
+        "Ellis Thompson",
+        "Finley White",
+        "Harper Lewis",
+        "Indigo Clark",
+        "Jamie Rodriguez",
+        "Kai Walker",
+        "Lane Robinson",
+        "Micah Hall",
+        "Nova Young",
+        "Oakley King"
       ];
       const departments = [
-        'Engineering', 'Marketing', 'Sales', 'HR', 'Finance', 
-        'Operations', 'Design', 'Legal', 'Research', 'Support'
+        "Engineering",
+        "Marketing",
+        "Sales",
+        "HR",
+        "Finance",
+        "Operations",
+        "Design",
+        "Legal",
+        "Research",
+        "Support"
       ];
-      
+
       const name = names[i % names.length];
       const department = departments[i % departments.length];
-      
+
       return `${name},${department},${emailWithPlus}`;
     });
-    
-    return [headers, ...rows].join('\n');
+
+    return [headers, ...rows].join("\n");
   };
 
   // ============================================================================
   // DEV MODE HANDLER (after hooks)
   // ============================================================================
-  
+
   const handleEmailTemplateUpdate = () => {
     if (!isDevelopment || !devMode) return;
-    
+
     console.log("🔧 Dev Mode: Updating email template data...");
-    const testData = emailTemplate ? generateEmailTestData(emailTemplate, numTestEmails) : presetCSVData;
+    const testData = emailTemplate
+      ? generateEmailTestData(emailTemplate, numTestEmails)
+      : presetCSVData;
     loadPresetData(testData);
   };
 
   const handleDevModeToggle = () => {
     if (!isDevelopment) return; // Safety check - only works in development
-    
+
     setDevMode((prev) => {
       const newValue = !prev;
       if (newValue) {
         console.log("🔧 Dev Mode: Enabling...");
-        
+
         // Enable dev mode: load preset data and template
         console.log("🔧 Dev Mode: Loading preset data...");
-        const testData = emailTemplate ? generateEmailTestData(emailTemplate, numTestEmails) : presetCSVData;
+        const testData = emailTemplate
+          ? generateEmailTestData(emailTemplate, numTestEmails)
+          : presetCSVData;
         loadPresetData(testData);
 
         // Set the uploaded file URL to the preset image (only in dev)
@@ -589,9 +659,10 @@ Email Sending Robot`,
     [tableData]
   );
 
-  const { headerGroups, rows, prepareRow } =
-    useTable({ columns, data: tableData });
-
+  const { headerGroups, rows, prepareRow } = useTable({
+    columns,
+    data: tableData
+  });
 
   // ============================================================================
   // MOBILE DETECTION LOGIC
@@ -602,9 +673,10 @@ Email Sending Robot`,
     const handleForceMobileAccess = () => {
       setForceMobileAccess(true);
     };
-    
-    window.addEventListener('forceMobileAccess', handleForceMobileAccess);
-    return () => window.removeEventListener('forceMobileAccess', handleForceMobileAccess);
+
+    window.addEventListener("forceMobileAccess", handleForceMobileAccess);
+    return () =>
+      window.removeEventListener("forceMobileAccess", handleForceMobileAccess);
   }, []);
 
   // Show mobile warning if on mobile and haven't forced access
@@ -637,7 +709,9 @@ Email Sending Robot`,
                 height={32}
                 className="w-8 h-8"
               />
-              <h1 className="text-2xl font-bold" style={{ color: COLORS.amber }}>
+              <h1
+                className="text-2xl font-bold"
+                style={{ color: COLORS.amber }}>
                 Bamboobot
               </h1>
             </div>
@@ -658,7 +732,7 @@ Email Sending Robot`,
                     Dev Mode
                   </label>
                 </div>
-                
+
                 {/* Email Template Controls - Only when dev mode is on */}
                 {devMode && (
                   <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-lg border border-blue-200">
@@ -674,13 +748,15 @@ Email Sending Robot`,
                       min="1"
                       max="100"
                       value={numTestEmails}
-                      onChange={(e) => setNumTestEmails(parseInt(e.target.value) || 10)}
+                      onChange={(e) =>
+                        setNumTestEmails(parseInt(e.target.value) || 10)
+                      }
                       className="w-12 px-1 py-1 text-xs border rounded text-center"
                     />
                     <button
                       onClick={handleEmailTemplateUpdate}
                       className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-                      disabled={!emailTemplate || !emailTemplate.includes('@')}>
+                      disabled={!emailTemplate || !emailTemplate.includes("@")}>
                       Generate
                     </button>
                   </div>
@@ -691,39 +767,58 @@ Email Sending Robot`,
           <div className="flex gap-3">
             {/* Templates Split Button */}
             <SplitButton
-              label={currentTemplateName ? "✓ Autosaved" : (hasManuallySaved ? "Save template" : "Load template")}
-              onClick={
-                currentTemplateName 
-                  ? handleSaveToCurrentTemplate  // Save to current template
-                  : (hasManuallySaved 
-                    ? () => setShowSaveTemplateModal(true) 
-                    : () => setShowLoadTemplateModal(true))
+              label={
+                currentTemplateName
+                  ? "✓ Autosaved"
+                  : hasManuallySaved
+                    ? "Save template"
+                    : "Load template"
               }
-              disabled={currentTemplateName ? true : false}  // Disable main button when autosaved
-              variant={currentTemplateName ? "secondary" : "primary"}  // Secondary style for autosaved
+              onClick={
+                currentTemplateName
+                  ? handleSaveToCurrentTemplate // Save to current template
+                  : hasManuallySaved
+                    ? () => setShowSaveTemplateModal(true)
+                    : () => setShowLoadTemplateModal(true)
+              }
+              disabled={currentTemplateName ? true : false} // Disable main button when autosaved
+              variant={currentTemplateName ? "secondary" : "primary"} // Secondary style for autosaved
               menuItems={[
                 {
                   label: "New template",
                   icon: <FileUp className="h-4 w-4" />,
                   onClick: handleNewTemplate,
-                  disabled: !uploadedFileUrl && Object.keys(positions).length === 0
+                  disabled:
+                    !uploadedFileUrl && Object.keys(positions).length === 0
                 },
                 {
                   label: "Load template",
                   icon: <FolderOpen className="h-4 w-4" />,
                   onClick: () => setShowLoadTemplateModal(true)
                 },
-                ...(currentTemplateName ? [{
-                  label: "Save as new template",
-                  icon: <Save className="h-4 w-4" />,
-                  onClick: () => setShowSaveTemplateModal(true),
-                  disabled: !uploadedFileUrl || Object.keys(positions).length === 0
-                }] : (!hasManuallySaved ? [{
-                  label: "Save template",
-                  icon: <Save className="h-4 w-4" />,
-                  onClick: () => setShowSaveTemplateModal(true),
-                  disabled: !uploadedFileUrl || Object.keys(positions).length === 0
-                }] : [])),
+                ...(currentTemplateName
+                  ? [
+                      {
+                        label: "Save as new template",
+                        icon: <Save className="h-4 w-4" />,
+                        onClick: () => setShowSaveTemplateModal(true),
+                        disabled:
+                          !uploadedFileUrl ||
+                          Object.keys(positions).length === 0
+                      }
+                    ]
+                  : !hasManuallySaved
+                    ? [
+                        {
+                          label: "Save template",
+                          icon: <Save className="h-4 w-4" />,
+                          onClick: () => setShowSaveTemplateModal(true),
+                          disabled:
+                            !uploadedFileUrl ||
+                            Object.keys(positions).length === 0
+                        }
+                      ]
+                    : []),
                 {
                   label: "Manage templates",
                   icon: <Settings className="h-4 w-4" />,
@@ -735,36 +830,67 @@ Email Sending Robot`,
               ]}
               gradientClass={SPLIT_BUTTON_THEME.templates.gradient}
               dropdownColor={SPLIT_BUTTON_THEME.templates.dropdownColor}
-              dropdownHoverColor={SPLIT_BUTTON_THEME.templates.dropdownHoverColor}
+              dropdownHoverColor={
+                SPLIT_BUTTON_THEME.templates.dropdownHoverColor
+              }
             />
 
             {/* Generate Split Button */}
             <SplitButton
               label="Generate"
-              onClick={generatePdf}
+              onClick={() => {
+                // Use progressive generation for large datasets
+                if (
+                  tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD
+                ) {
+                  startProgressiveGeneration("individual");
+                } else {
+                  generateIndividualPdfs();
+                }
+              }}
               menuItems={[
-                {
-                  label: "Single PDF",
-                  onClick: generatePdf,
-                  disabled: !uploadedFile || isGenerating || isGeneratingIndividual || tableData.length === 0
-                },
                 {
                   label: "Individual PDFs",
                   onClick: () => {
                     // Use progressive generation for large datasets
-                    if (tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD) {
-                      startProgressiveGeneration('individual');
+                    if (
+                      tableData.length >
+                      PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD
+                    ) {
+                      startProgressiveGeneration("individual");
                     } else {
                       generateIndividualPdfs();
                     }
                   },
-                  disabled: !uploadedFile || isGenerating || isGeneratingIndividual || isProgressiveGenerating || tableData.length === 0
+                  disabled:
+                    !uploadedFile ||
+                    isGenerating ||
+                    isGeneratingIndividual ||
+                    isProgressiveGenerating ||
+                    tableData.length === 0
+                },
+                {
+                  label: "Single PDF",
+                  onClick: generatePdf,
+                  disabled:
+                    !uploadedFile ||
+                    isGenerating ||
+                    isGeneratingIndividual ||
+                    tableData.length === 0
                 }
               ]}
-              disabled={!uploadedFile || isGenerating || isGeneratingIndividual || isProgressiveGenerating || tableData.length === 0}
+              disabled={
+                !uploadedFile ||
+                isGenerating ||
+                isGeneratingIndividual ||
+                isProgressiveGenerating ||
+                tableData.length === 0
+              }
               gradientClass={SPLIT_BUTTON_THEME.generate.gradient}
               dropdownColor={SPLIT_BUTTON_THEME.generate.dropdownColor}
-              dropdownHoverColor={SPLIT_BUTTON_THEME.generate.dropdownHoverColor}
+              dropdownHoverColor={
+                SPLIT_BUTTON_THEME.generate.dropdownHoverColor
+              }
             />
           </div>
         </div>
@@ -898,8 +1024,10 @@ Email Sending Robot`,
               onClick={() => setActiveTab("data")}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
               style={{
-                backgroundColor: activeTab === "data" ? COLORS.tabActive : COLORS.tabInactive,
-                color: activeTab === "data" ? COLORS.tabTextActive : COLORS.tabText
+                backgroundColor:
+                  activeTab === "data" ? COLORS.tabActive : COLORS.tabInactive,
+                color:
+                  activeTab === "data" ? COLORS.tabTextActive : COLORS.tabText
               }}>
               Data
             </button>
@@ -908,8 +1036,13 @@ Email Sending Robot`,
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
               style={{
                 backgroundColor:
-                  activeTab === "formatting" ? COLORS.tabActive : COLORS.tabInactive,
-                color: activeTab === "formatting" ? COLORS.tabTextActive : COLORS.tabText
+                  activeTab === "formatting"
+                    ? COLORS.tabActive
+                    : COLORS.tabInactive,
+                color:
+                  activeTab === "formatting"
+                    ? COLORS.tabTextActive
+                    : COLORS.tabText
               }}>
               Formatting
             </button>
@@ -922,8 +1055,13 @@ Email Sending Robot`,
                 className="px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center"
                 style={{
                   backgroundColor:
-                    activeTab === "email" ? COLORS.tabActive : COLORS.tabInactive,
-                  color: activeTab === "email" ? COLORS.tabTextActive : COLORS.tabText
+                    activeTab === "email"
+                      ? COLORS.tabActive
+                      : COLORS.tabInactive,
+                  color:
+                    activeTab === "email"
+                      ? COLORS.tabTextActive
+                      : COLORS.tabText
                 }}>
                 Email
                 {detectedEmailColumn &&
@@ -938,7 +1076,9 @@ Email Sending Robot`,
                       }`}
                       style={{
                         backgroundColor:
-                          activeTab === "email" ? COLORS.amber : COLORS.successLight,
+                          activeTab === "email"
+                            ? COLORS.amber
+                            : COLORS.successLight,
                         borderRadius: "4px"
                       }}>
                       {detectedEmailColumn}
@@ -1007,9 +1147,11 @@ Email Sending Robot`,
       />
 
       <IndividualPdfsModal
-        isGeneratingIndividual={isGeneratingIndividual || isProgressiveGenerating}
+        isGeneratingIndividual={
+          isGeneratingIndividual || isProgressiveGenerating
+        }
         individualPdfsData={
-          individualPdfsData || 
+          individualPdfsData ||
           (progressivePdfResults && progressivePdfResults.files.length > 0
             ? progressivePdfResults.files.map((file) => ({
                 filename: file.filename,
@@ -1062,7 +1204,7 @@ Email Sending Robot`,
         columns={Object.keys(tableData[0] || {})}
         emailConfig={emailConfig}
         certificateImageUrl={uploadedFileUrl || undefined}
-        certificateFilename={uploadedFile as string || undefined}
+        certificateFilename={(uploadedFile as string) || undefined}
         onSaveSuccess={handleSaveTemplateSuccess}
       />
 
@@ -1076,7 +1218,9 @@ Email Sending Robot`,
         isOpen={showNewTemplateModal}
         onClose={() => setShowNewTemplateModal(false)}
         onConfirm={confirmNewTemplate}
-        hasUnsavedWork={uploadedFileUrl !== null && Object.keys(positions).length > 0}
+        hasUnsavedWork={
+          uploadedFileUrl !== null && Object.keys(positions).length > 0
+        }
       />
 
       {/* Toast Container */}
@@ -1094,11 +1238,10 @@ Email Sending Robot`,
           onClose={clearError}
           onRetry={() => {
             clearError();
-            document.getElementById('file-upload')?.click();
+            document.getElementById("file-upload")?.click();
           }}
         />
       )}
     </div>
   );
 }
-
