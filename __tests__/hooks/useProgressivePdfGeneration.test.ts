@@ -54,13 +54,12 @@ describe('useProgressivePdfGeneration', () => {
     jest.useFakeTimers();
     
     // Mock DOM element for container dimensions
-    const mockImg = document.createElement('img');
-    Object.defineProperty(mockImg, 'offsetWidth', { value: 800 });
-    Object.defineProperty(mockImg, 'offsetHeight', { value: 600 });
-    
     document.body.innerHTML = '<div class="image-container"><img /></div>';
-    const container = document.querySelector('.image-container');
-    container?.appendChild(mockImg);
+    const mockImg = document.querySelector('.image-container img') as HTMLImageElement;
+    if (mockImg) {
+      Object.defineProperty(mockImg, 'offsetWidth', { value: 800, configurable: true });
+      Object.defineProperty(mockImg, 'offsetHeight', { value: 600, configurable: true });
+    }
   });
 
   afterEach(() => {

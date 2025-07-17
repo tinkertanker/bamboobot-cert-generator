@@ -1,4 +1,5 @@
 import { createMocks } from 'node-mocks-http';
+import { waitFor } from '@testing-library/react';
 import { generateSinglePdf } from '@/lib/pdf-generator';
 import { uploadToR2 } from '@/lib/r2-client';
 import storageConfig from '@/lib/storage-config';
@@ -17,27 +18,25 @@ jest.mock('uuid', () => ({
   v4: () => 'mock-uuid-1234'
 }));
 
-// Create mock functions
-const mockCreateSession = jest.fn();
-const mockGetSession = jest.fn();
-const mockRemoveSession = jest.fn();
-
-// Mock the session manager
+// Mock the PdfSessionManager module
 jest.mock('@/lib/pdf/session-manager');
 
-// Import modules after basic mocks
-import { PdfSessionManager } from '@/lib/pdf/session-manager';
+// Import handler and mocked functions after setting up the mock
 import handler from '@/pages/api/generate-progressive';
-
-// Set up the mock implementation
-(PdfSessionManager.getInstance as jest.Mock).mockReturnValue({
-  createSession: mockCreateSession,
-  getSession: mockGetSession,
-  removeSession: mockRemoveSession
-});
+import { mockCreateSession, mockGetSession, mockRemoveSession } from '@/lib/pdf/session-manager';
 
 describe('/api/generate-progressive', () => {
   let mockQueueManager: any;
+  const originalConsoleError = console.error;
+
+  beforeAll(() => {
+    // Suppress expected console errors in tests
+    console.error = jest.fn();
+  });
+
+  afterAll(() => {
+    console.error = originalConsoleError;
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -198,7 +197,9 @@ describe('/api/generate-progressive', () => {
         body: validRequestBody
       });
 
-      mockQueueManager.initializeQueue.mockRejectedValue(new Error('Init failed'));
+      mockQueueManager.initializeQueue.mockImplementation(() => 
+        Promise.reject(new Error('Init failed'))
+      );
 
       await handler(req, res);
 
@@ -607,9 +608,12 @@ describe('/api/generate-progressive', () => {
         'John_Doe.pdf'
       );
 
-      expect(fs.unlink).toHaveBeenCalledWith(
-        expect.stringContaining('John_Doe.pdf')
-      );
+      // The unlink call happens during processNextBatch execution
+      await waitFor(() => {
+        expect(fs.unlink).toHaveBeenCalledWith(
+          expect.stringContaining('John_Doe.pdf')
+        );
+      }, { timeout: 1000 });
 
       // Reset R2 config
       (storageConfig as any).isR2Enabled = false;
@@ -757,8 +761,7 @@ describe('/api/generate-progressive', () => {
   describe('Error handling', () => {
     it('returns 500 for internal errors', async () => {
       const { req, res } = createMocks({
-        method: 'POST',
-        body: {}
+        method: 'POST'
       });
 
       // Force an error by making body undefined
@@ -768,6 +771,7 @@ describe('/api/generate-progressive', () => {
 
       expect(res._getStatusCode()).toBe(500);
       expect(res._getJSONData()).toHaveProperty('error', 'Internal server error');
+      expect(res._getJSONData()).toHaveProperty('details', expect.stringContaining('Cannot destructure property'));
     });
   });
 });
