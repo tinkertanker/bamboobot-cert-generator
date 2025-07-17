@@ -1,6 +1,4 @@
 import { createMocks } from 'node-mocks-http';
-import handler from '@/pages/api/generate-progressive';
-import { PdfSessionManager } from '@/lib/pdf/session-manager';
 import { generateSinglePdf } from '@/lib/pdf-generator';
 import { uploadToR2 } from '@/lib/r2-client';
 import storageConfig from '@/lib/storage-config';
@@ -8,7 +6,6 @@ import fs from 'fs/promises';
 import path from 'path';
 
 // Mock dependencies
-jest.mock('@/lib/pdf/session-manager');
 jest.mock('@/lib/pdf-generator');
 jest.mock('@/lib/r2-client');
 jest.mock('@/lib/storage-config', () => ({
@@ -20,8 +17,26 @@ jest.mock('uuid', () => ({
   v4: () => 'mock-uuid-1234'
 }));
 
+// Create mock functions
+const mockCreateSession = jest.fn();
+const mockGetSession = jest.fn();
+const mockRemoveSession = jest.fn();
+
+// Mock the session manager
+jest.mock('@/lib/pdf/session-manager');
+
+// Import modules after basic mocks
+import { PdfSessionManager } from '@/lib/pdf/session-manager';
+import handler from '@/pages/api/generate-progressive';
+
+// Set up the mock implementation
+(PdfSessionManager.getInstance as jest.Mock).mockReturnValue({
+  createSession: mockCreateSession,
+  getSession: mockGetSession,
+  removeSession: mockRemoveSession
+});
+
 describe('/api/generate-progressive', () => {
-  let mockSessionManager: any;
   let mockQueueManager: any;
 
   beforeEach(() => {
@@ -40,14 +55,11 @@ describe('/api/generate-progressive', () => {
       cancel: jest.fn(),
       processNextBatch: jest.fn()
     };
-
-    mockSessionManager = {
-      createSession: jest.fn().mockReturnValue(mockQueueManager),
-      getSession: jest.fn().mockReturnValue(mockQueueManager),
-      removeSession: jest.fn()
-    };
     
-    (PdfSessionManager.getInstance as jest.Mock).mockReturnValue(mockSessionManager);
+    // Reset the session manager mocks
+    mockCreateSession.mockReturnValue(mockQueueManager);
+    mockGetSession.mockReturnValue(mockQueueManager);
+    mockRemoveSession.mockClear();
     
     (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
     (fs.readFile as jest.Mock).mockResolvedValue(Buffer.from('mock-pdf-content'));
@@ -99,7 +111,7 @@ describe('/api/generate-progressive', () => {
         message: 'PDF generation started'
       });
 
-      expect(mockSessionManager.createSession).toHaveBeenCalledWith(
+      expect(mockCreateSession).toHaveBeenCalledWith(
         expect.stringContaining('pdf-'),
         'template.pdf',
         validRequestBody.positions,
@@ -191,7 +203,7 @@ describe('/api/generate-progressive', () => {
       await handler(req, res);
 
       expect(res._getStatusCode()).toBe(500);
-      expect(mockSessionManager.removeSession).toHaveBeenCalledWith(
+      expect(mockRemoveSession).toHaveBeenCalledWith(
         expect.stringContaining('pdf-')
       );
     });
@@ -213,7 +225,7 @@ describe('/api/generate-progressive', () => {
 
       await handler(req, res);
 
-      expect(mockSessionManager.createSession).toHaveBeenCalledWith(
+      expect(mockCreateSession).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(String),
         expect.any(Object),
@@ -307,7 +319,7 @@ describe('/api/generate-progressive', () => {
     });
 
     it('returns 404 for non-existent session', async () => {
-      mockSessionManager.getSession.mockReturnValue(null);
+      mockGetSession.mockReturnValue(null);
 
       const { req, res } = createMocks({
         method: 'GET',
@@ -388,7 +400,7 @@ describe('/api/generate-progressive', () => {
 
       expect(res._getStatusCode()).toBe(200);
       expect(mockQueueManager.cancel).toHaveBeenCalled();
-      expect(mockSessionManager.removeSession).toHaveBeenCalledWith('pdf-12345');
+      expect(mockRemoveSession).toHaveBeenCalledWith('pdf-12345');
     });
 
     it('validates session ID', async () => {
@@ -426,7 +438,7 @@ describe('/api/generate-progressive', () => {
     });
 
     it('returns 404 for non-existent session', async () => {
-      mockSessionManager.getSession.mockReturnValue(null);
+      mockGetSession.mockReturnValue(null);
 
       const { req, res } = createMocks({
         method: 'PUT',

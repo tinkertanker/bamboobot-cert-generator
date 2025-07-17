@@ -132,9 +132,8 @@ describe('CertificatePreview', () => {
         />
       );
 
-      const nameField = screen.getByText('John Doe');
-      // The text is inside a div with data-key attribute
-      const fieldContainer = nameField.closest('[data-key="name"]');
+      const fieldContainer = document.querySelector('[data-key="name"]');
+      expect(fieldContainer).toBeTruthy();
       expect(fieldContainer).toHaveStyle({
         left: '50%',
         top: '30%',
@@ -152,7 +151,8 @@ describe('CertificatePreview', () => {
         />
       );
 
-      const titleField = screen.getByText('Certificate of Excellence').closest('[data-key="title"]');
+      const titleField = document.querySelector('[data-key="title"]');
+      expect(titleField).toBeTruthy();
       expect(titleField).toHaveStyle({ opacity: '0.3' });
       expect(titleField?.querySelector('[data-testid="eye-off"]')).toBeInTheDocument();
     });
@@ -197,7 +197,8 @@ describe('CertificatePreview', () => {
         />
       );
 
-      const textField = screen.getByText('Test User').closest('[data-key="name"]');
+      const textField = document.querySelector('[data-key="name"]');
+      expect(textField).toBeTruthy();
       expect(textField).toHaveStyle({
         fontWeight: 'bold',
         fontStyle: 'italic',
@@ -219,7 +220,8 @@ describe('CertificatePreview', () => {
         />
       );
 
-      const textField = screen.getByText('Test User').closest('[data-key="name"]');
+      const textField = document.querySelector('[data-key="name"]');
+      expect(textField).toBeTruthy();
       expect(textField).toHaveStyle({
         transform: 'translate(-100%, -50%)'
       });
@@ -243,7 +245,8 @@ describe('CertificatePreview', () => {
         />
       );
 
-      const textField = screen.getByText('Test User').closest('[data-key="name"]');
+      const textField = document.querySelector('[data-key="name"]');
+      expect(textField).toBeTruthy();
       expect(textField).toHaveStyle({
         border: '2px solid #2d6a4f',
         backgroundColor: 'rgba(45, 106, 79, 0.15)'
@@ -269,7 +272,8 @@ describe('CertificatePreview', () => {
         />
       );
 
-      const textField = screen.getByText('Test User').closest('[data-key="name"]');
+      const textField = document.querySelector('[data-key="name"]');
+      expect(textField).toBeTruthy();
       expect(textField).toHaveStyle({
         cursor: 'grabbing',
         border: '2px solid #E76F51',
@@ -287,7 +291,8 @@ describe('CertificatePreview', () => {
         />
       );
 
-      const textField = screen.getByText('Test User').closest('[data-key="name"]') as HTMLElement;
+      const textField = document.querySelector('[data-key="name"]') as HTMLElement;
+      expect(textField).toBeTruthy();
       fireEvent.pointerDown(textField);
       expect(mockHandlePointerDown).toHaveBeenCalled();
     });
@@ -332,7 +337,8 @@ describe('CertificatePreview', () => {
         />
       );
 
-      const textField = screen.getByText('Test User').closest('[data-key="name"]');
+      const textField = document.querySelector('[data-key="name"]');
+      expect(textField).toBeTruthy();
       const leftIndicators = textField?.querySelectorAll('[style*="left: -2px"]');
       expect(leftIndicators?.length).toBeGreaterThan(0);
     });
@@ -352,7 +358,8 @@ describe('CertificatePreview', () => {
         />
       );
 
-      const textField = screen.getByText('Test User').closest('[data-key="name"]');
+      const textField = document.querySelector('[data-key="name"]');
+      expect(textField).toBeTruthy();
       const centerIndicators = textField?.querySelectorAll('[style*="calc(50% - 6px)"]');
       expect(centerIndicators?.length).toBeGreaterThan(0);
     });
@@ -372,7 +379,8 @@ describe('CertificatePreview', () => {
         />
       );
 
-      const textField = screen.getByText('Test User').closest('[data-key="name"]');
+      const textField = document.querySelector('[data-key="name"]');
+      expect(textField).toBeTruthy();
       const rightIndicators = textField?.querySelectorAll('[style*="right: -2px"]');
       expect(rightIndicators?.length).toBeGreaterThan(0);
     });

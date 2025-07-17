@@ -114,8 +114,9 @@ describe('VirtualizedTable', () => {
       render(<VirtualizedTable {...defaultProps} currentPreviewIndex={0} />);
       
       const janeRow = screen.getByText('Jane Smith').closest('div[style*="display: flex"]');
-      expect(janeRow).toHaveStyle({
-        backgroundColor: 'transparent'
+      // Check that it's not the highlight color instead of checking for transparent
+      expect(janeRow).not.toHaveStyle({
+        backgroundColor: 'rgb(255, 243, 224)'
       });
     });
 

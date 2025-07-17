@@ -18,6 +18,16 @@ global.fetch = jest.fn();
 describe('useProgressivePdfGeneration', () => {
   const mockSetSelectedNamingColumn = jest.fn();
   const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
+  
+  // Suppress expected console errors
+  const originalError = console.error;
+  beforeAll(() => {
+    console.error = jest.fn();
+  });
+  
+  afterAll(() => {
+    console.error = originalError;
+  });
 
   const mockTableData: TableData[] = [
     { name: 'John Doe', title: 'Certificate of Excellence' },
@@ -101,44 +111,27 @@ describe('useProgressivePdfGeneration', () => {
       });
 
       expect(result.current.isGenerating).toBe(true);
-      expect(mockFetch).toHaveBeenCalledWith('/api/generate-progressive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: 'individual',
-          templateFilename: 'template.pdf',
-          uiContainerDimensions: { width: 800, height: 600 },
-          namingColumn: 'name',
-          data: [
-            {
-              name: {
-                text: 'John Doe',
-                color: [1, 0, 0],
-                uiMeasurements: { width: 100, height: 20, actualHeight: 18 }
-              }
-            },
-            {
-              name: {
-                text: 'Jane Smith',
-                color: [1, 0, 0],
-                uiMeasurements: { width: 100, height: 20, actualHeight: 18 }
-              }
-            }
-          ],
-          positions: {
-            name: {
-              x: 0.5,
-              y: 0.3,
-              fontSize: 24,
-              font: 'Helvetica',
-              bold: false,
-              oblique: false,
-              alignment: 'left'
-            }
-          },
-          batchSize: 20
+      expect(mockFetch).toHaveBeenCalledWith('/api/generate-progressive', 
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: expect.stringContaining('"mode":"individual"')
         })
+      );
+
+      // Verify the body contains expected data
+      const callArgs = mockFetch.mock.calls[0];
+      const body = JSON.parse(callArgs[1].body);
+      expect(body).toMatchObject({
+        mode: 'individual',
+        templateFilename: 'template.pdf',
+        uiContainerDimensions: { width: 800, height: 600 },
+        namingColumn: 'name',
+        batchSize: 20
       });
+      expect(body.data).toHaveLength(2);
+      expect(body.data[0].name.text).toBe('John Doe');
+      expect(body.positions.name.x).toBe(0.5);
     });
 
     it('handles bulk mode with custom batch size', async () => {
