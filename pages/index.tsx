@@ -767,22 +767,14 @@ Email Sending Robot`,
           <div className="flex gap-3">
             {/* Templates Split Button */}
             <SplitButton
-              label={
-                currentTemplateName
-                  ? "✓ Autosaved"
-                  : hasManuallySaved
-                    ? "Save template"
-                    : "Load template"
-              }
+              label={hasManuallySaved ? "✓ Autosaved" : "Save template"}
               onClick={
-                currentTemplateName
+                hasManuallySaved
                   ? handleSaveToCurrentTemplate // Save to current template
-                  : hasManuallySaved
-                    ? () => setShowSaveTemplateModal(true)
-                    : () => setShowLoadTemplateModal(true)
+                  : () => setShowSaveTemplateModal(true)
               }
-              disabled={currentTemplateName ? true : false} // Disable main button when autosaved
-              variant={currentTemplateName ? "secondary" : "primary"} // Secondary style for autosaved
+              disabled={false}
+              variant="primary" // Always use primary variant to maintain consistent styling
               menuItems={[
                 {
                   label: "New template",
@@ -796,29 +788,13 @@ Email Sending Robot`,
                   icon: <FolderOpen className="h-4 w-4" />,
                   onClick: () => setShowLoadTemplateModal(true)
                 },
-                ...(currentTemplateName
-                  ? [
-                      {
-                        label: "Save as new template",
-                        icon: <Save className="h-4 w-4" />,
-                        onClick: () => setShowSaveTemplateModal(true),
-                        disabled:
-                          !uploadedFileUrl ||
-                          Object.keys(positions).length === 0
-                      }
-                    ]
-                  : !hasManuallySaved
-                    ? [
-                        {
-                          label: "Save template",
-                          icon: <Save className="h-4 w-4" />,
-                          onClick: () => setShowSaveTemplateModal(true),
-                          disabled:
-                            !uploadedFileUrl ||
-                            Object.keys(positions).length === 0
-                        }
-                      ]
-                    : []),
+                {
+                  label: "Save as new template",
+                  icon: <Save className="h-4 w-4" />,
+                  onClick: () => setShowSaveTemplateModal(true),
+                  disabled:
+                    !uploadedFileUrl || Object.keys(positions).length === 0
+                },
                 {
                   label: "Manage templates",
                   icon: <Settings className="h-4 w-4" />,
