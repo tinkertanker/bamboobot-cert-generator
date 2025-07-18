@@ -905,14 +905,13 @@ Email Sending Robot`,
                   <ActionButton
                     onClick={() => {
                       clearFile();
-                      clearPositions();
                       clearDragState();
                     }}
                     variant="outline"
                     size="sm"
                     gradient
                     gradientType="primary">
-                    Clear Template
+                    Clear Background Image
                   </ActionButton>
                 </div>
 
