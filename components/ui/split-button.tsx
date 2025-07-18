@@ -28,6 +28,8 @@ export interface SplitButtonProps {
   dropdownColor?: string;
   /** Custom hover color for dropdown button */
   dropdownHoverColor?: string;
+  /** Whether to show dropdown above the button */
+  dropUp?: boolean;
 }
 
 export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
@@ -41,6 +43,7 @@ export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
     gradientClass,
     dropdownColor,
     dropdownHoverColor,
+    dropUp = false,
     ...props
   }, ref) => {
     const [isOpen, setIsOpen] = React.useState(false);
@@ -123,12 +126,17 @@ export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
             <ChevronDown
               className={cn(
                 "h-4 w-4 transition-transform duration-200",
-                isOpen && "rotate-180"
+                dropUp && !isOpen && "rotate-180",
+                !dropUp && isOpen && "rotate-180",
+                dropUp && isOpen && "rotate-0"
               )}
             />
           </button>
           {isOpen && (
-            <div className="absolute right-0 top-full mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+            <div className={cn(
+              "absolute right-0 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50",
+              dropUp ? "bottom-full mb-1" : "top-full mt-1"
+            )}>
               <div className="py-1" role="menu" aria-orientation="vertical">
                 {menuItems.map((item, index) => (
                   <button

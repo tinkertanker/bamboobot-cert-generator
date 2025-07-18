@@ -920,6 +920,7 @@ Email Sending Robot`,
                     ]}
                     variant="secondary"
                     className="bg-white"
+                    dropUp={true}
                   />
                   <input
                     id="replace-file-upload"
