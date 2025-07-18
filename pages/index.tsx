@@ -3,7 +3,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { ActionButton } from "@/components/ui/action-button";
 import { useTable, Column } from "react-table";
 import { useTableData } from "@/hooks/useTableData";
 import type { TableData } from "@/types/certificate";
@@ -25,7 +24,8 @@ import {
   Save,
   FileUp,
   FolderOpen,
-  Settings
+  Settings,
+  RefreshCw
 } from "lucide-react";
 import { CertificatePreview } from "@/components/CertificatePreview";
 import { DataPanelWithSearch } from "@/components/panels/DataPanelWithSearch";
@@ -902,17 +902,32 @@ Email Sending Robot`,
             <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
               <div className="flex justify-between items-center">
                 <div className="flex gap-2">
-                  <ActionButton
+                  <SplitButton
+                    label="Remove Background"
                     onClick={() => {
                       clearFile();
                       clearDragState();
                     }}
-                    variant="outline"
-                    size="sm"
-                    gradient
-                    gradientType="primary">
-                    Clear Background Image
-                  </ActionButton>
+                    menuItems={[
+                      {
+                        label: "Replace Background",
+                        icon: <RefreshCw className="h-4 w-4" />,
+                        onClick: () => {
+                          const fileInput = document.getElementById('replace-file-upload') as HTMLInputElement;
+                          fileInput?.click();
+                        }
+                      }
+                    ]}
+                    variant="secondary"
+                    className="bg-white"
+                  />
+                  <input
+                    id="replace-file-upload"
+                    type="file"
+                    onChange={handleFileUpload}
+                    accept="image/jpeg,image/png"
+                    className="sr-only"
+                  />
                 </div>
 
                 {/* Arrow key hint - center aligned */}
