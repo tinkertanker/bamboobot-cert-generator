@@ -80,6 +80,9 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 - Docker containerization (production + development)
 - Development mode with preset data and configuration
 - Automated cleanup scripts for old files
+- Background image replacement feature with split button
+- Format Templates - Save/load formatting presets with comprehensive template system
+- Loading States - Enhanced loading states with shimmer effects
 
 ### Performance Features (All High Priority Items ✅)
 1. **Table Virtualization** - React-window for datasets > 100 rows
@@ -89,23 +92,15 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 ## Remaining Tasks 📋
 
 ### Medium Priority (UX Improvements)
-1. **Format Templates** - Save/load formatting presets
-   - Save current text positions/formatting as a template
-   - Load templates for quick setup
-   - Share templates between users
-
-2. **Data Validation** - Highlight empty cells, validate emails
+1. **Data Validation** - Highlight empty cells, validate emails
    - Visual indicators for empty required fields
    - Email format validation
    - Duplicate detection
 
-3. **Better Error Messages** - Actionable error descriptions
+2. **Better Error Messages** - Actionable error descriptions
    - Replace technical errors with user-friendly messages
    - Add "Try again" buttons
    - Suggest fixes for common issues
-
-### Low Priority (Nice to Have)
-1. **Loading States** - Skeleton loaders and progress indicators
 
 ### Progressive PDF Modal Enhancements
 - **ZIP Download in Progressive Modal** - Add ZIP download button (currently only in Individual PDFs modal)

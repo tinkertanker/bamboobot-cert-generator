@@ -5,17 +5,23 @@ Generate certificates from image templates with drag-and-drop text positioning a
 ## Features
 
 - **Image Template Upload** - JPG/PNG with automatic PDF conversion
+- **Background Image Replacement** - Replace template image while preserving text fields
 - **Precision Text Positioning** - Drag-and-drop with visual feedback and keyboard nudging
 - **Advanced Text Formatting** - 7 fonts, bold/italic, color picker, alignment controls
+- **Template System** - Save/load text field positions and formatting presets
 - **Keyboard Shortcuts** - Ctrl/Cmd+B (bold), Ctrl/Cmd+I (italic), ESC (dismiss modals)
 - **Smart Entry Navigation** - Previous/Next/First/Last with entry counter  
 - **Bulk Data Import** - TSV/CSV support with header toggle
+- **Table Virtualization** - Optimized performance for 400+ row datasets
+- **Search & Filter** - Natural language search with column:value syntax
+- **Progressive PDF Generation** - Batch processing with pause/resume/cancel for large datasets
 - **Multiple Download Options** - Single PDF, individual PDFs, ZIP archives
 - **Email Delivery** - Multi-provider support (Resend/SES) with preview, retry logic, and progress tracking
 - **Live Preview** - Real-time preview matching final PDF output
 - **Cloud Storage** - Multi-provider support (R2/S3) with CDN integration and lifecycle management
 - **Docker Support** - Production-ready containerization
 - **Dev Mode** - Quick testing with pre-loaded template, data, and email configuration
+- **Enhanced Loading States** - Shimmer effects and skeleton loaders for better UX
 
 ## Quick Start
 
@@ -108,7 +114,9 @@ npm run test:watch  # Watch mode
 npm run lint        # Run ESLint
 
 # Cleanup
-npm run cleanup    # Clean temporary files
+npm run cleanup         # Clean all temporary files
+npm run cleanup:old     # Delete old files (7+ days PDFs, 30+ days temp images)
+npm run cleanup:old:dry # Preview what would be deleted without actually deleting
 ```
 
 ### Manual Cleanup
@@ -136,6 +144,7 @@ pages/
   └── api/                    # API endpoints
 components/
   ├── CertificatePreview.tsx  # Certificate display with drag positioning
+  ├── VirtualizedTable.tsx    # Performance-optimized table for large datasets
   ├── panels/                 # Data, formatting, email config panels
   └── modals/                 # PDF generation, email, confirmation modals
 hooks/                        # Feature-specific state management
