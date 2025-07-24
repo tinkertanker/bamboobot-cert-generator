@@ -13,7 +13,7 @@ interface Position {
   fontSize?: number;
   x: number;
   y: number;
-  font?: 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 'WorkSans' | 'Roboto' | 'SourceSansPro' | 'Nunito' | 'GreatVibes';
+  font?: 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 'WorkSans' | 'Roboto' | 'SourceSansPro' | 'Nunito' | 'GreatVibes' | 'Archivo';
   bold?: boolean;
   oblique?: boolean;
   alignment?: 'left' | 'center' | 'right';
@@ -23,7 +23,7 @@ interface Entry {
   [key: string]: {
     text: string;
     color?: [number, number, number];
-    font?: 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 'WorkSans' | 'Roboto' | 'SourceSansPro' | 'Nunito' | 'GreatVibes';
+    font?: 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 'WorkSans' | 'Roboto' | 'SourceSansPro' | 'Nunito' | 'GreatVibes' | 'Archivo';
     bold?: boolean;
     oblique?: boolean;
     uiMeasurements?: {
