@@ -1,6 +1,6 @@
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
-import { Rubik, Montserrat, Poppins, Source_Sans_3, Nunito, Great_Vibes } from "next/font/google";
+import { Rubik, Montserrat, Poppins, Source_Sans_3, Nunito, Great_Vibes, Archivo } from "next/font/google";
 import "../styles/globals.css";
 
 const rubik = Rubik({
@@ -43,6 +43,13 @@ const greatVibes = Great_Vibes({
   weight: ["400"],
 });
 
+const archivo = Archivo({
+  subsets: ["latin"],
+  variable: "--font-archivo",
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
+});
+
 export default function App({ Component, pageProps }: AppProps) {
   return (
     <>
@@ -56,7 +63,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <div
-        className={`${rubik.variable} ${montserrat.variable} ${poppins.variable} ${sourceSansPro.variable} ${nunito.variable} ${greatVibes.variable} antialiased`}
+        className={`${rubik.variable} ${montserrat.variable} ${poppins.variable} ${sourceSansPro.variable} ${nunito.variable} ${greatVibes.variable} ${archivo.variable} antialiased`}
       >
         <Component {...pageProps} />
       </div>

@@ -11,7 +11,8 @@ export type FontFamily =
   | "Poppins"
   | "SourceSansPro"
   | "Nunito"
-  | "GreatVibes";
+  | "GreatVibes"
+  | "Archivo";
 
 // Text alignment types
 export type TextAlignment = "left" | "center" | "right";

@@ -9,7 +9,8 @@ export const FONT_CAPABILITIES = {
   Poppins: { bold: true, italic: true }, // Complete font family - geometric with personality
   SourceSansPro: { bold: true, italic: true }, // Adobe's masterpiece - professional typography
   Nunito: { bold: true, italic: true }, // Friendly rounded - good spacing
-  GreatVibes: { bold: false, italic: false } // Elegant script - single weight only
+  GreatVibes: { bold: false, italic: false }, // Elegant script - single weight only
+  Archivo: { bold: true, italic: true } // Sans-serif - great for readability
 } as const;
 
 // Progressive PDF Generation constants

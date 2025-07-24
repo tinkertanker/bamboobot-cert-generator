@@ -284,6 +284,7 @@ export function FormattingPanel({
                 <option value="SourceSansPro">Source Sans Pro</option>
                 <option value="Nunito">Nunito</option>
                 <option value="GreatVibes">Great Vibes</option>
+                <option value="Archivo">Archivo</option>
               </Select>
             </div>
           </div>

@@ -78,7 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const pdfDoc = await PDFDocument.load(templatePdfBytes);
 
     // Check if we need custom fonts globally
-    const customFonts = ['Montserrat', 'Poppins', 'SourceSansPro', 'Nunito', 'GreatVibes'] as const;
+    const customFonts = ['Montserrat', 'Poppins', 'SourceSansPro', 'Nunito', 'GreatVibes', 'Archivo'] as const;
     const needsCustomFonts = customFonts.some(fontName => 
       Object.values(positions).some(pos => pos.font === fontName) || 
       data.some(entry => Object.values(entry).some(val => val && typeof val === 'object' && val.font === fontName))
@@ -137,6 +137,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         customFontsEmbedded.NunitoBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Nunito-BoldItalic.ttf')));
         
         customFontsEmbedded.GreatVibes = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/GreatVibes-Regular.ttf')));
+        
+        customFontsEmbedded.Archivo = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Archivo-Regular.ttf')));
+        customFontsEmbedded.ArchivoBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Archivo-Bold.ttf')));
+        customFontsEmbedded.ArchivoItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Archivo-Italic.ttf')));
+        customFontsEmbedded.ArchivoBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Archivo-BoldItalic.ttf')));
       }
 
       const page = pdf.getPages()[0];
@@ -218,6 +223,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 }
               } else {
                 console.warn('Great Vibes font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
+              break;
+            case 'Archivo':
+              if (needsCustomFonts && customFontsEmbedded.Archivo) {
+                font = isBold
+                  ? (isOblique ? customFontsEmbedded.ArchivoBoldItalic : customFontsEmbedded.ArchivoBold)
+                  : (isOblique ? customFontsEmbedded.ArchivoItalic : customFontsEmbedded.Archivo);
+              } else {
+                console.warn('Archivo font requested but not loaded. Falling back to Helvetica.');
                 font = helveticaFont;
               }
               break;

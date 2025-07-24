@@ -55,7 +55,8 @@ function CertificatePreviewComponent({
     Poppins: 'var(--font-poppins), "Poppins", sans-serif',
     SourceSansPro: 'var(--font-source-sans-pro), "Source Sans Pro", sans-serif',
     Nunito: 'var(--font-nunito), "Nunito", sans-serif',
-    GreatVibes: 'var(--font-great-vibes), "Great Vibes", cursive'
+    GreatVibes: 'var(--font-great-vibes), "Great Vibes", cursive',
+    Archivo: 'var(--font-archivo), "Archivo", sans-serif'
   };
 
   return (
