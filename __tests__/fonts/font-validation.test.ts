@@ -15,7 +15,8 @@ describe('Font File Validation', () => {
     { name: 'Roboto', files: ['Roboto-Regular.ttf', 'Roboto-Bold.ttf', 'Roboto-Italic.ttf', 'Roboto-BoldItalic.ttf'] },
     { name: 'Source Sans Pro', files: ['SourceSansPro-Regular.ttf', 'SourceSansPro-Bold.ttf', 'SourceSansPro-Italic.ttf', 'SourceSansPro-BoldItalic.ttf'] },
     { name: 'Nunito', files: ['Nunito-Regular.ttf', 'Nunito-Bold.ttf', 'Nunito-Italic.ttf', 'Nunito-BoldItalic.ttf'] },
-    { name: 'Great Vibes', files: ['GreatVibes-Regular.ttf'] }
+    { name: 'Great Vibes', files: ['GreatVibes-Regular.ttf'] },
+    { name: 'Archivo', files: ['Archivo-Regular.ttf', 'Archivo-Bold.ttf', 'Archivo-Italic.ttf', 'Archivo-BoldItalic.ttf'] }
   ];
 
   describe('Font Files Existence', () => {
@@ -68,7 +69,8 @@ describe('Font File Validation', () => {
         Roboto: { bold: true, italic: true },
         SourceSansPro: { bold: true, italic: true },
         Nunito: { bold: true, italic: true },
-        GreatVibes: { bold: false, italic: false }
+        GreatVibes: { bold: false, italic: false },
+        Archivo: { bold: true, italic: true }
       };
 
       // Check that each font's capabilities match its available files
