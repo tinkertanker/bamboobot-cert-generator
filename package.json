@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Professional certificate generator with drag-and-drop text positioning, advanced formatting, and bulk PDF generation",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
