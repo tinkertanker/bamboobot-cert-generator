@@ -289,26 +289,6 @@ export function FormattingPanel({
             </div>
           </div>
 
-          {/* Font Size Slider */}
-          <div>
-            <input
-              type="range"
-              min="8"
-              max="72"
-              value={positions[selectedField]?.fontSize || DEFAULT_FONT_SIZE}
-              onChange={(e) => {
-                const newFontSize = parseInt(e.target.value);
-                setPositions((prev) => ({
-                  ...prev,
-                  [selectedField]: {
-                    ...prev[selectedField],
-                    fontSize: newFontSize
-                  }
-                }));
-              }}
-              className="w-full"
-            />
-          </div>
 
           {/* Text Color Picker */}
           <div>
