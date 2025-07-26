@@ -109,8 +109,11 @@ npm run build        # Build for production
 npm start           # Start production server
 
 # Testing & Linting
-npm test            # Run tests
-npm run test:watch  # Watch mode
+npm test            # Run unit tests (Jest)
+npm run test:watch  # Watch mode for unit tests
+npm run test:e2e    # Run E2E tests (Playwright)
+npm run test:e2e:headed  # Run E2E tests with browser visible
+npm run test:e2e:ui      # Run E2E tests in interactive UI mode
 npm run lint        # Run ESLint
 
 # Cleanup
@@ -162,6 +165,34 @@ types/certificate.ts         # TypeScript interfaces
 - Use `COLORS` constants from `utils/styles.ts`
 - Extract complex UI into focused components
 
+## Testing
+
+The project includes comprehensive unit and end-to-end tests:
+
+### Unit Tests (Jest + React Testing Library)
+```bash
+npm test                 # Run all unit tests
+npm run test:watch      # Run tests in watch mode
+npm test -- __tests__/path/to/specific.test.ts  # Run specific test
+```
+
+### End-to-End Tests (Playwright)
+```bash
+npm run test:e2e        # Run all E2E tests (headless)
+npm run test:e2e:headed # Run tests with browser visible
+npm run test:e2e:ui     # Interactive UI mode
+npm run test:e2e:debug  # Debug mode
+```
+
+The E2E tests cover:
+- Dev Mode activation and template loading
+- Text field interactions (drag, resize, format)
+- PDF generation with formatting verification
+- Entry navigation and data handling
+- Email configuration and sending
+
+For more details, see the [E2E Test Documentation](./e2e/README.md).
+
 ## Technology Stack
 
 - **Framework**: Next.js 15 with TypeScript
@@ -170,7 +201,7 @@ types/certificate.ts         # TypeScript interfaces
 - **PDF**: pdf-lib
 - **Storage**: Local, Cloudflare R2, or Amazon S3
 - **Email**: Resend or Amazon SES
-- **Testing**: Jest + React Testing Library
+- **Testing**: Jest + React Testing Library + Playwright
 - **Deployment**: Docker
 
 ## Font Licenses
