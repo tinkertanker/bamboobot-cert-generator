@@ -15,7 +15,13 @@
     "cleanup": "node scripts/cleanup.js",
     "cleanup:old": "node scripts/cleanup-old-files.js",
     "cleanup:old:dry": "node scripts/cleanup-old-files.js --dry-run",
-    "test:r2-cleanup": "tsx scripts/test-r2-cleanup.ts"
+    "test:r2-cleanup": "tsx scripts/test-r2-cleanup.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:install": "playwright install"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.842.0",
