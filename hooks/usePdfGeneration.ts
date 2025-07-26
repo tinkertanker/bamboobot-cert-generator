@@ -101,7 +101,10 @@ export function usePdfGeneration({
             font: pos.fontFamily || "Helvetica",
             bold: pos.bold || false,
             oblique: pos.italic || false,
-            alignment: pos.alignment || "left"
+            alignment: pos.alignment || "left",
+            textMode: pos.textMode || "shrink",
+            width: pos.width || 90,
+            lineHeight: pos.lineHeight || 1.2
           }
         ])
     );
@@ -121,6 +124,12 @@ export function usePdfGeneration({
   }, []);
 
   const generatePdf = useCallback(async () => {
+    if (!uploadedFile) {
+      console.error("No template file uploaded");
+      alert("Please upload a template image first");
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const containerDimensions = getContainerDimensions();
@@ -131,23 +140,36 @@ export function usePdfGeneration({
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          templateFilename: typeof uploadedFile === 'string' ? uploadedFile : uploadedFile?.name,
+          templateFilename: typeof uploadedFile === 'string' ? uploadedFile : uploadedFile.name,
           uiContainerDimensions: containerDimensions,
           data: prepareDataForApi(),
           positions: preparePositionsForApi()
         })
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate PDF');
+      }
+      
       const data = await response.json();
       setGeneratedPdfUrl(data.outputPath);
       setPdfDownloadUrl(data.outputPath);
       setIsGenerating(false);
     } catch (error) {
       console.error("Error generating PDF:", error);
+      alert(error instanceof Error ? error.message : "Error generating PDF. Please try again.");
       setIsGenerating(false);
     }
   }, [uploadedFile, getContainerDimensions, prepareDataForApi, preparePositionsForApi]);
 
   const generateIndividualPdfs = useCallback(async () => {
+    if (!uploadedFile) {
+      console.error("No template file uploaded");
+      alert("Please upload a template image first");
+      return;
+    }
+
     setIsGeneratingIndividual(true);
     try {
       const containerDimensions = getContainerDimensions();
@@ -159,13 +181,19 @@ export function usePdfGeneration({
         },
         body: JSON.stringify({
           mode: "individual",
-          templateFilename: typeof uploadedFile === 'string' ? uploadedFile : uploadedFile?.name,
+          templateFilename: typeof uploadedFile === 'string' ? uploadedFile : uploadedFile.name,
           uiContainerDimensions: containerDimensions,
           namingColumn: selectedNamingColumn,
           data: prepareDataForApi(),
           positions: preparePositionsForApi()
         })
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate individual PDFs');
+      }
+      
       const data = await response.json();
 
       // Set initial naming column to first column
@@ -177,6 +205,7 @@ export function usePdfGeneration({
       setIsGeneratingIndividual(false);
     } catch (error) {
       console.error("Error generating individual PDFs:", error);
+      alert(error instanceof Error ? error.message : "Error generating individual PDFs. Please try again.");
       setIsGeneratingIndividual(false);
     }
   }, [

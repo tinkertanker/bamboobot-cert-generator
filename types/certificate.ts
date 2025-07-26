@@ -17,6 +17,9 @@ export type FontFamily =
 // Text alignment types
 export type TextAlignment = "left" | "center" | "right";
 
+// Text display mode types
+export type TextMode = "shrink" | "multiline";
+
 // Tab types
 export type TabType = "data" | "formatting" | "email";
 
@@ -31,6 +34,9 @@ export interface Position {
   color?: string;
   alignment?: TextAlignment;
   isVisible?: boolean;
+  textMode?: TextMode;      // "shrink" or "multiline"
+  width?: number;           // Width as percentage (0-100)
+  lineHeight?: number;      // Line height multiplier for multi-line
 }
 
 // Collection of positions indexed by field key

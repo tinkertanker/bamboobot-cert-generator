@@ -2,6 +2,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fsPromises from 'fs/promises';
 import path from 'path';
 import * as fontkit from '@pdf-lib/fontkit';
+import { splitTextIntoLines, calculateShrinkToFitFontSize } from '@/utils/pdf-text-utils';
 
 const FONT_SIZE_MULTIPLIER = 1;
 
@@ -13,6 +14,9 @@ export interface Position {
   bold?: boolean;
   oblique?: boolean;
   alignment?: 'left' | 'center' | 'right';
+  textMode?: 'shrink' | 'multiline';
+  width?: number; // Width percentage (0-100)
+  lineHeight?: number; // Line height multiplier
 }
 
 export interface Entry {
@@ -107,8 +111,6 @@ export async function generateSinglePdf(
   for (const [key, position] of Object.entries(positions)) {
     const entryValue = entryData[key];
     if (entryValue) {
-      const x = position.x * width;
-
       // Use color from entry or default to black
       const color = entryValue.color || [0, 0, 0];
       const rgbColor = rgb(color[0], color[1], color[2]);
@@ -176,29 +178,106 @@ export async function generateSinglePdf(
           font = helveticaFont;
       }
 
-      // Handle text alignment
+      // Get text mode and width settings
+      const textMode = position.textMode || 'shrink';
+      const widthPercent = position.width || 90;
+      const lineHeight = position.lineHeight || 1.2;
+      const maxTextWidth = width * (widthPercent / 100);
       const alignment = position.alignment || 'left';
-      let adjustedX = x;
       
-      if (alignment !== 'left' && font) {
-        const textWidth = font.widthOfTextAtSize(entryValue.text, fontSize);
-        if (alignment === 'center') {
-          adjustedX = x - (textWidth / 2);
-        } else if (alignment === 'right') {
-          adjustedX = x - textWidth;
-        }
+      // Calculate the text box bounds based on position and width
+      // The position.x represents different points based on alignment:
+      // - left: left edge of text box
+      // - center: center of text box  
+      // - right: right edge of text box
+      let textBoxLeft: number;
+      let textBoxRight: number;
+      const xPos = position.x * width;
+      
+      if (alignment === 'center') {
+        textBoxLeft = xPos - (maxTextWidth / 2);
+        textBoxRight = xPos + (maxTextWidth / 2);
+      } else if (alignment === 'right') {
+        textBoxLeft = xPos - maxTextWidth;
+        textBoxRight = xPos;
+      } else {
+        // left alignment
+        textBoxLeft = xPos;
+        textBoxRight = xPos + maxTextWidth;
       }
 
-      // Convert y coordinate from top-left origin to bottom-left origin
-      const y = height - (position.y * height);
+      if (textMode === 'shrink') {
+        // Calculate font size to fit width
+        const adjustedFontSize = calculateShrinkToFitFontSize(
+          entryValue.text,
+          maxTextWidth,
+          fontSize,
+          font,
+          8 // min font size
+        );
 
-      page.drawText(entryValue.text, {
-        x: adjustedX,
-        y: y,
-        size: fontSize,
-        font: font,
-        color: rgbColor,
-      });
+        // Calculate text width for alignment within the text box
+        const textWidth = font.widthOfTextAtSize(entryValue.text, adjustedFontSize);
+        let adjustedX = textBoxLeft;
+        
+        if (alignment === 'center') {
+          adjustedX = textBoxLeft + (maxTextWidth - textWidth) / 2;
+        } else if (alignment === 'right') {
+          adjustedX = textBoxRight - textWidth;
+        }
+
+        // Convert y coordinate from top-left origin to bottom-left origin
+        const y = height - (position.y * height);
+
+        page.drawText(entryValue.text, {
+          x: adjustedX,
+          y: y,
+          size: adjustedFontSize,
+          font: font,
+          color: rgbColor,
+        });
+      } else if (textMode === 'multiline') {
+        // Split text into lines
+        const lines = splitTextIntoLines(
+          entryValue.text,
+          maxTextWidth,
+          font,
+          fontSize,
+          2 // max 2 lines
+        );
+
+        // Calculate line height
+        const actualLineHeight = fontSize * lineHeight;
+        
+        // Convert base y coordinate from top-left origin to bottom-left origin
+        // For multi-line text, we need to offset upward by half the total height
+        const totalTextHeight = actualLineHeight * (lines.length - 1);
+        const baseY = height - (position.y * height) + (totalTextHeight / 2);
+        
+        // Draw each line
+        lines.forEach((line, index) => {
+          const lineWidth = font.widthOfTextAtSize(line, fontSize);
+          let adjustedX = textBoxLeft;
+          
+          // Calculate X position based on alignment within the text box
+          if (alignment === 'center') {
+            adjustedX = textBoxLeft + (maxTextWidth - lineWidth) / 2;
+          } else if (alignment === 'right') {
+            adjustedX = textBoxRight - lineWidth;
+          }
+          
+          // Calculate Y position for each line
+          const lineY = baseY - (index * actualLineHeight);
+          
+          page.drawText(line, {
+            x: adjustedX,
+            y: lineY,
+            size: fontSize,
+            font: font,
+            color: rgbColor,
+          });
+        });
+      }
     }
   }
 

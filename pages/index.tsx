@@ -588,18 +588,20 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
           : presetCSVData;
         loadPresetData(testData);
 
-        // Set the uploaded file URL to the preset image (only in dev)
+        // Use existing template files in dev mode
         if (isDevelopment) {
-          const presetImageUrl = "/temp_images/certificate-template.png";
-          console.log("🔧 Dev Mode: Setting template image:", presetImageUrl);
-          setUploadedFileUrl(presetImageUrl);
+          const existingImage = "/temp_images/hmg34kdzdla6k8h9hu55cxj5j.jpg"; // Matching the PDF
+          console.log("🔧 Dev Mode: Setting template image:", existingImage);
+          setUploadedFileUrl(existingImage);
         }
 
-        // Create a mock file object for the preset template (use PDF filename)
-        const mockFile = new File([""], "certificate-template.pdf", {
+        // Use one of the existing PDF files in temp_images
+        const existingPdf = "hmg34kdzdla6k8h9hu55cxj5j.pdf"; // Using existing file
+        const mockFile = new File([""], existingPdf, {
           type: "application/pdf"
         });
         setUploadedFile(mockFile);
+        console.log("🔧 Dev Mode: Using existing PDF:", existingPdf);
 
         // Pre-fill email configuration in dev mode
         // Use setTimeout to ensure this runs after the email column detection
