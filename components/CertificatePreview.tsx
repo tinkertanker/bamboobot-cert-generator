@@ -1,8 +1,12 @@
-import React from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import { EyeOff } from "lucide-react";
 import Spinner from "@/components/Spinner";
 import { DEFAULT_FONT_SIZE } from "@/utils/constants";
 import { COLORS } from "@/utils/styles";
+import {
+  calculateShrinkToFitFontSize,
+  splitTextIntoLines
+} from "@/utils/textMeasurement";
 import type { CertificatePreviewProps, FontFamily } from "@/types/certificate";
 
 // Upload icon component (moved from main page)
@@ -46,6 +50,23 @@ function CertificatePreviewComponent({
   handleFileDrop,
   handleFileUpload
 }: CertificatePreviewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+
+  // Function to update container width
+  const updateWidth = useCallback(() => {
+    if (containerRef.current) {
+      setContainerWidth(containerRef.current.offsetWidth);
+    }
+  }, []);
+
+  // Update container width on resize
+  useEffect(() => {
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, [uploadedFileUrl, updateWidth]);
+
   // Font family mapping for CSS
   const fontFamilyMap: Record<FontFamily, string> = {
     Helvetica: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
@@ -64,12 +85,17 @@ function CertificatePreviewComponent({
       {isLoading && <Spinner />}
       {uploadedFileUrl ? (
         <>
-          <div className="border-4 border-gray-700 inline-block relative w-full">
+          <div className="border-4 border-gray-700 inline-block relative w-full" ref={containerRef}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={uploadedFileUrl}
               alt="Certificate Template"
               className="w-full h-auto block"
+              onLoad={updateWidth}
+              onError={() => {
+                console.error("Failed to load image:", uploadedFileUrl);
+                updateWidth();
+              }}
             />
             <div
               className="absolute inset-0"
@@ -99,28 +125,78 @@ function CertificatePreviewComponent({
                   const isItalic = positions[key]?.italic || false;
                   const textColor = positions[key]?.color || "#000000";
                   const alignment = positions[key]?.alignment || "center";
+                  const textMode = positions[key]?.textMode || "shrink";
+                  const widthPercent = positions[key]?.width || 90;
+                  const lineHeight = positions[key]?.lineHeight || 1.2;
 
-                  // Calculate transform based on alignment
-                  const transformX =
-                    alignment === "center"
-                      ? "-50%"
-                      : alignment === "right"
-                        ? "-100%"
-                        : "0%";
+                  // Calculate actual width in pixels
+                  const maxWidth = containerWidth * (widthPercent / 100);
+
+                  // Calculate font size and lines based on text mode
+                  let actualFontSize = fontSize;
+                  let textLines: string[] = [value];
+
+                  if (containerWidth > 0) {
+                    if (textMode === "shrink") {
+                      // Calculate font size to fit width
+                      actualFontSize = calculateShrinkToFitFontSize(
+                        value,
+                        maxWidth,
+                        fontSize,
+                        8, // min font size
+                        fontFamily,
+                        isBold,
+                        isItalic
+                      );
+                    } else if (textMode === "multiline") {
+                      // Split text into lines
+                      textLines = splitTextIntoLines(
+                        value,
+                        maxWidth,
+                        fontSize,
+                        2, // max 2 lines
+                        fontFamily,
+                        isBold,
+                        isItalic
+                      );
+                    }
+                  }
+
+                  // Calculate position based on alignment and width
+                  const xPos = positions[key]?.x ?? 50;
+                  let leftPos: string;
+                  let transformX: string;
+                  
+                  if (alignment === "center") {
+                    // Center: position at x - half width
+                    leftPos = `${xPos - widthPercent / 2}%`;
+                    transformX = "0%";
+                  } else if (alignment === "right") {
+                    // Right: position at x - full width
+                    leftPos = `${xPos - widthPercent}%`;
+                    transformX = "0%";
+                  } else {
+                    // Left: position at x
+                    leftPos = `${xPos}%`;
+                    transformX = "0%";
+                  }
 
                   const style = {
-                    left: `${positions[key]?.x ?? 50}%`,
+                    left: leftPos,
                     top: `${positions[key]?.y ?? 50 + index * 10}%`,
                     transform: `translate(${transformX}, -50%)`,
-                    fontSize: `${fontSize}px`,
+                    fontSize: `${actualFontSize}px`,
                     fontFamily: fontFamilyMap[fontFamily],
                     fontWeight: isBold ? "bold" : "normal",
                     fontStyle: isItalic ? "italic" : "normal",
                     color: textColor,
-                    whiteSpace: "nowrap" as const,
+                    width: `${widthPercent}%`,
+                    lineHeight: lineHeight,
+                    textAlign: alignment,
+                    whiteSpace: textMode === "multiline" ? "normal" as const : "nowrap" as const,
                     overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    maxWidth: "100%",
+                    textOverflow: textMode === "shrink" ? "ellipsis" : "initial",
+                    wordWrap: textMode === "multiline" ? "break-word" as const : "normal" as const,
                     position: "absolute" as const,
                     pointerEvents: "auto" as const,
                     userSelect: "none" as const,
@@ -276,7 +352,16 @@ function CertificatePreviewComponent({
                           )}
                         </>
                       )}
-                      {value}
+                      {/* Render text - single line or multiple lines */}
+                      {textMode === "multiline" && textLines.length > 1 ? (
+                        <div>
+                          {textLines.map((line, lineIndex) => (
+                            <div key={lineIndex}>{line}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        textLines[0]
+                      )}
                       {/* Not visible indicator */}
                       {isHidden && (
                         <div

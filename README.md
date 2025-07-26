@@ -7,7 +7,9 @@ Generate certificates from image templates with drag-and-drop text positioning a
 - **Image Template Upload** - JPG/PNG with automatic PDF conversion
 - **Background Image Replacement** - Replace template image while preserving text fields
 - **Precision Text Positioning** - Drag-and-drop with visual feedback and keyboard nudging
-- **Advanced Text Formatting** - 7 fonts, bold/italic, color picker, alignment controls
+- **Advanced Text Formatting** - 9 fonts, bold/italic, colour picker, alignment controls
+- **Text Sizing Options** - Shrink-to-fit for single lines or multi-line (2 lines) with word wrap
+- **Adjustable Text Width** - Control text field width (10-90%) with visual feedback
 - **Template System** - Save/load text field positions and formatting presets
 - **Keyboard Shortcuts** - Ctrl/Cmd+B (bold), Ctrl/Cmd+I (italic), ESC (dismiss modals)
 - **Smart Entry Navigation** - Previous/Next/First/Last with entry counter  
@@ -49,6 +51,9 @@ docker-compose -f docker-compose.dev.yml up -d
 2. **Add Data** - Paste TSV/CSV data (toggle header option if needed)
 3. **Position Text** - Drag text fields to desired positions
 4. **Format Text** - Click fields to access formatting controls
+   - Choose between "Shrink to Fit" or "Multi-line (2 Lines)" text modes
+   - Adjust text field width using the slider (10-90%)
+   - Apply font, style, size, alignment, and colour settings
 5. **Navigate Entries** - Use Previous/Next to preview different certificates  
 6. **Configure Email** (Optional) - Set up sender info and custom message if email column detected
 7. **Generate** - Create single PDF or individual PDFs
@@ -154,6 +159,9 @@ lib/
   ├── s3-client.ts           # Amazon S3 integration
   └── storage-config.ts      # Multi-provider storage
 types/certificate.ts         # TypeScript interfaces
+utils/
+  ├── styles.ts              # Color constants and theme
+  └── textMeasurement.ts     # Text width calculation and line wrapping utilities
 ```
 
 ### Development Guidelines

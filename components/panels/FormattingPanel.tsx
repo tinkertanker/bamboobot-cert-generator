@@ -59,39 +59,50 @@ export function FormattingPanel({
             </Button>
           </div>
 
-          {/* Size, Style, Formatting Row */}
-          <div className="grid grid-cols-3 gap-4">
+          {/* Font, Style, Size Row */}
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-4">
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">
-                Size
+                Font
               </label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="number"
-                  min="8"
-                  max="72"
-                  value={
-                    positions[selectedField]?.fontSize ||
-                    DEFAULT_FONT_SIZE
-                  }
-                  onChange={(e) => {
-                    const newFontSize =
-                      parseInt(e.target.value) || DEFAULT_FONT_SIZE;
-                    setPositions((prev) => ({
-                      ...prev,
-                      [selectedField]: {
-                        ...prev[selectedField],
-                        fontSize: newFontSize
-                      }
-                    }));
-                  }}
-                  className="w-16 h-10 px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <span className="text-sm text-gray-500">px</span>
-              </div>
+              <Select
+                value={
+                  positions[selectedField]?.fontFamily || "Helvetica"
+                }
+                onChange={(e) => {
+                  const newFontFamily = e.target.value as FontFamily;
+                  const newFontCapabilities =
+                    FONT_CAPABILITIES[newFontFamily];
+
+                  setPositions((prev) => ({
+                    ...prev,
+                    [selectedField]: {
+                      ...prev[selectedField],
+                      fontFamily: newFontFamily,
+                      // Clear bold/italic if the new font doesn't support them
+                      ...(!newFontCapabilities.bold
+                        ? { bold: false }
+                        : {}),
+                      ...(!newFontCapabilities.italic
+                        ? { italic: false }
+                        : {})
+                    }
+                  }));
+                }}
+                className="text-xs">
+                <option value="Helvetica">Helvetica</option>
+                <option value="Times">Times</option>
+                <option value="Courier">Courier</option>
+                <option value="Montserrat">Montserrat</option>
+                <option value="Poppins">Poppins</option>
+                <option value="SourceSansPro">Source Sans Pro</option>
+                <option value="Nunito">Nunito</option>
+                <option value="GreatVibes">Great Vibes</option>
+                <option value="Archivo">Archivo</option>
+              </Select>
             </div>
 
-            <div>
+            <div className="w-32">
               <label className="text-xs font-medium text-gray-600 mb-1 block">
                 Style
               </label>
@@ -249,164 +260,206 @@ export function FormattingPanel({
 
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">
-                Font
+                Size
+              </label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="number"
+                  min="8"
+                  max="72"
+                  value={
+                    positions[selectedField]?.fontSize ||
+                    DEFAULT_FONT_SIZE
+                  }
+                  onChange={(e) => {
+                    const newFontSize =
+                      parseInt(e.target.value) || DEFAULT_FONT_SIZE;
+                    setPositions((prev) => ({
+                      ...prev,
+                      [selectedField]: {
+                        ...prev[selectedField],
+                        fontSize: newFontSize
+                      }
+                    }));
+                  }}
+                  className="w-16 h-10 px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <span className="text-sm text-gray-500">px</span>
+              </div>
+            </div>
+          </div>
+
+
+          {/* Resizing, Alignment and Colour Row */}
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-4">
+            {/* Resizing Mode */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">
+                Resizing
               </label>
               <Select
-                value={
-                  positions[selectedField]?.fontFamily || "Helvetica"
-                }
+                value={positions[selectedField]?.textMode || "shrink"}
                 onChange={(e) => {
-                  const newFontFamily = e.target.value as FontFamily;
-                  const newFontCapabilities =
-                    FONT_CAPABILITIES[newFontFamily];
-
                   setPositions((prev) => ({
                     ...prev,
                     [selectedField]: {
                       ...prev[selectedField],
-                      fontFamily: newFontFamily,
-                      // Clear bold/italic if the new font doesn't support them
-                      ...(!newFontCapabilities.bold
-                        ? { bold: false }
-                        : {}),
-                      ...(!newFontCapabilities.italic
-                        ? { italic: false }
-                        : {})
+                      textMode: e.target.value as "shrink" | "multiline"
                     }
                   }));
                 }}
-                className="text-xs">
-                <option value="Helvetica">Helvetica</option>
-                <option value="Times">Times</option>
-                <option value="Courier">Courier</option>
-                <option value="Montserrat">Montserrat</option>
-                <option value="Poppins">Poppins</option>
-                <option value="SourceSansPro">Source Sans Pro</option>
-                <option value="Nunito">Nunito</option>
-                <option value="GreatVibes">Great Vibes</option>
-                <option value="Archivo">Archivo</option>
+                className="text-xs h-10">
+                <option value="shrink">Shrink to Fit</option>
+                <option value="multiline">Multi-line (2 Lines)</option>
               </Select>
             </div>
-          </div>
 
-
-          {/* Text Color Picker */}
-          <div>
-            <label className="text-xs font-medium text-gray-600 mb-3 block">
-              Text Color
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={positions[selectedField]?.color || COLORS.black}
-                onChange={(e) => {
-                  setPositions((prev) => ({
-                    ...prev,
-                    [selectedField]: {
-                      ...prev[selectedField],
-                      color: e.target.value
+            {/* Alignment */}
+            <div className="w-32">
+              <label className="text-xs font-medium text-gray-600 mb-1 block">
+                Alignment
+              </label>
+              <div className="flex gap-1">
+                <Button
+                  variant={
+                    positions[selectedField]?.alignment === "left" ||
+                    !positions[selectedField]?.alignment
+                      ? "default"
+                      : "outline"
+                  }
+                  size="sm"
+                  onClick={() => {
+                    if (selectedField) {
+                      changeAlignment(selectedField, "left");
                     }
-                  }));
-                }}
-                className="w-10 h-8 rounded border border-gray-300 cursor-pointer"
-              />
-              <span className="text-xs text-gray-500 font-mono">
-                {positions[selectedField]?.color || COLORS.black}
-              </span>
+                  }}
+                  className="flex-1 h-10 px-0"
+                  style={{
+                    backgroundColor:
+                      positions[selectedField]?.alignment === "left" ||
+                      !positions[selectedField]?.alignment
+                        ? COLORS.primaryMedium
+                        : "transparent",
+                    borderColor: COLORS.primaryMedium,
+                    color:
+                      positions[selectedField]?.alignment === "left" ||
+                      !positions[selectedField]?.alignment
+                        ? COLORS.white
+                        : COLORS.primaryMedium
+                  }}
+                  title="Align left">
+                  <AlignLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={
+                    positions[selectedField]?.alignment === "center"
+                      ? "default"
+                      : "outline"
+                  }
+                  size="sm"
+                  onClick={() => {
+                    if (selectedField) {
+                      changeAlignment(selectedField, "center");
+                    }
+                  }}
+                  className="flex-1 h-10 px-0"
+                  style={{
+                    backgroundColor:
+                      positions[selectedField]?.alignment === "center"
+                        ? COLORS.primaryMedium
+                        : "transparent",
+                    borderColor: COLORS.primaryMedium,
+                    color:
+                      positions[selectedField]?.alignment === "center"
+                        ? COLORS.white
+                        : COLORS.primaryMedium
+                  }}
+                  title="Align center">
+                  <AlignCenter className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={
+                    positions[selectedField]?.alignment === "right"
+                      ? "default"
+                      : "outline"
+                  }
+                  size="sm"
+                  onClick={() => {
+                    if (selectedField) {
+                      changeAlignment(selectedField, "right");
+                    }
+                  }}
+                  className="flex-1 h-10 px-0"
+                  style={{
+                    backgroundColor:
+                      positions[selectedField]?.alignment === "right"
+                        ? COLORS.primaryMedium
+                        : "transparent",
+                    borderColor: COLORS.primaryMedium,
+                    color:
+                      positions[selectedField]?.alignment === "right"
+                        ? COLORS.white
+                        : COLORS.primaryMedium
+                  }}
+                  title="Align right">
+                  <AlignRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Colour Picker */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">
+                Colour
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={positions[selectedField]?.color || COLORS.black}
+                  onChange={(e) => {
+                    setPositions((prev) => ({
+                      ...prev,
+                      [selectedField]: {
+                        ...prev[selectedField],
+                        color: e.target.value
+                      }
+                    }));
+                  }}
+                  className="w-10 h-8 rounded border border-gray-300 cursor-pointer"
+                />
+                <span className="text-xs text-gray-500 font-mono">
+                  {positions[selectedField]?.color || COLORS.black}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Text Alignment */}
+
+          {/* Width Slider */}
           <div>
-            <label className="text-xs font-medium text-gray-600 mb-3 block">
-              Alignment
+            <label className="text-xs font-medium text-gray-600 mb-1 block">
+              Width: {positions[selectedField]?.width || 90}%
             </label>
-            <div className="flex gap-1">
-              <Button
-                variant={
-                  positions[selectedField]?.alignment === "left" ||
-                  !positions[selectedField]?.alignment
-                    ? "default"
-                    : "outline"
-                }
-                size="sm"
-                onClick={() => {
-                  if (selectedField) {
-                    changeAlignment(selectedField, "left");
+            <input
+              type="range"
+              min="10"
+              max="90"
+              value={positions[selectedField]?.width || 90}
+              onChange={(e) => {
+                const newWidth = parseInt(e.target.value);
+                setPositions((prev) => ({
+                  ...prev,
+                  [selectedField]: {
+                    ...prev[selectedField],
+                    width: newWidth
                   }
-                }}
-                className="flex-1 h-8"
-                style={{
-                  backgroundColor:
-                    positions[selectedField]?.alignment === "left" ||
-                    !positions[selectedField]?.alignment
-                      ? COLORS.primaryMedium
-                      : "transparent",
-                  borderColor: COLORS.primaryMedium,
-                  color:
-                    positions[selectedField]?.alignment === "left" ||
-                    !positions[selectedField]?.alignment
-                      ? COLORS.white
-                      : COLORS.primaryMedium
-                }}
-                title="Align left">
-                <AlignLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={
-                  positions[selectedField]?.alignment === "center"
-                    ? "default"
-                    : "outline"
-                }
-                size="sm"
-                onClick={() => {
-                  if (selectedField) {
-                    changeAlignment(selectedField, "center");
-                  }
-                }}
-                className="flex-1 h-8"
-                style={{
-                  backgroundColor:
-                    positions[selectedField]?.alignment === "center"
-                      ? COLORS.primaryMedium
-                      : "transparent",
-                  borderColor: COLORS.primaryMedium,
-                  color:
-                    positions[selectedField]?.alignment === "center"
-                      ? COLORS.white
-                      : COLORS.primaryMedium
-                }}
-                title="Align center">
-                <AlignCenter className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={
-                  positions[selectedField]?.alignment === "right"
-                    ? "default"
-                    : "outline"
-                }
-                size="sm"
-                onClick={() => {
-                  if (selectedField) {
-                    changeAlignment(selectedField, "right");
-                  }
-                }}
-                className="flex-1 h-8"
-                style={{
-                  backgroundColor:
-                    positions[selectedField]?.alignment === "right"
-                      ? COLORS.primaryMedium
-                      : "transparent",
-                  borderColor: COLORS.primaryMedium,
-                  color:
-                    positions[selectedField]?.alignment === "right"
-                      ? COLORS.white
-                      : COLORS.primaryMedium
-                }}
-                title="Align right">
-                <AlignRight className="h-4 w-4" />
-              </Button>
-            </div>
+                }));
+              }}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+              style={{
+                background: `linear-gradient(to right, ${COLORS.primaryMedium} 0%, ${COLORS.primaryMedium} ${((positions[selectedField]?.width || 90) - 10) / 80 * 100}%, #e5e7eb ${((positions[selectedField]?.width || 90) - 10) / 80 * 100}%, #e5e7eb 100%)`
+              }}
+            />
           </div>
 
           {/* Apply to All Button - More prominent placement */}
@@ -425,7 +478,9 @@ export function FormattingPanel({
                         bold: currentFormatting.bold,
                         italic: currentFormatting.italic,
                         color: currentFormatting.color,
-                        alignment: currentFormatting.alignment
+                        alignment: currentFormatting.alignment,
+                        textMode: currentFormatting.textMode,
+                        width: currentFormatting.width
                       };
                     }
                   });
