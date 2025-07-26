@@ -125,14 +125,17 @@ export function splitTextIntoLines(
   const words = text.split(' ');
   const lines: string[] = [];
   let currentLine = '';
+  let wordIndex = 0;
   
-  for (const word of words) {
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
     const testLine = currentLine ? `${currentLine} ${word}` : word;
     const lineWidth = measureTextWidth(testLine, fontSize, fontFamily, bold, italic);
     
     if (lineWidth > maxWidth && currentLine) {
       lines.push(currentLine);
       currentLine = word;
+      wordIndex = i + 1;
       
       // Stop if we've reached max lines
       if (lines.length >= maxLines) {
@@ -140,6 +143,7 @@ export function splitTextIntoLines(
       }
     } else {
       currentLine = testLine;
+      wordIndex = i + 1;
     }
   }
   
@@ -149,10 +153,9 @@ export function splitTextIntoLines(
   } else if (currentLine && lines.length === maxLines) {
     // Add ellipsis to last line if there's overflow
     const lastLine = lines[maxLines - 1];
-    const wordsUsed = lines.join(' ').split(' ').length;
-    const remainingWords = words.slice(wordsUsed);
+    const hasRemainingWords = wordIndex < words.length;
     
-    if (remainingWords.length > 0) {
+    if (hasRemainingWords) {
       // Try to fit ellipsis
       let truncatedLine = lastLine;
       while (measureTextWidth(truncatedLine + '...', fontSize, fontFamily, bold, italic) > maxWidth && truncatedLine.length > 0) {
