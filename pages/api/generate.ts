@@ -49,12 +49,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     const { mode = 'single', templateFilename, data, positions, uiContainerDimensions, namingColumn }: { 
       mode?: 'single' | 'individual';
-      templateFilename: string; 
+      templateFilename?: string; 
       data: Entry[]; 
       positions: Record<string, Position>;
       uiContainerDimensions?: { width: number; height: number };
       namingColumn?: string;
     } = req.body;
+    
+    // Validate required parameters
+    if (!templateFilename) {
+      console.error('Missing templateFilename in request');
+      return res.status(400).json({ error: 'Template filename is required' });
+    }
+    
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      console.error('Missing or invalid data in request');
+      return res.status(400).json({ error: 'Data array is required and must not be empty' });
+    }
+    
+    if (!positions || typeof positions !== 'object') {
+      console.error('Missing or invalid positions in request');
+      return res.status(400).json({ error: 'Positions object is required' });
+    }
+    
     // Handle R2 storage - download template if using R2
     let templatePdfBytes: Buffer;
     
