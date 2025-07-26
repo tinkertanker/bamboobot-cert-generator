@@ -149,7 +149,8 @@ export function splitTextIntoLines(
   } else if (currentLine && lines.length === maxLines) {
     // Add ellipsis to last line if there's overflow
     const lastLine = lines[maxLines - 1];
-    const remainingWords = words.slice(words.indexOf(currentLine.split(' ')[0]));
+    const wordsUsed = lines.join(' ').split(' ').length;
+    const remainingWords = words.slice(wordsUsed);
     
     if (remainingWords.length > 0) {
       // Try to fit ellipsis
