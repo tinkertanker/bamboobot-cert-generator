@@ -51,3 +51,7 @@ public/temp_images/
 # Docker volume data
 data/
 .env.local
+
+# Playwright
+playwright-report/
+test-results/
