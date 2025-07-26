@@ -21,6 +21,16 @@ export function useKeyboardShortcuts({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!selectedField || isDragging) return;
 
+      // Don't nudge if an input, textarea, or contenteditable element has focus
+      const activeElement = document.activeElement;
+      if (
+        activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.getAttribute('contenteditable') === 'true'
+      ) {
+        return;
+      }
+
       const nudgeAmount = event.shiftKey ? 2 : 0.5; // Larger nudge with Shift
 
       switch (event.key) {

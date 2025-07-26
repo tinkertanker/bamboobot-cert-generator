@@ -116,6 +116,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   const [currentTemplateName, setCurrentTemplateName] = useState<string | null>(
     null
   );
+  const [hasInputFocus, setHasInputFocus] = useState<boolean>(false);
 
   // Drag and drop hook
   const {
@@ -492,6 +493,39 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     setEmailConfig,
     showToast
   ]);
+
+  // Track input focus state globally
+  useEffect(() => {
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target as HTMLElement;
+      if (
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.getAttribute('contenteditable') === 'true'
+      ) {
+        setHasInputFocus(true);
+      }
+    };
+
+    const handleFocusOut = (event: FocusEvent) => {
+      const target = event.target as HTMLElement;
+      if (
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.getAttribute('contenteditable') === 'true'
+      ) {
+        setHasInputFocus(false);
+      }
+    };
+
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
+    };
+  }, []);
 
   // Keyboard shortcuts hook
   useKeyboardShortcuts({
@@ -934,9 +968,10 @@ Email Sending Robot`,
                 {/* Arrow key hint - center aligned */}
                 {selectedField && (
                   <div className="flex items-center justify-center text-xs text-gray-500">
-                    <span>
-                      Use arrow keys to nudge selected text (Shift for larger
-                      steps)
+                    <span className={hasInputFocus ? "opacity-50" : ""}>
+                      {hasInputFocus 
+                        ? "Arrow key nudging disabled while editing"
+                        : "Use arrow keys to nudge selected text (Shift for larger steps)"}
                     </span>
                   </div>
                 )}
