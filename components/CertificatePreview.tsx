@@ -356,7 +356,7 @@ function CertificatePreviewComponent({
                       {textMode === "multiline" && textLines.length > 1 ? (
                         <div>
                           {textLines.slice(0, 2).map((line, lineIndex) => (
-                            <div key={lineIndex} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{line}</div>
+                            <div key={lineIndex} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{line}</div>
                           ))}
                         </div>
                       ) : (
