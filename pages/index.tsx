@@ -238,9 +238,10 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     emailConfig,
     certificateImageUrl: uploadedFileUrl,
     certificateFilename: uploadedFile as string | null,
+    tableData,
     onAutosave: () => {
       // Silent autosave - no toast notification
-      console.log("Template autosaved");
+      console.log("Project autosaved");
     },
     enabled: hasManuallySaved,
     currentTemplateId,
@@ -307,7 +308,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
           }
 
           showToast({
-            message: `Loaded template: ${template.name}`,
+            message: `Loaded project: ${template.name}`,
             type: "info",
             duration: 3000
           });
@@ -350,16 +351,26 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       // Load the positions
       setPositions(template.positions);
 
-      // Load the columns structure (requires table data in the same format)
-      const columns = template.columns;
-      if (columns.length > 0) {
-        // Create sample data structure with the loaded columns
-        const sampleRow: TableData = {};
-        columns.forEach((col) => {
-          sampleRow[col] = "";
+      // Load the table data
+      if (template.tableData && template.tableData.length > 0) {
+        // Convert tableData array back to TSV format for loading
+        const headers = template.columns;
+        const rows = template.tableData.map(row => {
+          return headers.map(col => row[col] || "").join("\t");
         });
-        // This will help the user understand what columns are expected
-        console.log("Template expects columns:", columns);
+        const tsvData = [headers.join("\t"), ...rows].join("\n");
+        
+        // Load the data using loadSessionData
+        await loadSessionData(tsvData, false, true); // TSV mode with headers
+        console.log(`Loaded ${template.tableData.length} rows of data`);
+      } else if (template.columns.length > 0) {
+        // If no data but has columns, create empty row with those columns
+        const headers = template.columns;
+        const emptyRow = headers.map(() => "").join("\t");
+        const tsvData = [headers.join("\t"), emptyRow].join("\n");
+        
+        await loadSessionData(tsvData, false, true); // TSV mode with headers
+        console.log("Project expects columns:", template.columns);
       }
 
       // Load email configuration if present
@@ -381,7 +392,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
         setUploadedFile(template.certificateImage.filename);
       }
 
-      console.log("Template loaded successfully:", template.name);
+      console.log("Project loaded successfully:", template.name);
       // Enable autosave after loading a template
       setHasManuallySaved(true);
       setCurrentTemplateName(template.name);
@@ -391,18 +402,19 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       setEmailConfig,
       setUploadedFileUrl,
       setUploadedFile,
-      uploadedFileUrl
+      uploadedFileUrl,
+      loadSessionData
     ]
   );
 
   const handleSaveTemplateSuccess = useCallback(
     (templateId: string, templateName: string) => {
-      console.log("Template saved successfully:", {
+      console.log("Project saved successfully:", {
         id: templateId,
         name: templateName
       });
       showToast({
-        message: `Template "${templateName}" saved successfully`,
+        message: `Project "${templateName}" saved successfully`,
         type: "success",
         duration: 3000
       });
@@ -424,13 +436,13 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     if (result.success) {
       // Show subtle feedback that it was saved
       showToast({
-        message: "Template saved",
+        message: "Project saved",
         type: "success",
         duration: 2000
       });
     } else {
       showToast({
-        message: result.error || "Failed to save template",
+        message: result.error || "Failed to save project",
         type: "error",
         duration: 3000
       });
@@ -492,7 +504,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     setCurrentTemplateName(null); // Reset template name
     setCurrentTemplateId(null); // Reset template ID
     showToast({
-      message: "New template started",
+      message: "New project started",
       type: "info",
       duration: 2000
     });
@@ -812,35 +824,35 @@ Email Sending Robot`,
             )}
           </div>
           <div className="flex gap-3">
-            {/* Templates Split Button */}
+            {/* Projects Split Button */}
             <SplitButton
               label={
                 currentTemplateName 
                   ? `Save to "${currentTemplateName}"` 
-                  : "Save template"
+                  : "Save project"
               }
               onClick={
                 hasManuallySaved
-                  ? handleSaveToCurrentTemplate // Save to current template
+                  ? handleSaveToCurrentTemplate // Save to current project
                   : () => setShowSaveTemplateModal(true)
               }
               disabled={false}
               variant="primary" // Always use primary variant to maintain consistent styling
               menuItems={[
                 {
-                  label: "New template",
+                  label: "New project",
                   icon: <FileUp className="h-4 w-4" />,
                   onClick: handleNewTemplate,
                   disabled:
                     !uploadedFileUrl && Object.keys(positions).length === 0
                 },
                 {
-                  label: "Templates...",
+                  label: "Projects...",
                   icon: <FolderOpen className="h-4 w-4" />,
                   onClick: () => setShowLoadTemplateModal(true)
                 },
                 {
-                  label: "Save as new template",
+                  label: "Save as new project",
                   icon: <Save className="h-4 w-4" />,
                   onClick: () => setShowSaveTemplateModal(true),
                   disabled:

@@ -38,7 +38,7 @@ export function SaveTemplateModal({
   
   const handleSave = async () => {
     if (!templateName.trim()) {
-      setError('Please enter a template name');
+      setError('Please enter a project name');
       return;
     }
     
@@ -76,7 +76,7 @@ export function SaveTemplateModal({
         onSaveSuccess?.(result.id, templateName);
         handleClose();
       } else {
-        setError(result.error || 'Failed to save template');
+        setError(result.error || 'Failed to save project');
       }
     } catch (err) {
       console.error('Error saving template:', err);
@@ -100,14 +100,14 @@ export function SaveTemplateModal({
   return (
     <Modal open={isOpen} onClose={handleClose} width="w-[600px]">
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-gray-900">Save Format Template</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Save Project</h2>
         
         <div>
-          <label htmlFor="template-name" className="block text-sm font-medium text-gray-700 mb-2">
-            Template Name
+          <label htmlFor="project-name" className="block text-sm font-medium text-gray-700 mb-2">
+            Project Name
           </label>
           <input
-            id="template-name"
+            id="project-name"
             type="text"
             value={templateName}
             onChange={(e) => setTemplateName(e.target.value)}
@@ -123,7 +123,8 @@ export function SaveTemplateModal({
             <div className="text-sm text-amber-800">
               <p className="font-semibold mb-1">Important Notes:</p>
               <ul className="list-disc ml-5 space-y-1">
-                <li>This template will be saved locally in your browser</li>
+                <li>This project includes all your data and formatting</li>
+                <li>Saved locally in your browser</li>
                 <li>Works only in this browser on this device</li>
                 <li>Will be lost if you clear browser data</li>
                 <li>Cannot be shared with other users directly</li>
@@ -134,7 +135,7 @@ export function SaveTemplateModal({
         
         <div className="space-y-2">
           <div className="text-sm text-gray-600">
-            <p className="font-medium">Template will include:</p>
+            <p className="font-medium">Project will include:</p>
             <ul className="mt-1 space-y-1">
               <li className="flex items-center gap-2">
                 <span className="text-green-600">✓</span>
@@ -184,7 +185,7 @@ export function SaveTemplateModal({
           </div>
           {isNearLimit && (
             <p className="text-xs text-amber-600">
-              Storage is nearly full. Consider deleting old templates.
+              Storage is nearly full. Consider deleting old projects.
             </p>
           )}
         </div>
@@ -216,7 +217,7 @@ export function SaveTemplateModal({
             ) : (
               <>
                 <Save className="h-4 w-4" />
-                Save Template
+                Save Project
               </>
             )}
           </Button>

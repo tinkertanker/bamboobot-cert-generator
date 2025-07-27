@@ -1,8 +1,8 @@
 /**
- * Template Storage Module
+ * Project Storage Module
  * 
- * Handles saving and loading certificate format templates in localStorage.
- * Templates include text field positions, formatting, and reference to certificate images.
+ * Handles saving and loading complete certificate projects in localStorage.
+ * Projects include text field positions, formatting, table data, and certificate images.
  */
 
 import type { Positions, EmailConfig } from '@/types/certificate';
@@ -17,6 +17,9 @@ export interface SavedTemplate {
   // Text field configuration
   positions: Positions;
   columns: string[];
+  
+  // Table data - the actual certificate recipient data
+  tableData: Array<Record<string, string>>;
   
   // Optional email configuration
   emailConfig?: EmailConfig;
@@ -38,6 +41,7 @@ export interface TemplateListItem {
   created: string;
   lastModified: string;
   columnsCount: number;
+  rowsCount?: number;
   hasEmailConfig: boolean;
   imageStatus: 'available' | 'missing' | 'checking';
 }
@@ -55,6 +59,7 @@ export class TemplateStorage {
     columns: string[],
     certificateImageUrl: string,
     certificateFilename: string,
+    tableData: Array<Record<string, string>>,
     emailConfig?: EmailConfig,
     storageInfo?: { isCloudStorage: boolean; provider?: 'r2' | 's3' | 'local' }
   ): Promise<{ success: boolean; id?: string; error?: string }> {
@@ -70,6 +75,7 @@ export class TemplateStorage {
         version: '1.0',
         positions,
         columns,
+        tableData,
         emailConfig,
         certificateImage: {
           url: certificateImageUrl,
@@ -210,6 +216,7 @@ export class TemplateStorage {
             created: template.created,
             lastModified: template.lastModified,
             columnsCount: template.columns.length,
+            rowsCount: template.tableData?.length || 0,
             hasEmailConfig: !!template.emailConfig?.isConfigured,
             imageStatus
           });

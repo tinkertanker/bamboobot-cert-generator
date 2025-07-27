@@ -41,11 +41,11 @@ export function LoadTemplateModal({
       const list = await TemplateStorage.listTemplates();
       setTemplates(list);
       if (list.length === 0) {
-        setError('No saved templates found');
+        setError('No saved projects found');
       }
     } catch (err) {
       console.error('Error loading templates:', err);
-      setError('Failed to load templates');
+      setError('Failed to load projects');
     } finally {
       setIsLoading(false);
     }
@@ -59,7 +59,7 @@ export function LoadTemplateModal({
       onLoadTemplate(template);
       handleClose();
     } else {
-      setError('Failed to load template');
+      setError('Failed to load project');
     }
   };
   
@@ -74,11 +74,11 @@ export function LoadTemplateModal({
         }
         onTemplateDeleted?.();
       } else {
-        setError('Failed to delete template');
+        setError('Failed to delete project');
       }
     } catch (err) {
       console.error('Error deleting template:', err);
-      setError('Failed to delete template');
+      setError('Failed to delete project');
     } finally {
       setIsDeleting(null);
       setShowDeleteConfirm(null);
@@ -100,20 +100,20 @@ export function LoadTemplateModal({
       onTemplateDeleted?.();
     } catch (err) {
       console.error('Error deleting all templates:', err);
-      setError('Failed to delete all templates');
+      setError('Failed to delete all projects');
     }
   };
   
   const handleRenameTemplate = async (id: string, newName: string) => {
     if (!newName.trim()) {
-      setError('Template name cannot be empty');
+      setError('Project name cannot be empty');
       return;
     }
     
     try {
       const template = TemplateStorage.loadTemplate(id);
       if (!template) {
-        setError('Template not found');
+        setError('Project not found');
         return;
       }
       
@@ -126,11 +126,11 @@ export function LoadTemplateModal({
         setRenamingTemplateId(null);
         setRenameValue('');
       } else {
-        setError(result.error || 'Failed to rename template');
+        setError(result.error || 'Failed to rename project');
       }
     } catch (err) {
       console.error('Error renaming template:', err);
-      setError('Failed to rename template');
+      setError('Failed to rename project');
     }
   };
   
@@ -149,11 +149,11 @@ export function LoadTemplateModal({
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       } else {
-        setError(result.error || 'Failed to export template');
+        setError(result.error || 'Failed to export project');
       }
     } catch (err) {
       console.error('Error exporting template:', err);
-      setError('Failed to export template');
+      setError('Failed to export project');
     }
   };
   
@@ -169,11 +169,11 @@ export function LoadTemplateModal({
         await loadTemplateList();
         setError(null);
       } else {
-        setError(result.error || 'Failed to import template');
+        setError(result.error || 'Failed to import project');
       }
     } catch (err) {
       console.error('Error importing template:', err);
-      setError('Invalid template file');
+      setError('Invalid project file');
     }
     
     // Reset input
@@ -222,7 +222,7 @@ export function LoadTemplateModal({
     <Modal open={isOpen} onClose={handleClose} width="w-[600px]">
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Format Templates</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
           <div className="flex items-center gap-2">
             {templates.length > 0 && !showDeleteAllConfirm && (
               <Button 
@@ -257,10 +257,10 @@ export function LoadTemplateModal({
                 <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-red-800">
-                    Delete All Templates?
+                    Delete All Projects?
                   </p>
                   <p className="text-sm text-red-700 mt-1">
-                    This will permanently delete all {templates.length} saved templates. This action cannot be undone.
+                    This will permanently delete all {templates.length} saved projects. This action cannot be undone.
                   </p>
                   <p className="text-sm text-red-700 mt-2">
                     Type <span className="font-mono font-bold">DELETE ALL</span> to confirm:
@@ -315,7 +315,7 @@ export function LoadTemplateModal({
               <div>
                 <p className="text-sm text-amber-800">{error}</p>
                 <p className="text-xs text-amber-700 mt-1">
-                  Create a template by configuring your certificate and clicking &quot;Save Template&quot;
+                  Create a project by configuring your certificate and clicking &quot;Save project&quot;
                 </p>
               </div>
             </div>
@@ -392,19 +392,29 @@ export function LoadTemplateModal({
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-                        <span className="flex items-center gap-1">
-                          <FileText className="h-3 w-3" />
-                          {template.columnsCount} columns
-                        </span>
+                      <div className="flex items-center gap-4 mt-3">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                            <FileText className="h-3.5 w-3.5 text-gray-500" />
+                            {template.columnsCount} {template.columnsCount === 1 ? 'column' : 'columns'}
+                          </span>
+                          {template.rowsCount !== undefined && (
+                            <>
+                              <span className="text-gray-300">•</span>
+                              <span className="text-sm font-medium text-gray-700">
+                                {template.rowsCount} {template.rowsCount === 1 ? 'row' : 'rows'}
+                              </span>
+                            </>
+                          )}
+                        </div>
                         {template.hasEmailConfig && (
-                          <span className="flex items-center gap-1">
+                          <span className="flex items-center gap-1 text-xs text-gray-500">
                             <Mail className="h-3 w-3" />
                             Email configured
                           </span>
                         )}
                         {template.imageStatus === 'missing' && (
-                          <span className="flex items-center gap-1 text-amber-600">
+                          <span className="flex items-center gap-1 text-xs text-amber-600">
                             <AlertCircle className="h-3 w-3" />
                             Certificate image missing
                           </span>
@@ -420,7 +430,7 @@ export function LoadTemplateModal({
                             setRenameValue(template.name);
                           }}
                           className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                          title="Rename template"
+                          title="Rename project"
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
@@ -431,7 +441,7 @@ export function LoadTemplateModal({
                           handleExportTemplate(template.id);
                         }}
                         className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                        title="Export template"
+                        title="Export project"
                       >
                         <Download className="h-4 w-4" />
                       </button>
@@ -464,7 +474,7 @@ export function LoadTemplateModal({
                             setShowDeleteConfirm(template.id);
                           }}
                           className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                          title="Delete template"
+                          title="Delete project"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -491,7 +501,7 @@ export function LoadTemplateModal({
             onClick={handleLoadTemplate}
             disabled={!selectedTemplateId}
           >
-            Load Template
+            Load Project
           </Button>
         </div>
       </div>

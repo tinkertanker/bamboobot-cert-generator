@@ -9,6 +9,7 @@ interface UseTemplateAutosaveProps {
   emailConfig: EmailConfig | null;
   certificateImageUrl: string | null;
   certificateFilename: string | null;
+  tableData: Array<Record<string, string>>;
   onAutosave?: (templateId: string) => void;
   enabled?: boolean;
   currentTemplateId?: string | null;
@@ -44,6 +45,7 @@ export function useTemplateAutosave({
   emailConfig,
   certificateImageUrl,
   certificateFilename,
+  tableData,
   onAutosave,
   enabled = true,
   currentTemplateId = null,
@@ -62,9 +64,10 @@ export function useTemplateAutosave({
       columns,
       emailConfig,
       certificateImageUrl,
-      certificateFilename
+      certificateFilename,
+      tableData
     });
-  }, [positions, columns, emailConfig, certificateImageUrl, certificateFilename]);
+  }, [positions, columns, emailConfig, certificateImageUrl, certificateFilename, tableData]);
 
   // Perform autosave
   const performAutosave = useCallback(async () => {
@@ -89,6 +92,7 @@ export function useTemplateAutosave({
         result = await TemplateStorage.updateTemplate(currentTemplateId, {
           positions,
           columns,
+          tableData,
           emailConfig: emailConfig || undefined,
           certificateImage: {
             url: certificateImageUrl,
@@ -131,6 +135,7 @@ export function useTemplateAutosave({
       result = await TemplateStorage.updateTemplate(currentTemplateId, {
         positions,
         columns,
+        tableData,
         emailConfig: emailConfig || undefined,
         certificateImage: {
           url: certificateImageUrl,
@@ -151,7 +156,9 @@ export function useTemplateAutosave({
         columns,
         certificateImageUrl,
         certificateFilename,
-        emailConfig || undefined
+        tableData,
+        emailConfig || undefined,
+        undefined // storageInfo
       );
     }
 
@@ -162,7 +169,7 @@ export function useTemplateAutosave({
     }
 
     return result;
-  }, [positions, columns, emailConfig, certificateImageUrl, certificateFilename, serializeState, currentTemplateId, currentTemplateName]);
+  }, [positions, columns, tableData, emailConfig, certificateImageUrl, certificateFilename, serializeState, currentTemplateId, currentTemplateName]);
 
   // Set up autosave with debounce
   useEffect(() => {
