@@ -115,6 +115,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   const [currentTemplateName, setCurrentTemplateName] = useState<string | null>(
     null
   );
+  const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(
+    null
+  );
   const [hasInputFocus, setHasInputFocus] = useState<boolean>(false);
 
   // Drag and drop hook
@@ -228,7 +231,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   // Toast notifications
   const { toasts, showToast, hideToast } = useToast();
 
-  // Template autosave hook - disabled to prevent creating duplicate "Session" templates
+  // Template autosave hook - updates existing template after manual save
   const { manualSave } = useTemplateAutosave({
     positions,
     columns: Object.keys(tableData[0] || {}),
@@ -239,7 +242,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       // Silent autosave - no toast notification
       console.log("Template autosaved");
     },
-    enabled: false // Disabled - autosave creates confusing "Session" templates
+    enabled: hasManuallySaved,
+    currentTemplateId,
+    currentTemplateName
   });
 
   // Session data autosave hook (only enabled after manual save)
@@ -361,6 +366,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       if (template.emailConfig) {
         setEmailConfig(template.emailConfig);
       }
+      
+      // Set current template info and enable autosave
+      setCurrentTemplateId(template.id);
+      setCurrentTemplateName(template.name);
+      setHasManuallySaved(true);
 
       // Update the certificate image URL if different
       if (
@@ -400,6 +410,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       // Enable autosave after manual save
       setHasManuallySaved(true);
       setCurrentTemplateName(templateName);
+      setCurrentTemplateId(templateId);
     },
     [showToast]
   );
@@ -479,6 +490,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     setShowNewTemplateModal(false);
     setHasManuallySaved(false); // Reset autosave state
     setCurrentTemplateName(null); // Reset template name
+    setCurrentTemplateId(null); // Reset template ID
     showToast({
       message: "New template started",
       type: "info",
@@ -802,7 +814,11 @@ Email Sending Robot`,
           <div className="flex gap-3">
             {/* Templates Split Button */}
             <SplitButton
-              label={hasManuallySaved ? "Save template" : "Save template"}
+              label={
+                currentTemplateName 
+                  ? `Save to "${currentTemplateName}"` 
+                  : "Save template"
+              }
               onClick={
                 hasManuallySaved
                   ? handleSaveToCurrentTemplate // Save to current template

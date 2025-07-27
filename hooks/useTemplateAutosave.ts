@@ -11,6 +11,8 @@ interface UseTemplateAutosaveProps {
   certificateFilename: string | null;
   onAutosave?: (templateId: string) => void;
   enabled?: boolean;
+  currentTemplateId?: string | null;
+  currentTemplateName?: string | null;
 }
 
 interface UseTemplateAutosaveReturn {
@@ -43,7 +45,9 @@ export function useTemplateAutosave({
   certificateImageUrl,
   certificateFilename,
   onAutosave,
-  enabled = true
+  enabled = true,
+  currentTemplateId = null,
+  currentTemplateName = null
 }: UseTemplateAutosaveProps): UseTemplateAutosaveReturn {
   const [sessionName] = useState(() => generateSessionName());
   const [lastAutosaved, setLastAutosaved] = useState<Date | null>(null);
@@ -78,14 +82,36 @@ export function useTemplateAutosave({
     setIsAutosaving(true);
     
     try {
-      const result = await TemplateStorage.saveTemplate(
-        sessionName,
-        positions,
-        columns,
-        certificateImageUrl,
-        certificateFilename,
-        emailConfig || undefined
-      );
+      let result;
+      
+      if (currentTemplateId && currentTemplateName) {
+        // Update existing template
+        result = await TemplateStorage.updateTemplate(currentTemplateId, {
+          positions,
+          columns,
+          emailConfig: emailConfig || undefined,
+          certificateImage: {
+            url: certificateImageUrl,
+            filename: certificateFilename,
+            uploadedAt: new Date().toISOString(),
+            isCloudStorage: false,
+          }
+        });
+        
+        if (result.success) {
+          result.id = currentTemplateId; // Add ID for consistency
+        }
+      } else {
+        // Create new template with session name (fallback)
+        result = await TemplateStorage.saveTemplate(
+          sessionName,
+          positions,
+          columns,
+          certificateImageUrl,
+          certificateFilename,
+          emailConfig || undefined
+        );
+      }
 
       if (result.success && result.id) {
         lastSavedDataRef.current = currentData;
@@ -97,7 +123,7 @@ export function useTemplateAutosave({
     } finally {
       setIsAutosaving(false);
     }
-  }, [sessionName, positions, columns, emailConfig, certificateImageUrl, certificateFilename, serializeState, onAutosave]);
+  }, [sessionName, positions, columns, emailConfig, certificateImageUrl, certificateFilename, serializeState, onAutosave, currentTemplateId, currentTemplateName]);
 
   // Manual save with custom name
   const manualSave = useCallback(async (customName: string) => {
