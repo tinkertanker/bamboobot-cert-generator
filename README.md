@@ -10,7 +10,8 @@ Generate certificates from image templates with drag-and-drop text positioning a
 - **Advanced Text Formatting** - 9 fonts, bold/italic, colour picker, alignment controls
 - **Text Sizing Options** - Shrink-to-fit for single lines or multi-line (2 lines) with word wrap
 - **Adjustable Text Width** - Control text field width (10-90%) with visual feedback
-- **Template System** - Save/load text field positions and formatting presets
+- **Project System** - Save/load complete projects including data, text fields, and formatting
+- **Project Management** - Rename projects inline, view relative timestamps, mass delete with confirmation
 - **Keyboard Shortcuts** - Ctrl/Cmd+B (bold), Ctrl/Cmd+I (italic), ESC (dismiss modals)
 - **Smart Entry Navigation** - Previous/Next/First/Last with entry counter  
 - **Bulk Data Import** - TSV/CSV support with header toggle
@@ -83,10 +84,11 @@ AWS_SES_REGION=us-east-1
 If neither R2 or S3 are specified, the app defaults to local storage. 
 
 When using cloud storage (R2 or S3), files automatically expire:
-- **Templates**: Permanent
 - **Individual certificates**: 90 days (extended if emailed)
 - **Bulk PDFs**: 7 days
 - **Previews**: 24 hours
+
+Note: Projects are stored locally in browser localStorage, not in cloud storage.
 
 ```bash
 # Cloudflare R2

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Bamboobot is a Next.js certificate generator that allows users to upload image templates, add draggable text fields, and generate bulk certificates from tabular data.
+Bamboobot is a Next.js certificate generator that allows users to upload image templates, add draggable text fields, and generate bulk certificates from tabular data. The system now supports full project saves that include both the template image and all certificate data.
 
 ## Development Commands
 
@@ -81,8 +81,11 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 - Development mode with preset data and configuration
 - Automated cleanup scripts for old files
 - Background image replacement feature with split button
-- Format Templates - Save/load formatting presets with comprehensive template system
+- Format Templates - Save/load formatting presets (legacy feature, now part of project system)
 - Loading States - Enhanced loading states with shimmer effects
+- Project System - Complete transformation from templates to projects that save both formatting and data
+- Project Management - Inline rename, relative timestamps, mass delete with confirmation
+- Project Autosave - Smart autosave that updates existing projects without creating duplicates
 
 ### Performance Features (All High Priority Items ✅)
 1. **Table Virtualization** - React-window for datasets > 100 rows
@@ -142,6 +145,14 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 - **Search & Filter** ✅ - Natural language search with `column:value` syntax
 - **Progressive PDF Generation** ✅ - Batch processing prevents timeouts
 
+### Feature Updates
+- **Templates → Projects Transformation** ✅ - Templates now save complete table data, not just formatting
+- **Project Management** ✅ - Added inline rename, relative timestamps ("2 hours ago"), row/column count display
+- **Mass Delete** ✅ - Added "Delete All" with two-step confirmation requiring "DELETE ALL" input
+- **Autosave Improvements** ✅ - Fixed duplicate save issues, autosave only updates existing projects
+- **Background Replacement** ✅ - Fixed Dev Mode background functionality
+- **Text Field Improvements** ✅ - Fixed arrow key conflicts, multiline text display issues
+
 ### Infrastructure Updates
 - Migrated from pnpm to npm
 - Added automated cleanup scripts with configurable retention
@@ -188,7 +199,7 @@ docker-compose down && docker system prune -a
 
 ### Cloud Storage
 Files automatically expire based on retention policies:
-- Templates: Permanent
+- Projects: Permanent
 - Individual certificates: 90 days (extended if emailed)
 - Bulk PDFs: 7 days
 - Previews: 24 hours
