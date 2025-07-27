@@ -24,7 +24,6 @@ import {
   Save,
   FileUp,
   FolderOpen,
-  Settings,
   RefreshCw
 } from "lucide-react";
 import { CertificatePreview } from "@/components/CertificatePreview";
@@ -820,7 +819,7 @@ Email Sending Robot`,
                     !uploadedFileUrl && Object.keys(positions).length === 0
                 },
                 {
-                  label: "Load template",
+                  label: "Templates...",
                   icon: <FolderOpen className="h-4 w-4" />,
                   onClick: () => setShowLoadTemplateModal(true)
                 },
@@ -830,14 +829,6 @@ Email Sending Robot`,
                   onClick: () => setShowSaveTemplateModal(true),
                   disabled:
                     !uploadedFileUrl || Object.keys(positions).length === 0
-                },
-                {
-                  label: "Manage templates",
-                  icon: <Settings className="h-4 w-4" />,
-                  onClick: () => {
-                    setShowLoadTemplateModal(true);
-                    // Could add a separate manage modal in the future
-                  }
                 }
               ]}
               gradientClass={SPLIT_BUTTON_THEME.templates.gradient}
