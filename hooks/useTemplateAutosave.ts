@@ -102,15 +102,8 @@ export function useTemplateAutosave({
           result.id = currentTemplateId; // Add ID for consistency
         }
       } else {
-        // Create new template with session name (fallback)
-        result = await TemplateStorage.saveTemplate(
-          sessionName,
-          positions,
-          columns,
-          certificateImageUrl,
-          certificateFilename,
-          emailConfig || undefined
-        );
+        // Don't create new templates during autosave - only update existing ones
+        return;
       }
 
       if (result.success && result.id) {

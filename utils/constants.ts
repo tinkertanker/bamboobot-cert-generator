@@ -39,7 +39,7 @@ export const SPLIT_BUTTON_THEME = {
 
 // Autosave Configuration
 export const AUTOSAVE = {
-  DEBOUNCE_MS: 2000, // 2 seconds
+  DEBOUNCE_MS: 10000, // 10 seconds
   TOAST_DURATION_MS: 2000,
   SESSION_NAME_FORMAT: "Session MM/DD/YYYY HH:MM"
 } as const;
