@@ -1253,6 +1253,7 @@ Email Sending Robot`,
         onClose={() => setShowSaveTemplateModal(false)}
         positions={positions}
         columns={Object.keys(tableData[0] || {})}
+        tableData={tableData}
         emailConfig={emailConfig}
         certificateImageUrl={uploadedFileUrl || undefined}
         certificateFilename={(uploadedFile as string) || undefined}

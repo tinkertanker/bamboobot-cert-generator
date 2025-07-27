@@ -375,6 +375,7 @@ export class TemplateStorage {
         template.columns,
         template.certificateImage.url,
         template.certificateImage.filename,
+        template.tableData || [],
         template.emailConfig,
         {
           isCloudStorage: template.certificateImage.isCloudStorage,

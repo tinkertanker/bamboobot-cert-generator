@@ -25,7 +25,9 @@ jest.mock('@/lib/template-storage', () => ({
     loadTemplate: jest.fn(),
     deleteTemplate: jest.fn(),
     exportTemplate: jest.fn(),
-    importTemplate: jest.fn()
+    importTemplate: jest.fn(),
+    clearAllTemplates: jest.fn(),
+    updateTemplate: jest.fn()
   }
 }));
 
@@ -41,6 +43,7 @@ describe('LoadTemplateModal', () => {
       created: '2024-01-01T10:00:00Z',
       lastModified: '2024-01-01T10:00:00Z',
       columnsCount: 3,
+      rowsCount: 2,
       hasEmailConfig: true,
       imageStatus: 'available'
     },
@@ -50,6 +53,7 @@ describe('LoadTemplateModal', () => {
       created: '2024-01-02T10:00:00Z',
       lastModified: '2024-01-02T10:00:00Z',
       columnsCount: 2,
+      rowsCount: 1,
       hasEmailConfig: false,
       imageStatus: 'missing'
     }
@@ -65,6 +69,10 @@ describe('LoadTemplateModal', () => {
       name: { x: 100, y: 200, fontSize: 16, fontFamily: 'Arial', color: '#000000', align: 'center', visible: true }
     },
     columns: ['name', 'email', 'date'],
+    tableData: [
+      { name: 'John Doe', email: 'john@example.com', date: '2024-01-01' },
+      { name: 'Jane Smith', email: 'jane@example.com', date: '2024-01-02' }
+    ],
     emailConfig: {
       isConfigured: true,
       provider: 'resend',
@@ -103,7 +111,7 @@ describe('LoadTemplateModal', () => {
   it('renders when open', async () => {
     render(<LoadTemplateModal {...defaultProps} />);
     
-    expect(screen.getByText('Load Format Template')).toBeInTheDocument();
+    expect(screen.getByText('Projects')).toBeInTheDocument();
     
     await waitFor(() => {
       expect(screen.getByText('Template 1')).toBeInTheDocument();
@@ -114,7 +122,7 @@ describe('LoadTemplateModal', () => {
   it('does not render when closed', () => {
     render(<LoadTemplateModal {...defaultProps} isOpen={false} />);
     
-    expect(screen.queryByText('Load Format Template')).not.toBeInTheDocument();
+    expect(screen.queryByText('Projects')).not.toBeInTheDocument();
   });
 
   it('loads template list on open', async () => {
@@ -156,7 +164,7 @@ describe('LoadTemplateModal', () => {
       fireEvent.click(template1!);
     });
     
-    const loadButton = screen.getByRole('button', { name: 'Load Template' });
+    const loadButton = screen.getByRole('button', { name: 'Load Project' });
     fireEvent.click(loadButton);
     
     expect(TemplateStorage.loadTemplate).toHaveBeenCalledWith('template-1');
@@ -168,7 +176,7 @@ describe('LoadTemplateModal', () => {
     render(<LoadTemplateModal {...defaultProps} />);
     
     await waitFor(() => {
-      const deleteButtons = screen.getAllByTitle('Delete template');
+      const deleteButtons = screen.getAllByTitle('Delete project');
       fireEvent.click(deleteButtons[0]);
     });
     
@@ -187,7 +195,7 @@ describe('LoadTemplateModal', () => {
     render(<LoadTemplateModal {...defaultProps} />);
     
     await waitFor(() => {
-      const deleteButtons = screen.getAllByTitle('Delete template');
+      const deleteButtons = screen.getAllByTitle('Delete project');
       fireEvent.click(deleteButtons[0]);
     });
     
@@ -210,7 +218,7 @@ describe('LoadTemplateModal', () => {
     render(<LoadTemplateModal {...defaultProps} />);
     
     await waitFor(() => {
-      const exportButtons = screen.getAllByTitle('Export template');
+      const exportButtons = screen.getAllByTitle('Export project');
       fireEvent.click(exportButtons[0]);
     });
     
@@ -255,8 +263,8 @@ describe('LoadTemplateModal', () => {
     render(<LoadTemplateModal {...defaultProps} />);
     
     await waitFor(() => {
-      expect(screen.getByText('No saved templates found')).toBeInTheDocument();
-      expect(screen.getByText(/Create a template by configuring/)).toBeInTheDocument();
+      expect(screen.getByText('No saved projects found')).toBeInTheDocument();
+      expect(screen.getByText(/Create a project by configuring/)).toBeInTheDocument();
     });
   });
 
@@ -270,11 +278,11 @@ describe('LoadTemplateModal', () => {
       fireEvent.click(template1!);
     });
     
-    const loadButton = screen.getByRole('button', { name: 'Load Template' });
+    const loadButton = screen.getByRole('button', { name: 'Load Project' });
     fireEvent.click(loadButton);
     
     await waitFor(() => {
-      expect(screen.getByText('Failed to load template')).toBeInTheDocument();
+      expect(screen.getByText('Failed to load project')).toBeInTheDocument();
     });
   });
 
@@ -282,7 +290,7 @@ describe('LoadTemplateModal', () => {
     render(<LoadTemplateModal {...defaultProps} />);
     
     await waitFor(() => {
-      const loadButton = screen.getByRole('button', { name: 'Load Template' });
+      const loadButton = screen.getByRole('button', { name: 'Load Project' });
       expect(loadButton).toBeDisabled();
     });
   });
@@ -301,7 +309,7 @@ describe('LoadTemplateModal', () => {
   it('handles import error', async () => {
     (TemplateStorage.importTemplate as jest.Mock).mockResolvedValue({
       success: false,
-      error: 'Invalid template file'
+      error: 'Invalid project file'
     });
 
     const file = new File(['invalid'], 'template.json', { type: 'application/json' });
@@ -318,7 +326,7 @@ describe('LoadTemplateModal', () => {
     });
     
     await waitFor(() => {
-      expect(screen.getByText('Invalid template file')).toBeInTheDocument();
+      expect(screen.getByText('Invalid project file')).toBeInTheDocument();
     });
   });
 
@@ -331,7 +339,7 @@ describe('LoadTemplateModal', () => {
     render(<LoadTemplateModal {...defaultProps} />);
     
     await waitFor(() => {
-      const exportButtons = screen.getAllByTitle('Export template');
+      const exportButtons = screen.getAllByTitle('Export project');
       fireEvent.click(exportButtons[0]);
     });
     

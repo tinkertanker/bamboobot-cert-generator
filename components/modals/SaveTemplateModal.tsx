@@ -11,6 +11,7 @@ interface SaveTemplateModalProps {
   onClose: () => void;
   positions: Positions;
   columns: string[];
+  tableData: Array<Record<string, string>>;
   emailConfig?: EmailConfig;
   certificateImageUrl?: string;
   certificateFilename?: string;
@@ -23,6 +24,7 @@ export function SaveTemplateModal({
   onClose,
   positions,
   columns,
+  tableData,
   emailConfig,
   certificateImageUrl,
   certificateFilename,
@@ -64,6 +66,7 @@ export function SaveTemplateModal({
           columns,
           certificateImageUrl,
           certificateFilename,
+          tableData,
           emailConfig,
           {
             isCloudStorage,
@@ -144,6 +147,10 @@ export function SaveTemplateModal({
               <li className="flex items-center gap-2">
                 <span className="text-green-600">✓</span>
                 {columns.length} data columns
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-green-600">✓</span>
+                {tableData.length} data rows
               </li>
               {emailConfig?.isConfigured && (
                 <li className="flex items-center gap-2">

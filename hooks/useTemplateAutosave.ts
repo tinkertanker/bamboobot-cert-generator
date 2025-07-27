@@ -89,7 +89,7 @@ export function useTemplateAutosave({
       
       if (currentTemplateId && currentTemplateName) {
         // Update existing template
-        result = await TemplateStorage.updateTemplate(currentTemplateId, {
+        const updateResult = await TemplateStorage.updateTemplate(currentTemplateId, {
           positions,
           columns,
           tableData,
@@ -102,9 +102,11 @@ export function useTemplateAutosave({
           }
         });
         
-        if (result.success) {
-          result.id = currentTemplateId; // Add ID for consistency
-        }
+        // Convert updateResult to have consistent format with saveTemplate
+        result = {
+          ...updateResult,
+          id: updateResult.success ? currentTemplateId : undefined
+        };
       } else {
         // Don't create new templates during autosave - only update existing ones
         console.warn('Autosave skipped: No current template ID or name provided. Autosave only updates existing templates.');
@@ -133,7 +135,7 @@ export function useTemplateAutosave({
     
     // If we have a current template ID and the name matches, update it
     if (currentTemplateId && currentTemplateName === customName) {
-      result = await TemplateStorage.updateTemplate(currentTemplateId, {
+      const updateResult = await TemplateStorage.updateTemplate(currentTemplateId, {
         positions,
         columns,
         tableData,
@@ -146,9 +148,11 @@ export function useTemplateAutosave({
         }
       });
       
-      if (result.success) {
-        result.id = currentTemplateId; // Add ID for consistency
-      }
+      // Convert updateResult to have consistent format with saveTemplate
+      result = {
+        ...updateResult,
+        id: updateResult.success ? currentTemplateId : undefined
+      };
     } else {
       // Create new template
       result = await TemplateStorage.saveTemplate(

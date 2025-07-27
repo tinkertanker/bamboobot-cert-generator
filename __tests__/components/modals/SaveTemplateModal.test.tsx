@@ -63,6 +63,10 @@ describe('SaveTemplateModal', () => {
     onClose: jest.fn(),
     positions: mockPositions,
     columns: mockColumns,
+    tableData: [
+      { name: 'John Doe', date: '2024-01-01' },
+      { name: 'Jane Smith', date: '2024-01-02' }
+    ],
     certificateImageUrl: '/temp_images/certificate.jpg',
     certificateFilename: 'certificate.pdf',
     onSaveSuccess: jest.fn()
@@ -75,15 +79,15 @@ describe('SaveTemplateModal', () => {
   it('renders when open', () => {
     render(<SaveTemplateModal {...defaultProps} />);
     
-    expect(screen.getByText('Save Format Template')).toBeInTheDocument();
-    expect(screen.getByLabelText('Template Name')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Save Project' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Project Name')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('e.g., Annual Awards 2025')).toBeInTheDocument();
   });
 
   it('does not render when closed', () => {
     render(<SaveTemplateModal {...defaultProps} isOpen={false} />);
     
-    expect(screen.queryByText('Save Format Template')).not.toBeInTheDocument();
+    expect(screen.queryByText('Save Project')).not.toBeInTheDocument();
   });
 
   it('displays template information correctly', () => {
@@ -106,10 +110,10 @@ describe('SaveTemplateModal', () => {
 
     render(<SaveTemplateModal {...defaultProps} />);
     
-    const input = screen.getByLabelText('Template Name');
-    await userEvent.type(input, 'My Test Template');
+    const input = screen.getByLabelText('Project Name');
+    fireEvent.change(input, { target: { value: 'My Test Template' } });
     
-    const saveButton = screen.getByRole('button', { name: /Save Template/i });
+    const saveButton = screen.getByRole('button', { name: /Save Project/i });
     fireEvent.click(saveButton);
     
     await waitFor(() => {
@@ -119,6 +123,7 @@ describe('SaveTemplateModal', () => {
         mockColumns,
         '/temp_images/certificate.jpg',
         'certificate.pdf',
+        expect.any(Array), // tableData
         undefined,
         {
           isCloudStorage: false,
@@ -135,14 +140,14 @@ describe('SaveTemplateModal', () => {
     
     // Find the button by its text content
     const buttons = screen.getAllByRole('button');
-    const saveButton = buttons.find(btn => btn.textContent?.includes('Save Template'));
+    const saveButton = buttons.find(btn => btn.textContent?.includes('Save Project'));
     expect(saveButton).toBeDefined();
     
     // Check that the button is disabled when template name is empty
     expect(saveButton).toBeDisabled();
     
     // Type a name and check that button is enabled
-    const input = screen.getByLabelText('Template Name');
+    const input = screen.getByLabelText('Project Name');
     fireEvent.change(input, { target: { value: 'Test Template' } });
     
     expect(saveButton).not.toBeDisabled();
@@ -151,10 +156,10 @@ describe('SaveTemplateModal', () => {
   it('shows error when no certificate image', async () => {
     render(<SaveTemplateModal {...defaultProps} certificateImageUrl={undefined} />);
     
-    const input = screen.getByLabelText('Template Name');
+    const input = screen.getByLabelText('Project Name');
     await userEvent.type(input, 'Test Template');
     
-    const saveButton = screen.getByRole('button', { name: /Save Template/i });
+    const saveButton = screen.getByRole('button', { name: /Save Project/i });
     fireEvent.click(saveButton);
     
     await waitFor(() => {
@@ -171,10 +176,10 @@ describe('SaveTemplateModal', () => {
 
     render(<SaveTemplateModal {...defaultProps} />);
     
-    const input = screen.getByLabelText('Template Name');
+    const input = screen.getByLabelText('Project Name');
     await userEvent.type(input, 'Test Template');
     
-    const saveButton = screen.getByRole('button', { name: /Save Template/i });
+    const saveButton = screen.getByRole('button', { name: /Save Project/i });
     fireEvent.click(saveButton);
     
     await waitFor(() => {
@@ -200,7 +205,7 @@ describe('SaveTemplateModal', () => {
     render(<SaveTemplateModal {...defaultProps} />);
     
     expect(screen.getByText('90% used')).toBeInTheDocument();
-    expect(screen.getByText('Storage is nearly full. Consider deleting old templates.')).toBeInTheDocument();
+    expect(screen.getByText('Storage is nearly full. Consider deleting old projects.')).toBeInTheDocument();
   });
 
   it('disables save button when saving', async () => {
@@ -209,10 +214,10 @@ describe('SaveTemplateModal', () => {
 
     render(<SaveTemplateModal {...defaultProps} />);
     
-    const input = screen.getByLabelText('Template Name');
+    const input = screen.getByLabelText('Project Name');
     await userEvent.type(input, 'Test Template');
     
-    const saveButton = screen.getByRole('button', { name: /Save Template/i });
+    const saveButton = screen.getByRole('button', { name: /Save Project/i });
     fireEvent.click(saveButton);
     
     expect(saveButton).toBeDisabled();
