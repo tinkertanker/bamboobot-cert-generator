@@ -107,6 +107,7 @@ export function useTemplateAutosave({
         }
       } else {
         // Don't create new templates during autosave - only update existing ones
+        console.warn('Autosave skipped: No current template ID or name provided. Autosave only updates existing templates.');
         return;
       }
 

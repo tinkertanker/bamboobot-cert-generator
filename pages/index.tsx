@@ -361,7 +361,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
         const tsvData = [headers.join("\t"), ...rows].join("\n");
         
         // Load the data using loadSessionData
-        await loadSessionData(tsvData, false, true); // TSV mode with headers
+        const IS_BINARY = false;
+        const HAS_HEADERS = true;
+        await loadSessionData(tsvData, IS_BINARY, HAS_HEADERS);
         console.log(`Loaded ${template.tableData.length} rows of data`);
       } else if (template.columns.length > 0) {
         // If no data but has columns, create empty row with those columns
@@ -369,7 +371,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
         const emptyRow = headers.map(() => "").join("\t");
         const tsvData = [headers.join("\t"), emptyRow].join("\n");
         
-        await loadSessionData(tsvData, false, true); // TSV mode with headers
+        const IS_BINARY = false;
+        const HAS_HEADERS = true;
+        await loadSessionData(tsvData, IS_BINARY, HAS_HEADERS);
         console.log("Project expects columns:", template.columns);
       }
 

@@ -7,6 +7,7 @@ import type { Positions, EmailConfig } from '@/types/certificate';
 jest.mock('@/lib/template-storage', () => ({
   TemplateStorage: {
     saveTemplate: jest.fn(),
+    updateTemplate: jest.fn(),
   },
 }));
 
@@ -21,6 +22,11 @@ describe('useTemplateAutosave', () => {
   
   const mockColumns = ['name', 'date'];
   
+  const mockTableData = [
+    { name: 'John Doe', date: '2025-07-27' },
+    { name: 'Jane Smith', date: '2025-07-28' }
+  ];
+  
   const mockEmailConfig: EmailConfig = {
     subject: 'Test Certificate',
     body: 'Your certificate is attached',
@@ -31,6 +37,7 @@ describe('useTemplateAutosave', () => {
   const defaultProps = {
     positions: mockPositions,
     columns: mockColumns,
+    tableData: mockTableData,
     emailConfig: mockEmailConfig,
     certificateImageUrl: '/test-image.jpg',
     certificateFilename: 'test-cert.pdf',
@@ -41,6 +48,9 @@ describe('useTemplateAutosave', () => {
     (TemplateStorage.saveTemplate as jest.Mock).mockResolvedValue({
       success: true,
       id: 'test-template-id',
+    });
+    (TemplateStorage.updateTemplate as jest.Mock).mockResolvedValue({
+      success: true,
     });
   });
 
@@ -78,38 +88,56 @@ describe('useTemplateAutosave', () => {
   });
 
   describe('Autosave Functionality', () => {
-    it('triggers autosave after 2 seconds when props change', async () => {
+    it('triggers autosave after 10 seconds when props change and template exists', async () => {
       const onAutosave = jest.fn();
       const { result, rerender } = renderHook(
         (props) => useTemplateAutosave(props),
-        { initialProps: { ...defaultProps, onAutosave } }
+        { initialProps: { 
+          ...defaultProps, 
+          onAutosave,
+          currentTemplateId: 'existing-template-id',
+          currentTemplateName: 'Existing Template'
+        } }
       );
 
       // Change positions
       const newPositions = { ...mockPositions, name: { x: 150, y: 250 } };
-      rerender({ ...defaultProps, positions: newPositions, onAutosave });
+      rerender({ 
+        ...defaultProps, 
+        positions: newPositions, 
+        onAutosave,
+        currentTemplateId: 'existing-template-id',
+        currentTemplateName: 'Existing Template'
+      });
 
       // Should not save immediately
       expect(TemplateStorage.saveTemplate).not.toHaveBeenCalled();
 
-      // Fast forward 2 seconds and wait for async operations
+      // Fast forward 10 seconds and wait for async operations
       await act(async () => {
-        jest.advanceTimersByTime(2000);
+        jest.advanceTimersByTime(10000);
         await Promise.resolve(); // Let microtasks run
       });
 
       await waitFor(() => {
-        expect(TemplateStorage.saveTemplate).toHaveBeenCalledWith(
-          result.current.sessionName,
-          newPositions,
-          mockColumns,
-          '/test-image.jpg',
-          'test-cert.pdf',
-          mockEmailConfig
+        expect(TemplateStorage.updateTemplate).toHaveBeenCalledWith(
+          'existing-template-id',
+          {
+            positions: newPositions,
+            columns: mockColumns,
+            tableData: mockTableData,
+            emailConfig: mockEmailConfig,
+            certificateImage: {
+              url: '/test-image.jpg',
+              filename: 'test-cert.pdf',
+              uploadedAt: expect.any(String),
+              isCloudStorage: false,
+            }
+          }
         );
       });
 
-      expect(onAutosave).toHaveBeenCalledWith('test-template-id');
+      expect(onAutosave).toHaveBeenCalledWith('existing-template-id');
       expect(result.current.lastAutosaved).toBeInstanceOf(Date);
     });
 
@@ -120,38 +148,61 @@ describe('useTemplateAutosave', () => {
       );
 
       // Make rapid changes
-      rerender({ ...defaultProps, positions: { ...mockPositions, name: { x: 110, y: 210 } } });
+      rerender({ 
+        ...defaultProps, 
+        positions: { ...mockPositions, name: { x: 110, y: 210 } },
+        currentTemplateId: 'existing-template-id',
+        currentTemplateName: 'Existing Template'
+      });
       
       act(() => {
         jest.advanceTimersByTime(1000);
       });
       
-      rerender({ ...defaultProps, positions: { ...mockPositions, name: { x: 120, y: 220 } } });
+      rerender({ 
+        ...defaultProps, 
+        positions: { ...mockPositions, name: { x: 120, y: 220 } },
+        currentTemplateId: 'existing-template-id',
+        currentTemplateName: 'Existing Template'
+      });
       
       act(() => {
         jest.advanceTimersByTime(1000);
       });
       
-      rerender({ ...defaultProps, positions: { ...mockPositions, name: { x: 130, y: 230 } } });
+      rerender({ 
+        ...defaultProps, 
+        positions: { ...mockPositions, name: { x: 130, y: 230 } },
+        currentTemplateId: 'existing-template-id',
+        currentTemplateName: 'Existing Template'
+      });
 
       // Should not have saved yet
-      expect(TemplateStorage.saveTemplate).not.toHaveBeenCalled();
+      expect(TemplateStorage.updateTemplate).not.toHaveBeenCalled();
 
-      // Fast forward to complete the debounce
-      act(() => {
-        jest.advanceTimersByTime(2000);
+      // Fast forward to complete the debounce (need full 10000ms from last change)
+      await act(async () => {
+        jest.advanceTimersByTime(10000);
+        await Promise.resolve();
       });
 
       await waitFor(() => {
         // Should only save once with the latest values
-        expect(TemplateStorage.saveTemplate).toHaveBeenCalledTimes(1);
-        expect(TemplateStorage.saveTemplate).toHaveBeenCalledWith(
-          expect.any(String),
-          { ...mockPositions, name: { x: 130, y: 230 } },
-          mockColumns,
-          '/test-image.jpg',
-          'test-cert.pdf',
-          mockEmailConfig
+        expect(TemplateStorage.updateTemplate).toHaveBeenCalledTimes(1);
+        expect(TemplateStorage.updateTemplate).toHaveBeenCalledWith(
+          'existing-template-id',
+          {
+            positions: { ...mockPositions, name: { x: 130, y: 230 } },
+            columns: mockColumns,
+            tableData: mockTableData,
+            emailConfig: mockEmailConfig,
+            certificateImage: {
+              url: '/test-image.jpg',
+              filename: 'test-cert.pdf',
+              uploadedAt: expect.any(String),
+              isCloudStorage: false,
+            }
+          }
         );
       });
     });
@@ -219,15 +270,25 @@ describe('useTemplateAutosave', () => {
         resolveSave = resolve;
       });
       
-      (TemplateStorage.saveTemplate as jest.Mock).mockReturnValue(savePromise);
+      (TemplateStorage.updateTemplate as jest.Mock).mockReturnValue(savePromise);
 
-      const { result, rerender } = renderHook(() => useTemplateAutosave(defaultProps));
+      const { result, rerender } = renderHook(() => useTemplateAutosave({
+        ...defaultProps,
+        currentTemplateId: 'existing-template-id',
+        currentTemplateName: 'Existing Template'
+      }));
 
       // Trigger autosave
-      rerender({ ...defaultProps, positions: { ...mockPositions, name: { x: 150, y: 250 } } });
+      rerender({ 
+        ...defaultProps, 
+        positions: { ...mockPositions, name: { x: 150, y: 250 } },
+        currentTemplateId: 'existing-template-id',
+        currentTemplateName: 'Existing Template'
+      });
 
-      act(() => {
-        jest.advanceTimersByTime(2000);
+      await act(async () => {
+        jest.advanceTimersByTime(10000);
+        await Promise.resolve();
       });
 
       await waitFor(() => {
@@ -235,8 +296,9 @@ describe('useTemplateAutosave', () => {
       });
 
       // Resolve save
-      act(() => {
-        resolveSave!({ success: true, id: 'test-id' });
+      await act(async () => {
+        resolveSave!({ success: true });
+        await Promise.resolve();
       });
 
       await waitFor(() => {
@@ -246,15 +308,24 @@ describe('useTemplateAutosave', () => {
 
     it('handles autosave errors gracefully', async () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-      (TemplateStorage.saveTemplate as jest.Mock).mockRejectedValue(new Error('Save failed'));
+      (TemplateStorage.updateTemplate as jest.Mock).mockRejectedValue(new Error('Save failed'));
 
-      const { result, rerender } = renderHook(() => useTemplateAutosave(defaultProps));
+      const { result, rerender } = renderHook(() => useTemplateAutosave({
+        ...defaultProps,
+        currentTemplateId: 'existing-template-id',
+        currentTemplateName: 'Existing Template'
+      }));
 
       // Trigger autosave
-      rerender({ ...defaultProps, positions: { ...mockPositions, name: { x: 150, y: 250 } } });
+      rerender({ 
+        ...defaultProps, 
+        positions: { ...mockPositions, name: { x: 150, y: 250 } },
+        currentTemplateId: 'existing-template-id',
+        currentTemplateName: 'Existing Template'
+      });
 
       act(() => {
-        jest.advanceTimersByTime(2000);
+        jest.advanceTimersByTime(10000);
       });
 
       await waitFor(() => {
@@ -283,7 +354,9 @@ describe('useTemplateAutosave', () => {
         mockColumns,
         '/test-image.jpg',
         'test-cert.pdf',
-        mockEmailConfig
+        mockTableData,
+        mockEmailConfig,
+        undefined
       );
 
       expect(saveResult).toEqual({ success: true, id: 'test-template-id' });
@@ -341,6 +414,8 @@ describe('useTemplateAutosave', () => {
         mockColumns,
         '/test-image.jpg',
         'test-cert.pdf',
+        mockTableData,
+        undefined,
         undefined
       );
     });

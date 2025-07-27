@@ -3,6 +3,7 @@ import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { TemplateStorage, type TemplateListItem, type SavedTemplate } from '@/lib/template-storage';
 import { FileText, Trash2, Download, Upload, AlertCircle, Mail, Edit2 } from 'lucide-react';
+import { escapeHtml } from '@/utils/sanitization';
 
 interface LoadTemplateModalProps {
   isOpen: boolean;
@@ -262,7 +263,7 @@ export function LoadTemplateModal({
                   <p className="text-sm text-red-700 mt-1">
                     This will permanently delete all {templates.length} saved projects. This action cannot be undone.
                   </p>
-                  <p className="text-sm text-red-700 mt-2">
+                  <p className="text-sm text-red-700 mt-2" id="delete-all-instruction">
                     Type <span className="font-mono font-bold">DELETE ALL</span> to confirm:
                   </p>
                 </div>
@@ -273,6 +274,8 @@ export function LoadTemplateModal({
                   value={deleteAllConfirmText}
                   onChange={(e) => setDeleteAllConfirmText(e.target.value)}
                   placeholder="Type DELETE ALL"
+                  aria-label="Confirmation text for deleting all projects"
+                  aria-describedby="delete-all-instruction"
                   className="flex-1 px-3 py-2 border border-red-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -380,7 +383,10 @@ export function LoadTemplateModal({
                           </button>
                         </div>
                       ) : (
-                        <h3 className="font-semibold text-gray-900 text-lg">{template.name}</h3>
+                        <h3 
+                          className="font-semibold text-gray-900 text-lg"
+                          dangerouslySetInnerHTML={{ __html: escapeHtml(template.name) }}
+                        />
                       )}
                       <div className="mt-2 space-y-1">
                         <p className="text-xs text-gray-500">
