@@ -9,8 +9,11 @@ interface UseTemplateAutosaveProps {
   emailConfig: EmailConfig | null;
   certificateImageUrl: string | null;
   certificateFilename: string | null;
+  tableData: Array<Record<string, string>>;
   onAutosave?: (templateId: string) => void;
   enabled?: boolean;
+  currentTemplateId?: string | null;
+  currentTemplateName?: string | null;
 }
 
 interface UseTemplateAutosaveReturn {
@@ -42,8 +45,11 @@ export function useTemplateAutosave({
   emailConfig,
   certificateImageUrl,
   certificateFilename,
+  tableData,
   onAutosave,
-  enabled = true
+  enabled = true,
+  currentTemplateId = null,
+  currentTemplateName = null
 }: UseTemplateAutosaveProps): UseTemplateAutosaveReturn {
   const [sessionName] = useState(() => generateSessionName());
   const [lastAutosaved, setLastAutosaved] = useState<Date | null>(null);
@@ -58,9 +64,10 @@ export function useTemplateAutosave({
       columns,
       emailConfig,
       certificateImageUrl,
-      certificateFilename
+      certificateFilename,
+      tableData
     });
-  }, [positions, columns, emailConfig, certificateImageUrl, certificateFilename]);
+  }, [positions, columns, emailConfig, certificateImageUrl, certificateFilename, tableData]);
 
   // Perform autosave
   const performAutosave = useCallback(async () => {
@@ -78,14 +85,33 @@ export function useTemplateAutosave({
     setIsAutosaving(true);
     
     try {
-      const result = await TemplateStorage.saveTemplate(
-        sessionName,
-        positions,
-        columns,
-        certificateImageUrl,
-        certificateFilename,
-        emailConfig || undefined
-      );
+      let result;
+      
+      if (currentTemplateId && currentTemplateName) {
+        // Update existing template
+        const updateResult = await TemplateStorage.updateTemplate(currentTemplateId, {
+          positions,
+          columns,
+          tableData,
+          emailConfig: emailConfig || undefined,
+          certificateImage: {
+            url: certificateImageUrl,
+            filename: certificateFilename,
+            uploadedAt: new Date().toISOString(),
+            isCloudStorage: false,
+          }
+        });
+        
+        // Convert updateResult to have consistent format with saveTemplate
+        result = {
+          ...updateResult,
+          id: updateResult.success ? currentTemplateId : undefined
+        };
+      } else {
+        // Don't create new templates during autosave - only update existing ones
+        console.warn('Autosave skipped: No current template ID or name provided. Autosave only updates existing templates.');
+        return;
+      }
 
       if (result.success && result.id) {
         lastSavedDataRef.current = currentData;
@@ -97,7 +123,7 @@ export function useTemplateAutosave({
     } finally {
       setIsAutosaving(false);
     }
-  }, [sessionName, positions, columns, emailConfig, certificateImageUrl, certificateFilename, serializeState, onAutosave]);
+  }, [sessionName, positions, columns, emailConfig, certificateImageUrl, certificateFilename, serializeState, onAutosave, currentTemplateId, currentTemplateName]);
 
   // Manual save with custom name
   const manualSave = useCallback(async (customName: string) => {
@@ -105,14 +131,41 @@ export function useTemplateAutosave({
       return { success: false, error: 'No certificate to save' };
     }
 
-    const result = await TemplateStorage.saveTemplate(
-      customName,
-      positions,
-      columns,
-      certificateImageUrl,
-      certificateFilename,
-      emailConfig || undefined
-    );
+    let result;
+    
+    // If we have a current template ID and the name matches, update it
+    if (currentTemplateId && currentTemplateName === customName) {
+      const updateResult = await TemplateStorage.updateTemplate(currentTemplateId, {
+        positions,
+        columns,
+        tableData,
+        emailConfig: emailConfig || undefined,
+        certificateImage: {
+          url: certificateImageUrl,
+          filename: certificateFilename,
+          uploadedAt: new Date().toISOString(),
+          isCloudStorage: false,
+        }
+      });
+      
+      // Convert updateResult to have consistent format with saveTemplate
+      result = {
+        ...updateResult,
+        id: updateResult.success ? currentTemplateId : undefined
+      };
+    } else {
+      // Create new template
+      result = await TemplateStorage.saveTemplate(
+        customName,
+        positions,
+        columns,
+        certificateImageUrl,
+        certificateFilename,
+        tableData,
+        emailConfig || undefined,
+        undefined // storageInfo
+      );
+    }
 
     if (result.success) {
       // Update last saved data to prevent immediate autosave
@@ -121,7 +174,7 @@ export function useTemplateAutosave({
     }
 
     return result;
-  }, [positions, columns, emailConfig, certificateImageUrl, certificateFilename, serializeState]);
+  }, [positions, columns, tableData, emailConfig, certificateImageUrl, certificateFilename, serializeState, currentTemplateId, currentTemplateName]);
 
   // Set up autosave with debounce
   useEffect(() => {

@@ -11,6 +11,11 @@ describe('TemplateStorage', () => {
   const mockImageUrl = '/temp_images/certificate.jpg';
   const mockFilename = 'certificate.pdf';
   
+  const mockTableData = [
+    { name: 'John Doe', date: '2025-07-27' },
+    { name: 'Jane Smith', date: '2025-07-28' }
+  ];
+  
   const mockEmailConfig: EmailConfig = {
     isConfigured: true,
     provider: 'resend',
@@ -67,6 +72,7 @@ describe('TemplateStorage', () => {
         mockColumns,
         mockImageUrl,
         mockFilename,
+        mockTableData,
         mockEmailConfig,
         { isCloudStorage: false }
       );
@@ -92,7 +98,8 @@ describe('TemplateStorage', () => {
         mockPositions,
         mockColumns,
         mockImageUrl,
-        mockFilename
+        mockFilename,
+        mockTableData
       );
 
       expect(result.success).toBe(true);
@@ -114,7 +121,8 @@ describe('TemplateStorage', () => {
         mockPositions,
         mockColumns,
         mockImageUrl,
-        mockFilename
+        mockFilename,
+        mockTableData
       );
 
       expect(result.success).toBe(false);
@@ -130,6 +138,7 @@ describe('TemplateStorage', () => {
         mockColumns,
         'https://r2.example.com/template.jpg',
         mockFilename,
+        mockTableData,
         undefined,
         { isCloudStorage: true, provider: 'r2' }
       );
@@ -149,6 +158,7 @@ describe('TemplateStorage', () => {
         mockColumns,
         mockImageUrl,
         mockFilename,
+        mockTableData,
         mockEmailConfig
       );
 
@@ -158,6 +168,7 @@ describe('TemplateStorage', () => {
       expect(template?.name).toBe('Test Template');
       expect(template?.positions).toEqual(mockPositions);
       expect(template?.columns).toEqual(mockColumns);
+      expect(template?.tableData).toEqual(mockTableData);
       expect(template?.emailConfig).toEqual(mockEmailConfig);
       expect(template?.certificateImage.url).toBe(mockImageUrl);
     });
@@ -181,7 +192,8 @@ describe('TemplateStorage', () => {
         mockPositions,
         mockColumns,
         mockImageUrl,
-        mockFilename
+        mockFilename,
+        mockTableData
       );
 
       const deleted = TemplateStorage.deleteTemplate(saveResult.id!);
@@ -206,7 +218,8 @@ describe('TemplateStorage', () => {
         mockPositions,
         mockColumns,
         mockImageUrl,
-        mockFilename
+        mockFilename,
+        mockTableData
       );
       
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -217,6 +230,7 @@ describe('TemplateStorage', () => {
         mockColumns,
         mockImageUrl,
         mockFilename,
+        mockTableData,
         mockEmailConfig
       );
 
@@ -236,7 +250,8 @@ describe('TemplateStorage', () => {
         mockPositions,
         mockColumns,
         mockImageUrl,
-        mockFilename
+        mockFilename,
+        mockTableData
       );
 
       // Add corrupted data
@@ -255,7 +270,8 @@ describe('TemplateStorage', () => {
         mockPositions,
         mockColumns,
         mockImageUrl,
-        mockFilename
+        mockFilename,
+        mockTableData
       );
 
       const newPositions: Positions = {
@@ -300,7 +316,8 @@ describe('TemplateStorage', () => {
         mockPositions,
         mockColumns,
         mockImageUrl,
-        mockFilename
+        mockFilename,
+        mockTableData
       );
 
       const exportResult = await TemplateStorage.exportTemplate(saveResult.id!, false);
@@ -335,6 +352,7 @@ describe('TemplateStorage', () => {
           version: '1.0',
           positions: mockPositions,
           columns: mockColumns,
+          tableData: mockTableData,
           certificateImage: {
             url: mockImageUrl,
             filename: mockFilename,
@@ -379,7 +397,8 @@ describe('TemplateStorage', () => {
         mockPositions,
         mockColumns,
         mockImageUrl,
-        mockFilename
+        mockFilename,
+        mockTableData
       );
 
       const usage = TemplateStorage.getStorageUsage();
@@ -395,8 +414,8 @@ describe('TemplateStorage', () => {
 
     it('should clear all templates', async () => {
       // Save multiple templates
-      await TemplateStorage.saveTemplate('Template 1', mockPositions, mockColumns, mockImageUrl, mockFilename);
-      await TemplateStorage.saveTemplate('Template 2', mockPositions, mockColumns, mockImageUrl, mockFilename);
+      await TemplateStorage.saveTemplate('Template 1', mockPositions, mockColumns, mockImageUrl, mockFilename, mockTableData);
+      await TemplateStorage.saveTemplate('Template 2', mockPositions, mockColumns, mockImageUrl, mockFilename, mockTableData);
 
       const templatesBefore = await TemplateStorage.listTemplates();
       expect(templatesBefore).toHaveLength(2);
