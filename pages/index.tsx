@@ -624,13 +624,13 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
 
         // Use existing template files in dev mode
         if (isDevelopment) {
-          const existingImage = "/temp_images/hmg34kdzdla6k8h9hu55cxj5j.jpg"; // Matching the PDF
+          const existingImage = "/template_images/dev-mode-template.jpg"; // Dev mode template
           console.log("🔧 Dev Mode: Setting template image:", existingImage);
           setUploadedFileUrl(existingImage);
         }
 
-        // Use one of the existing PDF files in temp_images
-        const existingPdf = "hmg34kdzdla6k8h9hu55cxj5j.pdf"; // Using existing file
+        // Use the dev mode template PDF
+        const existingPdf = "dev-mode-template.pdf"; // Using dev mode template
         const mockFile = new File([""], existingPdf, {
           type: "application/pdf"
         });

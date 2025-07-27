@@ -77,11 +77,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     console.log('Looking for template:', templateFilename);
     
+    // Check if this is a template file (e.g., dev-mode-template.pdf)
+    const isTemplate = templateFilename.startsWith('dev-mode-template');
+    
     if (storageConfig.isR2Enabled) {
       // For R2, we need to handle the template differently
       // This assumes the template was uploaded to R2 previously
       // For now, we'll still read from local as a fallback
-      const localTemplatePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename);
+      const localTemplatePath = path.join(process.cwd(), 'public', isTemplate ? 'template_images' : 'temp_images', templateFilename);
       console.log('R2 mode - checking local fallback at:', localTemplatePath);
       if (fs.existsSync(localTemplatePath)) {
         templatePdfBytes = await fsPromises.readFile(localTemplatePath);
@@ -91,8 +94,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(404).json({ error: 'Template not found' });
       }
     } else {
-      const templatePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename);
-      console.log('Local mode - reading from:', templatePath);
+      // First check template_images for template files, then temp_images
+      const templateImagePath = path.join(process.cwd(), 'public', 'template_images', templateFilename);
+      const tempImagePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename);
+      
+      let templatePath = tempImagePath; // Default to temp_images
+      
+      // Check if file exists in template_images first (for actual templates)
+      if (isTemplate && fs.existsSync(templateImagePath)) {
+        templatePath = templateImagePath;
+        console.log('Local mode - reading template from template_images:', templatePath);
+      } else if (fs.existsSync(tempImagePath)) {
+        templatePath = tempImagePath;
+        console.log('Local mode - reading from temp_images:', templatePath);
+      } else {
+        console.error('Template not found in both template_images and temp_images:', { templateImagePath, tempImagePath });
+        return res.status(404).json({ error: 'Template not found in both template_images and temp_images' });
+      }
+      
       templatePdfBytes = await fsPromises.readFile(templatePath);
     }
     
