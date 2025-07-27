@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { TemplateStorage, type TemplateListItem, type SavedTemplate } from '@/lib/template-storage';
-import { FileText, Trash2, Download, Upload, AlertCircle, Mail } from 'lucide-react';
+import { FileText, Trash2, Download, Upload, AlertCircle, Mail, Edit2 } from 'lucide-react';
 
 interface LoadTemplateModalProps {
   isOpen: boolean;
@@ -25,6 +25,8 @@ export function LoadTemplateModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteAllConfirmText, setDeleteAllConfirmText] = useState('');
+  const [renamingTemplateId, setRenamingTemplateId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   
   // Load templates when modal opens
   useEffect(() => {
@@ -102,6 +104,36 @@ export function LoadTemplateModal({
     }
   };
   
+  const handleRenameTemplate = async (id: string, newName: string) => {
+    if (!newName.trim()) {
+      setError('Template name cannot be empty');
+      return;
+    }
+    
+    try {
+      const template = TemplateStorage.loadTemplate(id);
+      if (!template) {
+        setError('Template not found');
+        return;
+      }
+      
+      const result = await TemplateStorage.updateTemplate(id, {
+        name: newName.trim()
+      });
+      
+      if (result.success) {
+        await loadTemplateList();
+        setRenamingTemplateId(null);
+        setRenameValue('');
+      } else {
+        setError(result.error || 'Failed to rename template');
+      }
+    } catch (err) {
+      console.error('Error renaming template:', err);
+      setError('Failed to rename template');
+    }
+  };
+  
   const handleExportTemplate = async (id: string) => {
     try {
       const result = await TemplateStorage.exportTemplate(id, true);
@@ -154,18 +186,36 @@ export function LoadTemplateModal({
     setShowDeleteConfirm(null);
     setShowDeleteAllConfirm(false);
     setDeleteAllConfirmText('');
+    setRenamingTemplateId(null);
+    setRenameValue('');
     onClose();
   };
   
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) {
+      return 'Just now';
+    } else if (diffMins < 60) {
+      return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+    } else if (diffHours < 24) {
+      return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+    } else if (diffDays < 7) {
+      return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+    } else {
+      return date.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
   };
   
   return (
@@ -291,11 +341,58 @@ export function LoadTemplateModal({
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{template.name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Created: {formatDate(template.created)}
-                      </p>
-                      <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                      {renamingTemplateId === template.id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleRenameTemplate(template.id, renameValue);
+                              } else if (e.key === 'Escape') {
+                                setRenamingTemplateId(null);
+                                setRenameValue('');
+                              }
+                            }}
+                            className="flex-1 px-2 py-1 text-sm font-semibold border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRenameTemplate(template.id, renameValue);
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRenamingTemplateId(null);
+                              setRenameValue('');
+                            }}
+                            className="text-xs text-gray-600 hover:text-gray-800"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <h3 className="font-semibold text-gray-900 text-lg">{template.name}</h3>
+                      )}
+                      <div className="mt-2 space-y-1">
+                        <p className="text-xs text-gray-500">
+                          Created: {formatDate(template.created)}
+                        </p>
+                        {template.created !== template.lastModified && (
+                          <p className="text-sm text-gray-700 font-medium">
+                            Last modified: {formatDate(template.lastModified)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
                         <span className="flex items-center gap-1">
                           <FileText className="h-3 w-3" />
                           {template.columnsCount} columns
@@ -315,6 +412,19 @@ export function LoadTemplateModal({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
+                      {!renamingTemplateId && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingTemplateId(template.id);
+                            setRenameValue(template.name);
+                          }}
+                          className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                          title="Rename template"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
