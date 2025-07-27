@@ -387,11 +387,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       setCurrentTemplateName(template.name);
       setHasManuallySaved(true);
 
-      // Update the certificate image URL if different
-      if (
-        template.certificateImage.url &&
-        template.certificateImage.url !== uploadedFileUrl
-      ) {
+      // Update the certificate image URL and file
+      if (template.certificateImage.url) {
         setUploadedFileUrl(template.certificateImage.url);
         setUploadedFile(template.certificateImage.filename);
       }
