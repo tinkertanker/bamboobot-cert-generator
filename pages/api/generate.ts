@@ -78,7 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('Looking for template:', templateFilename);
     
     // Check if this is a template file (e.g., dev-mode-template.pdf)
-    const isTemplate = templateFilename.includes('template');
+    const isTemplate = templateFilename.startsWith('dev-mode-template');
     
     if (storageConfig.isR2Enabled) {
       // For R2, we need to handle the template differently
@@ -104,8 +104,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (isTemplate && fs.existsSync(templateImagePath)) {
         templatePath = templateImagePath;
         console.log('Local mode - reading template from template_images:', templatePath);
-      } else {
+      } else if (fs.existsSync(tempImagePath)) {
+        templatePath = tempImagePath;
         console.log('Local mode - reading from temp_images:', templatePath);
+      } else {
+        console.error('Template not found in both template_images and temp_images:', { templateImagePath, tempImagePath });
+        return res.status(404).json({ error: 'Template not found in both template_images and temp_images' });
       }
       
       templatePdfBytes = await fsPromises.readFile(templatePath);
