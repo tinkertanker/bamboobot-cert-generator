@@ -131,14 +131,36 @@ export function useTemplateAutosave({
       return { success: false, error: 'No certificate to save' };
     }
 
-    const result = await TemplateStorage.saveTemplate(
-      customName,
-      positions,
-      columns,
-      certificateImageUrl,
-      certificateFilename,
-      emailConfig || undefined
-    );
+    let result;
+    
+    // If we have a current template ID and the name matches, update it
+    if (currentTemplateId && currentTemplateName === customName) {
+      result = await TemplateStorage.updateTemplate(currentTemplateId, {
+        positions,
+        columns,
+        emailConfig: emailConfig || undefined,
+        certificateImage: {
+          url: certificateImageUrl,
+          filename: certificateFilename,
+          uploadedAt: new Date().toISOString(),
+          isCloudStorage: false,
+        }
+      });
+      
+      if (result.success) {
+        result.id = currentTemplateId; // Add ID for consistency
+      }
+    } else {
+      // Create new template
+      result = await TemplateStorage.saveTemplate(
+        customName,
+        positions,
+        columns,
+        certificateImageUrl,
+        certificateFilename,
+        emailConfig || undefined
+      );
+    }
 
     if (result.success) {
       // Update last saved data to prevent immediate autosave
@@ -147,7 +169,7 @@ export function useTemplateAutosave({
     }
 
     return result;
-  }, [positions, columns, emailConfig, certificateImageUrl, certificateFilename, serializeState]);
+  }, [positions, columns, emailConfig, certificateImageUrl, certificateFilename, serializeState, currentTemplateId, currentTemplateName]);
 
   // Set up autosave with debounce
   useEffect(() => {
