@@ -15,6 +15,7 @@ interface SaveTemplateModalProps {
   certificateImageUrl?: string;
   certificateFilename?: string;
   onSaveSuccess?: (templateId: string, templateName: string) => void;
+  onManualSave?: (templateName: string) => Promise<{ success: boolean; id?: string; error?: string }>;
 }
 
 export function SaveTemplateModal({
@@ -25,7 +26,8 @@ export function SaveTemplateModal({
   emailConfig,
   certificateImageUrl,
   certificateFilename,
-  onSaveSuccess
+  onSaveSuccess,
+  onManualSave
 }: SaveTemplateModalProps) {
   const [templateName, setTemplateName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -49,18 +51,26 @@ export function SaveTemplateModal({
     setError(null);
     
     try {
-      const result = await TemplateStorage.saveTemplate(
-        templateName,
-        positions,
-        columns,
-        certificateImageUrl,
-        certificateFilename,
-        emailConfig,
-        {
-          isCloudStorage,
-          provider: storageProvider
-        }
-      );
+      let result;
+      
+      if (onManualSave) {
+        // Use the manual save function from the hook to prevent double save
+        result = await onManualSave(templateName);
+      } else {
+        // Fallback to direct save
+        result = await TemplateStorage.saveTemplate(
+          templateName,
+          positions,
+          columns,
+          certificateImageUrl,
+          certificateFilename,
+          emailConfig,
+          {
+            isCloudStorage,
+            provider: storageProvider
+          }
+        );
+      }
       
       if (result.success && result.id) {
         onSaveSuccess?.(result.id, templateName);

@@ -228,7 +228,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   // Toast notifications
   const { toasts, showToast, hideToast } = useToast();
 
-  // Template autosave hook (only enabled after manual save)
+  // Template autosave hook - disabled to prevent creating duplicate "Session" templates
   const { manualSave } = useTemplateAutosave({
     positions,
     columns: Object.keys(tableData[0] || {}),
@@ -239,7 +239,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       // Silent autosave - no toast notification
       console.log("Template autosaved");
     },
-    enabled: hasManuallySaved
+    enabled: false // Disabled - autosave creates confusing "Session" templates
   });
 
   // Session data autosave hook (only enabled after manual save)
@@ -802,7 +802,7 @@ Email Sending Robot`,
           <div className="flex gap-3">
             {/* Templates Split Button */}
             <SplitButton
-              label={hasManuallySaved ? "✓ Autosaved" : "Save template"}
+              label={hasManuallySaved ? "Save template" : "Save template"}
               onClick={
                 hasManuallySaved
                   ? handleSaveToCurrentTemplate // Save to current template
@@ -1225,6 +1225,7 @@ Email Sending Robot`,
         certificateImageUrl={uploadedFileUrl || undefined}
         certificateFilename={(uploadedFile as string) || undefined}
         onSaveSuccess={handleSaveTemplateSuccess}
+        onManualSave={manualSave}
       />
 
       <LoadTemplateModal
