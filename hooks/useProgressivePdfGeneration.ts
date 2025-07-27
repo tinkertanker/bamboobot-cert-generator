@@ -99,7 +99,10 @@ export function useProgressivePdfGeneration({
             font: pos.fontFamily || "Helvetica",
             bold: pos.bold || false,
             oblique: pos.italic || false,
-            alignment: pos.alignment || "left"
+            alignment: pos.alignment || "left",
+            textMode: pos.textMode || "shrink",
+            width: pos.width || 90,
+            lineHeight: pos.lineHeight || 1.2
           }
         ])
     );

@@ -38,7 +38,10 @@ export function usePositioning({ tableData }: UsePositioningProps): UsePositioni
               fontFamily: "Helvetica",
               color: "#000000",
               alignment: "center",
-              isVisible: !isEmailField // Hide email fields by default
+              isVisible: !isEmailField, // Hide email fields by default
+              width: 90, // Default to 90% width
+              textMode: "shrink", // Default to shrink-to-fit mode
+              lineHeight: 1.2
             };
             hasNewPositions = true;
           }
