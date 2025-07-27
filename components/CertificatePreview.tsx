@@ -193,10 +193,10 @@ function CertificatePreviewComponent({
                     width: `${widthPercent}%`,
                     lineHeight: lineHeight,
                     textAlign: alignment,
-                    whiteSpace: textMode === "multiline" ? "normal" as const : "nowrap" as const,
+                    whiteSpace: "nowrap" as const,
                     overflow: "hidden",
-                    textOverflow: textMode === "shrink" ? "ellipsis" : "initial",
-                    wordWrap: textMode === "multiline" ? "break-word" as const : "normal" as const,
+                    textOverflow: "initial",
+                    wordWrap: "normal" as const,
                     position: "absolute" as const,
                     pointerEvents: "auto" as const,
                     userSelect: "none" as const,
@@ -355,8 +355,8 @@ function CertificatePreviewComponent({
                       {/* Render text - single line or multiple lines */}
                       {textMode === "multiline" && textLines.length > 1 ? (
                         <div>
-                          {textLines.map((line, lineIndex) => (
-                            <div key={lineIndex}>{line}</div>
+                          {textLines.slice(0, 2).map((line, lineIndex) => (
+                            <div key={lineIndex} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{line}</div>
                           ))}
                         </div>
                       ) : (

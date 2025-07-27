@@ -122,53 +122,58 @@ export function splitTextIntoLines(
   bold: boolean = false,
   italic: boolean = false
 ): string[] {
+  // Early return for empty text
+  if (!text || maxLines <= 0) return [];
+  
   const words = text.split(' ');
   const lines: string[] = [];
   let currentLine = '';
-  let wordIndex = 0;
   
   for (let i = 0; i < words.length; i++) {
+    // Absolute guarantee: never exceed maxLines
+    if (lines.length >= maxLines) {
+      break;
+    }
+    
     const word = words[i];
     const testLine = currentLine ? `${currentLine} ${word}` : word;
     const lineWidth = measureTextWidth(testLine, fontSize, fontFamily, bold, italic);
     
     if (lineWidth > maxWidth && currentLine) {
+      // Push current line
       lines.push(currentLine);
-      currentLine = word;
-      wordIndex = i + 1;
       
-      // Stop if we've reached max lines
+      // Check if we're at the limit after pushing
       if (lines.length >= maxLines) {
+        // We've hit the limit, add ellipsis if there's more content
+        const remainingContent = words.slice(i).join(' ');
+        if (i < words.length) {
+          const lastLine = lines[lines.length - 1];
+          let truncatedLine = lastLine;
+          while (measureTextWidth(truncatedLine + '...', fontSize, fontFamily, bold, italic) > maxWidth && truncatedLine.length > 0) {
+            truncatedLine = truncatedLine.slice(0, -1).trim();
+          }
+          if (truncatedLine) {
+            lines[lines.length - 1] = truncatedLine + '...';
+          }
+        }
         break;
       }
+      
+      // Start new line with current word
+      currentLine = word;
     } else {
       currentLine = testLine;
-      wordIndex = i + 1;
     }
   }
   
-  // Add remaining text
+  // Add any remaining text, but ONLY if we haven't hit the limit
   if (currentLine && lines.length < maxLines) {
     lines.push(currentLine);
-  } else if (currentLine && lines.length === maxLines) {
-    // Add ellipsis to last line if there's overflow
-    const lastLine = lines[maxLines - 1];
-    const hasRemainingWords = wordIndex < words.length;
-    
-    if (hasRemainingWords) {
-      // Try to fit ellipsis
-      let truncatedLine = lastLine;
-      while (measureTextWidth(truncatedLine + '...', fontSize, fontFamily, bold, italic) > maxWidth && truncatedLine.length > 0) {
-        truncatedLine = truncatedLine.slice(0, -1).trim();
-      }
-      
-      if (truncatedLine) {
-        lines[maxLines - 1] = truncatedLine + '...';
-      }
-    }
   }
   
-  return lines;
+  // Final safety: slice to maxLines (this should never be needed, but just in case)
+  return lines.slice(0, maxLines);
 }
 
 /**
