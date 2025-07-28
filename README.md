@@ -2,16 +2,25 @@
 
 Generate certificates from image templates with drag-and-drop text positioning and bulk data processing.
 
+## Recent Updates (July 2025)
+
+### Major Transformations
+- **Templates → Projects** - Templates now save complete projects including template image and all certificate data
+- **Performance Improvements** - Table virtualization for 400+ rows, progressive PDF generation, natural language search
+- **Enhanced Project Management** - Inline rename, relative timestamps, mass delete with confirmation
+- **Infrastructure Updates** - Migrated from pnpm to npm, consolidated configuration
+
 ## Features
 
 - **Image Template Upload** - JPG/PNG with automatic PDF conversion
 - **Background Image Replacement** - Replace template image while preserving text fields
 - **Precision Text Positioning** - Drag-and-drop with visual feedback and keyboard nudging
-- **Advanced Text Formatting** - 9 fonts, bold/italic, colour picker, alignment controls
+- **Advanced Text Formatting** - 7 fonts, bold/italic, colour picker, alignment controls
 - **Text Sizing Options** - Shrink-to-fit for single lines or multi-line (2 lines) with word wrap
 - **Adjustable Text Width** - Control text field width (10-90%) with visual feedback
-- **Project System** - Save/load complete projects including data, text fields, and formatting
-- **Project Management** - Rename projects inline, view relative timestamps, mass delete with confirmation
+- **Project System** - Save/load complete projects including template image and all certificate data
+- **Project Management** - Inline rename, relative timestamps ("2 hours ago"), mass delete with confirmation
+- **Project Autosave** - Smart autosave that updates existing projects without creating duplicates
 - **Keyboard Shortcuts** - Ctrl/Cmd+B (bold), Ctrl/Cmd+I (italic), ESC (dismiss modals)
 - **Smart Entry Navigation** - Previous/Next/First/Last with entry counter  
 - **Bulk Data Import** - TSV/CSV support with header toggle
@@ -116,12 +125,12 @@ npm run build        # Build for production
 npm start           # Start production server
 
 # Testing & Linting
-npm test            # Run unit tests (Jest)
-npm run test:watch  # Watch mode for unit tests
+npm test            # Run all tests with Jest
+npm run test:watch  # Run tests in watch mode
 npm run test:e2e    # Run E2E tests (Playwright)
 npm run test:e2e:headed  # Run E2E tests with browser visible
 npm run test:e2e:ui      # Run E2E tests in interactive UI mode
-npm run lint        # Run ESLint
+npm run lint        # Run ESLint with Next.js configuration
 
 # Cleanup
 npm run cleanup         # Clean all temporary files
@@ -131,7 +140,12 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 
 ### Manual Cleanup
 ```bash
+# Local Development
 rm -rf public/temp_images/* public/generated/*
+
+# Docker Production
+rm -rf ./data/temp_images/* ./data/generated/*
+docker-compose down && docker system prune -a
 ```
 
 ### Docker Commands
@@ -142,7 +156,7 @@ docker-compose logs -f    # View logs
 docker-compose down       # Stop
 
 # Development
-docker-compose -f docker-compose.dev.yml up -d  # Hot reload on :3001
+docker-compose -f docker-compose.dev.yml up -d
 ```
 
 ## Project Structure
@@ -174,16 +188,22 @@ utils/
 - Use provider factory for email/storage, never hardcode
 - Use `COLORS` constants from `utils/styles.ts`
 - Extract complex UI into focused components
+- **Coordinate System**: PDF uses bottom-left origin (0,0), UI uses top-left - conversion handled in API
 
 ## Testing
 
 The project includes comprehensive unit and end-to-end tests:
 
 ### Unit Tests (Jest + React Testing Library)
+Tests organized by type:
+- `__tests__/components/` - UI component tests
+- `__tests__/pages/api/` - API endpoint tests
+- `__tests__/lib/` - Utility function tests
+
 ```bash
-npm test                 # Run all unit tests
-npm run test:watch      # Run tests in watch mode
-npm test -- __tests__/path/to/specific.test.ts  # Run specific test
+npm test            # Run all tests with Jest
+npm run test:watch  # Run tests in watch mode
+npm test -- __tests__/path/to/specific.test.ts  # Run single test file
 ```
 
 ### End-to-End Tests (Playwright)
@@ -201,13 +221,11 @@ The E2E tests cover:
 - Entry navigation and data handling
 - Email configuration and sending
 
-For more details, see the [E2E Test Documentation](./e2e/README.md).
-
 ## Technology Stack
 
-- **Framework**: Next.js 15 with TypeScript
+- **Framework**: Next.js with TypeScript
 - **Package Manager**: npm
-- **UI**: Tailwind CSS + shadcn/ui components
+- **UI**: Tailwind CSS
 - **PDF**: pdf-lib
 - **Storage**: Local, Cloudflare R2, or Amazon S3
 - **Email**: Resend or Amazon SES
