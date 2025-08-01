@@ -10,7 +10,8 @@ const fontFamilyMap: Record<FontFamily, string> = {
   SourceSansPro: '"Source Sans Pro", sans-serif',
   Nunito: '"Nunito", sans-serif',
   GreatVibes: '"Great Vibes", cursive',
-  Archivo: '"Archivo", sans-serif'
+  Archivo: '"Archivo", sans-serif',
+  Rubik: '"Rubik", sans-serif'
 };
 
 let canvas: HTMLCanvasElement | null = null;

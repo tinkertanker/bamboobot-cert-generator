@@ -12,7 +12,8 @@ export type FontFamily =
   | "SourceSansPro"
   | "Nunito"
   | "GreatVibes"
-  | "Archivo";
+  | "Archivo"
+  | "Rubik";
 
 // Text alignment types
 export type TextAlignment = "left" | "center" | "right";

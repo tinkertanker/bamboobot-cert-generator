@@ -6,7 +6,8 @@ import "../styles/globals.css";
 const rubik = Rubik({
   subsets: ["latin"],
   variable: "--font-rubik",
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
 });
 
 const montserrat = Montserrat({

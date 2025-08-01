@@ -93,12 +93,14 @@ export function FormattingPanel({
                 <option value="Helvetica">Helvetica</option>
                 <option value="Times">Times</option>
                 <option value="Courier">Courier</option>
-                <option value="Montserrat">Montserrat</option>
-                <option value="Poppins">Poppins</option>
-                <option value="SourceSansPro">Source Sans Pro</option>
-                <option value="Nunito">Nunito</option>
-                <option value="GreatVibes">Great Vibes</option>
+                <option disabled>──────────────</option>
                 <option value="Archivo">Archivo</option>
+                <option value="GreatVibes">Great Vibes</option>
+                <option value="Montserrat">Montserrat</option>
+                <option value="Nunito">Nunito</option>
+                <option value="Poppins">Poppins</option>
+                <option value="Rubik">Rubik</option>
+                <option value="SourceSansPro">Source Sans Pro</option>
               </Select>
             </div>
 

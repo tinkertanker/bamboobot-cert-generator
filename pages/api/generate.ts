@@ -14,7 +14,7 @@ interface Position {
   fontSize?: number;
   x: number;
   y: number;
-  font?: 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 'WorkSans' | 'Roboto' | 'SourceSansPro' | 'Nunito' | 'GreatVibes' | 'Archivo';
+  font?: 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 'SourceSansPro' | 'Nunito' | 'GreatVibes' | 'Archivo' | 'Rubik';
   bold?: boolean;
   oblique?: boolean;
   alignment?: 'left' | 'center' | 'right';
@@ -27,7 +27,7 @@ interface Entry {
   [key: string]: {
     text: string;
     color?: [number, number, number];
-    font?: 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 'WorkSans' | 'Roboto' | 'SourceSansPro' | 'Nunito' | 'GreatVibes' | 'Archivo';
+    font?: 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 'SourceSansPro' | 'Nunito' | 'GreatVibes' | 'Archivo' | 'Rubik';
     bold?: boolean;
     oblique?: boolean;
     uiMeasurements?: {
@@ -118,7 +118,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const pdfDoc = await PDFDocument.load(templatePdfBytes);
 
     // Check if we need custom fonts globally
-    const customFonts = ['Montserrat', 'Poppins', 'SourceSansPro', 'Nunito', 'GreatVibes', 'Archivo'] as const;
+    const customFonts = ['Montserrat', 'Poppins', 'SourceSansPro', 'Nunito', 'GreatVibes', 'Archivo', 'Rubik'] as const;
     const needsCustomFonts = customFonts.some(fontName => 
       Object.values(positions).some(pos => pos.font === fontName) || 
       data.some(entry => Object.values(entry).some(val => val && typeof val === 'object' && val.font === fontName))
@@ -182,6 +182,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         customFontsEmbedded.ArchivoBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Archivo-Bold.ttf')));
         customFontsEmbedded.ArchivoItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Archivo-Italic.ttf')));
         customFontsEmbedded.ArchivoBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Archivo-BoldItalic.ttf')));
+        
+        customFontsEmbedded.Rubik = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Rubik-Regular.ttf')));
+        customFontsEmbedded.RubikBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Rubik-Bold.ttf')));
+        customFontsEmbedded.RubikItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Rubik-Italic.ttf')));
+        customFontsEmbedded.RubikBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Rubik-BoldItalic.ttf')));
       }
 
       const page = pdf.getPages()[0];
@@ -272,6 +277,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   : (isOblique ? customFontsEmbedded.ArchivoItalic : customFontsEmbedded.Archivo);
               } else {
                 console.warn('Archivo font requested but not loaded. Falling back to Helvetica.');
+                font = helveticaFont;
+              }
+              break;
+            case 'Rubik':
+              if (needsCustomFonts && customFontsEmbedded.Rubik) {
+                font = isBold
+                  ? (isOblique ? customFontsEmbedded.RubikBoldItalic : customFontsEmbedded.RubikBold)
+                  : (isOblique ? customFontsEmbedded.RubikItalic : customFontsEmbedded.Rubik);
+              } else {
+                console.warn('Rubik font requested but not loaded. Falling back to Helvetica.');
                 font = helveticaFont;
               }
               break;

@@ -55,3 +55,4 @@ data/
 # Playwright
 playwright-report/
 test-results/
+.crush/

@@ -15,7 +15,7 @@ Generate certificates from image templates with drag-and-drop text positioning a
 - **Image Template Upload** - JPG/PNG with automatic PDF conversion
 - **Background Image Replacement** - Replace template image while preserving text fields
 - **Precision Text Positioning** - Drag-and-drop with visual feedback and keyboard nudging
-- **Advanced Text Formatting** - 7 fonts, bold/italic, colour picker, alignment controls
+- **Advanced Text Formatting** - 8 fonts, bold/italic, colour picker, alignment controls
 - **Text Sizing Options** - Shrink-to-fit for single lines or multi-line (2 lines) with word wrap
 - **Adjustable Text Width** - Control text field width (10-90%) with visual feedback
 - **Project System** - Save/load complete projects including template image and all certificate data
