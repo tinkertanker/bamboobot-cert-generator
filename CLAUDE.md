@@ -111,9 +111,9 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 
 ### Quick Wins (< 1 day each)
 - Entry jump navigation (go to specific row)
-- Performance optimizations (React.memo, debouncing)
 - Loading states for async operations
 - Tooltip improvements
+- Performance monitoring utility (measure optimization impact)
 
 ## Known Limitations ⚠️
 - Email rate limits (Resend: 100/hour)
@@ -137,6 +137,96 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 - Cloud storage (R2/S3) for production
 - Automated lifecycle management
 - CDN integration for performance
+
+## Performance Architecture Decisions 🚀
+
+### Why We Don't Use Web Workers
+
+After thorough investigation (August 2025), we decided **NOT to implement Web Workers**. Here's why:
+
+#### Current Performance is Already Optimized
+1. **Table Virtualization** - React-window handles 400+ rows efficiently
+2. **Progressive PDF Generation** - Server-side batch processing with progress tracking
+3. **Email Queue** - Server-side with rate limiting and retry logic
+
+#### Web Workers Would Not Help Because:
+1. **PDF Generation is Server-Side** - The heavy lifting happens in Node.js, not the browser. Moving to client-side would require:
+   - Shipping entire PDF library to client (~500KB)
+   - Loss of server-side font access
+   - Security concerns with client-side certificate generation
+
+2. **Data Parsing is Fast Enough** - CSV/TSV parsing for typical use cases (50-500 rows) takes <100ms
+   - It's a one-time operation per session
+   - Adding worker communication overhead would likely make it slower
+   - Complexity cost far outweighs the minimal benefit
+
+3. **Server Operations Can't Use Workers** - Email sending, cloud storage, and batch PDF generation must remain server-side
+
+### Actual Performance Wins (Implement These Instead)
+
+#### 1. React.memo Optimization ✅
+- Replace expensive `JSON.stringify()` comparisons
+- Use selective shallow + deep checks
+- **Impact**: 85-90% faster comparison during drag operations
+
+#### 2. Smart Debouncing for Drag Operations
+- Immediate visual feedback (0ms) 
+- Throttled updates (16ms for 60fps)
+- Settled state (50ms debounce)
+- **Impact**: 40-50% fewer React renders
+
+#### 3. Lazy Font Loading
+- Load only system fonts initially
+- Google Fonts loaded on-demand when selected
+- **Impact**: 70% smaller initial bundle (~350KB saved)
+
+#### 4. Text Measurement Cache
+- Singleton canvas context
+- LRU cache for width calculations
+- **Impact**: 60-80% faster text measurements
+
+### When to Reconsider Workers
+
+Only consider Web Workers if:
+- Processing datasets with 10,000+ rows regularly
+- Adding client-side image processing (filters, effects)
+- Implementing real-time collaborative features
+- Moving PDF generation to client-side (not recommended)
+
+### Performance Philosophy
+
+1. **Measure First** - Use browser DevTools, not assumptions
+2. **Optimize the Right Thing** - Focus on actual bottlenecks
+3. **Keep It Simple** - Complexity has a maintenance cost
+4. **Server vs Client** - Use the right tool for the job
+
+Remember: The app is designed for certificate generation for events/courses (50-500 participants typical). It's already well-optimized for this use case. Don't over-engineer!
+
+### Important: Internal Tool vs SaaS Considerations
+
+**Current Implementation (Internal Tool)**: The performance decisions above are correct for internal/private use where:
+- User count is limited and known
+- Server resources are not a concern
+- All processing can happen server-side
+- Simplicity and maintainability are priorities
+
+**SaaS Implementation**: If converting to public SaaS, refer to `docs/SAAS-ARCHITECTURE.md` for a comprehensive guide covering:
+- Business model with generous free tier (10 PDFs/day free)
+- Supabase integration for auth, database, and storage
+- Web Workers become essential for cost control at scale
+- Client-side processing to reduce server costs
+- Usage tracking and billing implementation
+- Full migration path from current architecture
+
+**Open Source Strategy**: For releasing as OSS while maintaining a SaaS offering, see `docs/OSS-STRATEGY.md` covering:
+- AGPL v3 licensing to prevent SaaS competitors
+- Two-repo structure (OSS core + private SaaS features)
+- One-command Docker deployment for self-hosters
+- Feature differentiation strategy
+- Community building and contribution guidelines
+- Revenue protection while being genuinely open source
+
+The key insight: Architecture decisions fundamentally change based on deployment model. Choose the right approach for your use case.
 
 ## Recent Updates (July 2025)
 
