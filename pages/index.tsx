@@ -571,7 +571,31 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   const handleSaveToCurrentTemplate = useCallback(async () => {
     if (!currentTemplateName || !uploadedFileUrl || !uploadedFile) return;
 
-    const result = await manualSave(currentTemplateName);
+    let finalUrl = uploadedFileUrl;
+    let finalFilename = uploadedFile as string;
+
+    // If the file hasn't been uploaded to server yet (blob URL), upload it first
+    if (uploadedFileUrl.startsWith('blob:')) {
+      console.log("Uploading file to server before saving project...");
+      try {
+        const uploadResult = await uploadToServer();
+        if (uploadResult) {
+          finalUrl = uploadResult.image;
+          finalFilename = uploadResult.filename;
+          console.log("File uploaded, using server URL:", finalUrl);
+        }
+      } catch (error) {
+        console.error("Failed to upload file before saving:", error);
+        showToast({
+          message: "Failed to upload file to server",
+          type: "error",
+          duration: 3000
+        });
+        return;
+      }
+    }
+
+    const result = await manualSave(currentTemplateName, finalUrl, finalFilename);
 
     if (result.success) {
       // Show subtle feedback that it was saved
@@ -591,6 +615,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     currentTemplateName,
     uploadedFileUrl,
     uploadedFile,
+    uploadToServer,
     manualSave,
     showToast
   ]);
@@ -1450,19 +1475,26 @@ Email Sending Robot`,
         certificateFilename={(uploadedFile as string) || undefined}
         onSaveSuccess={handleSaveTemplateSuccess}
         onManualSave={async (templateName) => {
+          let finalUrl = uploadedFileUrl;
+          let finalFilename = uploadedFile as string;
+          
           // Ensure file is uploaded to server before saving project
-          if (localBlobUrl && !uploadedFileUrl?.startsWith('http')) {
+          // Check if we're using a blob URL (local file not yet uploaded)
+          if (uploadedFileUrl?.startsWith('blob:')) {
             console.log('Uploading file to server before saving project...');
             try {
-              await uploadToServer();
-              // Wait a moment for state to update
-              await new Promise(resolve => setTimeout(resolve, 100));
+              const uploadResult = await uploadToServer();
+              if (uploadResult) {
+                finalUrl = uploadResult.image;
+                finalFilename = uploadResult.filename;
+                console.log("File uploaded, using server URL:", finalUrl);
+              }
             } catch (error) {
               console.error('Failed to upload file before saving:', error);
               return { success: false, error: 'Failed to upload file to server' };
             }
           }
-          return manualSave(templateName);
+          return manualSave(templateName, finalUrl, finalFilename);
         }}
       />
 

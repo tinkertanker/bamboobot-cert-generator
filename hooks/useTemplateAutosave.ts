@@ -20,7 +20,7 @@ interface UseTemplateAutosaveReturn {
   sessionName: string;
   lastAutosaved: Date | null;
   isAutosaving: boolean;
-  manualSave: (customName: string) => Promise<{ success: boolean; id?: string; error?: string }>;
+  manualSave: (customName: string, overrideUrl?: string, overrideFilename?: string) => Promise<{ success: boolean; id?: string; error?: string }>;
 }
 
 // Generate session name on hook initialization
@@ -126,8 +126,12 @@ export function useTemplateAutosave({
   }, [sessionName, positions, columns, emailConfig, certificateImageUrl, certificateFilename, serializeState, onAutosave, currentTemplateId, currentTemplateName]);
 
   // Manual save with custom name
-  const manualSave = useCallback(async (customName: string) => {
-    if (!certificateImageUrl || !certificateFilename) {
+  const manualSave = useCallback(async (customName: string, overrideUrl?: string, overrideFilename?: string) => {
+    // Use override values if provided (for when we just uploaded)
+    const imageUrl = overrideUrl || certificateImageUrl;
+    const filename = overrideFilename || certificateFilename;
+    
+    if (!imageUrl || !filename) {
       return { success: false, error: 'No certificate to save' };
     }
 
@@ -141,8 +145,8 @@ export function useTemplateAutosave({
         tableData,
         emailConfig: emailConfig || undefined,
         certificateImage: {
-          url: certificateImageUrl,
-          filename: certificateFilename,
+          url: imageUrl,
+          filename: filename,
           uploadedAt: new Date().toISOString(),
           isCloudStorage: false,
         }
@@ -159,8 +163,8 @@ export function useTemplateAutosave({
         customName,
         positions,
         columns,
-        certificateImageUrl,
-        certificateFilename,
+        imageUrl,
+        filename,
         tableData,
         emailConfig || undefined,
         undefined // storageInfo
