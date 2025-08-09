@@ -243,6 +243,21 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   });
 
   // Wrapper functions for PDF generation (choose client or server)
+  // Transfer client-generated PDF URLs to main state when they change
+  useEffect(() => {
+    if (clientGeneratedPdfUrl) {
+      console.log("Transferring client PDF URL to main state:", clientGeneratedPdfUrl);
+      setGeneratedPdfUrl(clientGeneratedPdfUrl);
+    }
+  }, [clientGeneratedPdfUrl, setGeneratedPdfUrl]);
+
+  useEffect(() => {
+    if (clientIndividualPdfsData) {
+      console.log("Transferring client individual PDFs to main state:", clientIndividualPdfsData.length, "files");
+      setIndividualPdfsData(clientIndividualPdfsData);
+    }
+  }, [clientIndividualPdfsData, setIndividualPdfsData]);
+
   const handleGeneratePdf = useCallback(async (useServer = false) => {
     // Use server-side only if explicitly requested AND in dev mode
     if (useServer && isDevelopment && devMode) {
@@ -252,10 +267,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       // Default to client-side if supported
       console.log("🚀 Using CLIENT-SIDE PDF generation");
       await generateClientPdf();
-      // Transfer results to main state
-      if (clientGeneratedPdfUrl) {
-        setGeneratedPdfUrl(clientGeneratedPdfUrl);
-      }
     } else {
       // Fallback to server if client not supported
       console.log("📡 Using SERVER-SIDE PDF generation (Fallback)");
@@ -267,9 +278,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     isClientSupported,
     forceServerSide,
     generateClientPdf,
-    generatePdf,
-    clientGeneratedPdfUrl,
-    setGeneratedPdfUrl
+    generatePdf
   ]);
 
   const handleGenerateIndividualPdfs = useCallback(async (useServer = false) => {

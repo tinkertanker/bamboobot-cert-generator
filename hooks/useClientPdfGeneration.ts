@@ -231,12 +231,30 @@ export function useClientPdfGeneration({
         throw new Error('No template URL available');
       }
 
+      const preparedData = prepareDataForClient();
+      const preparedPositions = preparePositionsForClient();
+      
+      console.log('Client: Generating single PDF', {
+        entries: preparedData.length,
+        hasPositions: !!preparedPositions,
+        templateUrl,
+        mode: 'single'
+      });
+
       const result = await generatorRef.current.generate({
         templateUrl,
-        entries: prepareDataForClient(),
-        positions: preparePositionsForClient(),
+        entries: preparedData,
+        positions: preparedPositions,
         uiContainerDimensions,
         mode: 'single'
+      });
+
+      console.log('Client: Generation result', {
+        success: result.success,
+        mode: result.mode,
+        hasData: !!result.data,
+        dataSize: result.data?.byteLength,
+        error: result.error
       });
 
       if (result.success && result.data) {

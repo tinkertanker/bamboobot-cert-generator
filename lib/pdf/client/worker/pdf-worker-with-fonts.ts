@@ -44,7 +44,9 @@ self.addEventListener('message', async (event) => {
   try {
     switch (type) {
       case 'generate':
+        console.log('Worker: Starting PDF generation', { mode: payload.mode, entries: payload.entries?.length });
         const result = await generatePdf(payload);
+        console.log('Worker: PDF generation complete', { mode: result.mode, hasData: !!result.pdfData, hasFiles: !!result.files });
         self.postMessage({
           type: 'complete',
           id,
@@ -56,6 +58,7 @@ self.addEventListener('message', async (event) => {
         throw new Error(`Unknown message type: ${type}`);
     }
   } catch (error: any) {
+    console.error('Worker: Error during PDF generation:', error);
     self.postMessage({
       type: 'error',
       id,
