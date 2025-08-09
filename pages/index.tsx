@@ -266,7 +266,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     if (useServer && isDevelopment && devMode) {
       console.log("📡 Using SERVER-SIDE PDF generation (Dev Mode)");
       // Ensure file is uploaded for server-side generation
-      if (localBlobUrl && !uploadedFileUrl?.startsWith('http')) {
+      if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
         console.log('Uploading file to server for server-side generation...');
         await uploadToServer();
       }
@@ -279,7 +279,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       // Fallback to server if client not supported
       console.log("📡 Using SERVER-SIDE PDF generation (Fallback)");
       // Ensure file is uploaded for server-side generation
-      if (localBlobUrl && !uploadedFileUrl?.startsWith('http')) {
+      if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
         console.log('Uploading file to server for server-side generation...');
         await uploadToServer();
       }
@@ -301,7 +301,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     // Use server-side only if explicitly requested AND in dev mode
     if (useServer && isDevelopment && devMode) {
       // Ensure file is uploaded for server-side generation
-      if (localBlobUrl && !uploadedFileUrl?.startsWith('http')) {
+      if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
         console.log('Uploading file to server for server-side generation...');
         await uploadToServer();
       }
@@ -326,7 +326,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     } else {
       // Fallback to server if client not supported
       // Ensure file is uploaded for server-side generation
-      if (localBlobUrl && !uploadedFileUrl?.startsWith('http')) {
+      if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
         console.log('Uploading file to server for server-side generation...');
         await uploadToServer();
       }

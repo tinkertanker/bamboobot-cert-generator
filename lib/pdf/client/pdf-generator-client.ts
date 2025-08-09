@@ -250,7 +250,8 @@ export class ClientPdfGenerator {
     }
     
     // Avoid fetching remote URLs to prevent CORS issues
-    if (url.startsWith('http')) {
+    // Check for both http:// and https:// (case-insensitive)
+    if (/^https?:\/\//i.test(url)) {
       throw new Error('Cannot load remote templates due to CORS. Please use local files or server-side generation.');
     }
     

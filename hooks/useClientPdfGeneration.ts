@@ -196,7 +196,7 @@ export function useClientPdfGeneration({
         return uploadedFileUrl;
       }
       // Skip remote URLs to avoid CORS issues
-      if (uploadedFileUrl.startsWith('http')) {
+      if (/^https?:\/\//i.test(uploadedFileUrl)) {
         console.warn('Skipping remote URL to avoid CORS:', uploadedFileUrl);
         // Don't return remote URLs for client-side generation
       }
