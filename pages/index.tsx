@@ -261,95 +261,90 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     }
   }, [clientIndividualPdfsData]); // setIndividualPdfsData is stable from useState
 
-  const handleGeneratePdf = useCallback(async (useServer = false) => {
-    // Use server-side only if explicitly requested AND in dev mode
+  // Helper function to determine PDF generation method
+  const getPdfGenerationMethod = useCallback(({
+    useServer,
+    forceServerSide: forceServer = false
+  }: {
+    useServer: boolean;
+    forceServerSide?: boolean;
+  }): "server" | "client" => {
+    // Priority 1: Explicit server request in dev mode
     if (useServer && isDevelopment && devMode) {
-      console.log("📡 Using SERVER-SIDE PDF generation (Dev Mode)");
-      // Ensure file is uploaded for server-side generation
-      if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
-        console.log('Uploading file to server for server-side generation...');
-        await uploadToServer();
-      }
+      return "server";
+    }
+    // Priority 2: Client-side if supported and not forced to server
+    if (isClientSupported && !forceServer) {
+      return "client";
+    }
+    // Priority 3: Fallback to server
+    return "server";
+  }, [isDevelopment, devMode, isClientSupported]);
+
+  // Helper function to ensure file is uploaded for server-side generation
+  const ensureFileUploadedForServer = useCallback(async () => {
+    if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
+      console.log('Uploading file to server for server-side generation...');
+      await uploadToServer();
+    }
+  }, [localBlobUrl, uploadedFileUrl, uploadToServer]);
+
+  const handleGeneratePdf = useCallback(async (useServer = false) => {
+    const method = getPdfGenerationMethod({ useServer, forceServerSide });
+    
+    if (method === "server") {
+      const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
+      console.log(`📡 Using SERVER-SIDE PDF generation ${reason}`);
+      await ensureFileUploadedForServer();
       await generatePdf();
-    } else if (isClientSupported && !forceServerSide) {
-      // Default to client-side if supported
+    } else {
       console.log("🚀 Using CLIENT-SIDE PDF generation");
       await generateClientPdf();
-    } else {
-      // Fallback to server if client not supported
-      console.log("📡 Using SERVER-SIDE PDF generation (Fallback)");
-      // Ensure file is uploaded for server-side generation
-      if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
-        console.log('Uploading file to server for server-side generation...');
-        await uploadToServer();
-      }
-      await generatePdf();
     }
   }, [
+    getPdfGenerationMethod,
+    forceServerSide,
     isDevelopment,
     devMode,
-    isClientSupported,
-    forceServerSide,
+    ensureFileUploadedForServer,
     generateClientPdf,
-    generatePdf,
-    localBlobUrl,
-    uploadedFileUrl,
-    uploadToServer
+    generatePdf
   ]);
 
   const handleGenerateIndividualPdfs = useCallback(async (useServer = false) => {
-    // Use server-side only if explicitly requested AND in dev mode
-    if (useServer && isDevelopment && devMode) {
-      // Ensure file is uploaded for server-side generation
-      if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
-        console.log('Uploading file to server for server-side generation...');
-        await uploadToServer();
-      }
-      // Server-side generation (Dev Mode only)
-      if (tableData.length > PROGRESSIVE_PDF.TRIGGER_THRESHOLD) {
-        console.log(`📡 Using PROGRESSIVE SERVER-SIDE generation for ${tableData.length} rows (Dev Mode)`);
+    const method = getPdfGenerationMethod({ useServer, forceServerSide });
+    const isProgressive = tableData.length > PROGRESSIVE_PDF.TRIGGER_THRESHOLD;
+    
+    if (method === "server") {
+      const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
+      await ensureFileUploadedForServer();
+      
+      if (isProgressive) {
+        console.log(`📡 Using PROGRESSIVE SERVER-SIDE generation for ${tableData.length} rows ${reason}`);
         await startProgressiveGeneration('individual');
       } else {
-        console.log(`📡 Using SERVER-SIDE generation for ${tableData.length} rows (Dev Mode)`);
+        console.log(`📡 Using SERVER-SIDE generation for ${tableData.length} rows ${reason}`);
         await generateIndividualPdfs();
       }
-    } else if (isClientSupported && !forceServerSide) {
-      // Default to client-side if supported
+    } else {
       console.log(`🚀 Using CLIENT-SIDE generation for ${tableData.length} rows`);
-      if (tableData.length > PROGRESSIVE_PDF.TRIGGER_THRESHOLD) {
+      if (isProgressive) {
         console.log(`   ⚠️ Note: Large dataset - using progressive generation`);
         // TODO: Implement progressive/batch generation in client for better memory management
       }
       await generateClientIndividualPdfs();
       // Note: Results are automatically set in clientIndividualPdfsData
-      // The modal will pick them up via the props
-    } else {
-      // Fallback to server if client not supported
-      // Ensure file is uploaded for server-side generation
-      if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
-        console.log('Uploading file to server for server-side generation...');
-        await uploadToServer();
-      }
-      if (tableData.length > PROGRESSIVE_PDF.TRIGGER_THRESHOLD) {
-        console.log(`📡 Using PROGRESSIVE SERVER-SIDE generation for ${tableData.length} rows (Fallback)`);
-        await startProgressiveGeneration('individual');
-      } else {
-        console.log(`📡 Using SERVER-SIDE generation for ${tableData.length} rows (Fallback)`);
-        await generateIndividualPdfs();
-      }
     }
   }, [
+    getPdfGenerationMethod,
+    forceServerSide,
+    tableData.length,
     isDevelopment,
     devMode,
-    isClientSupported,
-    forceServerSide,
-    generateClientIndividualPdfs,
-    generateIndividualPdfs,
+    ensureFileUploadedForServer,
     startProgressiveGeneration,
-    tableData.length,
-    localBlobUrl,
-    uploadedFileUrl,
-    uploadToServer
+    generateIndividualPdfs,
+    generateClientIndividualPdfs
   ]);
 
   // Email configuration hook (must come after PDF generation hook)
