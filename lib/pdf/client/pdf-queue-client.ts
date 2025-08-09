@@ -458,7 +458,7 @@ export class ClientPdfQueueManager {
   /**
    * Load queue state from localStorage
    */
-  static loadQueueState(sessionId: string): any | null {
+  static loadQueueState(sessionId: string): unknown | null {
     try {
       const saved = localStorage.getItem(`pdf-queue-${sessionId}`);
       return saved ? JSON.parse(saved) : null;

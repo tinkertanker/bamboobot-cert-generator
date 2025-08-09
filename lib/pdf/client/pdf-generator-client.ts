@@ -47,7 +47,7 @@ export class ClientPdfGenerator {
   private fontManager: FontManager;
   private workerPath: string;
   private pendingRequests: Map<string, {
-    resolve: (value: any) => void;
+    resolve: (value: unknown) => void;
     reject: (error: Error) => void;
   }> = new Map();
   private isInitialized = false;
@@ -189,7 +189,7 @@ export class ClientPdfGenerator {
       const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
       // Create promise for result
-      const resultPromise = new Promise<any>((resolve, reject) => {
+      const resultPromise = new Promise<GenerateResult>((resolve, reject) => {
         this.pendingRequests.set(requestId, { resolve, reject });
       });
 
@@ -380,7 +380,7 @@ export class ClientPdfGenerator {
   /**
    * Get results of progressive generation
    */
-  getProgressiveResults(): any | null {
+  getProgressiveResults(): PdfGenerationProgress | null {
     if (!this.queueManager) {
       return null;
     }
@@ -444,7 +444,7 @@ export class ClientPdfGenerator {
    */
   static async createZip(
     files: Array<{ filename: string; data: Uint8Array }>,
-    JSZip: any
+    JSZip: typeof import('jszip')
   ): Promise<Uint8Array> {
     const zip = new JSZip();
     

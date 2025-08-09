@@ -223,7 +223,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   // Client-side PDF generation hook (always enabled)
   const {
     isClientSupported,
-    isGenerating: isClientGenerating,
+    isGenerating: _isClientGenerating, // Unused but kept for potential future use
     isGeneratingIndividual: isClientGeneratingIndividual,
     progress: clientProgress,
     stage: clientStage,
@@ -231,7 +231,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     individualPdfsData: clientIndividualPdfsData,
     generatePdf: generateClientPdf,
     generateIndividualPdfs: generateClientIndividualPdfs,
-    handleDownloadPdf: handleClientDownloadPdf,
+    handleDownloadPdf: _handleClientDownloadPdf, // Unused but kept for potential future use
     clearPdfData: clearClientPdfData,
     getCapabilityReport
   } = useClientPdfGeneration({
@@ -259,7 +259,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       console.log("Transferring client individual PDFs to main state:", clientIndividualPdfsData.length, "files");
       setIndividualPdfsData(clientIndividualPdfsData);
     }
-  }, [clientIndividualPdfsData, setIndividualPdfsData]);
+  }, [clientIndividualPdfsData]); // setIndividualPdfsData is stable from useState
 
   const handleGeneratePdf = useCallback(async (useServer = false) => {
     // Use server-side only if explicitly requested AND in dev mode
@@ -347,8 +347,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     generateIndividualPdfs,
     startProgressiveGeneration,
     tableData.length,
-    clientIndividualPdfsData,
-    setIndividualPdfsData,
     localBlobUrl,
     uploadedFileUrl,
     uploadToServer
@@ -482,7 +480,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     setIndividualPdfsData(null);
     setShowResetFieldModal(false);
     setShowClearAllModal(false);
-  }, [setGeneratedPdfUrl, setIndividualPdfsData]);
+  }, []); // Both setters are stable from useState
 
   // Template handlers
   const handleLoadTemplate = useCallback(

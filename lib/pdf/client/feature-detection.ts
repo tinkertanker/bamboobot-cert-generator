@@ -142,13 +142,13 @@ export class FeatureDetector {
 
     // Try navigator.deviceMemory (Chrome)
     if ('deviceMemory' in navigator) {
-      info.deviceMemory = (navigator as any).deviceMemory;
+      info.deviceMemory = (navigator as unknown as { deviceMemory: number }).deviceMemory;
       info.available = true;
     }
 
     // Try performance.memory (Chrome)
     if ('memory' in performance) {
-      const memory = (performance as any).memory;
+      const memory = (performance as unknown as { memory: { totalJSHeapSize: number; usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
       if (memory) {
         info.totalJSHeapSize = memory.totalJSHeapSize;
         info.usedJSHeapSize = memory.usedJSHeapSize;
