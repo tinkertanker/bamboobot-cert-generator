@@ -231,11 +231,30 @@ export class ClientPdfGenerator {
    * Load template file
    */
   private async loadTemplate(url: string): Promise<ArrayBuffer> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to load template: ${response.statusText}`);
+    // Handle blob URLs directly
+    if (url.startsWith('blob:')) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to load blob template: ${response.statusText}`);
+      }
+      return response.arrayBuffer();
     }
-    return response.arrayBuffer();
+    
+    // Handle local paths (avoid CORS issues with remote URLs)
+    if (url.startsWith('/')) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to load local template: ${response.statusText}`);
+      }
+      return response.arrayBuffer();
+    }
+    
+    // Avoid fetching remote URLs to prevent CORS issues
+    if (url.startsWith('http')) {
+      throw new Error('Cannot load remote templates due to CORS. Please use local files or server-side generation.');
+    }
+    
+    throw new Error(`Invalid template URL: ${url}`);
   }
 
   /**

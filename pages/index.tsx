@@ -176,7 +176,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     handleFileDrop,
     clearFile,
     uploadError,
-    clearError
+    clearError,
+    localBlobUrl,
+    uploadToServer
   } = useFileUpload();
 
   // PDF generation hook (must come after file upload hook)
@@ -237,6 +239,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     positions,
     uploadedFile,
     uploadedFileUrl,
+    localBlobUrl,
     selectedNamingColumn,
     setSelectedNamingColumn,
     enabled: true // Always enabled, client-side is default
@@ -262,6 +265,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     // Use server-side only if explicitly requested AND in dev mode
     if (useServer && isDevelopment && devMode) {
       console.log("📡 Using SERVER-SIDE PDF generation (Dev Mode)");
+      // Ensure file is uploaded for server-side generation
+      if (localBlobUrl && !uploadedFileUrl?.startsWith('http')) {
+        console.log('Uploading file to server for server-side generation...');
+        await uploadToServer();
+      }
       await generatePdf();
     } else if (isClientSupported && !forceServerSide) {
       // Default to client-side if supported
@@ -270,6 +278,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     } else {
       // Fallback to server if client not supported
       console.log("📡 Using SERVER-SIDE PDF generation (Fallback)");
+      // Ensure file is uploaded for server-side generation
+      if (localBlobUrl && !uploadedFileUrl?.startsWith('http')) {
+        console.log('Uploading file to server for server-side generation...');
+        await uploadToServer();
+      }
       await generatePdf();
     }
   }, [
@@ -278,12 +291,20 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     isClientSupported,
     forceServerSide,
     generateClientPdf,
-    generatePdf
+    generatePdf,
+    localBlobUrl,
+    uploadedFileUrl,
+    uploadToServer
   ]);
 
   const handleGenerateIndividualPdfs = useCallback(async (useServer = false) => {
     // Use server-side only if explicitly requested AND in dev mode
     if (useServer && isDevelopment && devMode) {
+      // Ensure file is uploaded for server-side generation
+      if (localBlobUrl && !uploadedFileUrl?.startsWith('http')) {
+        console.log('Uploading file to server for server-side generation...');
+        await uploadToServer();
+      }
       // Server-side generation (Dev Mode only)
       if (tableData.length > PROGRESSIVE_PDF.TRIGGER_THRESHOLD) {
         console.log(`📡 Using PROGRESSIVE SERVER-SIDE generation for ${tableData.length} rows (Dev Mode)`);
@@ -304,6 +325,11 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       // The modal will pick them up via the props
     } else {
       // Fallback to server if client not supported
+      // Ensure file is uploaded for server-side generation
+      if (localBlobUrl && !uploadedFileUrl?.startsWith('http')) {
+        console.log('Uploading file to server for server-side generation...');
+        await uploadToServer();
+      }
       if (tableData.length > PROGRESSIVE_PDF.TRIGGER_THRESHOLD) {
         console.log(`📡 Using PROGRESSIVE SERVER-SIDE generation for ${tableData.length} rows (Fallback)`);
         await startProgressiveGeneration('individual');
@@ -322,7 +348,10 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     startProgressiveGeneration,
     tableData.length,
     clientIndividualPdfsData,
-    setIndividualPdfsData
+    setIndividualPdfsData,
+    localBlobUrl,
+    uploadedFileUrl,
+    uploadToServer
   ]);
 
   // Email configuration hook (must come after PDF generation hook)
@@ -1420,7 +1449,21 @@ Email Sending Robot`,
         certificateImageUrl={uploadedFileUrl || undefined}
         certificateFilename={(uploadedFile as string) || undefined}
         onSaveSuccess={handleSaveTemplateSuccess}
-        onManualSave={manualSave}
+        onManualSave={async (templateName) => {
+          // Ensure file is uploaded to server before saving project
+          if (localBlobUrl && !uploadedFileUrl?.startsWith('http')) {
+            console.log('Uploading file to server before saving project...');
+            try {
+              await uploadToServer();
+              // Wait a moment for state to update
+              await new Promise(resolve => setTimeout(resolve, 100));
+            } catch (error) {
+              console.error('Failed to upload file before saving:', error);
+              return { success: false, error: 'Failed to upload file to server' };
+            }
+          }
+          return manualSave(templateName);
+        }}
       />
 
       <LoadTemplateModal

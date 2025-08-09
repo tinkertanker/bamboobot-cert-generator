@@ -10,6 +10,8 @@ export interface UseClientPdfGenerationProps {
   positions: Positions;
   uploadedFile: File | string | null;
   uploadedFileUrl?: string | null;
+  localFileBlob?: Blob | null;
+  localBlobUrl?: string | null;
   selectedNamingColumn: string;
   setSelectedNamingColumn: (column: string) => void;
   enabled?: boolean;
@@ -37,6 +39,8 @@ export function useClientPdfGeneration({
   positions,
   uploadedFile,
   uploadedFileUrl,
+  localFileBlob,
+  localBlobUrl,
   selectedNamingColumn,
   setSelectedNamingColumn,
   enabled = true
@@ -174,39 +178,56 @@ export function useClientPdfGeneration({
 
   // Get template URL
   const getTemplateUrl = useCallback(() => {
-    // Prefer uploadedFileUrl if available (this is the actual PDF path)
-    if (uploadedFileUrl) {
-      // uploadedFileUrl might be a JPG/PNG, we need the PDF version
-      if (uploadedFileUrl.match(/\.(jpg|jpeg|png)$/i)) {
-        // Replace image extension with .pdf
-        const pdfUrl = uploadedFileUrl.replace(/\.(jpg|jpeg|png)$/i, '.pdf');
-        return pdfUrl;
-      }
-      return uploadedFileUrl;
+    // Priority 1: Use local blob URL if available (for user uploads)
+    if (localBlobUrl) {
+      console.log('Using local blob URL for template:', localBlobUrl);
+      return localBlobUrl;
     }
     
-    // Fallback to uploadedFile
-    if (typeof uploadedFile === 'string') {
-      // Check if it's already a full URL
-      if (uploadedFile.startsWith('http') || uploadedFile.startsWith('/')) {
-        return uploadedFile;
+    // Priority 2: Check uploadedFileUrl
+    if (uploadedFileUrl) {
+      // Use local paths or blob URLs directly
+      if (uploadedFileUrl.startsWith('/') || uploadedFileUrl.startsWith('blob:')) {
+        // Handle image to PDF conversion for local paths
+        if (uploadedFileUrl.match(/\.(jpg|jpeg|png)$/i)) {
+          const pdfUrl = uploadedFileUrl.replace(/\.(jpg|jpeg|png)$/i, '.pdf');
+          return pdfUrl;
+        }
+        return uploadedFileUrl;
       }
-      // Otherwise, assume it's in temp_images or template_images
-      if (uploadedFile.includes('dev-mode-template')) {
-        return `/template_images/${uploadedFile}`;
+      // Skip remote URLs to avoid CORS issues
+      if (uploadedFileUrl.startsWith('http')) {
+        console.warn('Skipping remote URL to avoid CORS:', uploadedFileUrl);
+        // Don't return remote URLs for client-side generation
       }
-      // Try to find the file in temp_images first
-      return `/temp_images/${uploadedFile}`;
-    } else if (uploadedFile instanceof File) {
+    }
+    
+    // Priority 3: Handle File objects
+    if (uploadedFile instanceof File) {
       // Handle Dev Mode template specially
       if (uploadedFile.name === 'dev-mode-template.pdf') {
         return '/template_images/dev-mode-template.pdf';
       }
-      // For other File objects, assume it's been uploaded to temp_images
-      return `/temp_images/${uploadedFile.name}`;
+      // For other File objects, we should have a localBlobUrl
+      console.warn('File object without blob URL, this should not happen');
     }
+    
+    // Priority 4: Handle string paths
+    if (typeof uploadedFile === 'string') {
+      // Check if it's already a local path
+      if (uploadedFile.startsWith('/')) {
+        return uploadedFile;
+      }
+      // Handle dev mode template
+      if (uploadedFile.includes('dev-mode-template')) {
+        return `/template_images/${uploadedFile}`;
+      }
+      // For other strings, assume they're filenames that need local paths
+      return `/temp_images/${uploadedFile}`;
+    }
+    
     return null;
-  }, [uploadedFile, uploadedFileUrl]);
+  }, [uploadedFile, uploadedFileUrl, localBlobUrl]);
 
   // Generate PDF client-side
   const generatePdf = useCallback(async () => {
