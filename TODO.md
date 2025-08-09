@@ -1,6 +1,11 @@
 # TODOs 
 
-## Current Priority Tasks 📌
+## Actual things I wanted to do. Maximum priority!
+
+- [ ] "Generated 1 Individual Certificates" -- see if this grammatical error occurs anywhere else
+- [ ] Check on what happens to email sending now that we moved PDF generation to client-side
+
+## Some stuff Claude came up with 
 
 ### 1. Data Validation (High Priority)
 - [ ] Visual indicators for empty required fields

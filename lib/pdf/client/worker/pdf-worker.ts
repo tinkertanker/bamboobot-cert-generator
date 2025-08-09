@@ -4,8 +4,10 @@
  */
 
 // Import statements for Web Worker context
-const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
-const fontkit = require('@pdf-lib/fontkit');
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
+import { FontManager } from '../font-manager';
+import type { FontFamily } from '@/types/certificate';
 
 // Message types for worker communication
 export interface WorkerRequest {
