@@ -157,6 +157,10 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 - Migrated from pnpm to npm
 - Added automated cleanup scripts with configurable retention
 - Consolidated to single `next.config.js` configuration
+- **Client-Side PDF Generation** 🆕 - PDFs can now be generated directly in the browser (Dev Mode only)
+  - Reduces server load and improves performance
+  - Automatic fallback to server-side for unsupported browsers
+  - See `docs/CLIENT_SIDE_PDF.md` for implementation details
 
 ## Common Development Tasks
 
