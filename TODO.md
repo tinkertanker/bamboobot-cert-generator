@@ -4,8 +4,9 @@
 
 - [x] "Generated 1 Individual Certificates" -- see if this grammatical error occurs anywhere else
 - [x] Check on what happens to email sending now that we moved PDF generation to client-side -- seems to be failing silently? 
-- [ ] index.ts is becoming a bit unwieldy and could do with some pruning. Maybe dev mode can be moved out?
+- [x] index.tsx is becoming a bit unwieldy and could do with some pruning. Maybe dev mode can be moved out?
 - [ ] What's going on with the "progressive" generation, now that we've moved client-side? Still needed? How can I test it? 
+- [ ] We should have some kind of email download links; see below. 
 
 ## Future Enhancement: Email Download Links for Client-Side PDFs
 
@@ -20,6 +21,8 @@ To implement download links for client-side PDFs:
 4. Send that URL in the email
 
 This would add complexity and negate some benefits of client-side generation (like reduced server load), so it's deferred until there's a clear need. 
+
+UI-wise, we would let the user decide this at the summary modal they get when they click generate. 
 
 ## Some stuff Claude came up with 
 

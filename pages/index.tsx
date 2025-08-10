@@ -16,7 +16,7 @@ import { usePdfGeneration } from "@/hooks/usePdfGeneration";
 import { useProgressivePdfGeneration } from "@/hooks/useProgressivePdfGeneration";
 import { useClientPdfGeneration } from "@/hooks/useClientPdfGeneration";
 // Removed ProgressivePdfModal - now using unified IndividualPdfsModal
-import { PROGRESSIVE_PDF, SPLIT_BUTTON_THEME } from "@/utils/constants";
+import { SPLIT_BUTTON_THEME } from "@/utils/constants";
 import {
   SkipBack,
   ChevronLeft,
@@ -41,13 +41,14 @@ import { ErrorModal } from "@/components/ui/error-alert";
 import { MobileWarningScreen } from "@/components/MobileWarningScreen";
 import { useMobileDetection } from "@/hooks/useMobileDetection";
 import { COLORS, GRADIENTS } from "@/utils/styles";
-import type { SavedTemplate } from "@/lib/template-storage";
 import { SplitButton } from "@/components/ui/split-button";
 import { useToast, ToastContainer } from "@/components/ui/toast";
 import { useTemplateAutosave } from "@/hooks/useTemplateAutosave";
-import { TemplateStorage } from "@/lib/template-storage";
 import { useSessionAutosave } from "@/hooks/useSessionAutosave";
-import { SessionStorage } from "@/lib/session-storage";
+import { useDevMode } from "@/hooks/useDevMode";
+import { DevModeControls } from "@/components/DevModeControls";
+import { usePdfGenerationMethods } from "@/hooks/usePdfGenerationMethods";
+import { useTemplateManagement } from "@/hooks/useTemplateManagement";
 
 export default function HomePage() {
   // ============================================================================
@@ -61,14 +62,13 @@ export default function HomePage() {
   // STATE & DATA MANAGEMENT
   // ============================================================================
 
-  // Preset data for dev mode (only available in development)
   const isDevelopment = process.env.NODE_ENV === "development";
-  const presetCSVData = isDevelopment
-    ? `Name,Department,Email
-Maximilienne Featherstone-Harrington III,Executive Leadership,a@a.com
-Bartholomäus von Quackenbusch-Wetherell,Innovation & Strategy,b@b.com
-Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
-    : "";
+
+  // Dev mode state (defined early to avoid dependency issues)
+  const [devMode, setDevMode] = useState<boolean>(false);
+  const [emailTemplate, setEmailTemplate] = useState<string>("");
+  const [numTestEmails, setNumTestEmails] = useState<number>(10);
+  const [forceServerSide, setForceServerSide] = useState<boolean>(false);
 
   // Table data management via custom hook
   const {
@@ -86,11 +86,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     loadSessionData
   } = useTableData();
 
-  const [devMode, setDevMode] = useState<boolean>(false);
-  const [emailTemplate, setEmailTemplate] = useState<string>("");
-  const [numTestEmails, setNumTestEmails] = useState<number>(10);
-  // Client-side is default (true), server-side is only for dev mode
-  const [forceServerSide, setForceServerSide] = useState<boolean>(false);
 
   // ============================================================================
   // CUSTOM HOOKS FOR FEATURE MANAGEMENT
@@ -108,19 +103,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   const [showResetFieldModal, setShowResetFieldModal] =
     useState<boolean>(false);
   const [showClearAllModal, setShowClearAllModal] = useState<boolean>(false);
-  const [showSaveTemplateModal, setShowSaveTemplateModal] =
-    useState<boolean>(false);
-  const [showLoadTemplateModal, setShowLoadTemplateModal] =
-    useState<boolean>(false);
-  const [showNewTemplateModal, setShowNewTemplateModal] =
-    useState<boolean>(false);
-  const [hasManuallySaved, setHasManuallySaved] = useState<boolean>(false);
-  const [currentTemplateName, setCurrentTemplateName] = useState<string | null>(
-    null
-  );
-  const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(
-    null
-  );
   const [hasInputFocus, setHasInputFocus] = useState<boolean>(false);
 
   // Drag and drop hook
@@ -249,107 +231,26 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   void isClientGenerating;
   void handleClientDownloadPdf;
 
-  // Wrapper functions for PDF generation (choose client or server)
-  // Transfer client-generated PDF URLs to main state when they change
-  useEffect(() => {
-    if (clientGeneratedPdfUrl) {
-      console.log("Transferring client PDF URL to main state:", clientGeneratedPdfUrl);
-      setGeneratedPdfUrl(clientGeneratedPdfUrl);
-    }
-  }, [clientGeneratedPdfUrl, setGeneratedPdfUrl]);
-
-  useEffect(() => {
-    if (clientIndividualPdfsData) {
-      console.log("Transferring client individual PDFs to main state:", clientIndividualPdfsData.length, "files");
-      setIndividualPdfsData(clientIndividualPdfsData);
-    }
-  }, [clientIndividualPdfsData, setIndividualPdfsData]);
-
-  // Helper function to determine PDF generation method
-  const getPdfGenerationMethod = useCallback(({
-    useServer,
-    forceServerSide: forceServer = false
-  }: {
-    useServer: boolean;
-    forceServerSide?: boolean;
-  }): "server" | "client" => {
-    // Priority 1: Explicit server request in dev mode
-    if (useServer && isDevelopment && devMode) {
-      return "server";
-    }
-    // Priority 2: Client-side if supported and not forced to server
-    if (isClientSupported && !forceServer) {
-      return "client";
-    }
-    // Priority 3: Fallback to server
-    return "server";
-  }, [isDevelopment, devMode, isClientSupported]);
-
-  // Helper function to ensure file is uploaded for server-side generation
-  const ensureFileUploadedForServer = useCallback(async () => {
-    if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
-      console.log('Uploading file to server for server-side generation...');
-      await uploadToServer();
-    }
-  }, [localBlobUrl, uploadedFileUrl, uploadToServer]);
-
-  const handleGeneratePdf = useCallback(async (useServer = false) => {
-    const method = getPdfGenerationMethod({ useServer, forceServerSide });
-    
-    if (method === "server") {
-      const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
-      console.log(`📡 Using SERVER-SIDE PDF generation ${reason}`);
-      await ensureFileUploadedForServer();
-      await generatePdf();
-    } else {
-      console.log("🚀 Using CLIENT-SIDE PDF generation");
-      await generateClientPdf();
-    }
-  }, [
-    getPdfGenerationMethod,
-    forceServerSide,
+  // PDF generation methods hook
+  const { handleGeneratePdf, handleGenerateIndividualPdfs } = usePdfGenerationMethods({
     isDevelopment,
     devMode,
-    ensureFileUploadedForServer,
-    generateClientPdf,
-    generatePdf
-  ]);
-
-  const handleGenerateIndividualPdfs = useCallback(async (useServer = false) => {
-    const method = getPdfGenerationMethod({ useServer, forceServerSide });
-    const isProgressive = tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD;
-    
-    if (method === "server") {
-      const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
-      await ensureFileUploadedForServer();
-      
-      if (isProgressive) {
-        console.log(`📡 Using PROGRESSIVE SERVER-SIDE generation for ${tableData.length} rows ${reason}`);
-        await startProgressiveGeneration('individual');
-      } else {
-        console.log(`📡 Using SERVER-SIDE generation for ${tableData.length} rows ${reason}`);
-        await generateIndividualPdfs();
-      }
-    } else {
-      console.log(`🚀 Using CLIENT-SIDE generation for ${tableData.length} rows`);
-      if (isProgressive) {
-        console.log(`   ⚠️ Note: Large dataset - using progressive generation`);
-        // TODO: Implement progressive/batch generation in client for better memory management
-      }
-      await generateClientIndividualPdfs();
-      // Note: Results are automatically set in clientIndividualPdfsData
-    }
-  }, [
-    getPdfGenerationMethod,
     forceServerSide,
-    tableData.length,
-    isDevelopment,
-    devMode,
-    ensureFileUploadedForServer,
-    startProgressiveGeneration,
+    isClientSupported,
+    tableData,
+    localBlobUrl,
+    uploadedFileUrl,
+    generatePdf,
     generateIndividualPdfs,
-    generateClientIndividualPdfs
-  ]);
+    startProgressiveGeneration,
+    setGeneratedPdfUrl,
+    setIndividualPdfsData,
+    generateClientPdf,
+    generateClientIndividualPdfs,
+    clientGeneratedPdfUrl,
+    clientIndividualPdfsData,
+    uploadToServer
+  });
 
   // Email configuration hook (must come after PDF generation hook)
   const {
@@ -364,11 +265,94 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     individualPdfsData
   });
 
+  // Dev mode hook (must come after file upload, PDF generation, and email config hooks)
+  const { handleDevModeToggle, handleEmailTemplateUpdate } = useDevMode({
+    isDevelopment,
+    devMode,
+    setDevMode,
+    emailTemplate,
+    setEmailTemplate,
+    numTestEmails,
+    setNumTestEmails,
+    forceServerSide,
+    setForceServerSide,
+    loadPresetData,
+    clearData,
+    clearFile,
+    clearPositions,
+    clearPdfData,
+    setUploadedFileUrl,
+    setUploadedFile,
+    setEmailConfig
+  });
+
   // Toast notifications
   const { toasts, showToast, hideToast } = useToast();
 
-  // Template autosave hook - updates existing template after manual save
-  const { manualSave } = useTemplateAutosave({
+  // Early autosave hook for manual save function
+  const { manualSave: baseManualSave } = useTemplateAutosave({
+    positions,
+    columns: Object.keys(tableData[0] || {}),
+    emailConfig,
+    certificateImageUrl: uploadedFileUrl,
+    certificateFilename: uploadedFile as string | null,
+    tableData,
+    onAutosave: () => {
+      // Silent autosave - no toast notification
+      console.log("Project autosaved");
+    },
+    enabled: false, // Base hook is disabled, only used for manual save
+    currentTemplateId: null,
+    currentTemplateName: null
+  });
+
+  // Template management hook
+  const {
+    currentTemplateName,
+    currentTemplateId,
+    hasManuallySaved,
+    showSaveTemplateModal,
+    showLoadTemplateModal,
+    showNewTemplateModal,
+    setShowSaveTemplateModal,
+    setShowLoadTemplateModal,
+    setShowNewTemplateModal,
+    handleLoadTemplate,
+    handleSaveTemplateSuccess,
+    handleSaveToCurrentTemplate,
+    handleNewTemplate,
+    confirmNewTemplate
+  } = useTemplateManagement({
+    setPositions,
+    setEmailConfig,
+    setUploadedFileUrl,
+    setUploadedFile,
+    loadSessionData,
+    uploadToServer,
+    showToast,
+    manualSave: baseManualSave,
+    uploadedFileUrl,
+    uploadedFile,
+    positions,
+    emailConfig,
+    tableData,
+    clearFile,
+    clearPositions,
+    clearDragState,
+    clearData
+  });
+
+  // Session data autosave hook (only enabled after manual save)
+  useSessionAutosave({
+    tableData,
+    tableInput,
+    isFirstRowHeader,
+    useCSVMode,
+    enabled: hasManuallySaved && tableData.length > 0
+  });
+
+  // Template autosave hook - actually enables autosave after manual save
+  useTemplateAutosave({
     positions,
     columns: Object.keys(tableData[0] || {}),
     emailConfig,
@@ -384,91 +368,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     currentTemplateName
   });
 
-  // Session data autosave hook (only enabled after manual save)
-  useSessionAutosave({
-    tableData,
-    tableInput,
-    isFirstRowHeader,
-    useCSVMode,
-    enabled: hasManuallySaved && tableData.length > 0
-  });
-
-  // Load most recent template and session data on startup
-  useEffect(() => {
-    const loadStartupData = async () => {
-      try {
-        // First, try to load session data
-        const session = SessionStorage.loadSession();
-        if (session) {
-          console.log("Loading saved session data");
-
-          // Check if session is not too old (24 hours)
-          const sessionAge = SessionStorage.getSessionAge();
-          if (sessionAge && sessionAge < 24 * 60 * 60 * 1000) {
-            // Load the table data with explicit settings
-            await loadSessionData(
-              session.tableInput,
-              session.useCSVMode,
-              session.isFirstRowHeader
-            );
-
-            showToast({
-              message: "Session data restored",
-              type: "info",
-              duration: 2000
-            });
-          } else {
-            // Session too old, clear it
-            SessionStorage.clearSession();
-          }
-        }
-
-        // Then load the most recent template
-        const template = await TemplateStorage.getMostRecentTemplate();
-
-        if (template) {
-          console.log("Loading most recent template:", template.name);
-
-          // Load the positions
-          setPositions(template.positions);
-
-          // Load email configuration if present
-          if (template.emailConfig) {
-            setEmailConfig(template.emailConfig);
-          }
-
-          // Load the certificate image
-          if (template.certificateImage.url) {
-            setUploadedFileUrl(template.certificateImage.url);
-            setUploadedFile(template.certificateImage.filename);
-          }
-
-          showToast({
-            message: `Loaded project: ${template.name}`,
-            type: "info",
-            duration: 3000
-          });
-
-          // Enable autosave since we loaded saved work
-          setHasManuallySaved(true);
-          setCurrentTemplateName(template.name);
-        }
-      } catch (error) {
-        console.error("Error loading startup data:", error);
-      }
-    };
-
-    // Only load on initial mount
-    loadStartupData();
-  }, [
-    loadSessionData,
-    setEmailConfig,
-    setPositions,
-    setUploadedFile,
-    setUploadedFileUrl,
-    showToast
-  ]); // Include stable dependencies
-
   // ============================================================================
   // EVENT HANDLERS & BUSINESS LOGIC
   // ============================================================================
@@ -480,203 +379,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     setShowResetFieldModal(false);
     setShowClearAllModal(false);
   }, [setGeneratedPdfUrl, setIndividualPdfsData]); // Include setters for completeness
-
-  // Template handlers
-  const handleLoadTemplate = useCallback(
-    async (template: SavedTemplate) => {
-      // Load the positions
-      setPositions(template.positions);
-
-      // Load the table data
-      if (template.tableData && template.tableData.length > 0) {
-        // Convert tableData array back to TSV format for loading
-        const headers = template.columns;
-        const rows = template.tableData.map(row => {
-          return headers.map(col => row[col] || "").join("\t");
-        });
-        const tsvData = [headers.join("\t"), ...rows].join("\n");
-        
-        // Load the data using loadSessionData
-        const IS_BINARY = false;
-        const HAS_HEADERS = true;
-        await loadSessionData(tsvData, IS_BINARY, HAS_HEADERS);
-        console.log(`Loaded ${template.tableData.length} rows of data`);
-      } else if (template.columns.length > 0) {
-        // If no data but has columns, create empty row with those columns
-        const headers = template.columns;
-        const emptyRow = headers.map(() => "").join("\t");
-        const tsvData = [headers.join("\t"), emptyRow].join("\n");
-        
-        const IS_BINARY = false;
-        const HAS_HEADERS = true;
-        await loadSessionData(tsvData, IS_BINARY, HAS_HEADERS);
-        console.log("Project expects columns:", template.columns);
-      }
-
-      // Load email configuration if present
-      if (template.emailConfig) {
-        setEmailConfig(template.emailConfig);
-      }
-      
-      // Set current template info and enable autosave
-      setCurrentTemplateId(template.id);
-      setCurrentTemplateName(template.name);
-      setHasManuallySaved(true);
-
-      // Update the certificate image URL and file
-      if (template.certificateImage.url) {
-        setUploadedFileUrl(template.certificateImage.url);
-        setUploadedFile(template.certificateImage.filename);
-      }
-
-      console.log("Project loaded successfully:", template.name);
-      // Enable autosave after loading a template
-      setHasManuallySaved(true);
-      setCurrentTemplateName(template.name);
-    },
-    [
-      setPositions,
-      setEmailConfig,
-      setUploadedFileUrl,
-      setUploadedFile,
-      loadSessionData
-    ]
-  );
-
-  const handleSaveTemplateSuccess = useCallback(
-    (templateId: string, templateName: string) => {
-      console.log("Project saved successfully:", {
-        id: templateId,
-        name: templateName
-      });
-      showToast({
-        message: `Project "${templateName}" saved successfully`,
-        type: "success",
-        duration: 3000
-      });
-      setShowSaveTemplateModal(false);
-      // Enable autosave after manual save
-      setHasManuallySaved(true);
-      setCurrentTemplateName(templateName);
-      setCurrentTemplateId(templateId);
-    },
-    [showToast]
-  );
-
-  // Save to current template (no modal)
-  const handleSaveToCurrentTemplate = useCallback(async () => {
-    if (!currentTemplateName || !uploadedFileUrl || !uploadedFile) return;
-
-    let finalUrl = uploadedFileUrl;
-    let finalFilename = uploadedFile as string;
-
-    // If the file hasn't been uploaded to server yet (blob URL), upload it first
-    if (uploadedFileUrl.startsWith('blob:')) {
-      console.log("Uploading file to server before saving project...");
-      try {
-        const uploadResult = await uploadToServer();
-        if (uploadResult) {
-          finalUrl = uploadResult.image;
-          finalFilename = uploadResult.filename;
-          console.log("File uploaded, using server URL:", finalUrl);
-        }
-      } catch (error) {
-        console.error("Failed to upload file before saving:", error);
-        showToast({
-          message: "Failed to upload file to server",
-          type: "error",
-          duration: 3000
-        });
-        return;
-      }
-    }
-
-    const result = await manualSave(currentTemplateName, finalUrl, finalFilename);
-
-    if (result.success) {
-      // Show subtle feedback that it was saved
-      showToast({
-        message: "Project saved",
-        type: "success",
-        duration: 2000
-      });
-    } else {
-      showToast({
-        message: result.error || "Failed to save project",
-        type: "error",
-        duration: 3000
-      });
-    }
-  }, [
-    currentTemplateName,
-    uploadedFileUrl,
-    uploadedFile,
-    uploadToServer,
-    manualSave,
-    showToast
-  ]);
-
-  // Handle new template
-  const handleNewTemplate = useCallback(() => {
-    // Check if there's any work to save
-    const hasWork =
-      uploadedFileUrl && (Object.keys(positions).length > 0 || emailConfig);
-
-    if (hasWork) {
-      setShowNewTemplateModal(true);
-    } else {
-      // No work to save, just clear everything
-      clearFile();
-      clearPositions();
-      clearDragState();
-      setEmailConfig({
-        senderName: "",
-        subject: "",
-        message: "",
-        deliveryMethod: "download",
-        isConfigured: false
-      });
-    }
-  }, [
-    uploadedFileUrl,
-    positions,
-    emailConfig,
-    clearFile,
-    clearPositions,
-    clearDragState,
-    setEmailConfig
-  ]);
-
-  const confirmNewTemplate = useCallback(() => {
-    clearFile();
-    clearPositions();
-    clearDragState();
-    clearData(); // Clear table data
-    SessionStorage.clearSession(); // Clear saved session
-    setEmailConfig({
-      senderName: "",
-      subject: "",
-      message: "",
-      deliveryMethod: "download",
-      isConfigured: false
-    });
-    setShowNewTemplateModal(false);
-    setHasManuallySaved(false); // Reset autosave state
-    setCurrentTemplateName(null); // Reset template name
-    setCurrentTemplateId(null); // Reset template ID
-    showToast({
-      message: "New project started",
-      type: "info",
-      duration: 2000
-    });
-  }, [
-    clearFile,
-    clearPositions,
-    clearDragState,
-    clearData,
-    setEmailConfig,
-    showToast
-  ]);
 
   // Track input focus state globally
   useEffect(() => {
@@ -720,155 +422,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     onEscapePressed: handleEscapePressed
   });
 
-  // ============================================================================
-  // DEV MODE HELPER FUNCTIONS
-  // ============================================================================
-
-  const generateEmailTestData = (baseEmail: string, count: number): string => {
-    if (!baseEmail || !baseEmail.includes("@")) {
-      return presetCSVData; // Fallback to original preset data
-    }
-
-    const [localPart, domain] = baseEmail.split("@");
-    const headers = "Name,Department,Email";
-    const rows = Array.from({ length: count }, (_, i) => {
-      const emailWithPlus = `${localPart}+${i + 1}@${domain}`;
-      const names = [
-        "Alex Johnson",
-        "Jordan Smith",
-        "Casey Brown",
-        "Riley Davis",
-        "Morgan Wilson",
-        "Avery Miller",
-        "Quinn Garcia",
-        "Blake Martinez",
-        "Cameron Anderson",
-        "Drew Taylor",
-        "Ellis Thompson",
-        "Finley White",
-        "Harper Lewis",
-        "Indigo Clark",
-        "Jamie Rodriguez",
-        "Kai Walker",
-        "Lane Robinson",
-        "Micah Hall",
-        "Nova Young",
-        "Oakley King"
-      ];
-      const departments = [
-        "Engineering",
-        "Marketing",
-        "Sales",
-        "HR",
-        "Finance",
-        "Operations",
-        "Design",
-        "Legal",
-        "Research",
-        "Support"
-      ];
-
-      const name = names[i % names.length];
-      const department = departments[i % departments.length];
-
-      return `${name},${department},${emailWithPlus}`;
-    });
-
-    return [headers, ...rows].join("\n");
-  };
-
-  // ============================================================================
-  // DEV MODE HANDLER (after hooks)
-  // ============================================================================
-
-  const handleEmailTemplateUpdate = () => {
-    if (!isDevelopment || !devMode) return;
-
-    console.log("🔧 Dev Mode: Updating email template data...");
-    const testData = emailTemplate
-      ? generateEmailTestData(emailTemplate, numTestEmails)
-      : presetCSVData;
-    loadPresetData(testData);
-  };
-
-  const handleDevModeToggle = () => {
-    if (!isDevelopment) return; // Safety check - only works in development
-
-    setDevMode((prev) => {
-      const newValue = !prev;
-      if (newValue) {
-        console.log("🔧 Dev Mode: Enabling...");
-
-        // Enable dev mode: load preset data and template
-        console.log("🔧 Dev Mode: Loading preset data...");
-        const testData = emailTemplate
-          ? generateEmailTestData(emailTemplate, numTestEmails)
-          : presetCSVData;
-        
-        // Load data asynchronously
-        loadPresetData(testData).then(() => {
-          console.log("🔧 Dev Mode: Data loaded successfully");
-        }).catch(err => {
-          console.error("🔧 Dev Mode: Failed to load data:", err);
-        });
-
-        // Use existing template files in dev mode
-        if (isDevelopment) {
-          const existingImage = "/template_images/dev-mode-template.jpg"; // Dev mode template
-          console.log("🔧 Dev Mode: Setting template image:", existingImage);
-          setUploadedFileUrl(existingImage);
-        }
-
-        // Use the dev mode template PDF
-        const existingPdf = "dev-mode-template.pdf"; // Using dev mode template
-        const mockFile = new File([""], existingPdf, {
-          type: "application/pdf"
-        });
-        setUploadedFile(mockFile);
-        console.log("🔧 Dev Mode: Using existing PDF:", existingPdf);
-
-        // Pre-fill email configuration in dev mode
-        // Use setTimeout to ensure this runs after the email column detection
-        setTimeout(() => {
-          console.log("🔧 Dev Mode: Setting email config (delayed)...");
-          // Don't log detectedEmailColumn here as it might be stale from closure
-          setEmailConfig({
-            senderName: "Bamboobot Testing",
-            subject: "Your Certificate of Completion",
-            message: `Hi there,
-
-Congratulations on completing the program! Your certificate is ready.
-
-Please find your certificate attached to this email or use the download link below.
-
-Best regards,
-Bamboobot
-Email Sending Robot`,
-            deliveryMethod: "download",
-            isConfigured: true
-          });
-          console.log("🔧 Dev Mode: Email config set!");
-        }, 500); // Increased delay to ensure email column detection completes first
-
-        console.log("Dev mode enabled: preset template and data loaded");
-      } else {
-        // Disable dev mode: clear data
-        clearData();
-        clearFile();
-        clearPositions();
-        clearPdfData();
-        setEmailConfig({
-          senderName: "",
-          subject: "",
-          message: "",
-          deliveryMethod: "download",
-          isConfigured: false
-        });
-        console.log("Dev mode disabled: data cleared");
-      }
-      return newValue;
-    });
-  };
 
   // ============================================================================
   // TABLE CONFIGURATION
@@ -942,85 +495,22 @@ Email Sending Robot`,
               </h1>
             </div>
             {/* Dev Mode Controls - Only visible in development */}
-            {isDevelopment && (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg border">
-                  <input
-                    type="checkbox"
-                    id="dev-mode-toggle"
-                    checked={devMode}
-                    onChange={handleDevModeToggle}
-                    className="w-4 h-4"
-                  />
-                  <label
-                    htmlFor="dev-mode-toggle"
-                    className="text-sm font-medium text-gray-700">
-                    Dev Mode
-                  </label>
-                </div>
-
-                {/* Server-side PDF Toggle - Only when dev mode is on */}
-                {devMode && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 rounded-lg border border-yellow-200">
-                    <input
-                      type="checkbox"
-                      id="server-pdf-toggle"
-                      checked={forceServerSide}
-                      onChange={(e) => {
-                        setForceServerSide(e.target.checked);
-                        console.log(`📄 PDF Generation: ${e.target.checked ? 'SERVER-SIDE 📡' : 'CLIENT-SIDE 🚀'}`);
-                        if (!e.target.checked && isClientSupported) {
-                          // Log capability report when switching to client
-                          getCapabilityReport().then(report => {
-                            console.log(report);
-                          });
-                        }
-                      }}
-                      className="w-4 h-4"
-                    />
-                    <label
-                      htmlFor="server-pdf-toggle"
-                      className="text-sm font-medium text-yellow-700">
-                      Force Server-Side
-                    </label>
-                    {!forceServerSide && clientStage && (
-                      <span className="text-xs text-blue-600 ml-2">
-                        Client: {clientStage} {clientProgress > 0 && `${Math.round(clientProgress * 100)}%`}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Email Template Controls - Only when dev mode is on */}
-                {devMode && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-lg border border-blue-200">
-                    <input
-                      type="email"
-                      placeholder="test@gmail.com"
-                      value={emailTemplate}
-                      onChange={(e) => setEmailTemplate(e.target.value)}
-                      className="w-40 px-2 py-1 text-xs border rounded"
-                    />
-                    <input
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={numTestEmails}
-                      onChange={(e) =>
-                        setNumTestEmails(parseInt(e.target.value) || 10)
-                      }
-                      className="w-12 px-1 py-1 text-xs border rounded text-center"
-                    />
-                    <button
-                      onClick={handleEmailTemplateUpdate}
-                      className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-                      disabled={!emailTemplate || !emailTemplate.includes("@")}>
-                      Generate
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            <DevModeControls
+              isDevelopment={isDevelopment}
+              devMode={devMode}
+              handleDevModeToggle={handleDevModeToggle}
+              forceServerSide={forceServerSide}
+              setForceServerSide={setForceServerSide}
+              isClientSupported={isClientSupported}
+              getCapabilityReport={getCapabilityReport}
+              clientStage={clientStage}
+              clientProgress={clientProgress}
+              emailTemplate={emailTemplate}
+              setEmailTemplate={setEmailTemplate}
+              numTestEmails={numTestEmails}
+              setNumTestEmails={setNumTestEmails}
+              handleEmailTemplateUpdate={handleEmailTemplateUpdate}
+            />
           </div>
           <div className="flex gap-3">
             {/* Projects Split Button */}
@@ -1490,7 +980,7 @@ Email Sending Robot`,
               return { success: false, error: 'Failed to upload file to server' };
             }
           }
-          return manualSave(templateName, finalUrl ?? undefined, finalFilename ?? undefined);
+          return baseManualSave(templateName, finalUrl ?? undefined, finalFilename ?? undefined);
         }}
       />
 
