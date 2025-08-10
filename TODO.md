@@ -2,8 +2,9 @@
 
 ## Actual things I wanted to do. Maximum priority!
 
-- [ ] "Generated 1 Individual Certificates" -- see if this grammatical error occurs anywhere else
-- [ ] Check on what happens to email sending now that we moved PDF generation to client-side
+- [x] "Generated 1 Individual Certificates" -- see if this grammatical error occurs anywhere else
+- [ ] Check on what happens to email sending now that we moved PDF generation to client-side -- seems to be failing silently? 
+- [ ] index.ts is becoming a bit unwieldy and could do with some pruning. Maybe dev mode can be moved out? 
 
 ## Some stuff Claude came up with 
 

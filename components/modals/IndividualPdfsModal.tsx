@@ -200,7 +200,7 @@ export function IndividualPdfsModal({
       ) : individualPdfsData ? (
         <>
           <h2 className="text-2xl font-bold mb-4">
-            Generated {individualPdfsData.length} Individual Certificates
+            Generated {individualPdfsData.length} Individual Certificate{individualPdfsData.length !== 1 ? 's' : ''}
           </h2>
 
           {/* File Naming Controls */}
