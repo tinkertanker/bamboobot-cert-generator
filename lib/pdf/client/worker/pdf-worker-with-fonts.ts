@@ -23,9 +23,43 @@ async function initializeFontkit() {
       // Dynamic import for better webpack handling
       fontkitModule = await import('@pdf-lib/fontkit');
       console.log('Fontkit initialized successfully');
-    } catch (error) {
-      console.error('Failed to initialize fontkit:', error);
-      throw error;
+    } catch (error: unknown) {
+      let reason = 'Unknown error';
+      let errorCode = 'UNKNOWN';
+      
+      if (error && typeof error === 'object' && 'message' in error) {
+        const errorMessage = String(error.message);
+        
+        // Check for specific error types
+        if (errorMessage.includes('Cannot find module') || 
+            (error as any).code === 'MODULE_NOT_FOUND') {
+          reason = 'Module not found: @pdf-lib/fontkit';
+          errorCode = 'MODULE_NOT_FOUND';
+        } else if (errorMessage.includes('Failed to fetch') || 
+                   errorMessage.includes('NetworkError')) {
+          reason = 'Network error while loading @pdf-lib/fontkit';
+          errorCode = 'NETWORK_ERROR';
+        } else if (errorMessage.includes('Syntax') || 
+                   errorMessage.includes('parse')) {
+          reason = 'Module parsing error: @pdf-lib/fontkit may be corrupted';
+          errorCode = 'PARSE_ERROR';
+        } else {
+          reason = errorMessage;
+          errorCode = 'IMPORT_ERROR';
+        }
+      }
+      
+      const detailedError = new Error(`Failed to initialize fontkit: ${reason}`) as any;
+      detailedError.code = errorCode;
+      detailedError.originalError = error;
+      
+      console.error('Fontkit initialization failed:', {
+        reason,
+        code: errorCode,
+        originalError: error
+      });
+      
+      throw detailedError;
     }
   }
   return fontkitModule.default || fontkitModule;
