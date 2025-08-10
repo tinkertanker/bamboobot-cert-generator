@@ -1490,7 +1490,7 @@ Email Sending Robot`,
               return { success: false, error: 'Failed to upload file to server' };
             }
           }
-          return manualSave(templateName, finalUrl, finalFilename);
+          return manualSave(templateName, finalUrl ?? undefined, finalFilename ?? undefined);
         }}
       />
 

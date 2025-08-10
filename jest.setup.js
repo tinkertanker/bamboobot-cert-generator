@@ -30,3 +30,7 @@ jest.mock('next/navigation', () => ({
 
 // Mock the global fetch
 global.fetch = jest.fn();
+
+// Mock URL.createObjectURL and URL.revokeObjectURL for blob handling
+global.URL.createObjectURL = jest.fn(() => 'blob:mock-url');
+global.URL.revokeObjectURL = jest.fn();
