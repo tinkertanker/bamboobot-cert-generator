@@ -3,8 +3,23 @@
 ## Actual things I wanted to do. Maximum priority!
 
 - [x] "Generated 1 Individual Certificates" -- see if this grammatical error occurs anywhere else
-- [ ] Check on what happens to email sending now that we moved PDF generation to client-side -- seems to be failing silently? 
-- [ ] index.ts is becoming a bit unwieldy and could do with some pruning. Maybe dev mode can be moved out? 
+- [x] Check on what happens to email sending now that we moved PDF generation to client-side -- seems to be failing silently? 
+- [ ] index.ts is becoming a bit unwieldy and could do with some pruning. Maybe dev mode can be moved out?
+- [ ] What's going on with the "progressive" generation, now that we've moved client-side? Still needed? How can I test it? 
+
+## Future Enhancement: Email Download Links for Client-Side PDFs
+
+Currently, when using client-side PDF generation:
+- ✅ **Email attachments work** - PDFs are sent directly as attachments
+- ❌ **Download links don't work** - Would require uploading PDFs to cloud storage first
+
+To implement download links for client-side PDFs:
+1. When "Download Link" is selected with client-side PDFs
+2. Upload each PDF to cloud storage (R2/S3) via a new API endpoint
+3. Get back the public URL
+4. Send that URL in the email
+
+This would add complexity and negate some benefits of client-side generation (like reduced server load), so it's deferred until there's a clear need. 
 
 ## Some stuff Claude came up with 
 

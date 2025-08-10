@@ -79,7 +79,7 @@ export function useEmailConfig({
   // Send individual certificate via email
   const sendCertificateEmail = useCallback(async (
     index: number,
-    file: { filename: string; url: string; originalIndex: number }
+    file: { filename: string; url: string; originalIndex: number; data?: Uint8Array }
   ) => {
     if (
       !detectedEmailColumn ||
@@ -119,24 +119,39 @@ export function useEmailConfig({
         recipientName
       );
 
+      // Prepare email data
+      const emailData: any = {
+        to: recipientEmail,
+        subject: emailConfig.subject,
+        recipientName: recipientName,
+        senderName: emailConfig.senderName,
+        customMessage: personalizedMessage,
+        deliveryMethod: emailConfig.deliveryMethod,
+        attachmentName: file.filename
+      };
+
+      // Handle client-side vs server-side PDFs
+      if (file.data && file.url.startsWith('blob:')) {
+        // Client-side generated PDF - always use attachment mode
+        // Convert Uint8Array to regular array for JSON serialization
+        emailData.attachmentData = Array.from(file.data);
+        // Override delivery method to attachment for client-side PDFs
+        emailData.deliveryMethod = "attachment";
+      } else {
+        // Server-side generated PDF - use URLs
+        if (emailConfig.deliveryMethod === "attachment") {
+          emailData.attachmentUrl = file.url;
+        } else {
+          emailData.downloadUrl = file.url;
+        }
+      }
+
       const response = await fetch("/api/send-email", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          to: recipientEmail,
-          subject: emailConfig.subject,
-          recipientName: recipientName,
-          senderName: emailConfig.senderName,
-          customMessage: personalizedMessage,
-          deliveryMethod: emailConfig.deliveryMethod,
-          attachmentUrl:
-            emailConfig.deliveryMethod === "attachment" ? file.url : null,
-          downloadUrl:
-            emailConfig.deliveryMethod === "download" ? file.url : null,
-          attachmentName: file.filename
-        })
+        body: JSON.stringify(emailData)
       });
 
       const result = await response.json();

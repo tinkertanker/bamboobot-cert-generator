@@ -3,6 +3,14 @@ import { getEmailProvider } from '@/lib/email/provider-factory';
 import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
 import type { EmailAttachment } from '@/lib/email/types';
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb' // Increase limit to handle PDF attachments
+    }
+  }
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -19,6 +27,7 @@ export default async function handler(
       customMessage,
       deliveryMethod,
       attachmentUrl,
+      attachmentData, // Base64 or Uint8Array data for client-side PDFs
       downloadUrl,
       attachmentName 
     } = req.body;
@@ -64,12 +73,34 @@ Important: This download link will expire in 90 days. Please save your certifica
     };
 
     // Handle attachments if delivery method is attachment
-    if (deliveryMethod === 'attachment' && attachmentUrl) {
-      emailParams.attachments = [{
-        filename: attachmentName || 'certificate.pdf',
-        path: attachmentUrl, // Let the provider handle fetching
-        contentType: 'application/pdf'
-      }];
+    if (deliveryMethod === 'attachment') {
+      if (attachmentData) {
+        // Client-side generated PDF - convert data to Buffer
+        let pdfBuffer: Buffer;
+        
+        if (typeof attachmentData === 'string') {
+          // Base64 string
+          pdfBuffer = Buffer.from(attachmentData, 'base64');
+        } else if (Array.isArray(attachmentData)) {
+          // Uint8Array sent as array
+          pdfBuffer = Buffer.from(attachmentData);
+        } else {
+          throw new Error('Invalid attachment data format');
+        }
+        
+        emailParams.attachments = [{
+          filename: attachmentName || 'certificate.pdf',
+          content: pdfBuffer,
+          contentType: 'application/pdf'
+        }];
+      } else if (attachmentUrl) {
+        // Server-side generated PDF - use URL
+        emailParams.attachments = [{
+          filename: attachmentName || 'certificate.pdf',
+          path: attachmentUrl, // Let the provider handle fetching
+          contentType: 'application/pdf'
+        }];
+      }
     }
 
     // Send email using the provider (works with both Resend and SES)
