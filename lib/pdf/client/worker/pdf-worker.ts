@@ -8,6 +8,12 @@ import { PDFDocument, rgb, StandardFonts, PDFFont } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { FontManager } from '../font-manager';
 import type { FontFamily } from '@/types/certificate';
+import { 
+  scaleFontSize,
+  calculateMultilineY 
+} from '../../shared/coordinate-transform';
+// Note: This file has local implementations of selectFont and embedStandardFonts
+// It's not used at runtime (pdf-worker-with-fonts.ts is used instead)
 
 // Import FontVariant type
 interface FontVariant {
