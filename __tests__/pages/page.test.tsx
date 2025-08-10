@@ -50,14 +50,15 @@ describe('MainPage Component', () => {
     });
     fireEvent.change(fileInput);
     
-    // Check if fetch was called with the right arguments
+    // With client-side generation, files are kept as blob URLs locally
+    // No immediate upload to server should happen
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
+      // The file should be processed locally, creating a blob URL
+      expect(global.URL.createObjectURL).toHaveBeenCalled();
+      // No server upload should occur immediately
+      expect(global.fetch).not.toHaveBeenCalledWith(
         '/api/upload',
-        expect.objectContaining({
-          method: 'POST',
-          body: expect.any(FormData),
-        })
+        expect.anything()
       );
     });
   });
