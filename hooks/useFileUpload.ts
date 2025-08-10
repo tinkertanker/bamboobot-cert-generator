@@ -12,7 +12,7 @@ export interface UseFileUploadReturn {
   setUploadedFile: (file: File | string | null) => void;
   setUploadedFileUrl: (url: string | null) => void;
   processFile: (file: File, isTemplate?: boolean, skipUpload?: boolean) => Promise<void>;
-  uploadToServer: () => Promise<void>;  // New: explicitly upload when needed
+  uploadToServer: () => Promise<{ image: string; filename: string } | undefined>;  // New: explicitly upload when needed
   handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
   handleDragLeave: (event: React.DragEvent<HTMLDivElement>) => void;
