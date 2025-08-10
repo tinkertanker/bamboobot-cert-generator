@@ -12,7 +12,7 @@ import type {
   GeneratePayload,
   Position,
   Entry 
-} from './worker/pdf-worker';
+} from './worker/worker-types';
 import type { PdfGenerationProgress } from '../types';
 import { PROGRESSIVE_PDF } from '@/utils/constants';
 

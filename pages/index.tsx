@@ -317,7 +317,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
 
   const handleGenerateIndividualPdfs = useCallback(async (useServer = false) => {
     const method = getPdfGenerationMethod({ useServer, forceServerSide });
-    const isProgressive = tableData.length > PROGRESSIVE_PDF.TRIGGER_THRESHOLD;
+    const isProgressive = tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD;
     
     if (method === "server") {
       const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
