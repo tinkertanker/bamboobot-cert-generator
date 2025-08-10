@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2020", "WebWorker"],
+    "isolatedModules": false,
+    "noEmit": false,
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "node"
+  },
+  "include": [
+    "lib/pdf/client/worker/**/*",
+    "lib/pdf/client/font-manager.ts",
+    "lib/pdf/shared/**/*",
+    "utils/pdf-text-utils.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}

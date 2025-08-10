@@ -293,7 +293,13 @@ export function IndividualPdfsModal({
                         variant="outline"
                         title="Open PDF"
                         onClick={() => {
-                          window.open(file.url, "_blank");
+                          // For blob URLs, open directly in new tab
+                          if (file.url.startsWith('blob:')) {
+                            window.open(file.url, "_blank");
+                          } else {
+                            // For server URLs, use the original logic
+                            window.open(file.url, "_blank");
+                          }
                         }}
                         className="h-8 w-8 p-0">
                         <ExternalLink className="h-4 w-4" />
@@ -303,9 +309,20 @@ export function IndividualPdfsModal({
                         variant="outline"
                         title="Download PDF"
                         onClick={() => {
-                          // Use force-download API to ensure proper download
-                          const downloadUrl = `/api/force-download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(filename)}`;
-                          window.location.href = downloadUrl;
+                          // Check if it's a blob URL (client-side generated)
+                          if (file.url.startsWith('blob:')) {
+                            // For blob URLs, create a download link directly
+                            const a = document.createElement('a');
+                            a.href = file.url;
+                            a.download = filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                          } else {
+                            // For server URLs, use the force-download API
+                            const downloadUrl = `/api/force-download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(filename)}`;
+                            window.location.href = downloadUrl;
+                          }
                         }}
                         className="h-8 w-8 p-0">
                         <Download className="h-4 w-4" />
@@ -387,9 +404,15 @@ export function IndividualPdfsModal({
               <ActionButton
                 onClick={async () => {
                   try {
-                    // Create a list of files with their custom names
-                    const fileList = individualPdfsData.map(
-                      (file, index) => {
+                    // Check if we have client-side data (all files have data property)
+                    const hasClientData = individualPdfsData.every(file => file.data);
+                    
+                    if (hasClientData) {
+                      // Client-side ZIP creation using JSZip
+                      const JSZip = (await import('jszip')).default;
+                      const zip = new JSZip();
+                      
+                      individualPdfsData.forEach((file, index) => {
                         const baseFilename =
                           tableData[index] && selectedNamingColumn
                             ? tableData[index][selectedNamingColumn] ||
@@ -417,37 +440,83 @@ export function IndividualPdfsModal({
                             ? `${sanitizedFilename}-${duplicateCount}.pdf`
                             : `${sanitizedFilename}.pdf`;
 
-                        return {
-                          url: file.url,
-                          filename: filename
-                        };
+                        // Add file to ZIP using the raw data
+                        if (file.data) {
+                          zip.file(filename, file.data);
+                        }
+                      });
+                      
+                      // Generate and download ZIP
+                      const zipBlob = await zip.generateAsync({ type: 'blob' });
+                      saveAs(
+                        zipBlob,
+                        `certificates_${
+                          new Date().toISOString().split("T")[0]
+                        }.zip`
+                      );
+                    } else {
+                      // Server-side ZIP creation (fallback for server-generated PDFs)
+                      const fileList = individualPdfsData.map(
+                        (file, index) => {
+                          const baseFilename =
+                            tableData[index] && selectedNamingColumn
+                              ? tableData[index][selectedNamingColumn] ||
+                                `Certificate-${index + 1}`
+                              : `Certificate-${index + 1}`;
+                          const sanitizedFilename = baseFilename.replace(
+                            /[^a-zA-Z0-9-_]/g,
+                            "_"
+                          );
+
+                          // Handle duplicates
+                          const duplicateCount = individualPdfsData
+                            .slice(0, index)
+                            .filter((_, i) => {
+                              const prevBase =
+                                tableData[i] && selectedNamingColumn
+                                  ? tableData[i][selectedNamingColumn] ||
+                                    `Certificate-${i + 1}`
+                                  : `Certificate-${i + 1}`;
+                              return prevBase === baseFilename;
+                            }).length;
+
+                          const filename =
+                            duplicateCount > 0
+                              ? `${sanitizedFilename}-${duplicateCount}.pdf`
+                              : `${sanitizedFilename}.pdf`;
+
+                          return {
+                            url: file.url,
+                            filename: filename
+                          };
+                        }
+                      );
+
+                      // Call the ZIP API endpoint
+                      const response = await fetch("/api/zip-pdfs", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ files: fileList })
+                      });
+
+                      if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error("ZIP API Error:", errorText);
+                        throw new Error(
+                          `Failed to create ZIP: ${response.status} ${response.statusText}`
+                        );
                       }
-                    );
 
-                    // Call the ZIP API endpoint
-                    const response = await fetch("/api/zip-pdfs", {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json"
-                      },
-                      body: JSON.stringify({ files: fileList })
-                    });
-
-                    if (!response.ok) {
-                      const errorText = await response.text();
-                      console.error("ZIP API Error:", errorText);
-                      throw new Error(
-                        `Failed to create ZIP: ${response.status} ${response.statusText}`
+                      const blob = await response.blob();
+                      saveAs(
+                        blob,
+                        `certificates_${
+                          new Date().toISOString().split("T")[0]
+                        }.zip`
                       );
                     }
-
-                    const blob = await response.blob();
-                    saveAs(
-                      blob,
-                      `certificates_${
-                        new Date().toISOString().split("T")[0]
-                      }.zip`
-                    );
                   } catch (error) {
                     console.error("Error creating ZIP:", error);
                     alert("Failed to create ZIP file. Please try again.");

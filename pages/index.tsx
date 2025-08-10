@@ -14,6 +14,7 @@ import { useDragAndDrop } from "@/hooks/useDragAndDrop";
 import { useEmailConfig } from "@/hooks/useEmailConfig";
 import { usePdfGeneration } from "@/hooks/usePdfGeneration";
 import { useProgressivePdfGeneration } from "@/hooks/useProgressivePdfGeneration";
+import { useClientPdfGeneration } from "@/hooks/useClientPdfGeneration";
 // Removed ProgressivePdfModal - now using unified IndividualPdfsModal
 import { PROGRESSIVE_PDF, SPLIT_BUTTON_THEME } from "@/utils/constants";
 import {
@@ -88,6 +89,8 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   const [devMode, setDevMode] = useState<boolean>(false);
   const [emailTemplate, setEmailTemplate] = useState<string>("");
   const [numTestEmails, setNumTestEmails] = useState<number>(10);
+  // Client-side is default (true), server-side is only for dev mode
+  const [forceServerSide, setForceServerSide] = useState<boolean>(false);
 
   // ============================================================================
   // CUSTOM HOOKS FOR FEATURE MANAGEMENT
@@ -173,7 +176,9 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     handleFileDrop,
     clearFile,
     uploadError,
-    clearError
+    clearError,
+    localBlobUrl,
+    uploadToServer
   } = useFileUpload();
 
   // PDF generation hook (must come after file upload hook)
@@ -214,6 +219,137 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     selectedNamingColumn,
     setSelectedNamingColumn
   });
+
+  // Client-side PDF generation hook (always enabled)
+  const {
+    isClientSupported,
+    isGenerating: isClientGenerating,
+    isGeneratingIndividual: isClientGeneratingIndividual,
+    progress: clientProgress,
+    stage: clientStage,
+    generatedPdfUrl: clientGeneratedPdfUrl,
+    individualPdfsData: clientIndividualPdfsData,
+    generatePdf: generateClientPdf,
+    generateIndividualPdfs: generateClientIndividualPdfs,
+    handleDownloadPdf: handleClientDownloadPdf,
+    clearPdfData: clearClientPdfData,
+    getCapabilityReport
+  } = useClientPdfGeneration({
+    tableData,
+    positions,
+    uploadedFile,
+    uploadedFileUrl,
+    localBlobUrl,
+    selectedNamingColumn,
+    setSelectedNamingColumn,
+    enabled: true // Always enabled, client-side is default
+  });
+
+  // Mark variables as intentionally unused (kept for future features)
+  void isClientGenerating;
+  void handleClientDownloadPdf;
+
+  // Wrapper functions for PDF generation (choose client or server)
+  // Transfer client-generated PDF URLs to main state when they change
+  useEffect(() => {
+    if (clientGeneratedPdfUrl) {
+      console.log("Transferring client PDF URL to main state:", clientGeneratedPdfUrl);
+      setGeneratedPdfUrl(clientGeneratedPdfUrl);
+    }
+  }, [clientGeneratedPdfUrl, setGeneratedPdfUrl]);
+
+  useEffect(() => {
+    if (clientIndividualPdfsData) {
+      console.log("Transferring client individual PDFs to main state:", clientIndividualPdfsData.length, "files");
+      setIndividualPdfsData(clientIndividualPdfsData);
+    }
+  }, [clientIndividualPdfsData, setIndividualPdfsData]);
+
+  // Helper function to determine PDF generation method
+  const getPdfGenerationMethod = useCallback(({
+    useServer,
+    forceServerSide: forceServer = false
+  }: {
+    useServer: boolean;
+    forceServerSide?: boolean;
+  }): "server" | "client" => {
+    // Priority 1: Explicit server request in dev mode
+    if (useServer && isDevelopment && devMode) {
+      return "server";
+    }
+    // Priority 2: Client-side if supported and not forced to server
+    if (isClientSupported && !forceServer) {
+      return "client";
+    }
+    // Priority 3: Fallback to server
+    return "server";
+  }, [isDevelopment, devMode, isClientSupported]);
+
+  // Helper function to ensure file is uploaded for server-side generation
+  const ensureFileUploadedForServer = useCallback(async () => {
+    if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
+      console.log('Uploading file to server for server-side generation...');
+      await uploadToServer();
+    }
+  }, [localBlobUrl, uploadedFileUrl, uploadToServer]);
+
+  const handleGeneratePdf = useCallback(async (useServer = false) => {
+    const method = getPdfGenerationMethod({ useServer, forceServerSide });
+    
+    if (method === "server") {
+      const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
+      console.log(`📡 Using SERVER-SIDE PDF generation ${reason}`);
+      await ensureFileUploadedForServer();
+      await generatePdf();
+    } else {
+      console.log("🚀 Using CLIENT-SIDE PDF generation");
+      await generateClientPdf();
+    }
+  }, [
+    getPdfGenerationMethod,
+    forceServerSide,
+    isDevelopment,
+    devMode,
+    ensureFileUploadedForServer,
+    generateClientPdf,
+    generatePdf
+  ]);
+
+  const handleGenerateIndividualPdfs = useCallback(async (useServer = false) => {
+    const method = getPdfGenerationMethod({ useServer, forceServerSide });
+    const isProgressive = tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD;
+    
+    if (method === "server") {
+      const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
+      await ensureFileUploadedForServer();
+      
+      if (isProgressive) {
+        console.log(`📡 Using PROGRESSIVE SERVER-SIDE generation for ${tableData.length} rows ${reason}`);
+        await startProgressiveGeneration('individual');
+      } else {
+        console.log(`📡 Using SERVER-SIDE generation for ${tableData.length} rows ${reason}`);
+        await generateIndividualPdfs();
+      }
+    } else {
+      console.log(`🚀 Using CLIENT-SIDE generation for ${tableData.length} rows`);
+      if (isProgressive) {
+        console.log(`   ⚠️ Note: Large dataset - using progressive generation`);
+        // TODO: Implement progressive/batch generation in client for better memory management
+      }
+      await generateClientIndividualPdfs();
+      // Note: Results are automatically set in clientIndividualPdfsData
+    }
+  }, [
+    getPdfGenerationMethod,
+    forceServerSide,
+    tableData.length,
+    isDevelopment,
+    devMode,
+    ensureFileUploadedForServer,
+    startProgressiveGeneration,
+    generateIndividualPdfs,
+    generateClientIndividualPdfs
+  ]);
 
   // Email configuration hook (must come after PDF generation hook)
   const {
@@ -343,7 +479,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     setIndividualPdfsData(null);
     setShowResetFieldModal(false);
     setShowClearAllModal(false);
-  }, [setGeneratedPdfUrl, setIndividualPdfsData]);
+  }, [setGeneratedPdfUrl, setIndividualPdfsData]); // Include setters for completeness
 
   // Template handlers
   const handleLoadTemplate = useCallback(
@@ -403,7 +539,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       setEmailConfig,
       setUploadedFileUrl,
       setUploadedFile,
-      uploadedFileUrl,
       loadSessionData
     ]
   );
@@ -432,7 +567,31 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   const handleSaveToCurrentTemplate = useCallback(async () => {
     if (!currentTemplateName || !uploadedFileUrl || !uploadedFile) return;
 
-    const result = await manualSave(currentTemplateName);
+    let finalUrl = uploadedFileUrl;
+    let finalFilename = uploadedFile as string;
+
+    // If the file hasn't been uploaded to server yet (blob URL), upload it first
+    if (uploadedFileUrl.startsWith('blob:')) {
+      console.log("Uploading file to server before saving project...");
+      try {
+        const uploadResult = await uploadToServer();
+        if (uploadResult) {
+          finalUrl = uploadResult.image;
+          finalFilename = uploadResult.filename;
+          console.log("File uploaded, using server URL:", finalUrl);
+        }
+      } catch (error) {
+        console.error("Failed to upload file before saving:", error);
+        showToast({
+          message: "Failed to upload file to server",
+          type: "error",
+          duration: 3000
+        });
+        return;
+      }
+    }
+
+    const result = await manualSave(currentTemplateName, finalUrl, finalFilename);
 
     if (result.success) {
       // Show subtle feedback that it was saved
@@ -452,6 +611,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     currentTemplateName,
     uploadedFileUrl,
     uploadedFile,
+    uploadToServer,
     manualSave,
     showToast
   ]);
@@ -644,7 +804,13 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
         const testData = emailTemplate
           ? generateEmailTestData(emailTemplate, numTestEmails)
           : presetCSVData;
-        loadPresetData(testData);
+        
+        // Load data asynchronously
+        loadPresetData(testData).then(() => {
+          console.log("🔧 Dev Mode: Data loaded successfully");
+        }).catch(err => {
+          console.error("🔧 Dev Mode: Failed to load data:", err);
+        });
 
         // Use existing template files in dev mode
         if (isDevelopment) {
@@ -793,6 +959,38 @@ Email Sending Robot`,
                   </label>
                 </div>
 
+                {/* Server-side PDF Toggle - Only when dev mode is on */}
+                {devMode && (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 rounded-lg border border-yellow-200">
+                    <input
+                      type="checkbox"
+                      id="server-pdf-toggle"
+                      checked={forceServerSide}
+                      onChange={(e) => {
+                        setForceServerSide(e.target.checked);
+                        console.log(`📄 PDF Generation: ${e.target.checked ? 'SERVER-SIDE 📡' : 'CLIENT-SIDE 🚀'}`);
+                        if (!e.target.checked && isClientSupported) {
+                          // Log capability report when switching to client
+                          getCapabilityReport().then(report => {
+                            console.log(report);
+                          });
+                        }
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <label
+                      htmlFor="server-pdf-toggle"
+                      className="text-sm font-medium text-yellow-700">
+                      Force Server-Side
+                    </label>
+                    {!forceServerSide && clientStage && (
+                      <span className="text-xs text-blue-600 ml-2">
+                        Client: {clientStage} {clientProgress > 0 && `${Math.round(clientProgress * 100)}%`}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Email Template Controls - Only when dev mode is on */}
                 {devMode && (
                   <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-lg border border-blue-200">
@@ -871,28 +1069,13 @@ Email Sending Robot`,
             <SplitButton
               label="Generate"
               onClick={() => {
-                // Use progressive generation for large datasets
-                if (
-                  tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD
-                ) {
-                  startProgressiveGeneration("individual");
-                } else {
-                  generateIndividualPdfs();
-                }
+                handleGenerateIndividualPdfs();
               }}
               menuItems={[
                 {
                   label: "Individual PDFs",
                   onClick: () => {
-                    // Use progressive generation for large datasets
-                    if (
-                      tableData.length >
-                      PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD
-                    ) {
-                      startProgressiveGeneration("individual");
-                    } else {
-                      generateIndividualPdfs();
-                    }
+                    handleGenerateIndividualPdfs();
                   },
                   disabled:
                     !uploadedFile ||
@@ -903,13 +1086,42 @@ Email Sending Robot`,
                 },
                 {
                   label: "Single PDF",
-                  onClick: generatePdf,
+                  onClick: () => handleGeneratePdf(),
                   disabled:
                     !uploadedFile ||
                     isGenerating ||
                     isGeneratingIndividual ||
                     tableData.length === 0
-                }
+                },
+                // Server-side options only in dev mode
+                ...(isDevelopment && devMode ? [
+                  {
+                    label: "──────────",
+                    onClick: () => {},
+                    disabled: true
+                  },
+                  {
+                    label: "Individual PDFs (Server)",
+                    onClick: () => {
+                      handleGenerateIndividualPdfs(true);
+                    },
+                    disabled:
+                      !uploadedFile ||
+                      isGenerating ||
+                      isGeneratingIndividual ||
+                      isProgressiveGenerating ||
+                      tableData.length === 0
+                  },
+                  {
+                    label: "Single PDF (Server)",
+                    onClick: () => handleGeneratePdf(true),
+                    disabled:
+                      !uploadedFile ||
+                      isGenerating ||
+                      isGeneratingIndividual ||
+                      tableData.length === 0
+                  }
+                ] : [])
               ]}
               disabled={
                 !uploadedFile ||
@@ -1196,10 +1408,10 @@ Email Sending Robot`,
 
       <IndividualPdfsModal
         isGeneratingIndividual={
-          isGeneratingIndividual || isProgressiveGenerating
+          isGeneratingIndividual || isProgressiveGenerating || isClientGeneratingIndividual
         }
         individualPdfsData={
-          individualPdfsData ||
+          individualPdfsData || clientIndividualPdfsData ||
           (progressivePdfResults && progressivePdfResults.files.length > 0
             ? progressivePdfResults.files.map((file) => ({
                 filename: file.filename,
@@ -1230,6 +1442,9 @@ Email Sending Robot`,
           if (isProgressiveGenerating || progressivePdfProgress) {
             clearResults();
           }
+          if (clientIndividualPdfsData) {
+            clearClientPdfData();
+          }
         }}
       />
 
@@ -1255,7 +1470,28 @@ Email Sending Robot`,
         certificateImageUrl={uploadedFileUrl || undefined}
         certificateFilename={(uploadedFile as string) || undefined}
         onSaveSuccess={handleSaveTemplateSuccess}
-        onManualSave={manualSave}
+        onManualSave={async (templateName) => {
+          let finalUrl = uploadedFileUrl;
+          let finalFilename = uploadedFile as string;
+          
+          // Ensure file is uploaded to server before saving project
+          // Check if we're using a blob URL (local file not yet uploaded)
+          if (uploadedFileUrl?.startsWith('blob:')) {
+            console.log('Uploading file to server before saving project...');
+            try {
+              const uploadResult = await uploadToServer();
+              if (uploadResult) {
+                finalUrl = uploadResult.image;
+                finalFilename = uploadResult.filename;
+                console.log("File uploaded, using server URL:", finalUrl);
+              }
+            } catch (error) {
+              console.error('Failed to upload file before saving:', error);
+              return { success: false, error: 'Failed to upload file to server' };
+            }
+          }
+          return manualSave(templateName, finalUrl ?? undefined, finalFilename ?? undefined);
+        }}
       />
 
       <LoadTemplateModal
