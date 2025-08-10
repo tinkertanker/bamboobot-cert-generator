@@ -361,7 +361,7 @@ async function generatePdf(payload: {
       
       // Add text
       const page = entryPdf.getPages()[0];
-      addTextToPage(page, entries[i], positions, fonts, uiContainerDimensions);
+      addTextToPage(page, entries[i], positions, fonts as FontSet, uiContainerDimensions);
       
       // Save and copy to merged PDF
       const entryPdfBytes = await entryPdf.save();

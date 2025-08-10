@@ -4,10 +4,17 @@
  */
 
 // Import statements for Web Worker context
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts, PDFFont } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { FontManager } from '../font-manager';
 import type { FontFamily } from '@/types/certificate';
+
+// Import FontVariant type
+interface FontVariant {
+  family: FontFamily;
+  bold: boolean;
+  italic: boolean;
+}
 
 // Message types for worker communication
 export interface WorkerRequest {
@@ -72,7 +79,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerRequest>) => {
   try {
     switch (type) {
       case 'generate':
-        await handleGenerate(id, payload);
+        await handleGenerate(id, payload as GeneratePayload);
         break;
       case 'generateBatch':
         await handleGenerateBatch(id, payload);
@@ -102,7 +109,7 @@ function postResponse(response: WorkerResponse) {
 
 // Handle font preloading
 async function handlePreloadFonts(id: string, payload: unknown) {
-  const { fonts } = payload;
+  const { fonts } = payload as { fonts: FontVariant[] };
   await fontManager.preloadFonts(fonts);
   
   postResponse({
