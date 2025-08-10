@@ -14,6 +14,7 @@ import {
 } from '../../shared/pdf-generation-core';
 
 // Dynamic import of fontkit to handle bundling issues
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let fontkitModule: any = null;
 
 // Initialize fontkit
@@ -32,7 +33,7 @@ async function initializeFontkit() {
         
         // Check for specific error types
         if (errorMessage.includes('Cannot find module') || 
-            (error as any).code === 'MODULE_NOT_FOUND') {
+            ('code' in error && error.code === 'MODULE_NOT_FOUND')) {
           reason = 'Module not found: @pdf-lib/fontkit';
           errorCode = 'MODULE_NOT_FOUND';
         } else if (errorMessage.includes('Failed to fetch') || 
@@ -49,7 +50,7 @@ async function initializeFontkit() {
         }
       }
       
-      const detailedError = new Error(`Failed to initialize fontkit: ${reason}`) as any;
+      const detailedError = new Error(`Failed to initialize fontkit: ${reason}`) as Error & { code?: string; originalError?: unknown };
       detailedError.code = errorCode;
       detailedError.originalError = error;
       
@@ -91,14 +92,14 @@ self.addEventListener('message', async (event) => {
       default:
         throw new Error(`Unknown message type: ${type}`);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Worker: Error during PDF generation:', error);
     self.postMessage({
       type: 'error',
       id,
       payload: {
-        message: error.message || 'Unknown error',
-        stack: error.stack
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
       }
     });
   }
@@ -267,20 +268,20 @@ function identifyNeededFonts(
   entries: Entry[]
 ): Set<FontFamily> {
   const neededFonts = new Set<FontFamily>();
-  const customFontFamilies = ['Montserrat', 'Poppins', 'SourceSansPro', 'Nunito', 'GreatVibes', 'Archivo', 'Rubik'] as const;
+  const customFontFamilies: readonly FontFamily[] = ['Montserrat', 'Poppins', 'SourceSansPro', 'Nunito', 'GreatVibes', 'Archivo', 'Rubik'];
   
   // Check positions
   for (const pos of Object.values(positions)) {
-    if (pos.font && customFontFamilies.includes(pos.font as any)) {
-      neededFonts.add(pos.font);
+    if (pos.font && customFontFamilies.includes(pos.font as FontFamily)) {
+      neededFonts.add(pos.font as FontFamily);
     }
   }
   
   // Check entries
   for (const entry of entries) {
     for (const value of Object.values(entry)) {
-      if (value && typeof value === 'object' && value.font && customFontFamilies.includes(value.font as any)) {
-        neededFonts.add(value.font);
+      if (value && typeof value === 'object' && 'font' in value && value.font && customFontFamilies.includes(value.font as FontFamily)) {
+        neededFonts.add(value.font as FontFamily);
       }
     }
   }
@@ -318,7 +319,7 @@ async function generateSingleCertificate(
   const page = pdf.getPages()[0];
   
   // Add text to the page with all optimizations
-  addTextToPage(page, entryData, positions, fonts, uiContainerDimensions);
+  addTextToPage(page, entryData, positions, fonts as FontSet, uiContainerDimensions);
 
   return await pdf.save();
 }

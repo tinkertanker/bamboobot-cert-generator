@@ -119,7 +119,8 @@ export function calculateMultilineY(
   lineIndex: number,
   lineHeight: number,
   totalLines: number,
-  fontSize: number
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _fontSize: number
 ): number {
   // Center multiline text vertically
   const totalTextHeight = lineHeight * (totalLines - 1);

@@ -144,12 +144,12 @@ export async function generateSinglePdf(
     const tempPdf = await PDFDocument.create();
     const standardFonts = await embedStandardFonts(tempPdf);
     const customFontsEmbedded = await loadCustomFonts(tempPdf);
-    fonts = { ...standardFonts, ...customFontsEmbedded };
+    fonts = { ...standardFonts, ...customFontsEmbedded } as FontSet;
   }
   
   // Generate the certificate using the shared core
   const pdfBytes = await generateCertificate(
-    templatePdfBytes,
+    templatePdfBytes.buffer as ArrayBuffer,
     entryData,
     positions,
     uiContainerDimensions,

@@ -47,7 +47,8 @@ export class ClientPdfGenerator {
   private fontManager: FontManager;
   private workerPath: string;
   private pendingRequests: Map<string, {
-    resolve: (value: unknown) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolve: (value: any) => void;
     reject: (error: Error) => void;
   }> = new Map();
   private isInitialized = false;
@@ -138,7 +139,7 @@ export class ClientPdfGenerator {
         this.pendingRequests.delete(id);
         break;
       case 'error':
-        pending.reject(new Error(payload.message));
+        pending.reject(new Error((payload as { message: string }).message));
         this.pendingRequests.delete(id);
         break;
       case 'progress':
@@ -212,11 +213,13 @@ export class ClientPdfGenerator {
       // Wait for result
       const result = await resultPromise;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resultAny = result as any;
       return {
         success: true,
         mode: result.mode,
-        data: result.pdfData,
-        files: result.files
+        data: resultAny.pdfData || resultAny.data,
+        files: resultAny.files
       };
     } catch (error) {
       return {
@@ -294,7 +297,7 @@ export class ClientPdfGenerator {
     const sessionId = `client-pdf-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     
     // Determine if we should use progressive generation
-    const useProgressive = options.entries.length > PROGRESSIVE_PDF.TRIGGER_THRESHOLD;
+    const useProgressive = options.entries.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD;
     const batchSize = useProgressive ? PROGRESSIVE_PDF.DEFAULT_BATCH_SIZE : options.entries.length;
     
     // Create queue manager
@@ -303,7 +306,7 @@ export class ClientPdfGenerator {
       templateData,
       options.positions,
       options.uiContainerDimensions,
-      options.mode || 'individual',
+      (options.mode === 'single' ? 'bulk' : 'individual') as 'individual' | 'bulk',
       { batchSize }
     );
     
@@ -385,7 +388,7 @@ export class ClientPdfGenerator {
     if (!this.queueManager) {
       return null;
     }
-    return this.queueManager.getResults();
+    return this.queueManager.getResults() as unknown as PdfGenerationProgress;
   }
 
   /**

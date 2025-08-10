@@ -37,13 +37,13 @@ self.addEventListener('message', async (event) => {
       default:
         throw new Error(`Unknown message type: ${type}`);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     self.postMessage({
       type: 'error',
       id,
       payload: {
-        message: error.message || 'Unknown error',
-        stack: error.stack
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
       }
     });
   }
@@ -51,7 +51,9 @@ self.addEventListener('message', async (event) => {
 
 /**
  * Load font bytes (not embedded fonts) - cached for reuse
+ * Currently unused but kept for potential future font loading
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function loadFontBytes(fontFamily: FontFamily): Promise<Record<string, ArrayBuffer>> {
   const fontFiles: Record<string, ArrayBuffer> = {};
   
@@ -135,10 +137,14 @@ async function loadFontBytes(fontFamily: FontFamily): Promise<Record<string, Arr
 /**
  * Embed custom fonts into a PDF document
  * Note: We'll skip custom fonts for now due to fontkit issues in the worker
+ * Currently unused but kept for potential future font embedding
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function embedCustomFonts(
-  pdf: PDFDocument, 
-  neededFonts: Set<FontFamily>
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _pdf: PDFDocument, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _neededFonts: Set<FontFamily>
 ): Promise<Partial<FontSet>> {
   const customFonts: Partial<FontSet> = {};
   
@@ -151,26 +157,28 @@ async function embedCustomFonts(
 
 /**
  * Identify which custom fonts are needed
+ * Currently unused but kept for potential future font identification
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function identifyNeededFonts(
   positions: Record<string, Position>, 
   entries: Entry[]
 ): Set<FontFamily> {
   const neededFonts = new Set<FontFamily>();
-  const customFontFamilies = ['Montserrat', 'Poppins', 'SourceSansPro', 'Nunito', 'GreatVibes', 'Archivo', 'Rubik'] as const;
+  const customFontFamilies: readonly FontFamily[] = ['Montserrat', 'Poppins', 'SourceSansPro', 'Nunito', 'GreatVibes', 'Archivo', 'Rubik'];
   
   // Check positions
   for (const pos of Object.values(positions)) {
-    if (pos.font && customFontFamilies.includes(pos.font as any)) {
-      neededFonts.add(pos.font);
+    if (pos.font && customFontFamilies.includes(pos.font as FontFamily)) {
+      neededFonts.add(pos.font as FontFamily);
     }
   }
   
   // Check entries
   for (const entry of entries) {
     for (const value of Object.values(entry)) {
-      if (value && typeof value === 'object' && value.font && customFontFamilies.includes(value.font as any)) {
-        neededFonts.add(value.font);
+      if (value && typeof value === 'object' && 'font' in value && value.font && customFontFamilies.includes(value.font as FontFamily)) {
+        neededFonts.add(value.font as FontFamily);
       }
     }
   }

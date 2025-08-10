@@ -13,13 +13,13 @@ import type { FontFamily } from '@/types/certificate';
 export interface WorkerRequest {
   type: 'generate' | 'generateBatch' | 'preloadFonts';
   id: string;
-  payload: any;
+  payload: unknown;
 }
 
 export interface WorkerResponse {
   type: 'progress' | 'complete' | 'error' | 'ready';
   id: string;
-  payload: any;
+  payload: unknown;
 }
 
 export interface GeneratePayload {
@@ -101,7 +101,7 @@ function postResponse(response: WorkerResponse) {
 }
 
 // Handle font preloading
-async function handlePreloadFonts(id: string, payload: any) {
+async function handlePreloadFonts(id: string, payload: unknown) {
   const { fonts } = payload;
   await fontManager.preloadFonts(fonts);
   
@@ -185,7 +185,8 @@ async function handleGenerate(id: string, payload: GeneratePayload) {
 }
 
 // Handle batch PDF generation
-async function handleGenerateBatch(id: string, payload: any) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function handleGenerateBatch(_id: string, _payload: unknown) {
   // Implementation for progressive batch generation
   // This will be implemented in Phase 3
   throw new Error('Batch generation not yet implemented');
@@ -199,7 +200,8 @@ async function generateMergedPdf(
   uiContainerDimensions: { width: number; height: number },
   onProgress: (progress: number) => void
 ): Promise<Uint8Array> {
-  const templateDoc = await PDFDocument.load(templateData);
+  // Load template to verify it's valid
+  await PDFDocument.load(templateData);
   const mergedPdf = await PDFDocument.create();
 
   for (let i = 0; i < entries.length; i++) {
@@ -314,7 +316,7 @@ async function generateSinglePdf(
   // Embed custom fonts if needed
   let customFontsEmbedded: Record<string, PDFFont> = {};
   if (needsCustomFonts) {
-    pdf.registerFontkit(fontkit as any);
+    pdf.registerFontkit(fontkit);
     customFontsEmbedded = await embedCustomFonts(pdf, positions, entryData);
   }
 

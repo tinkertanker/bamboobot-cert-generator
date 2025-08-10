@@ -4,7 +4,7 @@
  */
 
 // Import pdf-lib directly
-import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 // Basic types
 type FontFamily = 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 
@@ -56,13 +56,13 @@ self.addEventListener('message', async (event) => {
       default:
         throw new Error(`Unknown message type: ${type}`);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     self.postMessage({
       type: 'error',
       id,
       payload: {
-        message: error.message || 'Unknown error',
-        stack: error.stack
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
       }
     });
   }
@@ -81,7 +81,8 @@ async function generatePdf(payload: {
 
   if (mode === 'single') {
     // Generate merged PDF
-    const templateDoc = await PDFDocument.load(templateData);
+    // Load template to verify it's valid
+    await PDFDocument.load(templateData);
     const mergedPdf = await PDFDocument.create();
 
     for (const entry of entries) {

@@ -223,7 +223,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
   // Client-side PDF generation hook (always enabled)
   const {
     isClientSupported,
-    isGenerating: _isClientGenerating, // Unused but kept for potential future use
+    isGenerating: isClientGenerating,
     isGeneratingIndividual: isClientGeneratingIndividual,
     progress: clientProgress,
     stage: clientStage,
@@ -231,7 +231,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     individualPdfsData: clientIndividualPdfsData,
     generatePdf: generateClientPdf,
     generateIndividualPdfs: generateClientIndividualPdfs,
-    handleDownloadPdf: _handleClientDownloadPdf, // Unused but kept for potential future use
+    handleDownloadPdf: handleClientDownloadPdf,
     clearPdfData: clearClientPdfData,
     getCapabilityReport
   } = useClientPdfGeneration({
@@ -244,6 +244,10 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     setSelectedNamingColumn,
     enabled: true // Always enabled, client-side is default
   });
+
+  // Mark variables as intentionally unused (kept for future features)
+  void isClientGenerating;
+  void handleClientDownloadPdf;
 
   // Wrapper functions for PDF generation (choose client or server)
   // Transfer client-generated PDF URLs to main state when they change
@@ -259,7 +263,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       console.log("Transferring client individual PDFs to main state:", clientIndividualPdfsData.length, "files");
       setIndividualPdfsData(clientIndividualPdfsData);
     }
-  }, [clientIndividualPdfsData]); // setIndividualPdfsData is stable from useState
+  }, [clientIndividualPdfsData, setIndividualPdfsData]);
 
   // Helper function to determine PDF generation method
   const getPdfGenerationMethod = useCallback(({
@@ -475,7 +479,7 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
     setIndividualPdfsData(null);
     setShowResetFieldModal(false);
     setShowClearAllModal(false);
-  }, []); // Both setters are stable from useState
+  }, [setGeneratedPdfUrl, setIndividualPdfsData]); // Include setters for completeness
 
   // Template handlers
   const handleLoadTemplate = useCallback(
@@ -535,7 +539,6 @@ Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`
       setEmailConfig,
       setUploadedFileUrl,
       setUploadedFile,
-      uploadedFileUrl,
       loadSessionData
     ]
   );
