@@ -11,7 +11,7 @@ export interface UseTableDataReturn {
   handleTableDataChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleHeaderToggle: () => void;
   handleCSVModeToggle: () => void;
-  loadPresetData: (csvData: string) => void;
+  loadPresetData: (csvData: string) => Promise<void>;
   clearData: () => void;
   loadSessionData: (input: string, csvMode: boolean, headerRow: boolean) => Promise<void>;
 }
