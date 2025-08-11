@@ -2,38 +2,40 @@
 
 Generate certificates from image templates with drag-and-drop text positioning and bulk data processing.
 
-## Recent Updates (July 2025)
+## Key Features
 
-### Major Transformations
-- **Templates → Projects** - Templates now save complete projects including template image and all certificate data
-- **Performance Improvements** - Table virtualization for 400+ rows, progressive PDF generation, natural language search
-- **Enhanced Project Management** - Inline rename, relative timestamps, mass delete with confirmation
-- **Infrastructure Updates** - Migrated from pnpm to npm, consolidated configuration
-
-## Features
-
+### Core Functionality
 - **Image Template Upload** - JPG/PNG with automatic PDF conversion
-- **Background Image Replacement** - Replace template image while preserving text fields
-- **Precision Text Positioning** - Drag-and-drop with visual feedback and keyboard nudging
-- **Advanced Text Formatting** - 8 fonts, bold/italic, colour picker, alignment controls
-- **Text Sizing Options** - Shrink-to-fit for single lines or multi-line (2 lines) with word wrap
+- **Drag-and-Drop Text Positioning** - Precision placement with visual feedback and keyboard nudging
+- **Advanced Text Formatting** - 10 fonts, bold/italic, color picker, alignment controls
+- **Flexible Text Sizing** - Shrink-to-fit for single lines or multi-line (2 lines) with word wrap
 - **Adjustable Text Width** - Control text field width (10-90%) with visual feedback
-- **Project System** - Save/load complete projects including template image and all certificate data
-- **Project Management** - Inline rename, relative timestamps ("2 hours ago"), mass delete with confirmation
+- **Bulk Data Import** - TSV/CSV support with automatic header detection
+- **Smart Entry Navigation** - Previous/Next/First/Last with entry counter
+
+### Performance & Optimization
+- **Client-Side PDF Generation** - Fast, browser-based PDF creation (with server-side fallback)
+- **Table Virtualization** - Handles 400+ row datasets efficiently
+- **Search & Filter** - Natural language search with `column:value` syntax
+- **Progressive Generation** - Batch processing for large server-side operations
+
+### Project Management
+- **Complete Project System** - Save/load projects including template image and all certificate data
 - **Project Autosave** - Smart autosave that updates existing projects without creating duplicates
-- **Keyboard Shortcuts** - Ctrl/Cmd+B (bold), Ctrl/Cmd+I (italic), ESC (dismiss modals)
-- **Smart Entry Navigation** - Previous/Next/First/Last with entry counter  
-- **Bulk Data Import** - TSV/CSV support with header toggle
-- **Table Virtualization** - Optimized performance for 400+ row datasets
-- **Search & Filter** - Natural language search with column:value syntax
-- **Progressive PDF Generation** - Batch processing with pause/resume/cancel for large datasets
-- **Multiple Download Options** - Single PDF, individual PDFs, ZIP archives
-- **Email Delivery** - Multi-provider support (Resend/SES) with preview, retry logic, and progress tracking
-- **Live Preview** - Real-time preview matching final PDF output
-- **Cloud Storage** - Multi-provider support (R2/S3) with CDN integration and lifecycle management
+- **Project Management** - Inline rename, relative timestamps ("2 hours ago"), mass delete
+- **Background Image Replacement** - Replace template while preserving text field positions
+
+### Distribution & Delivery
+- **Multiple Download Options** - Individual PDFs, single combined PDF, or ZIP archives
+- **Email Delivery** - Multi-provider support (Resend/SES) with preview and retry logic
+- **Cloud Storage** - Optional R2/S3 integration with CDN and lifecycle management
+- **Bulk Operations** - Email all certificates with progress tracking
+
+### Developer Features
+- **Dev Mode** - Quick testing with pre-loaded template and data
 - **Docker Support** - Production-ready containerization
-- **Dev Mode** - Quick testing with pre-loaded template, data, and email configuration
-- **Enhanced Loading States** - Shimmer effects and skeleton loaders for better UX
+- **Keyboard Shortcuts** - Ctrl/Cmd+B (bold), Ctrl/Cmd+I (italic), ESC (dismiss modals)
+- **Enhanced Loading States** - Shimmer effects and skeleton loaders
 
 ## Quick Start
 
@@ -58,12 +60,12 @@ docker-compose -f docker-compose.dev.yml up -d
 ## How to Use
 
 1. **Upload Template** - Drag & drop a JPG/PNG image
-2. **Add Data** - Paste TSV/CSV data (toggle header option if needed)
+2. **Add Data** - Paste TSV/CSV data (header row automatically detected)
 3. **Position Text** - Drag text fields to desired positions
 4. **Format Text** - Click fields to access formatting controls
    - Choose between "Shrink to Fit" or "Multi-line (2 Lines)" text modes
    - Adjust text field width using the slider (10-90%)
-   - Apply font, style, size, alignment, and colour settings
+   - Apply font, style, size, alignment, and color settings
 5. **Navigate Entries** - Use Previous/Next to preview different certificates  
 6. **Configure Email** (Optional) - Set up sender info and custom message if email column detected
 7. **Generate** - Create single PDF or individual PDFs
@@ -173,6 +175,7 @@ components/
   └── modals/                 # PDF generation, email, confirmation modals
 hooks/                        # Feature-specific state management
 lib/
+  ├── pdf/                    # Client and server PDF generation
   ├── email/                  # Email providers and queue system
   ├── r2-client.ts           # Cloudflare R2 integration
   ├── s3-client.ts           # Amazon S3 integration
@@ -226,7 +229,7 @@ The E2E tests cover:
 - **Framework**: Next.js with TypeScript
 - **Package Manager**: npm
 - **UI**: Tailwind CSS
-- **PDF**: pdf-lib
+- **PDF**: pdf-lib (client-side and server-side)
 - **Storage**: Local, Cloudflare R2, or Amazon S3
 - **Email**: Resend or Amazon SES
 - **Testing**: Jest + React Testing Library + Playwright
@@ -234,7 +237,7 @@ The E2E tests cover:
 
 ## Font Licenses
 
-All fonts (Montserrat, Poppins, Work Sans, Roboto, Source Sans Pro, Nunito) are from Google Fonts, licensed under SIL Open Font License 1.1.
+All fonts (Helvetica, Times, Courier, Montserrat, Poppins, Source Sans Pro, Nunito, Great Vibes, Archivo, Rubik) are either system fonts or from Google Fonts, licensed under SIL Open Font License 1.1.
 
 ## About Bamboobot
 

@@ -2,14 +2,8 @@
 
 ## Actual things I wanted to do. Maximum priority!
 
-- [x] "Generated 1 Individual Certificates" -- see if this grammatical error occurs anywhere else
-- [x] Check on what happens to email sending now that we moved PDF generation to client-side -- seems to be failing silently? 
-- [x] index.tsx is becoming a bit unwieldy and could do with some pruning. Maybe dev mode can be moved out?
-- [x] What's going on with the "progressive" generation, now that we've moved client-side? Still needed? How can I test it? 
-      Answer: Not needed for client-side - it's fast enough without it. Progressive only for server-side fallback. 
-- [x] Remove the "Force Server Side" checkbox in dev mode 
+- [ ] Dev mode way to find out how much storage is being used and clear things out? Especially large "single PDF"s
 - [ ] We should have some kind of email download links; see below. 
-- [x] Download all link should have some kind of spinner or visual indication perhaps
 
 ## Future Enhancement: Email Download Links for Client-Side PDFs
 
