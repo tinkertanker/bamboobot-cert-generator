@@ -68,7 +68,6 @@ export default function HomePage() {
   const [devMode, setDevMode] = useState<boolean>(false);
   const [emailTemplate, setEmailTemplate] = useState<string>("");
   const [numTestEmails, setNumTestEmails] = useState<number>(10);
-  const [forceServerSide, setForceServerSide] = useState<boolean>(false);
 
   // Table data management via custom hook
   const {
@@ -207,15 +206,12 @@ export default function HomePage() {
     isClientSupported,
     isGenerating: isClientGenerating,
     isGeneratingIndividual: isClientGeneratingIndividual,
-    progress: clientProgress,
-    stage: clientStage,
     generatedPdfUrl: clientGeneratedPdfUrl,
     individualPdfsData: clientIndividualPdfsData,
     generatePdf: generateClientPdf,
     generateIndividualPdfs: generateClientIndividualPdfs,
     handleDownloadPdf: handleClientDownloadPdf,
-    clearPdfData: clearClientPdfData,
-    getCapabilityReport
+    clearPdfData: clearClientPdfData
   } = useClientPdfGeneration({
     tableData,
     positions,
@@ -235,7 +231,6 @@ export default function HomePage() {
   const { handleGeneratePdf, handleGenerateIndividualPdfs } = usePdfGenerationMethods({
     isDevelopment,
     devMode,
-    forceServerSide,
     isClientSupported,
     tableData,
     localBlobUrl,
@@ -274,8 +269,6 @@ export default function HomePage() {
     setEmailTemplate,
     numTestEmails,
     setNumTestEmails,
-    forceServerSide,
-    setForceServerSide,
     loadPresetData,
     clearData,
     clearFile,
@@ -499,12 +492,6 @@ export default function HomePage() {
               isDevelopment={isDevelopment}
               devMode={devMode}
               handleDevModeToggle={handleDevModeToggle}
-              forceServerSide={forceServerSide}
-              setForceServerSide={setForceServerSide}
-              isClientSupported={isClientSupported}
-              getCapabilityReport={getCapabilityReport}
-              clientStage={clientStage}
-              clientProgress={clientProgress}
               emailTemplate={emailTemplate}
               setEmailTemplate={setEmailTemplate}
               numTestEmails={numTestEmails}

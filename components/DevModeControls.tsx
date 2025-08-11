@@ -4,12 +4,6 @@ interface DevModeControlsProps {
   isDevelopment: boolean;
   devMode: boolean;
   handleDevModeToggle: () => void;
-  forceServerSide: boolean;
-  setForceServerSide: (value: boolean) => void;
-  isClientSupported: boolean;
-  getCapabilityReport: () => Promise<string>;
-  clientStage: string | null;
-  clientProgress: number;
   emailTemplate: string;
   setEmailTemplate: (value: string) => void;
   numTestEmails: number;
@@ -21,12 +15,6 @@ export function DevModeControls({
   isDevelopment,
   devMode,
   handleDevModeToggle,
-  forceServerSide,
-  setForceServerSide,
-  isClientSupported,
-  getCapabilityReport,
-  clientStage,
-  clientProgress,
   emailTemplate,
   setEmailTemplate,
   numTestEmails,
@@ -52,38 +40,6 @@ export function DevModeControls({
           Dev Mode
         </label>
       </div>
-
-      {/* Server-side PDF Toggle - Only when dev mode is on */}
-      {devMode && (
-        <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 rounded-lg border border-yellow-200">
-          <input
-            type="checkbox"
-            id="server-pdf-toggle"
-            checked={forceServerSide}
-            onChange={(e) => {
-              setForceServerSide(e.target.checked);
-              console.log(`📄 PDF Generation: ${e.target.checked ? 'SERVER-SIDE 📡' : 'CLIENT-SIDE 🚀'}`);
-              if (!e.target.checked && isClientSupported) {
-                // Log capability report when switching to client
-                getCapabilityReport().then(report => {
-                  console.log(report);
-                });
-              }
-            }}
-            className="w-4 h-4"
-          />
-          <label
-            htmlFor="server-pdf-toggle"
-            className="text-sm font-medium text-yellow-700">
-            Force Server-Side
-          </label>
-          {!forceServerSide && clientStage && (
-            <span className="text-xs text-blue-600 ml-2">
-              Client: {clientStage} {clientProgress > 0 && `${Math.round(clientProgress * 100)}%`}
-            </span>
-          )}
-        </div>
-      )}
 
       {/* Email Template Controls - Only when dev mode is on */}
       {devMode && (

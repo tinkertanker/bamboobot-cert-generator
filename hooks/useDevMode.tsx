@@ -9,8 +9,6 @@ interface UseDevModeProps {
   setEmailTemplate: (value: string) => void;
   numTestEmails: number;
   setNumTestEmails: (value: number) => void;
-  forceServerSide: boolean;
-  setForceServerSide: (value: boolean) => void;
   loadPresetData: (data: string) => Promise<void>;
   clearData: () => void;
   clearFile: () => void;
@@ -95,8 +93,6 @@ export function useDevMode({
   setEmailTemplate,
   numTestEmails,
   setNumTestEmails,
-  forceServerSide,
-  setForceServerSide,
   loadPresetData,
   clearData,
   clearFile,

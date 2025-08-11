@@ -47,6 +47,7 @@ export function IndividualPdfsModal({
   total
 }: IndividualPdfsModalProps & { progress?: number; total?: number }) {
   const [showBulkEmailModal, setShowBulkEmailModal] = useState(false);
+  const [isDownloadingZip, setIsDownloadingZip] = useState(false);
   
   // Reset bulk email modal state when the modal opens
   useEffect(() => {
@@ -403,6 +404,8 @@ export function IndividualPdfsModal({
             <div className="flex gap-2">
               <ActionButton
                 onClick={async () => {
+                  if (isDownloadingZip) return; // Prevent double-click
+                  setIsDownloadingZip(true);
                   try {
                     // Check if we have client-side data (all files have data property)
                     const hasClientData = individualPdfsData.every(file => file.data);
@@ -520,13 +523,25 @@ export function IndividualPdfsModal({
                   } catch (error) {
                     console.error("Error creating ZIP:", error);
                     alert("Failed to create ZIP file. Please try again.");
+                  } finally {
+                    setIsDownloadingZip(false);
                   }
                 }}
                 gradient
                 gradientType="coral"
-                className="flex items-center gap-2">
-                <Download className="h-4 w-4" />
-                Download All (ZIP)
+                className="flex items-center gap-2"
+                disabled={isDownloadingZip}>
+                {isDownloadingZip ? (
+                  <>
+                    <SpinnerInline size="sm" />
+                    Creating ZIP...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Download All (ZIP)
+                  </>
+                )}
               </ActionButton>
               {hasEmailColumn && (
                 <Button

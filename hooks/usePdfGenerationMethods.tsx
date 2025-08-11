@@ -6,7 +6,6 @@ interface UsePdfGenerationMethodsProps {
   // Feature flags
   isDevelopment: boolean;
   devMode: boolean;
-  forceServerSide: boolean;
   isClientSupported: boolean;
   
   // Data
@@ -39,7 +38,6 @@ interface UsePdfGenerationMethodsReturn {
 export function usePdfGenerationMethods({
   isDevelopment,
   devMode,
-  forceServerSide,
   isClientSupported,
   tableData,
   localBlobUrl,
@@ -100,7 +98,7 @@ export function usePdfGenerationMethods({
   }, [localBlobUrl, uploadedFileUrl, uploadToServer]);
 
   const handleGeneratePdf = useCallback(async (useServer = false) => {
-    const method = getPdfGenerationMethod({ useServer, forceServer: forceServerSide });
+    const method = getPdfGenerationMethod({ useServer, forceServer: false });
     
     if (method === "server") {
       const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
@@ -113,7 +111,6 @@ export function usePdfGenerationMethods({
     }
   }, [
     getPdfGenerationMethod,
-    forceServerSide,
     isDevelopment,
     devMode,
     ensureFileUploadedForServer,
@@ -122,7 +119,7 @@ export function usePdfGenerationMethods({
   ]);
 
   const handleGenerateIndividualPdfs = useCallback(async (useServer = false) => {
-    const method = getPdfGenerationMethod({ useServer, forceServer: forceServerSide });
+    const method = getPdfGenerationMethod({ useServer, forceServer: false });
     const isProgressive = tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD;
     
     if (method === "server") {
@@ -139,15 +136,13 @@ export function usePdfGenerationMethods({
     } else {
       console.log(`🚀 Using CLIENT-SIDE generation for ${tableData.length} rows`);
       if (isProgressive) {
-        console.log(`   ⚠️ Note: Large dataset - using progressive generation`);
-        // TODO: Implement progressive/batch generation in client for better memory management
+        console.log(`   ℹ️ Large dataset (${tableData.length} rows) - client-side handles this efficiently`);
       }
       await generateClientIndividualPdfs();
       // Note: Results are automatically set in clientIndividualPdfsData
     }
   }, [
     getPdfGenerationMethod,
-    forceServerSide,
     tableData.length,
     isDevelopment,
     devMode,

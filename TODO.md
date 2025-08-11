@@ -5,8 +5,11 @@
 - [x] "Generated 1 Individual Certificates" -- see if this grammatical error occurs anywhere else
 - [x] Check on what happens to email sending now that we moved PDF generation to client-side -- seems to be failing silently? 
 - [x] index.tsx is becoming a bit unwieldy and could do with some pruning. Maybe dev mode can be moved out?
-- [ ] What's going on with the "progressive" generation, now that we've moved client-side? Still needed? How can I test it? 
+- [x] What's going on with the "progressive" generation, now that we've moved client-side? Still needed? How can I test it? 
+      Answer: Not needed for client-side - it's fast enough without it. Progressive only for server-side fallback. 
+- [x] Remove the "Force Server Side" checkbox in dev mode 
 - [ ] We should have some kind of email download links; see below. 
+- [x] Download all link should have some kind of spinner or visual indication perhaps
 
 ## Future Enhancement: Email Download Links for Client-Side PDFs
 
@@ -35,10 +38,6 @@ UI-wise, we would let the user decide this at the summary modal they get when th
 - [ ] Replace technical errors with user-friendly messages
 - [ ] Add "Try again" buttons
 - [ ] Suggest fixes for common issues
-
-### 3. Progressive PDF Modal Enhancements
-- [ ] ZIP Download in Progressive Modal - Add ZIP download button (currently only in Individual PDFs modal)
-- [ ] Email All from Progressive Modal - Add email all button (currently requires closing and reopening in Individual PDFs modal)
 
 ### 4. Performance Optimizations (High Impact)
 
