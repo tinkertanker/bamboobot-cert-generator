@@ -49,6 +49,11 @@ import { useDevMode } from "@/hooks/useDevMode";
 import { DevModeControls } from "@/components/DevModeControls";
 import { usePdfGenerationMethods } from "@/hooks/usePdfGenerationMethods";
 import { useTemplateManagement } from "@/hooks/useTemplateManagement";
+import { useOnboarding } from "@/hooks/useOnboarding";
+import { OnboardingModal } from "@/components/modals/OnboardingModal";
+import { WelcomeScreen } from "@/components/WelcomeScreen";
+import { HelpCircle } from "lucide-react";
+import { SAMPLE_CERTIFICATE_DATA, SAMPLE_EMAIL_TEMPLATE } from "@/utils/sampleData";
 
 export default function HomePage() {
   // ============================================================================
@@ -57,6 +62,28 @@ export default function HomePage() {
 
   const { isMobile, isLoading: isMobileLoading } = useMobileDetection();
   const [forceMobileAccess, setForceMobileAccess] = useState(false);
+
+  // ============================================================================
+  // ONBOARDING & TUTORIAL
+  // ============================================================================
+  
+  const {
+    showOnboarding,
+    hasSeenOnboarding,
+    startTour,
+    restartTour,
+    skipOnboarding,
+    setShowOnboarding
+  } = useOnboarding();
+
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
+
+  // Check if user is completely new (show welcome screen)
+  useEffect(() => {
+    if (!hasSeenOnboarding && !isMobileLoading && !isMobile) {
+      setShowWelcomeScreen(true);
+    }
+  }, [hasSeenOnboarding, isMobileLoading, isMobile]);
 
   // ============================================================================
   // STATE & DATA MANAGEMENT
@@ -84,7 +111,6 @@ export default function HomePage() {
     clearData,
     loadSessionData
   } = useTableData();
-
 
   // ============================================================================
   // CUSTOM HOOKS FOR FEATURE MANAGEMENT
@@ -161,6 +187,31 @@ export default function HomePage() {
     localBlobUrl,
     uploadToServer
   } = useFileUpload();
+
+  // Onboarding handlers (must come after file upload hook)
+  const handleLoadSampleData = useCallback(() => {
+    // Create a fake event to pass the sample data
+    const fakeEvent = {
+      target: { value: SAMPLE_CERTIFICATE_DATA }
+    } as React.ChangeEvent<HTMLTextAreaElement>;
+    handleTableDataChange(fakeEvent);
+    setEmailTemplate(SAMPLE_EMAIL_TEMPLATE);
+    setShowWelcomeScreen(false);
+  }, [handleTableDataChange, setEmailTemplate]);
+
+  const handleUseSampleTemplate = useCallback(async () => {
+    try {
+      const response = await fetch('/api/sample-template');
+      const data = await response.json();
+      if (data.success && data.imageUrl) {
+        // Set the uploaded file URL directly for the sample template
+        setUploadedFileUrl(data.imageUrl);
+        setUploadedFile('sample-template.png');
+      }
+    } catch (error) {
+      console.error('Failed to load sample template:', error);
+    }
+  }, [setUploadedFileUrl, setUploadedFile]);
 
   // PDF generation hook (must come after file upload hook)
   const {
@@ -500,6 +551,17 @@ export default function HomePage() {
             />
           </div>
           <div className="flex gap-3">
+            {/* Help/Tutorial Button */}
+            <Button
+              onClick={() => setShowOnboarding(true)}
+              variant="outline"
+              className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20"
+              data-tour="help-button"
+            >
+              <HelpCircle className="w-4 h-4" />
+              Tutorial
+            </Button>
+            
             {/* Projects Split Button */}
             <SplitButton
               label={
@@ -620,7 +682,7 @@ export default function HomePage() {
       {/* Main Content Area */}
       <main className="flex-1 grid grid-cols-[60%_40%] gap-6 p-6">
         {/* Certificate Preview Section */}
-        <div className="bg-card p-4 rounded-lg shadow">
+        <div className="bg-card p-4 rounded-lg shadow" data-tour="certificate-preview">
           <CertificatePreview
             uploadedFileUrl={uploadedFileUrl}
             isLoading={isLoading}
@@ -689,7 +751,7 @@ export default function HomePage() {
 
                 {/* Navigation buttons - right aligned */}
                 {tableData.length > 0 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2" data-tour="navigation">
                     <span className="text-sm text-gray-600 font-medium">
                       {currentPreviewIndex + 1} of {tableData.length}
                     </span>
@@ -760,6 +822,7 @@ export default function HomePage() {
             <button
               onClick={() => setActiveTab("data")}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
+              data-tour="data-tab"
               style={{
                 backgroundColor:
                   activeTab === "data" ? COLORS.tabActive : COLORS.tabInactive,
@@ -771,6 +834,7 @@ export default function HomePage() {
             <button
               onClick={() => setActiveTab("formatting")}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
+              data-tour="formatting-tab"
               style={{
                 backgroundColor:
                   activeTab === "formatting"
@@ -790,6 +854,7 @@ export default function HomePage() {
                   setActiveTab("email");
                 }}
                 className="px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center"
+                data-tour="email-tab"
                 style={{
                   backgroundColor:
                     activeTab === "email"
@@ -1005,6 +1070,36 @@ export default function HomePage() {
           }}
         />
       )}
+
+      {/* Welcome Screen for first-time users */}
+      {showWelcomeScreen && (
+        <WelcomeScreen
+          onStartTour={() => {
+            setShowWelcomeScreen(false);
+            startTour();
+          }}
+          onLoadSampleData={handleLoadSampleData}
+          onUseSampleTemplate={handleUseSampleTemplate}
+          onSkip={() => {
+            setShowWelcomeScreen(false);
+            skipOnboarding();
+          }}
+        />
+      )}
+
+      {/* Onboarding Modal */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        onStartTour={() => {
+          setShowOnboarding(false);
+          startTour();
+        }}
+        onSkip={() => {
+          setShowOnboarding(false);
+          skipOnboarding();
+        }}
+      />
     </div>
   );
 }

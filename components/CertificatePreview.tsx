@@ -433,7 +433,8 @@ function CertificatePreviewComponent({
           }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
-          onDrop={handleFileDrop}>
+          onDrop={handleFileDrop}
+          data-tour="upload-area">
           <label
             htmlFor="file-upload"
             className="cursor-pointer w-full h-full flex items-center justify-center">
