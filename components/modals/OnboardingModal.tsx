@@ -6,7 +6,6 @@ import {
   Type,
   Palette,
   Table,
-  Mail,
   FileDown,
   ChevronRight,
   ChevronLeft,
