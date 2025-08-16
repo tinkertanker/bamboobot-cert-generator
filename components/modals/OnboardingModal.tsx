@@ -139,9 +139,9 @@ export function OnboardingModal({ isOpen, onClose, onStartTour, onSkip }: Onboar
       open={isOpen}
       onClose={handleSkip}
       className="max-w-2xl"
-      width="max-w-2xl"
+      width="w-full"
     >
-      <div className="relative" style={{ minHeight: '520px' }}>
+      <div className="relative" style={{ minHeight: '480px', width: '100%' }}>
         <button
           onClick={handleSkip}
           className="absolute top-0 right-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -150,7 +150,7 @@ export function OnboardingModal({ isOpen, onClose, onStartTour, onSkip }: Onboar
           <X className="w-5 h-5 text-gray-500" />
         </button>
 
-        <div className="text-center mb-8">
+        <div className="text-center mb-8" style={{ width: '100%' }}>
           <div className="flex justify-center mb-6">
             {step.icon}
           </div>
@@ -159,11 +159,11 @@ export function OnboardingModal({ isOpen, onClose, onStartTour, onSkip }: Onboar
             {step.title}
           </h2>
           
-          <p className="text-lg mb-6 text-gray-600" style={{ minHeight: '56px' }}>
+          <p className="text-lg mb-6 text-gray-600 px-4" style={{ minHeight: '56px' }}>
             {step.description}
           </p>
 
-          <div className="grid grid-cols-2 gap-3 text-left max-w-md mx-auto" style={{ minHeight: '120px' }}>
+          <div className="grid grid-cols-2 gap-3 text-left mx-auto px-4" style={{ minHeight: '120px', maxWidth: '28rem' }}>
             {step.features && step.features.map((feature, index) => (
               <div key={index} className="flex items-start">
                 <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 mr-2 flex-shrink-0" />
@@ -215,7 +215,7 @@ export function OnboardingModal({ isOpen, onClose, onStartTour, onSkip }: Onboar
                 Previous
               </Button>
             ) : (
-              <div className="w-[100px]" /> {/* Invisible spacer to maintain consistent layout */}
+              <div className="w-[100px]" />
             )}
 
             <Button
