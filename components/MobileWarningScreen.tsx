@@ -56,7 +56,7 @@ export function MobileWarningScreen() {
 
         {/* Footer */}
         <p className="text-xs text-gray-400 mt-4">
-          Bambootbot by Tinkertanker
+          Bamboobot by Tinkertanker
         </p>
       </div>
     </div>

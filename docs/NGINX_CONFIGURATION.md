@@ -1,6 +1,6 @@
-# Nginx Configuration for BambooBot
+# Nginx Configuration for Bamboobot
 
-When using nginx as a reverse proxy for BambooBot, you need to configure it to handle file uploads properly.
+When using nginx as a reverse proxy for Bamboobot, you need to configure it to handle file uploads properly.
 
 ## Required Configuration
 
