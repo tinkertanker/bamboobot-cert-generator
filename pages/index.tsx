@@ -157,6 +157,13 @@ export default function HomePage() {
     }
   }, [detectedEmailColumn, activeTab]);
 
+  // Switch away from formatting tab if no table data
+  useEffect(() => {
+    if (tableData.length === 0 && activeTab === "formatting") {
+      setActiveTab("data");
+    }
+  }, [tableData.length, activeTab]);
+
   // Preview navigation hook
   const {
     currentPreviewIndex,
@@ -807,22 +814,24 @@ export default function HomePage() {
               }}>
               Data
             </button>
-            <button
-              onClick={() => setActiveTab("formatting")}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
-              data-tour="formatting-tab"
-              style={{
-                backgroundColor:
-                  activeTab === "formatting"
-                    ? COLORS.tabActive
-                    : COLORS.tabInactive,
-                color:
-                  activeTab === "formatting"
-                    ? COLORS.tabTextActive
-                    : COLORS.tabText
-              }}>
-              Formatting
-            </button>
+            {tableData.length > 0 && (
+              <button
+                onClick={() => setActiveTab("formatting")}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
+                data-tour="formatting-tab"
+                style={{
+                  backgroundColor:
+                    activeTab === "formatting"
+                      ? COLORS.tabActive
+                      : COLORS.tabInactive,
+                  color:
+                    activeTab === "formatting"
+                      ? COLORS.tabTextActive
+                      : COLORS.tabText
+                }}>
+                Formatting
+              </button>
+            )}
             {detectedEmailColumn && (
               <button
                 onClick={() => {

@@ -447,7 +447,7 @@ function CertificatePreviewComponent({
               <span className="text-center">
                 {isDraggingFile
                   ? "Drop your image here"
-                  : "Choose File or Drag & Drop (JPEG or PNG)"}
+                  : "Upload your certificate's background image here, in JPEG or PNG format"}
               </span>
             </div>
             <input

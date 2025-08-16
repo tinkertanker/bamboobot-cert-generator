@@ -93,8 +93,8 @@ export function DataPanelWithSearch({
           onChange={handleTableDataChange}
           placeholder={
             useCSVMode
-              ? "Paste CSV data here (e.g., John Doe,Manager,Sales)"
-              : "Paste TSV data here (tab-separated)"
+              ? "Paste the text you want to show on the certs here, one per line. You can copy and paste from your spreadsheet (comma-separated format)"
+              : "Paste the text you want to show on the certs here, one per line. You can copy and paste from your spreadsheet"
           }
           className="w-full resize-none px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           style={{ height: "154px" }}
