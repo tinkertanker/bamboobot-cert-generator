@@ -20,11 +20,11 @@ export function useMobileDetection() {
       const userAgent = navigator.userAgent.toLowerCase();
       const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
       
-      // Check for touch capability
-      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      
-      // Consider it mobile if any of these conditions are true
-      setIsMobile(isSmallScreen || isMobileDevice || isTouchDevice);
+      // Only consider it mobile if:
+      // 1. Screen is small (< 768px), OR
+      // 2. User agent indicates a mobile device
+      // Note: We removed touch capability check as many laptops have touchscreens
+      setIsMobile(isSmallScreen || isMobileDevice);
       setIsLoading(false);
     };
 

@@ -26,6 +26,40 @@ jest.mock('file-saver', () => ({
   saveAs: jest.fn(),
 }));
 
+// Mock the OnboardingModal component
+jest.mock('../../components/modals/OnboardingModal', () => ({
+  OnboardingModal: ({ isOpen, onClose, onStartTour, onSkip }: any) => {
+    if (!isOpen) return null;
+    return (
+      <div data-testid="onboarding-modal">
+        <button onClick={onStartTour}>Start Tour</button>
+        <button onClick={onSkip}>Skip</button>
+        <button onClick={onClose}>Close</button>
+      </div>
+    );
+  },
+}));
+
+// Mock the useOnboarding hook
+jest.mock('../../hooks/useOnboarding', () => ({
+  useOnboarding: () => ({
+    showOnboarding: false,
+    hasSeenOnboarding: true,
+    startTour: jest.fn(),
+    skipOnboarding: jest.fn(),
+    setShowOnboarding: jest.fn(),
+  }),
+}));
+
+// Mock driver.js
+jest.mock('driver.js', () => ({
+  driver: jest.fn(() => ({
+    drive: jest.fn(),
+    destroy: jest.fn(),
+    isActivated: false,
+  })),
+}));
+
 describe('MainPage Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -33,7 +67,7 @@ describe('MainPage Component', () => {
 
   it('renders the upload button when no file is uploaded', () => {
     render(<MainPage />);
-    expect(screen.getByText(/Choose File/i)).toBeInTheDocument();
+    expect(screen.getByText(/Upload your certificate's background image here/i)).toBeInTheDocument();
     expect(screen.getByText(/Bamboobot/i)).toBeInTheDocument();
   });
 
@@ -42,7 +76,7 @@ describe('MainPage Component', () => {
     
     // Mock file upload
     const file = new File(['dummy content'], 'test.jpg', { type: 'image/jpeg' });
-    const fileInput = screen.getByLabelText(/Choose File/i);
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     
     // Fire upload event
     Object.defineProperty(fileInput, 'files', {
@@ -67,7 +101,7 @@ describe('MainPage Component', () => {
     render(<MainPage />);
     
     // Simulate entering tabular data
-    const textarea = screen.getByPlaceholderText(/Paste TSV data here/i);
+    const textarea = screen.getByPlaceholderText(/Paste the text you want to show on the certs here/i);
     fireEvent.change(textarea, {
       target: { value: 'Name\tRole\nJohn Doe\tDeveloper\nJane Smith\tDesigner' },
     });
@@ -87,7 +121,7 @@ describe('MainPage Component', () => {
     render(<MainPage />);
     
     // Enter data
-    const textarea = screen.getByPlaceholderText(/Paste TSV data here/i);
+    const textarea = screen.getByPlaceholderText(/Paste the text you want to show on the certs here/i);
     fireEvent.change(textarea, {
       target: { value: 'Header1\tHeader2\nValue1\tValue2' },
     });
@@ -112,7 +146,7 @@ describe('MainPage Component', () => {
 
   it('disables generate button when no file is uploaded', () => {
     render(<MainPage />);
-    const generateButton = screen.getByText(/Generate/i);
+    const generateButton = screen.getByRole('button', { name: /^Generate$/i });
     expect(generateButton).toBeDisabled();
   });
 });

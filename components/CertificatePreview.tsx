@@ -433,7 +433,8 @@ function CertificatePreviewComponent({
           }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
-          onDrop={handleFileDrop}>
+          onDrop={handleFileDrop}
+          data-tour="upload-area">
           <label
             htmlFor="file-upload"
             className="cursor-pointer w-full h-full flex items-center justify-center">
@@ -446,7 +447,7 @@ function CertificatePreviewComponent({
               <span className="text-center">
                 {isDraggingFile
                   ? "Drop your image here"
-                  : "Choose File or Drag & Drop (JPEG or PNG)"}
+                  : "Upload your certificate's background image here, in JPEG or PNG format"}
               </span>
             </div>
             <input

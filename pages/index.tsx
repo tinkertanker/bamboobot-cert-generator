@@ -49,6 +49,9 @@ import { useDevMode } from "@/hooks/useDevMode";
 import { DevModeControls } from "@/components/DevModeControls";
 import { usePdfGenerationMethods } from "@/hooks/usePdfGenerationMethods";
 import { useTemplateManagement } from "@/hooks/useTemplateManagement";
+import { useOnboarding } from "@/hooks/useOnboarding";
+import { OnboardingModal } from "@/components/modals/OnboardingModal";
+import { HelpCircle } from "lucide-react";
 
 export default function HomePage() {
   // ============================================================================
@@ -57,6 +60,26 @@ export default function HomePage() {
 
   const { isMobile, isLoading: isMobileLoading } = useMobileDetection();
   const [forceMobileAccess, setForceMobileAccess] = useState(false);
+
+  // ============================================================================
+  // ONBOARDING & TUTORIAL
+  // ============================================================================
+  
+  const {
+    showOnboarding,
+    hasSeenOnboarding,
+    startTour,
+    skipOnboarding,
+    setShowOnboarding
+  } = useOnboarding();
+
+  // Check if user is completely new (show onboarding modal)
+  useEffect(() => {
+    if (!hasSeenOnboarding && !isMobileLoading && !isMobile) {
+      setShowOnboarding(true);
+    }
+  }, [hasSeenOnboarding, isMobileLoading, isMobile, setShowOnboarding]);
+
 
   // ============================================================================
   // STATE & DATA MANAGEMENT
@@ -84,7 +107,6 @@ export default function HomePage() {
     clearData,
     loadSessionData
   } = useTableData();
-
 
   // ============================================================================
   // CUSTOM HOOKS FOR FEATURE MANAGEMENT
@@ -133,6 +155,13 @@ export default function HomePage() {
     }
   }, [detectedEmailColumn, activeTab]);
 
+  // Switch away from formatting tab if no table data
+  useEffect(() => {
+    if (tableData.length === 0 && activeTab === "formatting") {
+      setActiveTab("data");
+    }
+  }, [tableData.length, activeTab]);
+
   // Preview navigation hook
   const {
     currentPreviewIndex,
@@ -161,6 +190,7 @@ export default function HomePage() {
     localBlobUrl,
     uploadToServer
   } = useFileUpload();
+
 
   // PDF generation hook (must come after file upload hook)
   const {
@@ -500,8 +530,19 @@ export default function HomePage() {
             />
           </div>
           <div className="flex gap-3">
+            {/* Help/Tutorial Button */}
+            <Button
+              onClick={() => setShowOnboarding(true)}
+              variant="outline"
+              className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20"
+            >
+              <HelpCircle className="w-4 h-4" />
+              Tutorial
+            </Button>
+            
             {/* Projects Split Button */}
             <SplitButton
+              data-tour="save-project"
               label={
                 currentTemplateName 
                   ? `Save to "${currentTemplateName}"` 
@@ -544,6 +585,7 @@ export default function HomePage() {
 
             {/* Generate Split Button */}
             <SplitButton
+              data-tour="generate-pdf"
               label="Generate"
               onClick={() => {
                 handleGenerateIndividualPdfs();
@@ -620,7 +662,7 @@ export default function HomePage() {
       {/* Main Content Area */}
       <main className="flex-1 grid grid-cols-[60%_40%] gap-6 p-6">
         {/* Certificate Preview Section */}
-        <div className="bg-card p-4 rounded-lg shadow">
+        <div className="bg-card p-4 rounded-lg shadow" data-tour="certificate-preview">
           <CertificatePreview
             uploadedFileUrl={uploadedFileUrl}
             isLoading={isLoading}
@@ -689,7 +731,7 @@ export default function HomePage() {
 
                 {/* Navigation buttons - right aligned */}
                 {tableData.length > 0 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2" data-tour="navigation">
                     <span className="text-sm text-gray-600 font-medium">
                       {currentPreviewIndex + 1} of {tableData.length}
                     </span>
@@ -760,6 +802,7 @@ export default function HomePage() {
             <button
               onClick={() => setActiveTab("data")}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
+              data-tour="data-tab"
               style={{
                 backgroundColor:
                   activeTab === "data" ? COLORS.tabActive : COLORS.tabInactive,
@@ -768,21 +811,24 @@ export default function HomePage() {
               }}>
               Data
             </button>
-            <button
-              onClick={() => setActiveTab("formatting")}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
-              style={{
-                backgroundColor:
-                  activeTab === "formatting"
-                    ? COLORS.tabActive
-                    : COLORS.tabInactive,
-                color:
-                  activeTab === "formatting"
-                    ? COLORS.tabTextActive
-                    : COLORS.tabText
-              }}>
-              Formatting
-            </button>
+            {tableData.length > 0 && (
+              <button
+                onClick={() => setActiveTab("formatting")}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
+                data-tour="formatting-tab"
+                style={{
+                  backgroundColor:
+                    activeTab === "formatting"
+                      ? COLORS.tabActive
+                      : COLORS.tabInactive,
+                  color:
+                    activeTab === "formatting"
+                      ? COLORS.tabTextActive
+                      : COLORS.tabText
+                }}>
+                Formatting
+              </button>
+            )}
             {detectedEmailColumn && (
               <button
                 onClick={() => {
@@ -790,6 +836,7 @@ export default function HomePage() {
                   setActiveTab("email");
                 }}
                 className="px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center"
+                data-tour="email-tab"
                 style={{
                   backgroundColor:
                     activeTab === "email"
@@ -1005,6 +1052,24 @@ export default function HomePage() {
           }}
         />
       )}
+
+
+      {/* Onboarding Modal */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        onStartTour={() => {
+          setShowOnboarding(false);
+          // Small delay to ensure modal is closed before starting tour
+          setTimeout(() => {
+            startTour();
+          }, 300);
+        }}
+        onSkip={() => {
+          setShowOnboarding(false);
+          skipOnboarding();
+        }}
+      />
     </div>
   );
 }
