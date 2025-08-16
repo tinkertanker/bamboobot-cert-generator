@@ -141,7 +141,7 @@ export function useOnboarding() {
       }
       
       startTourInternal();
-    }, 100); // Wait 100ms for DOM to settle (WelcomeScreen removal handled in index.tsx)
+    }, 100); // Wait 100ms for DOM to settle
     
     const startTourInternal = () => {
       // Clean up any existing instance first

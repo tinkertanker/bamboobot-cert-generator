@@ -51,9 +51,7 @@ import { usePdfGenerationMethods } from "@/hooks/usePdfGenerationMethods";
 import { useTemplateManagement } from "@/hooks/useTemplateManagement";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingModal } from "@/components/modals/OnboardingModal";
-import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { HelpCircle } from "lucide-react";
-import { SAMPLE_CERTIFICATE_DATA, SAMPLE_EMAIL_TEMPLATE } from "@/utils/sampleData";
 
 export default function HomePage() {
   // ============================================================================
@@ -77,14 +75,12 @@ export default function HomePage() {
     driverInstance
   } = useOnboarding();
 
-  const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
-
-  // Check if user is completely new (show welcome screen)
+  // Check if user is completely new (show onboarding modal)
   useEffect(() => {
     if (!hasSeenOnboarding && !isMobileLoading && !isMobile) {
-      setShowWelcomeScreen(true);
+      setShowOnboarding(true);
     }
-  }, [hasSeenOnboarding, isMobileLoading, isMobile]);
+  }, [hasSeenOnboarding, isMobileLoading, isMobile, setShowOnboarding]);
 
 
   // ============================================================================
@@ -190,30 +186,6 @@ export default function HomePage() {
     uploadToServer
   } = useFileUpload();
 
-  // Onboarding handlers (must come after file upload hook)
-  const handleLoadSampleData = useCallback(() => {
-    // Create a fake event to pass the sample data
-    const fakeEvent = {
-      target: { value: SAMPLE_CERTIFICATE_DATA }
-    } as React.ChangeEvent<HTMLTextAreaElement>;
-    handleTableDataChange(fakeEvent);
-    setEmailTemplate(SAMPLE_EMAIL_TEMPLATE);
-    setShowWelcomeScreen(false);
-  }, [handleTableDataChange, setEmailTemplate]);
-
-  const handleUseSampleTemplate = useCallback(async () => {
-    try {
-      const response = await fetch('/api/sample-template');
-      const data = await response.json();
-      if (data.success && data.imageUrl) {
-        // Set the uploaded file URL directly for the sample template
-        setUploadedFileUrl(data.imageUrl);
-        setUploadedFile('sample-template.png');
-      }
-    } catch (error) {
-      console.error('Failed to load sample template:', error);
-    }
-  }, [setUploadedFileUrl, setUploadedFile]);
 
   // PDF generation hook (must come after file upload hook)
   const {
@@ -1075,25 +1047,6 @@ export default function HomePage() {
         />
       )}
 
-      {/* Welcome Screen for first-time users */}
-      {showWelcomeScreen && (
-        <WelcomeScreen
-          onStartTour={() => {
-            setShowWelcomeScreen(false);
-            
-            // Wait for WelcomeScreen to be removed from DOM before starting tour
-            setTimeout(() => {
-              startTour();
-            }, 300);
-          }}
-          onLoadSampleData={handleLoadSampleData}
-          onUseSampleTemplate={handleUseSampleTemplate}
-          onSkip={() => {
-            setShowWelcomeScreen(false);
-            skipOnboarding();
-          }}
-        />
-      )}
 
       {/* Onboarding Modal */}
       <OnboardingModal
@@ -1101,8 +1054,7 @@ export default function HomePage() {
         onClose={() => setShowOnboarding(false)}
         onStartTour={() => {
           setShowOnboarding(false);
-          setShowWelcomeScreen(false); // CRITICAL: Dismiss the WelcomeScreen!
-          // Wait for WelcomeScreen to be removed from DOM before starting tour
+          // Small delay to ensure modal is closed before starting tour
           setTimeout(() => {
             startTour();
           }, 300);
