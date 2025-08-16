@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Image from "next/image";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +34,7 @@ const onboardingSteps: OnboardingStep[] = [
     title: "Welcome to Bamboobot Certificate Generator! 🎉",
     description:
       "Create professional certificates in bulk with our easy-to-use tool. Let's walk through how it works.",
-    icon: <img src="/bamboobot-icon.png" alt="Bamboobot Icon" className="w-16 h-16" />,
+    icon: <Image src="/bamboobot-icon.png" alt="Bamboobot Icon" width={64} height={64} className="w-16 h-16" />,
     features: [
       "Generate hundreds of certificates in minutes",
       "Drag-and-drop text positioning",
@@ -180,7 +181,7 @@ export function OnboardingModal({
               step.features.map((feature, index) => (
                 <div key={index} className="flex items-start">
                   <div className="w-2 h-2 rounded-full bg-green-900 mt-2 mr-2 flex-shrink-0" />
-                  <span className="text-m text-gray-600">{feature}</span>
+                  <span className="text-sm text-gray-600">{feature}</span>
                 </div>
               ))}
           </div>

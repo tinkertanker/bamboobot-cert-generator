@@ -128,21 +128,6 @@ export function useOnboarding() {
   const startTour = useCallback(() => {
     completeOnboarding();
     
-    // Add a delay to ensure the welcome screen/modal is fully closed and DOM is updated
-    setTimeout(() => {
-      // Check if the main app elements are ready
-      const uploadArea = document.querySelector('[data-tour="upload-area"]');
-      if (!uploadArea) {
-        console.warn('Tour elements not ready yet, waiting a bit more...');
-        setTimeout(() => {
-          startTourInternal();
-        }, 500);
-        return;
-      }
-      
-      startTourInternal();
-    }, 100); // Wait 100ms for DOM to settle
-    
     const startTourInternal = () => {
       // Clean up any existing instance first
       if (driverInstance) {
@@ -170,55 +155,35 @@ export function useOnboarding() {
       });
 
       setDriverInstance(driverObj);
-      
-      // Add manual cleanup for when tour finishes
       driverObj.drive();
       
-      // Set up cleanup when tour completes
-      const checkForCompletion = () => {
-        // Check if tour is still active
-        const popover = document.querySelector('.driver-popover');
-        if (!popover) {
-          // Tour has ended, clean up
-          localStorage.setItem(TOUR_KEY, "true");
-          setDriverInstance(null);
-        } else {
-          // Check again in 500ms
-          setTimeout(checkForCompletion, 500);
-        }
-      };
-      
-      // Start checking for completion after a short delay
-      setTimeout(checkForCompletion, 1000);
+      // Simple cleanup - will be handled when component unmounts or new tour starts
+      localStorage.setItem(TOUR_KEY, "true");
     };
+    
+    // Add a delay to ensure the welcome screen/modal is fully closed and DOM is updated
+    setTimeout(() => {
+      // Check if the main app elements are ready
+      const uploadArea = document.querySelector('[data-tour="upload-area"]');
+      if (!uploadArea) {
+        console.warn('Tour elements not ready yet, waiting a bit more...');
+        setTimeout(startTourInternal, 500);
+        return;
+      }
+      
+      startTourInternal();
+    }, 100); // Wait 100ms for DOM to settle
   }, [completeOnboarding, driverInstance]);
-
-  const restartTour = useCallback(() => {
-    if (driverInstance) {
-      driverInstance.destroy();
-    }
-    startTour();
-  }, [driverInstance, startTour]);
 
   const skipOnboarding = useCallback(() => {
     completeOnboarding();
   }, [completeOnboarding]);
 
-  const resetOnboarding = useCallback(() => {
-    localStorage.removeItem(ONBOARDING_KEY);
-    localStorage.removeItem(TOUR_KEY);
-    setHasSeenOnboarding(false);
-    setShowOnboarding(true);
-  }, []);
-
   return {
     showOnboarding,
     hasSeenOnboarding,
     startTour,
-    restartTour,
     skipOnboarding,
-    resetOnboarding,
-    setShowOnboarding,
-    driverInstance
+    setShowOnboarding
   };
 }

@@ -46,10 +46,8 @@ jest.mock('../../hooks/useOnboarding', () => ({
     showOnboarding: false,
     hasSeenOnboarding: true,
     startTour: jest.fn(),
-    restartTour: jest.fn(),
     skipOnboarding: jest.fn(),
     setShowOnboarding: jest.fn(),
-    driverInstance: null,
   }),
 }));
 
