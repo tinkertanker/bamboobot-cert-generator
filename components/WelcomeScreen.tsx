@@ -4,7 +4,6 @@ import {
   FileImage, 
   Table, 
   Play,
-  Sparkles,
   ArrowRight,
   Download,
   BookOpen
@@ -31,7 +30,11 @@ export function WelcomeScreen({
           <div className="text-center mb-12">
             <div className="flex justify-center mb-6">
               <div className="p-4 bg-white rounded-full shadow-lg">
-                <Sparkles className="w-16 h-16 text-blue-500" />
+                <img 
+                  src="/bamboobot-icon.png" 
+                  alt="Bamboobot Icon" 
+                  className="w-16 h-16"
+                />
               </div>
             </div>
             

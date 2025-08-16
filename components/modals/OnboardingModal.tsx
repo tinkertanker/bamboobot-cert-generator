@@ -11,7 +11,6 @@ import {
   ChevronRight,
   ChevronLeft,
   X,
-  Sparkles,
   Play
 } from "lucide-react";
 import { COLORS } from "@/utils/styles";
@@ -35,7 +34,7 @@ const onboardingSteps: OnboardingStep[] = [
     title: "Welcome to Bamboobot Certificate Generator! 🎉",
     description:
       "Create professional certificates in bulk with our easy-to-use tool. Let's walk through how it works.",
-    icon: <Sparkles className="w-16 h-16 text-green-700" />,
+    icon: <img src="/bamboobot-icon.png" alt="Bamboobot Icon" className="w-16 h-16" />,
     features: [
       "Generate hundreds of certificates in minutes",
       "Drag-and-drop text positioning",
