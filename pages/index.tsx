@@ -69,10 +69,8 @@ export default function HomePage() {
     showOnboarding,
     hasSeenOnboarding,
     startTour,
-    restartTour,
     skipOnboarding,
-    setShowOnboarding,
-    driverInstance
+    setShowOnboarding
   } = useOnboarding();
 
   // Check if user is completely new (show onboarding modal)
