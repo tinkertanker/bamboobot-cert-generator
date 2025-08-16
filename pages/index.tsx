@@ -73,7 +73,8 @@ export default function HomePage() {
     startTour,
     restartTour,
     skipOnboarding,
-    setShowOnboarding
+    setShowOnboarding,
+    driverInstance
   } = useOnboarding();
 
   const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
@@ -84,6 +85,7 @@ export default function HomePage() {
       setShowWelcomeScreen(true);
     }
   }, [hasSeenOnboarding, isMobileLoading, isMobile]);
+
 
   // ============================================================================
   // STATE & DATA MANAGEMENT
@@ -1076,7 +1078,11 @@ export default function HomePage() {
         <WelcomeScreen
           onStartTour={() => {
             setShowWelcomeScreen(false);
-            startTour();
+            
+            // Wait for WelcomeScreen to be removed from DOM before starting tour
+            setTimeout(() => {
+              startTour();
+            }, 300);
           }}
           onLoadSampleData={handleLoadSampleData}
           onUseSampleTemplate={handleUseSampleTemplate}
@@ -1093,7 +1099,11 @@ export default function HomePage() {
         onClose={() => setShowOnboarding(false)}
         onStartTour={() => {
           setShowOnboarding(false);
-          startTour();
+          setShowWelcomeScreen(false); // CRITICAL: Dismiss the WelcomeScreen!
+          // Wait for WelcomeScreen to be removed from DOM before starting tour
+          setTimeout(() => {
+            startTour();
+          }, 300);
         }}
         onSkip={() => {
           setShowOnboarding(false);
