@@ -141,7 +141,7 @@ export function OnboardingModal({ isOpen, onClose, onStartTour, onSkip }: Onboar
       className="max-w-2xl"
       width="max-w-2xl"
     >
-      <div className="relative">
+      <div className="relative" style={{ minHeight: '520px' }}>
         <button
           onClick={handleSkip}
           className="absolute top-0 right-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -155,26 +155,24 @@ export function OnboardingModal({ isOpen, onClose, onStartTour, onSkip }: Onboar
             {step.icon}
           </div>
           
-          <h2 className="text-2xl font-bold mb-3 text-gray-900">
+          <h2 className="text-2xl font-bold mb-3 text-gray-900" style={{ minHeight: '36px' }}>
             {step.title}
           </h2>
           
-          <p className="text-lg mb-6 text-gray-600">
+          <p className="text-lg mb-6 text-gray-600" style={{ minHeight: '56px' }}>
             {step.description}
           </p>
 
-          {step.features && (
-            <div className="grid grid-cols-2 gap-3 text-left max-w-md mx-auto">
-              {step.features.map((feature, index) => (
-                <div key={index} className="flex items-start">
-                  <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 mr-2 flex-shrink-0" />
-                  <span className="text-sm text-gray-600">
-                    {feature}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="grid grid-cols-2 gap-3 text-left max-w-md mx-auto" style={{ minHeight: '120px' }}>
+            {step.features && step.features.map((feature, index) => (
+              <div key={index} className="flex items-start">
+                <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 mr-2 flex-shrink-0" />
+                <span className="text-sm text-gray-600">
+                  {feature}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center justify-between mb-6">
@@ -207,7 +205,7 @@ export function OnboardingModal({ isOpen, onClose, onStartTour, onSkip }: Onboar
           </Button>
 
           <div className="flex gap-2 flex-1 justify-end">
-            {!isFirstStep && (
+            {!isFirstStep ? (
               <Button
                 onClick={handlePrevious}
                 variant="outline"
@@ -216,6 +214,8 @@ export function OnboardingModal({ isOpen, onClose, onStartTour, onSkip }: Onboar
                 <ChevronLeft className="w-4 h-4" />
                 Previous
               </Button>
+            ) : (
+              <div className="w-[100px]" /> {/* Invisible spacer to maintain consistent layout */}
             )}
 
             <Button
