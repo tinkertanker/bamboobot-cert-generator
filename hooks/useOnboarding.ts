@@ -128,31 +128,69 @@ export function useOnboarding() {
   const startTour = useCallback(() => {
     completeOnboarding();
     
-    const driverObj = driver({
-      showProgress: true,
-      showButtons: ["next", "previous", "close"],
-      animate: true,
-      overlayColor: "rgba(0, 0, 0, 0.7)",
-      smoothScroll: true,
-      allowClose: true,
-      stagePadding: 4,
-      stageRadius: 8,
-      popoverClass: "driver-popover-theme",
-      progressText: "Step {{current}} of {{total}}",
-      nextBtnText: "Next →",
-      prevBtnText: "← Previous",
-      doneBtnText: "Done ✓",
-      steps: tourSteps,
-      onDestroyStarted: () => {
-        localStorage.setItem(TOUR_KEY, "true");
-        if (driverInstance) {
+    // Add a delay to ensure the welcome screen/modal is fully closed and DOM is updated
+    setTimeout(() => {
+      // Check if the main app elements are ready
+      const uploadArea = document.querySelector('[data-tour="upload-area"]');
+      if (!uploadArea) {
+        console.warn('Tour elements not ready yet, waiting a bit more...');
+        setTimeout(() => {
+          startTourInternal();
+        }, 500);
+        return;
+      }
+      
+      startTourInternal();
+    }, 800); // Wait 800ms for the welcome screen to fully close and DOM to settle
+    
+    const startTourInternal = () => {
+      // Clean up any existing instance first
+      if (driverInstance) {
+        try {
           driverInstance.destroy();
+        } catch (e) {
+          console.warn('Error destroying previous driver instance:', e);
         }
       }
-    });
 
-    setDriverInstance(driverObj);
-    driverObj.drive();
+      const driverObj = driver({
+        showProgress: true,
+        showButtons: ["next", "previous"],
+        animate: true,
+        overlayColor: "rgba(0, 0, 0, 0.7)",
+        smoothScroll: true,
+        allowClose: true,
+        stagePadding: 4,
+        stageRadius: 8,
+        progressText: "Step {{current}} of {{total}}",
+        nextBtnText: "Next →",
+        prevBtnText: "← Previous",
+        doneBtnText: "Done ✓",
+        steps: tourSteps
+      });
+
+      setDriverInstance(driverObj);
+      
+      // Add manual cleanup for when tour finishes
+      driverObj.drive();
+      
+      // Set up cleanup when tour completes
+      const checkForCompletion = () => {
+        // Check if tour is still active
+        const popover = document.querySelector('.driver-popover');
+        if (!popover) {
+          // Tour has ended, clean up
+          localStorage.setItem(TOUR_KEY, "true");
+          setDriverInstance(null);
+        } else {
+          // Check again in 500ms
+          setTimeout(checkForCompletion, 500);
+        }
+      };
+      
+      // Start checking for completion after a short delay
+      setTimeout(checkForCompletion, 1000);
+    };
   }, [completeOnboarding, driverInstance]);
 
   const restartTour = useCallback(() => {
