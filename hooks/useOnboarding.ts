@@ -19,7 +19,7 @@ const tourSteps: TourStep[] = [
   {
     popover: {
       title: "Welcome to the Interactive Tour! 👋",
-      description: "Let me show you around the certificate generator. You can exit this tour anytime by pressing ESC or clicking outside.",
+      description: "You can exit this tour anytime by pressing ESC or clicking outside.",
       side: "bottom",
       align: "center"
     }
@@ -28,7 +28,7 @@ const tourSteps: TourStep[] = [
     element: '[data-tour="upload-area"]',
     popover: {
       title: "Upload Your Certificate Template",
-      description: "Click here to upload your background image. You can use any PNG or JPEG file. We'll also provide a sample template if you want to try it out first!",
+      description: "Click here to upload your background image. You can use any PNG or JPEG file.",
       side: "bottom",
       align: "start"
     }
@@ -37,7 +37,7 @@ const tourSteps: TourStep[] = [
     element: '[data-tour="data-tab"]',
     popover: {
       title: "Add Your Data",
-      description: "This is where you'll paste your recipient data. Simply copy from Excel or Google Sheets and paste it here. The first row should contain column headers.",
+      description: "This is where you'll paste your recipient data. Simply copy from Excel or Google Sheets and paste it here. You can add multiple columns for name, category, email, and more.",
       side: "bottom",
       align: "start"
     }
@@ -55,7 +55,7 @@ const tourSteps: TourStep[] = [
     element: '[data-tour="formatting-tab"]',
     popover: {
       title: "Format Your Text",
-      description: "Switch to the Formatting tab to customize fonts, colors, sizes, and alignment for each text field.",
+      description: "Switch to the Formatting tab to customise fonts, colours, sizes, alignment, and visibility for each text field.",
       side: "bottom",
       align: "center"
     }
@@ -64,7 +64,7 @@ const tourSteps: TourStep[] = [
     element: '[data-tour="email-tab"]',
     popover: {
       title: "Configure Email (Optional)",
-      description: "If you want to email certificates directly to recipients, configure your email settings here. We automatically detect email columns in your data.",
+      description: "If you want to email certificates directly to recipients, configure your email settings here. Bamboobot automatically detects email columns in your data.",
       side: "bottom",
       align: "center"
     }
@@ -82,7 +82,7 @@ const tourSteps: TourStep[] = [
     element: '[data-tour="generate-pdf"]',
     popover: {
       title: "Generate Certificates",
-      description: "When you're ready, click here to generate all certificates. You can download them individually, as a ZIP file, or email them directly.",
+      description: "When you're ready, click here to generate certificates. You can download them individually, as a zip file, or email them.",
       side: "left",
       align: "end"
     }
@@ -91,7 +91,7 @@ const tourSteps: TourStep[] = [
     element: '[data-tour="save-project"]',
     popover: {
       title: "Save Your Project",
-      description: "Don't forget to save your project! This saves both your template and data, so you can come back and regenerate certificates anytime.",
+      description: "You can save your project in this browser at any time, and come back and regenerate certificates.",
       side: "left",
       align: "end"
     }
