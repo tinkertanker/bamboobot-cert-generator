@@ -566,6 +566,7 @@ export default function HomePage() {
             
             {/* Projects Split Button */}
             <SplitButton
+              data-tour="save-project"
               label={
                 currentTemplateName 
                   ? `Save to "${currentTemplateName}"` 
@@ -608,6 +609,7 @@ export default function HomePage() {
 
             {/* Generate Split Button */}
             <SplitButton
+              data-tour="generate-pdf"
               label="Generate"
               onClick={() => {
                 handleGenerateIndividualPdfs();
