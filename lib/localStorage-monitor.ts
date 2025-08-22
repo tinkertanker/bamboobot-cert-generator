@@ -123,7 +123,8 @@ export function analyzeLocalStorage(): LocalStorageStats {
       size,
       type,
       data,
-      lastModified: data?.lastModified || data?.updatedAt
+      lastModified: (typeof data?.lastModified === 'string' ? data.lastModified : undefined) || 
+                    (typeof data?.updatedAt === 'string' ? data.updatedAt : undefined)
     };
     
     items.push(item);
@@ -178,7 +179,7 @@ export function analyzeLocalStorage(): LocalStorageStats {
 }
 
 export interface CleanupOptions {
-  target: 'all' | 'projects' | 'session' | 'email-queues' | 'old-projects' | 'old-email-queues';
+  target: 'all' | 'projects' | 'session' | 'email-queues' | 'old-projects' | 'old-email-queues' | 'other';
   olderThanDays?: number;
 }
 
@@ -216,6 +217,9 @@ export function cleanupLocalStorage(options: CleanupOptions): { deletedCount: nu
         if (item.type === 'email-queue' && item.lastModified && cutoffDate) {
           shouldDelete = new Date(item.lastModified) < cutoffDate;
         }
+        break;
+      case 'other':
+        shouldDelete = item.type === 'other';
         break;
     }
     

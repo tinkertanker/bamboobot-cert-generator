@@ -193,7 +193,7 @@ export function LocalStorageMonitor() {
                         <div className="truncate font-mono text-gray-800" title={item.key}>
                           {item.key}
                         </div>
-                        {item.data?.name && (
+                        {item.data && 'name' in item.data && typeof item.data.name === 'string' && (
                           <div className="text-gray-500 text-xs">
                             {item.data.name}
                           </div>
