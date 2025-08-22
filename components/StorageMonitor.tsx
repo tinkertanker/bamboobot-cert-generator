@@ -170,7 +170,7 @@ export function StorageMonitor() {
 
       {/* Detailed Breakdown */}
       {showDetails && (
-        <div className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-96">
+        <div className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg">
           <div className="space-y-3">
             <h3 className="font-semibold text-sm">Storage Breakdown</h3>
             

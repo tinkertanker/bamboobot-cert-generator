@@ -26,17 +26,6 @@ interface StorageStats {
   };
 }
 
-// Helper function for formatting bytes
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-// Use formatBytes in response (to satisfy linter)
-console.log('Storage stats formatter loaded:', formatBytes(0));
 
 function getFileAge(filePath: string): number {
   const stats = fs.statSync(filePath);

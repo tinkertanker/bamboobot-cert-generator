@@ -25,8 +25,29 @@ export interface LocalStorageStats {
   };
 }
 
+// Cached quota to avoid expensive recalculation
+let cachedLocalStorageQuota: number | null = null;
+
 // Helper function to estimate localStorage quota (usually 5-10MB in most browsers)
-function estimateLocalStorageQuota(): number {
+async function estimateLocalStorageQuota(): Promise<number> {
+  if (cachedLocalStorageQuota !== null) {
+    return cachedLocalStorageQuota;
+  }
+
+  // Use Storage API if available (more accurate and efficient)
+  if (typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.estimate === 'function') {
+    try {
+      const estimate = await navigator.storage.estimate();
+      if (typeof estimate.quota === 'number') {
+        cachedLocalStorageQuota = estimate.quota;
+        return cachedLocalStorageQuota;
+      }
+    } catch {
+      // Fallback to test method below
+    }
+  }
+
+  // Fallback: test method (potentially expensive, so cache result)
   try {
     const testKey = '__quota_test__';
     let size = 0;
@@ -47,9 +68,11 @@ function estimateLocalStorageQuota(): number {
       localStorage.removeItem(testKey + i);
     }
     
-    return size || 5 * 1024 * 1024; // Default to 5MB if test fails
+    cachedLocalStorageQuota = size || 5 * 1024 * 1024; // Default to 5MB if test fails
+    return cachedLocalStorageQuota;
   } catch {
-    return 5 * 1024 * 1024; // Default to 5MB
+    cachedLocalStorageQuota = 5 * 1024 * 1024; // Default to 5MB
+    return cachedLocalStorageQuota;
   }
 }
 
@@ -102,7 +125,7 @@ function parseItemData(key: string, value: string): Record<string, unknown> {
   }
 }
 
-export function analyzeLocalStorage(): LocalStorageStats {
+export async function analyzeLocalStorage(): Promise<LocalStorageStats> {
   const items: LocalStorageItem[] = [];
   let totalSize = 0;
   
@@ -166,7 +189,7 @@ export function analyzeLocalStorage(): LocalStorageStats {
     }
   });
   
-  const quota = estimateLocalStorageQuota();
+  const quota = await estimateLocalStorageQuota();
   const quotaUsage = (totalSize / quota) * 100;
   
   return {
@@ -183,8 +206,8 @@ export interface CleanupOptions {
   olderThanDays?: number;
 }
 
-export function cleanupLocalStorage(options: CleanupOptions): { deletedCount: number; freedSize: number; deletedItems: string[] } {
-  const stats = analyzeLocalStorage();
+export async function cleanupLocalStorage(options: CleanupOptions): Promise<{ deletedCount: number; freedSize: number; deletedItems: string[] }> {
+  const stats = await analyzeLocalStorage();
   const result = { deletedCount: 0, freedSize: 0, deletedItems: [] as string[] };
   
   const now = new Date();

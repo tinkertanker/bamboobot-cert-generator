@@ -11,10 +11,10 @@ export function LocalStorageMonitor() {
   const [showDetails, setShowDetails] = useState(false);
   const { showToast } = useToast();
 
-  const refreshStats = () => {
+  const refreshStats = async () => {
     setLoading(true);
     try {
-      const newStats = analyzeLocalStorage();
+      const newStats = await analyzeLocalStorage();
       setStats(newStats);
     } catch (error) {
       console.error('Error analyzing localStorage:', error);
@@ -27,7 +27,7 @@ export function LocalStorageMonitor() {
   const cleanup = async (options: CleanupOptions, label: string) => {
     setCleaning(true);
     try {
-      const result = cleanupLocalStorage(options);
+      const result = await cleanupLocalStorage(options);
       showToast({ 
         message: `${label}: Deleted ${result.deletedCount} items, freed ${formatBytes(result.freedSize)}`, 
         type: 'success', 
@@ -35,7 +35,7 @@ export function LocalStorageMonitor() {
       });
       
       // Refresh stats after cleanup
-      refreshStats();
+      await refreshStats();
     } catch (error) {
       console.error('Error during localStorage cleanup:', error);
       showToast({ message: `${label} failed`, type: 'error', duration: 5000 });
@@ -153,7 +153,7 @@ export function LocalStorageMonitor() {
 
       {/* Detailed Breakdown */}
       {showDetails && (
-        <div className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-96">
+        <div className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg">
           <div className="space-y-3">
             <h3 className="font-semibold text-sm">localStorage Breakdown</h3>
             
