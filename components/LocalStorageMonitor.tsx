@@ -74,7 +74,7 @@ export function LocalStorageMonitor() {
   return (
     <div className="flex items-center gap-2">
       {/* localStorage Summary */}
-      <div className={`flex items-center gap-2 px-3 py-1 rounded-lg border ${
+      <div className={`relative flex items-center gap-2 px-3 py-1 rounded-lg border ${
         isHighUsage ? 'bg-red-50 border-red-200' : 
         stats.quotaUsage > 50 ? 'bg-amber-50 border-amber-200' : 
         'bg-gray-50 border-gray-200'
@@ -107,6 +107,90 @@ export function LocalStorageMonitor() {
         >
           <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
         </button>
+
+        {/* Detailed Breakdown */}
+        {showDetails && (
+          <div className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg">
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm">localStorage Breakdown</h3>
+              
+              {/* Summary by Type */}
+              {Object.entries(stats.byType).map(([type, data]) => {
+                if (data.count === 0) return null;
+                return (
+                  <div key={type} className="flex justify-between items-center text-sm">
+                    <div>
+                      <span className="font-medium capitalize">{type.replace(/([A-Z])/g, ' $1')}</span>
+                      <span className="text-gray-500 ml-1">({data.count} items)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-700">{formatBytes(data.size)}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => cleanup({ target: type === 'emailQueues' ? 'email-queues' : type as 'projects' | 'session' | 'other' }, `${type} cleanup`)}
+                        disabled={cleaning}
+                        className="h-6 px-2 text-xs"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* Largest Items */}
+              {stats.items.length > 0 && (
+                <div className="mt-3 pt-3 border-t">
+                  <h4 className="font-medium text-xs text-gray-600 mb-2">Largest Items</h4>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {stats.items.slice(0, 5).map((item, idx) => (
+                      <div key={idx} className="flex justify-between text-xs">
+                        <div className="flex-1 mr-2">
+                          <div className="truncate font-mono text-gray-800" title={item.key}>
+                            {item.key}
+                          </div>
+                          {item.data && 'name' in item.data && typeof item.data.name === 'string' && (
+                            <div className="text-gray-500 text-xs">
+                              {item.data.name}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-gray-700">{formatBytes(item.size)}</div>
+                          <div className="text-gray-400 text-xs capitalize">{item.type}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {stats.items.length > 5 && (
+                      <div className="text-xs text-gray-500">
+                        ...and {stats.items.length - 5} more items
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Quota Information */}
+              <div className="mt-3 pt-3 border-t">
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Storage Quota Usage:</span>
+                  <span>{stats.quotaUsage.toFixed(1)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                  <div 
+                    className={`h-2 rounded-full ${
+                      stats.quotaUsage > 80 ? 'bg-red-500' : 
+                      stats.quotaUsage > 50 ? 'bg-amber-500' : 
+                      'bg-green-500'
+                    }`}
+                    style={{ width: `${Math.min(stats.quotaUsage, 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Quick Cleanup Actions */}
@@ -148,90 +232,6 @@ export function LocalStorageMonitor() {
             <Trash2 className="w-3 h-3 mr-1" />
             Clear All
           </Button>
-        </div>
-      )}
-
-      {/* Detailed Breakdown */}
-      {showDetails && (
-        <div className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg">
-          <div className="space-y-3">
-            <h3 className="font-semibold text-sm">localStorage Breakdown</h3>
-            
-            {/* Summary by Type */}
-            {Object.entries(stats.byType).map(([type, data]) => {
-              if (data.count === 0) return null;
-              return (
-                <div key={type} className="flex justify-between items-center text-sm">
-                  <div>
-                    <span className="font-medium capitalize">{type.replace(/([A-Z])/g, ' $1')}</span>
-                    <span className="text-gray-500 ml-1">({data.count} items)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-700">{formatBytes(data.size)}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => cleanup({ target: type === 'emailQueues' ? 'email-queues' : type as 'projects' | 'session' | 'other' }, `${type} cleanup`)}
-                      disabled={cleaning}
-                      className="h-6 px-2 text-xs"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-            
-            {/* Largest Items */}
-            {stats.items.length > 0 && (
-              <div className="mt-3 pt-3 border-t">
-                <h4 className="font-medium text-xs text-gray-600 mb-2">Largest Items</h4>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {stats.items.slice(0, 5).map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-xs">
-                      <div className="flex-1 mr-2">
-                        <div className="truncate font-mono text-gray-800" title={item.key}>
-                          {item.key}
-                        </div>
-                        {item.data && 'name' in item.data && typeof item.data.name === 'string' && (
-                          <div className="text-gray-500 text-xs">
-                            {item.data.name}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <div className="text-gray-700">{formatBytes(item.size)}</div>
-                        <div className="text-gray-400 text-xs capitalize">{item.type}</div>
-                      </div>
-                    </div>
-                  ))}
-                  {stats.items.length > 5 && (
-                    <div className="text-xs text-gray-500">
-                      ...and {stats.items.length - 5} more items
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {/* Quota Information */}
-            <div className="mt-3 pt-3 border-t">
-              <div className="flex justify-between text-xs text-gray-600">
-                <span>Storage Quota Usage:</span>
-                <span>{stats.quotaUsage.toFixed(1)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                <div 
-                  className={`h-2 rounded-full ${
-                    stats.quotaUsage > 80 ? 'bg-red-500' : 
-                    stats.quotaUsage > 50 ? 'bg-amber-500' : 
-                    'bg-green-500'
-                  }`}
-                  style={{ width: `${Math.min(stats.quotaUsage, 100)}%` }}
-                />
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </div>
