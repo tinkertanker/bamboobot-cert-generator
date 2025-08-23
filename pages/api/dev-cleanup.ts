@@ -74,22 +74,29 @@ function cleanupDirectory(dirPath: string, maxAge?: number, targetTypes?: string
     
     let shouldDelete = false;
     
-    if (maxAge && age > maxAge) {
+    // If no criteria specified, delete all files
+    if (!maxAge && !targetTypes) {
       shouldDelete = true;
-    }
-    
-    if (targetTypes) {
-      const ext = path.extname(item).toLowerCase();
-      const isProgressiveDir = item.startsWith('progressive_pdf-');
-      const matchesType = targetTypes.some(type => {
-        switch (type) {
-          case 'pdf': return ext === '.pdf' || isProgressiveDir;
-          case 'image': return ['.png', '.jpg', '.jpeg'].includes(ext);
-          case 'progressive': return isProgressiveDir;
-          default: return false;
-        }
-      });
-      if (matchesType) shouldDelete = true;
+    } else {
+      // Apply age criteria if specified
+      if (maxAge && age > maxAge) {
+        shouldDelete = true;
+      }
+      
+      // Apply type criteria if specified
+      if (targetTypes) {
+        const ext = path.extname(item).toLowerCase();
+        const isProgressiveDir = item.startsWith('progressive_pdf-');
+        const matchesType = targetTypes.some(type => {
+          switch (type) {
+            case 'pdf': return ext === '.pdf' || isProgressiveDir;
+            case 'image': return ['.png', '.jpg', '.jpeg'].includes(ext);
+            case 'progressive': return isProgressiveDir;
+            default: return false;
+          }
+        });
+        if (matchesType) shouldDelete = true;
+      }
     }
     
     if (shouldDelete) {
@@ -122,7 +129,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { target, maxAge, types } = req.body;
+    const { target } = req.body;
     
     let result: CleanupResult = {
       deletedFiles: 0,
@@ -150,16 +157,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         break;
         
       case 'generated':
-        result = cleanupDirectory(generatedDir, maxAge, types);
+        result = cleanupDirectory(generatedDir);
         break;
         
       case 'temp':
-        result = cleanupDirectory(tempImagesDir, maxAge, types);
+        result = cleanupDirectory(tempImagesDir);
         break;
         
       case 'docker':
         if (fs.existsSync(dockerDataDir)) {
-          result = cleanupDirectory(dockerDataDir, maxAge, types);
+          result = cleanupDirectory(dockerDataDir);
         }
         break;
         
