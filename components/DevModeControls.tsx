@@ -1,4 +1,6 @@
 import React from "react";
+import { StorageMonitor } from "@/components/StorageMonitor";
+import { LocalStorageMonitor } from "@/components/LocalStorageMonitor";
 
 interface DevModeControlsProps {
   isDevelopment: boolean;
@@ -25,7 +27,7 @@ export function DevModeControls({
   if (!isDevelopment) return null;
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 relative">
       <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg border">
         <input
           type="checkbox"
@@ -40,6 +42,10 @@ export function DevModeControls({
           Dev Mode
         </label>
       </div>
+
+      {/* Storage Monitors - Always visible in development */}
+      <StorageMonitor />
+      <LocalStorageMonitor />
 
       {/* Email Template Controls - Only when dev mode is on */}
       {devMode && (
