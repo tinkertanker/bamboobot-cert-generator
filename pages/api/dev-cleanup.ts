@@ -18,11 +18,16 @@ function formatBytes(bytes: number): string {
 }
 
 function getFileAge(filePath: string): number {
-  const stats = fs.statSync(filePath);
-  const now = new Date();
-  const fileDate = new Date(stats.mtime);
-  const diffTime = Math.abs(now.getTime() - fileDate.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  try {
+    const stats = fs.statSync(filePath);
+    const now = new Date();
+    const fileDate = new Date(stats.mtime);
+    const diffTime = Math.abs(now.getTime() - fileDate.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  } catch {
+    // If the file does not exist or cannot be accessed, treat as infinitely old
+    return Infinity;
+  }
 }
 
 function getDirSize(dirPath: string): number {
@@ -69,7 +74,15 @@ function cleanupDirectory(dirPath: string, maxAge?: number, targetTypes?: string
 
   for (const item of items) {
     const itemPath = path.join(dirPath, item);
-    const stats = fs.statSync(itemPath);
+    
+    let stats: fs.Stats;
+    try {
+      stats = fs.statSync(itemPath);
+    } catch {
+      // File may have been deleted between readdir and statSync; skip this item
+      continue;
+    }
+    
     const age = getFileAge(itemPath);
     
     let shouldDelete = false;

@@ -28,11 +28,16 @@ interface StorageStats {
 
 
 function getFileAge(filePath: string): number {
-  const stats = fs.statSync(filePath);
-  const now = new Date();
-  const fileDate = new Date(stats.mtime);
-  const diffTime = Math.abs(now.getTime() - fileDate.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  try {
+    const stats = fs.statSync(filePath);
+    const now = new Date();
+    const fileDate = new Date(stats.mtime);
+    const diffTime = Math.abs(now.getTime() - fileDate.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  } catch {
+    // File may have been deleted or is inaccessible; return -1 to indicate unknown age
+    return -1;
+  }
 }
 
 function getFileType(filename: string): FileInfo['type'] {
@@ -61,13 +66,23 @@ function analyzeDirectory(dirPath: string): DirectoryStats {
 
   for (const item of items) {
     const itemPath = path.join(dirPath, item);
-    const stats = fs.statSync(itemPath);
+    
+    let stats: fs.Stats;
+    try {
+      stats = fs.statSync(itemPath);
+    } catch {
+      // File may have been deleted between readdir and statSync; skip this item
+      continue;
+    }
 
     if (stats.isFile()) {
+      const age = getFileAge(itemPath);
+      if (age === -1) continue; // Skip files we can't access
+      
       const fileInfo: FileInfo = {
         name: item,
         size: stats.size,
-        age: getFileAge(itemPath),
+        age: age,
         type: getFileType(item)
       };
       files.push(fileInfo);
@@ -76,10 +91,13 @@ function analyzeDirectory(dirPath: string): DirectoryStats {
     } else if (stats.isDirectory()) {
       // For directories (like progressive PDF folders), get the total size
       const subDirSize = getDirSize(itemPath);
+      const age = getFileAge(itemPath);
+      if (age === -1) continue; // Skip directories we can't access
+      
       const fileInfo: FileInfo = {
         name: item,
         size: subDirSize,
-        age: getFileAge(itemPath),
+        age: age,
         type: getFileType(item)
       };
       files.push(fileInfo);

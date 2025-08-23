@@ -129,9 +129,20 @@ export function StorageMonitor() {
 
         {/* Detailed Breakdown */}
         {showDetails && (
-          <div className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg">
+          <div 
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="storage-breakdown-title"
+            tabIndex={-1}
+            className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setShowDetails(false);
+              }
+            }}
+          >
             <div className="space-y-3">
-              <h3 className="font-semibold text-sm">Storage Breakdown</h3>
+              <h3 id="storage-breakdown-title" className="font-semibold text-sm">Storage Breakdown</h3>
               
               {Object.entries(stats.directories).map(([key, dir]) => {
                 if (!dir) return null;

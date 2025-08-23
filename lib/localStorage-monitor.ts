@@ -47,28 +47,49 @@ async function estimateLocalStorageQuota(): Promise<number> {
     }
   }
 
-  // Fallback: test method (potentially expensive, so cache result)
+  // Fallback: optimized test method using binary search approach
   try {
     const testKey = '__quota_test__';
-    let size = 0;
     const testValue = '0'.repeat(1024); // 1KB test string
-    
-    // Try to fill localStorage to find the limit
-    while (size < 10 * 1024 * 1024) { // Max 10MB test
+    let maxSize = 0;
+    const createdKeys: string[] = [];
+
+    // Exponential search to find upper bound
+    let step = 1024;
+    while (step <= 10 * 1024 * 1024) { // Max 10MB test
       try {
-        localStorage.setItem(testKey + size, testValue);
-        size += 1024;
+        const key = testKey + step;
+        localStorage.setItem(key, testValue);
+        createdKeys.push(key);
+        maxSize = step;
+        step *= 2;
       } catch {
         break;
       }
     }
-    
-    // Clean up test data
-    for (let i = 0; i < size; i += 1024) {
-      localStorage.removeItem(testKey + i);
+
+    // Binary search between last successful and failed step
+    let low = maxSize;
+    let high = step;
+    while (low < high - 1024) {
+      const mid = low + Math.floor((high - low) / 2 / 1024) * 1024;
+      try {
+        const key = testKey + mid;
+        localStorage.setItem(key, testValue);
+        createdKeys.push(key);
+        low = mid;
+        maxSize = mid;
+      } catch {
+        high = mid;
+      }
+    }
+
+    // Clean up test data efficiently
+    for (const key of createdKeys) {
+      localStorage.removeItem(key);
     }
     
-    cachedLocalStorageQuota = size || 5 * 1024 * 1024; // Default to 5MB if test fails
+    cachedLocalStorageQuota = maxSize || 5 * 1024 * 1024; // Default to 5MB if test fails
     return cachedLocalStorageQuota;
   } catch {
     cachedLocalStorageQuota = 5 * 1024 * 1024; // Default to 5MB
@@ -141,13 +162,20 @@ export async function analyzeLocalStorage(): Promise<LocalStorageStats> {
     const type = getItemType(key);
     const data = parseItemData(key, value);
     
+    // Extract lastModified timestamp from data
+    let lastModified: string | undefined;
+    if (typeof data?.lastModified === 'string') {
+      lastModified = data.lastModified;
+    } else if (typeof data?.updatedAt === 'string') {
+      lastModified = data.updatedAt;
+    }
+    
     const item: LocalStorageItem = {
       key,
       size,
       type,
       data,
-      lastModified: (typeof data?.lastModified === 'string' ? data.lastModified : undefined) || 
-                    (typeof data?.updatedAt === 'string' ? data.updatedAt : undefined)
+      lastModified
     };
     
     items.push(item);
