@@ -103,7 +103,7 @@ export function StorageMonitor() {
   return (
     <div className="flex items-center gap-2">
       {/* Storage Summary */}
-      <div className={`flex items-center gap-2 px-3 py-1 rounded-lg border ${
+      <div className={`relative flex items-center gap-2 px-3 py-1 rounded-lg border ${
         isHighUsage ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'
       }`}>
         <HardDrive className={`w-4 h-4 ${isHighUsage ? 'text-amber-600' : 'text-gray-600'}`} />
@@ -126,6 +126,61 @@ export function StorageMonitor() {
         >
           <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
         </button>
+
+        {/* Detailed Breakdown */}
+        {showDetails && (
+          <div className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg">
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm">Storage Breakdown</h3>
+              
+              {Object.entries(stats.directories).map(([key, dir]) => {
+                if (!dir) return null;
+                return (
+                  <div key={key} className="flex justify-between items-center text-sm">
+                    <div>
+                      <span className="font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+                      <span className="text-gray-500 ml-1">({dir.fileCount} items)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-700">{formatBytes(dir.totalSize)}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => cleanup(key === 'dockerData' ? 'docker' : key, `${key} cleanup`)}
+                        disabled={cleaning}
+                        className="h-6 px-2 text-xs"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* Large Files List */}
+              {largePdfs.length > 0 && (
+                <div className="mt-3 pt-3 border-t">
+                  <h4 className="font-medium text-xs text-gray-600 mb-2">Large PDF Files (&gt;1MB)</h4>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {largePdfs.slice(0, 5).map((file, idx) => (
+                      <div key={idx} className="flex justify-between text-xs">
+                        <span className="truncate flex-1 mr-2" title={file.name}>
+                          {file.name}
+                        </span>
+                        <span className="text-gray-500">{formatBytes(file.size)}</span>
+                      </div>
+                    ))}
+                    {largePdfs.length > 5 && (
+                      <div className="text-xs text-gray-500">
+                        ...and {largePdfs.length - 5} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Quick Cleanup Actions */}
@@ -165,61 +220,6 @@ export function StorageMonitor() {
             <Trash2 className="w-3 h-3 mr-1" />
             Clear All
           </Button>
-        </div>
-      )}
-
-      {/* Detailed Breakdown */}
-      {showDetails && (
-        <div className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg">
-          <div className="space-y-3">
-            <h3 className="font-semibold text-sm">Storage Breakdown</h3>
-            
-            {Object.entries(stats.directories).map(([key, dir]) => {
-              if (!dir) return null;
-              return (
-                <div key={key} className="flex justify-between items-center text-sm">
-                  <div>
-                    <span className="font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                    <span className="text-gray-500 ml-1">({dir.fileCount} items)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-700">{formatBytes(dir.totalSize)}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => cleanup(key === 'dockerData' ? 'docker' : key, `${key} cleanup`)}
-                      disabled={cleaning}
-                      className="h-6 px-2 text-xs"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-            
-            {/* Large Files List */}
-            {largePdfs.length > 0 && (
-              <div className="mt-3 pt-3 border-t">
-                <h4 className="font-medium text-xs text-gray-600 mb-2">Large PDF Files (&gt;1MB)</h4>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {largePdfs.slice(0, 5).map((file, idx) => (
-                    <div key={idx} className="flex justify-between text-xs">
-                      <span className="truncate flex-1 mr-2" title={file.name}>
-                        {file.name}
-                      </span>
-                      <span className="text-gray-500">{formatBytes(file.size)}</span>
-                    </div>
-                  ))}
-                  {largePdfs.length > 5 && (
-                    <div className="text-xs text-gray-500">
-                      ...and {largePdfs.length - 5} more
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       )}
     </div>
