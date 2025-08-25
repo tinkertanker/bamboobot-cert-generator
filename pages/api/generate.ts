@@ -59,33 +59,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     if (storageConfig.isR2Enabled) {
       // For R2, we need to handle the template differently
-      // This assumes the template was uploaded to R2 previously
-      // For now, we'll still read from local as a fallback
-      const localTemplatePath = path.join(process.cwd(), 'public', isTemplate ? 'template_images' : 'temp_images', templateFilename);
-      console.log('R2 mode - checking local fallback at:', localTemplatePath);
-      if (fs.existsSync(localTemplatePath)) {
-        templatePdfBytes = await fsPromises.readFile(localTemplatePath);
-        console.log('Template found locally, size:', templatePdfBytes.length);
-      } else {
-        console.error('Template not found at:', localTemplatePath);
-        return res.status(404).json({ error: 'Template not found' });
-      }
-    } else {
-      // First check template_images for template files, then temp_images
+      // Check both directories as files might be in either location
       const templateImagePath = path.join(process.cwd(), 'public', 'template_images', templateFilename);
       const tempImagePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename);
       
-      let templatePath = tempImagePath; // Default to temp_images
+      console.log('R2 mode - checking for template in both directories');
       
-      // Check if file exists in template_images first (for actual templates)
-      if (isTemplate && fs.existsSync(templateImagePath)) {
+      let localTemplatePath: string | null = null;
+      if (fs.existsSync(templateImagePath)) {
+        localTemplatePath = templateImagePath;
+        console.log('Template found in template_images:', localTemplatePath);
+      } else if (fs.existsSync(tempImagePath)) {
+        localTemplatePath = tempImagePath;
+        console.log('Template found in temp_images:', localTemplatePath);
+      }
+      
+      if (localTemplatePath) {
+        templatePdfBytes = await fsPromises.readFile(localTemplatePath);
+        console.log('Template loaded successfully, size:', templatePdfBytes.length);
+      } else {
+        console.error('Template not found in either directory:', { templateImagePath, tempImagePath });
+        return res.status(404).json({ error: 'Template not found' });
+      }
+    } else {
+      // Check both directories - template_images first, then temp_images
+      const templateImagePath = path.join(process.cwd(), 'public', 'template_images', templateFilename);
+      const tempImagePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename);
+      
+      let templatePath: string | null = null;
+      
+      // Check both locations regardless of isTemplate flag
+      if (fs.existsSync(templateImagePath)) {
         templatePath = templateImagePath;
         console.log('Local mode - reading template from template_images:', templatePath);
       } else if (fs.existsSync(tempImagePath)) {
         templatePath = tempImagePath;
         console.log('Local mode - reading from temp_images:', templatePath);
       } else {
-        console.error('Template not found in both template_images and temp_images:', { templateImagePath, tempImagePath });
+        console.error('Template not found in either directory:', { templateImagePath, tempImagePath });
         return res.status(404).json({ error: 'Template not found in both template_images and temp_images' });
       }
       
