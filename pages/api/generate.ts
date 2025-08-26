@@ -55,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('Looking for template:', templateFilename);
     
     // Check if this is a template file (e.g., dev-mode-template.pdf)
-    const isTemplate = templateFilename.startsWith('dev-mode-template');
+    // const isTemplate = templateFilename.startsWith('dev-mode-template');
     
     if (storageConfig.isR2Enabled) {
       // For R2, we need to handle the template differently

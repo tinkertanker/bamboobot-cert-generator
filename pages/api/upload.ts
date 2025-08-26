@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
 
   try {
-    const { fields, files } = await new Promise<{fields: Fields, files: Files}>((resolve, reject) => {
+    const { files } = await new Promise<{fields: Fields, files: Files}>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
           console.error('Formidable parse error:', {
