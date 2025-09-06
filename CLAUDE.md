@@ -27,6 +27,10 @@ npm test -- __tests__/path/to/specific.test.ts  # Run single test file
 # Linting
 npm run lint        # Run ESLint with Next.js configuration
 
+# Verification & Storage
+npm run verify      # Verify frontend build and dependencies
+npm run test:r2-cleanup # Test R2 storage cleanup functionality
+
 # Cleanup
 npm run cleanup     # Clean all temporary files
 npm run cleanup:old # Delete old generated files (7+ days PDFs, 30+ days temp images)
@@ -39,6 +43,8 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 - `pages/index.tsx` - Main orchestration layer managing state and coordinating components
 - `components/CertificatePreview.tsx` - Certificate display with drag-and-drop text positioning
 - `components/VirtualizedTable.tsx` - Performance-optimized table for large datasets (400+ rows)
+- `components/LocalStorageMonitor.tsx` - Dev Mode localStorage monitoring and cleanup
+- `components/StorageMonitor.tsx` - File system storage monitoring and cleanup
 - `components/panels/` - Data input, formatting controls, email configuration
 - `components/modals/` - PDF generation, email management, confirmation dialogs
 - `hooks/` - Feature-specific custom hooks for state management
@@ -251,6 +257,11 @@ The key insight: Architecture decisions fundamentally change based on deployment
   - Reduces server load and improves performance
   - Automatic fallback to server-side for unsupported browsers
   - See `docs/CLIENT_SIDE_PDF.md` for implementation details
+- **Storage Monitoring System** 🆕 - Real-time monitoring and cleanup for Dev Mode
+  - LocalStorage monitoring with quota tracking and breakdown by type
+  - File system monitoring for generated files and temporary images
+  - One-click cleanup actions for old projects, email queues, and large files
+  - Visual indicators for storage usage with warnings
 
 ## Common Development Tasks
 

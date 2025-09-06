@@ -33,6 +33,7 @@ Generate certificates from image templates with drag-and-drop text positioning a
 
 ### Developer Features
 - **Dev Mode** - Quick testing with pre-loaded template and data
+- **Storage Monitoring** - Real-time localStorage and file system monitoring with one-click cleanup
 - **Docker Support** - Production-ready containerization
 - **Keyboard Shortcuts** - Ctrl/Cmd+B (bold), Ctrl/Cmd+I (italic), ESC (dismiss modals)
 - **Enhanced Loading States** - Shimmer effects and skeleton loaders
@@ -70,6 +71,27 @@ docker-compose -f docker-compose.dev.yml up -d
 6. **Configure Email** (Optional) - Set up sender info and custom message if email column detected
 7. **Generate** - Create single PDF or individual PDFs
 8. **Send/Download** - Email certificates or download as PDF/ZIP
+
+## Dev Mode Features
+
+In Dev Mode, you have access to additional monitoring and cleanup tools:
+
+### Storage Monitoring
+- **LocalStorage Monitor** - Track browser storage usage with breakdown by type
+  - Real-time quota usage monitoring with visual warnings
+  - One-click cleanup for old projects (>30 days) and email queues (>7 days)
+  - Detailed breakdown showing largest items and storage distribution
+  
+- **Storage Monitor** - Monitor file system storage usage
+  - Track generated PDFs and temporary images
+  - Quick cleanup actions for large files (>1MB) and old files
+  - Visual storage usage indicators with cleanup recommendations
+
+### Automated Cleanup
+- **Smart Detection** - Automatically identifies old files and storage issues
+- **One-Click Actions** - Quick cleanup buttons for common scenarios
+- **Detailed Breakdown** - View storage usage by file type and age
+- **Safety Warnings** - Visual alerts for high storage usage
 
 ## Configuration
 
@@ -133,6 +155,8 @@ npm run test:e2e    # Run E2E tests (Playwright)
 npm run test:e2e:headed  # Run E2E tests with browser visible
 npm run test:e2e:ui      # Run E2E tests in interactive UI mode
 npm run lint        # Run ESLint with Next.js configuration
+npm run verify      # Verify frontend build and dependencies
+npm run test:r2-cleanup # Test R2 storage cleanup functionality
 
 # Cleanup
 npm run cleanup         # Clean all temporary files
@@ -171,6 +195,8 @@ pages/
 components/
   ├── CertificatePreview.tsx  # Certificate display with drag positioning
   ├── VirtualizedTable.tsx    # Performance-optimized table for large datasets
+  ├── LocalStorageMonitor.tsx # Dev Mode localStorage monitoring
+  ├── StorageMonitor.tsx      # File system storage monitoring
   ├── panels/                 # Data, formatting, email config panels
   └── modals/                 # PDF generation, email, confirmation modals
 hooks/                        # Feature-specific state management
