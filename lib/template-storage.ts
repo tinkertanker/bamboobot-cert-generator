@@ -7,7 +7,7 @@
 
 import type { Positions, EmailConfig } from '@/types/certificate';
 
-export interface SavedTemplate {
+export interface SavedProject {
   id: string;
   name: string;
   created: string;
@@ -67,7 +67,7 @@ export class TemplateStorage {
       const id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
       
-      const template: SavedTemplate = {
+      const project: SavedProject = {
         id,
         name: name.trim(),
         created: now,
@@ -87,16 +87,16 @@ export class TemplateStorage {
       };
       
       // Check storage size before saving
-      const serialized = JSON.stringify(template);
+      const serialized = JSON.stringify(project);
       if (serialized.length > STORAGE_LIMIT_BYTES / 10) {
-        // Single template shouldn't exceed 10% of storage limit
-        return { success: false, error: 'Template too large to save' };
+        // Single project shouldn't exceed 10% of storage limit
+        return { success: false, error: 'Project too large to save' };
       }
       
       // Check total storage usage
       const currentUsage = this.getStorageUsage();
       if (currentUsage + serialized.length > STORAGE_LIMIT_BYTES) {
-        return { success: false, error: 'Storage limit exceeded. Please delete some templates.' };
+        return { success: false, error: 'Storage limit exceeded. Please delete some projects.' };
       }
       
       // Save to localStorage
@@ -116,22 +116,22 @@ export class TemplateStorage {
   /**
    * Load a template by ID
    */
-  static loadTemplate(id: string): SavedTemplate | null {
+  static loadTemplate(id: string): SavedProject | null {
     try {
       const key = `${STORAGE_KEY_PREFIX}${id}`;
       const data = localStorage.getItem(key);
       
       if (!data) return null;
       
-      const template = JSON.parse(data) as SavedTemplate;
+      const project = JSON.parse(data) as SavedProject;
       
-      // Validate template structure
-      if (!template.id || !template.positions || !template.certificateImage) {
-        console.error('Invalid template structure');
+      // Validate project structure
+      if (!project.id || !project.positions || !project.certificateImage) {
+        console.error('Invalid project structure');
         return null;
       }
       
-      return template;
+      return project;
     } catch (error) {
       console.error('Error loading template:', error);
       return null;

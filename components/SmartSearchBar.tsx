@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Search, X, HelpCircle, Clock, Filter } from "lucide-react";
 import { COLORS, TRANSITIONS } from "@/utils/styles";
 import type { TableData } from "@/types/certificate";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface SearchFilterProps {
   tableData: TableData[];
@@ -31,6 +32,11 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
   const [activeFilterChips, setActiveFilterChips] = useState<Set<string>>(new Set());
   const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search handler for better performance
+  const debouncedSetSearchQuery = useDebounce((query: string) => {
+    setSearchQuery(query);
+  }, 300); // 300ms debounce delay
 
   // Filter chips configuration
   const filterChips: FilterChip[] = useMemo(() => [
@@ -202,7 +208,7 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
 
   // Handle search submission
   const handleSearch = (query: string) => {
-    setSearchQuery(query);
+    setSearchQuery(query); // Direct update for explicit search actions
     setShowSuggestions(false);
     
     if (query.trim() && !recentSearches.includes(query)) {
@@ -239,7 +245,7 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
 
   // Clear all filters
   const clearAllFilters = () => {
-    setSearchQuery("");
+    setSearchQuery(""); // Direct update for clear action
     setActiveFilterChips(new Set());
   };
 
@@ -286,9 +292,12 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
             type="text"
             value={searchQuery}
             onChange={(e) => {
-              setSearchQuery(e.target.value);
+              const value = e.target.value;
+              // Show suggestions immediately for better UX
               setShowSuggestions(true);
               setSelectedSuggestionIndex(-1);
+              // Debounce the actual search query update
+              debouncedSetSearchQuery(value);
             }}
             onFocus={() => setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}

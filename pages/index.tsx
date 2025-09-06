@@ -15,7 +15,6 @@ import { useEmailConfig } from "@/hooks/useEmailConfig";
 import { usePdfGeneration } from "@/hooks/usePdfGeneration";
 import { useProgressivePdfGeneration } from "@/hooks/useProgressivePdfGeneration";
 import { useClientPdfGeneration } from "@/hooks/useClientPdfGeneration";
-// Removed ProgressivePdfModal - now using unified IndividualPdfsModal
 import { SPLIT_BUTTON_THEME } from "@/utils/constants";
 import {
   SkipBack,
@@ -1036,8 +1035,7 @@ export default function HomePage() {
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onClose={hideToast} />
 
-      {/* Progressive PDF Modal removed - now using unified IndividualPdfsModal */}
-
+  
       {/* Error Modal */}
       {uploadError && (
         <ErrorModal
