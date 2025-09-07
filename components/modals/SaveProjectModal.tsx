@@ -41,6 +41,9 @@ export function SaveProjectModal({
   const handleSave = async () => {
     if (!projectName.trim()) {
       setError('Please enter a project name');
+      // Keep focus on the input field when showing error
+      const input = document.getElementById('project-name') as HTMLInputElement;
+      input?.focus();
       return;
     }
     
@@ -102,6 +105,14 @@ export function SaveProjectModal({
   
   return (
     <Modal open={isOpen} onClose={handleClose} width="w-[600px]">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!isSaving) {
+            void handleSave();
+          }
+        }}
+      >
       <div className="space-y-4">
         <h2 className="text-2xl font-bold text-gray-900">Save Project</h2>
         
@@ -113,10 +124,15 @@ export function SaveProjectModal({
             id="project-name"
             type="text"
             value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
+            onChange={(e) => {
+              setProjectName(e.target.value)
+              if (error) setError(null)
+            }}
             placeholder="e.g., Annual Awards 2025"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
+            aria-invalid={!!error}
+            aria-describedby={error ? 'project-name-error' : undefined}
           />
         </div>
         
@@ -199,12 +215,13 @@ export function SaveProjectModal({
         
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-            <p className="text-sm text-red-600">{error}</p>
+            <p id="project-name-error" className="text-sm text-red-600">{error}</p>
           </div>
         )}
         
         <div className="flex justify-end gap-3">
           <Button
+            type="button"
             onClick={handleClose}
             variant="outline"
             disabled={isSaving}
@@ -212,7 +229,7 @@ export function SaveProjectModal({
             Cancel
           </Button>
           <Button
-            onClick={handleSave}
+            type="submit"
             disabled={isSaving || !projectName.trim()}
             className="inline-flex items-center gap-2"
           >
@@ -230,6 +247,7 @@ export function SaveProjectModal({
           </Button>
         </div>
       </div>
+      </form>
     </Modal>
   );
 }
