@@ -26,7 +26,7 @@ export const PROGRESSIVE_PDF = {
 
 // Split Button Theme Configuration
 export const SPLIT_BUTTON_THEME = {
-  templates: {
+  projects: {
     gradient: "bg-gradient-to-r from-purple-600 to-purple-500",
     dropdownColor: "#8B5CF6", // purple-500 - matches gradient end
     dropdownHoverColor: "#7C3AED" // purple-600 - darker on hover

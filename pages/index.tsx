@@ -33,21 +33,21 @@ import { EmailConfigPanel } from "@/components/panels/EmailConfigPanel";
 import { PdfGenerationModal } from "@/components/modals/PdfGenerationModal";
 import { IndividualPdfsModal } from "@/components/modals/IndividualPdfsModal";
 import { ConfirmationModals } from "@/components/modals/ConfirmationModals";
-import { SaveTemplateModal } from "@/components/modals/SaveTemplateModal";
-import { LoadTemplateModal } from "@/components/modals/LoadTemplateModal";
-import { NewTemplateModal } from "@/components/modals/NewTemplateModal";
+import { SaveProjectModal } from "@/components/modals/SaveProjectModal";
+import { LoadProjectModal } from "@/components/modals/LoadProjectModal";
+import { NewProjectModal } from "@/components/modals/NewProjectModal";
 import { ErrorModal } from "@/components/ui/error-alert";
 import { MobileWarningScreen } from "@/components/MobileWarningScreen";
 import { useMobileDetection } from "@/hooks/useMobileDetection";
 import { COLORS, GRADIENTS } from "@/utils/styles";
 import { SplitButton } from "@/components/ui/split-button";
 import { useToast, ToastContainer } from "@/components/ui/toast";
-import { useTemplateAutosave } from "@/hooks/useTemplateAutosave";
+import { useProjectAutosave } from "@/hooks/useProjectAutosave";
 import { useSessionAutosave } from "@/hooks/useSessionAutosave";
 import { useDevMode } from "@/hooks/useDevMode";
 import { DevModeControls } from "@/components/DevModeControls";
 import { usePdfGenerationMethods } from "@/hooks/usePdfGenerationMethods";
-import { useTemplateManagement } from "@/hooks/useTemplateManagement";
+import { useProjectManagement } from "@/hooks/useProjectManagement";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingModal } from "@/components/modals/OnboardingModal";
 import { HelpCircle } from "lucide-react";
@@ -315,7 +315,7 @@ export default function HomePage() {
   const { toasts, showToast, hideToast } = useToast();
 
   // Early autosave hook for manual save function
-  const { manualSave: baseManualSave } = useTemplateAutosave({
+  const { manualSave: baseManualSave } = useProjectAutosave({
     positions,
     columns: Object.keys(tableData[0] || {}),
     emailConfig,
@@ -327,27 +327,27 @@ export default function HomePage() {
       console.log("Project autosaved");
     },
     enabled: false, // Base hook is disabled, only used for manual save
-    currentTemplateId: null,
-    currentTemplateName: null
+    currentProjectId: null,
+    currentProjectName: null
   });
 
-  // Template management hook
+  // Project management hook
   const {
-    currentTemplateName,
-    currentTemplateId,
+    currentProjectName,
+    currentProjectId,
     hasManuallySaved,
-    showSaveTemplateModal,
-    showLoadTemplateModal,
-    showNewTemplateModal,
-    setShowSaveTemplateModal,
-    setShowLoadTemplateModal,
-    setShowNewTemplateModal,
-    handleLoadTemplate,
-    handleSaveTemplateSuccess,
-    handleSaveToCurrentTemplate,
-    handleNewTemplate,
-    confirmNewTemplate
-  } = useTemplateManagement({
+    showSaveProjectModal,
+    showLoadProjectModal,
+    showNewProjectModal,
+    setShowSaveProjectModal,
+    setShowLoadProjectModal,
+    setShowNewProjectModal,
+    handleLoadProject,
+    handleSaveProjectSuccess,
+    handleSaveToCurrentProject,
+    handleNewProject,
+    confirmNewProject
+  } = useProjectManagement({
     setPositions,
     setEmailConfig,
     setUploadedFileUrl,
@@ -376,8 +376,8 @@ export default function HomePage() {
     enabled: hasManuallySaved && tableData.length > 0
   });
 
-  // Template autosave hook - actually enables autosave after manual save
-  useTemplateAutosave({
+  // Project autosave hook - actually enables autosave after manual save
+  useProjectAutosave({
     positions,
     columns: Object.keys(tableData[0] || {}),
     emailConfig,
@@ -389,8 +389,8 @@ export default function HomePage() {
       console.log("Project autosaved");
     },
     enabled: hasManuallySaved,
-    currentTemplateId,
-    currentTemplateName
+    currentProjectId,
+    currentProjectName
   });
 
   // ============================================================================
@@ -546,14 +546,14 @@ export default function HomePage() {
             <SplitButton
               data-tour="save-project"
               label={
-                currentTemplateName 
-                  ? `Save to "${currentTemplateName}"` 
+                currentProjectName 
+                  ? `Save to "${currentProjectName}"` 
                   : "Save project"
               }
               onClick={
                 hasManuallySaved
-                  ? handleSaveToCurrentTemplate // Save to current project
-                  : () => setShowSaveTemplateModal(true)
+                  ? handleSaveToCurrentProject // Save to current project
+                  : () => setShowSaveProjectModal(true)
               }
               disabled={false}
               variant="primary" // Always use primary variant to maintain consistent styling
@@ -561,27 +561,27 @@ export default function HomePage() {
                 {
                   label: "New project",
                   icon: <FileUp className="h-4 w-4" />,
-                  onClick: handleNewTemplate,
+                  onClick: handleNewProject,
                   disabled:
                     !uploadedFileUrl && Object.keys(positions).length === 0
                 },
                 {
                   label: "Projects...",
                   icon: <FolderOpen className="h-4 w-4" />,
-                  onClick: () => setShowLoadTemplateModal(true)
+                  onClick: () => setShowLoadProjectModal(true)
                 },
                 {
                   label: "Save as new project",
                   icon: <Save className="h-4 w-4" />,
-                  onClick: () => setShowSaveTemplateModal(true),
+                  onClick: () => setShowSaveProjectModal(true),
                   disabled:
                     !uploadedFileUrl || Object.keys(positions).length === 0
                 }
               ]}
-              gradientClass={SPLIT_BUTTON_THEME.templates.gradient}
-              dropdownColor={SPLIT_BUTTON_THEME.templates.dropdownColor}
+              gradientClass={SPLIT_BUTTON_THEME.projects.gradient}
+              dropdownColor={SPLIT_BUTTON_THEME.projects.dropdownColor}
               dropdownHoverColor={
-                SPLIT_BUTTON_THEME.templates.dropdownHoverColor
+                SPLIT_BUTTON_THEME.projects.dropdownHoverColor
               }
             />
 
@@ -985,18 +985,18 @@ export default function HomePage() {
         tableData={tableData}
       />
 
-      {/* Template Modals */}
-      <SaveTemplateModal
-        isOpen={showSaveTemplateModal}
-        onClose={() => setShowSaveTemplateModal(false)}
+      {/* Project Modals */}
+      <SaveProjectModal
+        isOpen={showSaveProjectModal}
+        onClose={() => setShowSaveProjectModal(false)}
         positions={positions}
         columns={Object.keys(tableData[0] || {})}
         tableData={tableData}
         emailConfig={emailConfig}
         certificateImageUrl={uploadedFileUrl || undefined}
         certificateFilename={(uploadedFile as string) || undefined}
-        onSaveSuccess={handleSaveTemplateSuccess}
-        onManualSave={async (templateName) => {
+        onSaveSuccess={handleSaveProjectSuccess}
+        onManualSave={async (projectName) => {
           let finalUrl = uploadedFileUrl;
           let finalFilename = uploadedFile as string;
           
@@ -1016,20 +1016,20 @@ export default function HomePage() {
               return { success: false, error: 'Failed to upload file to server' };
             }
           }
-          return baseManualSave(templateName, finalUrl ?? undefined, finalFilename ?? undefined);
+          return baseManualSave(projectName, finalUrl ?? undefined, finalFilename ?? undefined);
         }}
       />
 
-      <LoadTemplateModal
-        isOpen={showLoadTemplateModal}
-        onClose={() => setShowLoadTemplateModal(false)}
-        onLoadTemplate={handleLoadTemplate}
+      <LoadProjectModal
+        isOpen={showLoadProjectModal}
+        onClose={() => setShowLoadProjectModal(false)}
+        onLoadProject={handleLoadProject}
       />
 
-      <NewTemplateModal
-        isOpen={showNewTemplateModal}
-        onClose={() => setShowNewTemplateModal(false)}
-        onConfirm={confirmNewTemplate}
+      <NewProjectModal
+        isOpen={showNewProjectModal}
+        onClose={() => setShowNewProjectModal(false)}
+        onConfirm={confirmNewProject}
         hasUnsavedWork={
           uploadedFileUrl !== null && Object.keys(positions).length > 0
         }
