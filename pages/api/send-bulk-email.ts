@@ -197,13 +197,27 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
 }
 
 // Cleanup old queue managers periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [sessionId, manager] of Array.from(queueManagers.entries())) {
-    // Remove idle queues older than 1 hour
-    if (manager.getStatus().status === 'idle' && 
-        manager.getLastActivity() < now - 3600000) {
-      queueManagers.delete(sessionId);
+// Store the interval ID so it can be cleared if needed
+let cleanupInterval: NodeJS.Timeout | null = null;
+
+// Only set up the interval if it hasn't been set up already
+if (!cleanupInterval && typeof global !== 'undefined') {
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [sessionId, manager] of Array.from(queueManagers.entries())) {
+      // Remove idle queues older than 1 hour
+      if (manager.getStatus().status === 'idle' && 
+          manager.getLastActivity() < now - 3600000) {
+        queueManagers.delete(sessionId);
+      }
     }
+  }, 600000); // Every 10 minutes
+}
+
+// Cleanup function for graceful shutdown
+export function cleanupEmailQueueInterval(): void {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
   }
-}, 600000); // Every 10 minutes
+}

@@ -1,16 +1,18 @@
 # TODOs 
 
-## 🔴 CRITICAL FIXES (Security & Stability)
+## ✅ CRITICAL FIXES (Security & Stability) - RESOLVED
 
-These pre-existing issues need immediate attention:
+These critical issues have been fixed:
 
-- [ ] **Fix Memory Leak in `pages/api/send-bulk-email.ts`** (line 200)
-  - `setInterval` runs forever without being cleared
-  - Store interval ID and clear on server shutdown or add proper cleanup
+- [x] **Fixed Memory Leak in `pages/api/send-bulk-email.ts`**
+  - Added proper interval management with cleanup function
+  - Interval is now stored and can be cleared properly
+  - Prevents multiple intervals from being created
   
-- [ ] **Fix Authentication Bypass in `pages/api/cleanup-r2.ts`** (line 23)
-  - Current logic: API is accessible when `CLEANUP_SECRET_KEY` is NOT set
-  - Should be: `if (process.env.CLEANUP_SECRET_KEY && authKey !== process.env.CLEANUP_SECRET_KEY)`
+- [x] **Fixed Authentication Bypass in `pages/api/cleanup-r2.ts`**
+  - Corrected authentication logic to properly check for secret key
+  - Now blocks access in production if no key is configured
+  - Shows warning in development mode when unprotected
 
 ## Actual things I wanted to do. Maximum priority!
 

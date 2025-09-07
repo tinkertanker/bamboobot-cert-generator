@@ -17,12 +17,21 @@ export default async function handler(
     return;
   }
 
-  // Optional: Add authentication here
-  // For now, check for a secret key in headers
+  // Authentication check
+  // Only allow access if CLEANUP_SECRET_KEY is set and matches
   const authKey = req.headers['x-cleanup-key'];
-  if (authKey !== process.env.CLEANUP_SECRET_KEY && process.env.CLEANUP_SECRET_KEY) {
+  if (process.env.CLEANUP_SECRET_KEY && authKey !== process.env.CLEANUP_SECRET_KEY) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
+  }
+  
+  // If no secret key is configured, warn in development but block in production
+  if (!process.env.CLEANUP_SECRET_KEY) {
+    if (process.env.NODE_ENV === 'production') {
+      res.status(401).json({ error: 'Authentication not configured' });
+      return;
+    }
+    console.warn('⚠️ WARNING: CLEANUP_SECRET_KEY not set - R2 cleanup endpoint is unprotected in development');
   }
 
   try {
