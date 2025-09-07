@@ -264,6 +264,7 @@ export default function HomePage() {
     tableData,
     localBlobUrl,
     uploadedFileUrl,
+    uploadedFile,
     generatePdf,
     generateIndividualPdfs,
     startProgressiveGeneration,

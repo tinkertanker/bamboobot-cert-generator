@@ -12,11 +12,12 @@ interface UsePdfGenerationMethodsProps {
   tableData: TableData[];
   localBlobUrl: string | null;
   uploadedFileUrl: string | null;
+  uploadedFile: File | string | null;
   
   // Server-side generation functions
   generatePdf: () => Promise<void>;
-  generateIndividualPdfs: () => Promise<void>;
-  startProgressiveGeneration: (mode: "individual" | "bulk", batchSize?: number) => Promise<void>;
+  generateIndividualPdfs: (overrideFilename?: string) => Promise<void>;
+  startProgressiveGeneration: (mode: "individual" | "bulk", batchSize?: number, overrideFilename?: string) => Promise<void>;
   setGeneratedPdfUrl: (url: string | null) => void;
   setIndividualPdfsData: (data: any) => void;
   
@@ -42,6 +43,7 @@ export function usePdfGenerationMethods({
   tableData,
   localBlobUrl,
   uploadedFileUrl,
+  uploadedFile,
   generatePdf,
   generateIndividualPdfs,
   startProgressiveGeneration,
@@ -90,12 +92,24 @@ export function usePdfGenerationMethods({
   }, [isDevelopment, devMode, isClientSupported]);
 
   // Helper function to ensure file is uploaded for server-side generation
-  const ensureFileUploadedForServer = useCallback(async () => {
+  const ensureFileUploadedForServer = useCallback(async (): Promise<string | null> => {
     if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
       console.log('Uploading file to server for server-side generation...');
-      await uploadToServer();
+      const uploadResult = await uploadToServer();
+      if (uploadResult && uploadResult.filename) {
+        console.log('File uploaded successfully, filename:', uploadResult.filename);
+        return uploadResult.filename;
+      }
     }
-  }, [localBlobUrl, uploadedFileUrl, uploadToServer]);
+    // File was already uploaded or is a string
+    return typeof uploadedFile === 'string' ? uploadedFile : null;
+  }, [localBlobUrl, uploadedFileUrl, uploadToServer, uploadedFile]);
+
+  // Helper function to handle upload failures
+  const handleUploadFailure = useCallback(() => {
+    console.error('Failed to get uploaded filename');
+    alert('Failed to get uploaded filename. Please try again.');
+  }, []);
 
   const handleGeneratePdf = useCallback(async (useServer = false) => {
     const method = getPdfGenerationMethod({ useServer, forceServer: false });
@@ -103,7 +117,15 @@ export function usePdfGenerationMethods({
     if (method === "server") {
       const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
       console.log(`📡 Using SERVER-SIDE PDF generation ${reason}`);
-      await ensureFileUploadedForServer();
+      const uploadedFilename = await ensureFileUploadedForServer();
+      
+      if (!uploadedFilename) {
+        handleUploadFailure();
+        return;
+      }
+      
+      // Note: generatePdf doesn't take a filename parameter currently
+      // It uses the state value, but ensureFileUploadedForServer ensures it's updated
       await generatePdf();
     } else {
       console.log("🚀 Using CLIENT-SIDE PDF generation");
@@ -114,6 +136,7 @@ export function usePdfGenerationMethods({
     isDevelopment,
     devMode,
     ensureFileUploadedForServer,
+    handleUploadFailure,
     generateClientPdf,
     generatePdf
   ]);
@@ -124,14 +147,20 @@ export function usePdfGenerationMethods({
     
     if (method === "server") {
       const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
-      await ensureFileUploadedForServer();
+      // Ensure file is uploaded and get the correct filename
+      const uploadedFilename = await ensureFileUploadedForServer();
+      
+      if (!uploadedFilename) {
+        handleUploadFailure();
+        return;
+      }
       
       if (isProgressive) {
         console.log(`📡 Using PROGRESSIVE SERVER-SIDE generation for ${tableData.length} rows ${reason}`);
-        await startProgressiveGeneration('individual');
+        await startProgressiveGeneration('individual', 20, uploadedFilename);
       } else {
         console.log(`📡 Using SERVER-SIDE generation for ${tableData.length} rows ${reason}`);
-        await generateIndividualPdfs();
+        await generateIndividualPdfs(uploadedFilename);
       }
     } else {
       console.log(`🚀 Using CLIENT-SIDE generation for ${tableData.length} rows`);
@@ -147,6 +176,7 @@ export function usePdfGenerationMethods({
     isDevelopment,
     devMode,
     ensureFileUploadedForServer,
+    handleUploadFailure,
     startProgressiveGeneration,
     generateIndividualPdfs,
     generateClientIndividualPdfs

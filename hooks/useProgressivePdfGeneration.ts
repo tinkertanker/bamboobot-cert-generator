@@ -163,7 +163,8 @@ export function useProgressivePdfGeneration({
   // Start progressive generation
   const startProgressiveGeneration = useCallback(async (
     mode: 'individual' | 'bulk',
-    batchSize = 20
+    batchSize = 20,
+    overrideFilename?: string
   ) => {
     setIsGenerating(true);
     setError(null);
@@ -173,6 +174,19 @@ export function useProgressivePdfGeneration({
     try {
       const containerDimensions = getContainerDimensions();
 
+      // Determine the filename to use
+      let templateFilename: string | undefined;
+      if (overrideFilename) {
+        templateFilename = overrideFilename;
+      } else if (typeof uploadedFile === 'string') {
+        templateFilename = uploadedFile;
+      } else if (uploadedFile) {
+        console.warn('Using File object name for progressive generation - this may cause template not found errors if file is not uploaded to server yet');
+        templateFilename = uploadedFile.name;
+      }
+
+      console.log('Starting progressive generation with filename:', templateFilename);
+
       const response = await fetch('/api/generate-progressive', {
         method: 'POST',
         headers: {
@@ -180,7 +194,7 @@ export function useProgressivePdfGeneration({
         },
         body: JSON.stringify({
           mode,
-          templateFilename: typeof uploadedFile === 'string' ? uploadedFile : uploadedFile?.name,
+          templateFilename,
           uiContainerDimensions: containerDimensions,
           namingColumn: selectedNamingColumn,
           data: prepareDataForApi(),

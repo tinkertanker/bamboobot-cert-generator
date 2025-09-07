@@ -1,22 +1,8 @@
 # TODOs 
 
-## ✅ CRITICAL FIXES (Security & Stability) - RESOLVED
-
-These critical issues have been fixed:
-
-- [x] **Fixed Memory Leak in `pages/api/send-bulk-email.ts`**
-  - Added proper interval management with cleanup function
-  - Interval is now stored and can be cleared properly
-  - Prevents multiple intervals from being created
-  
-- [x] **Fixed Authentication Bypass in `pages/api/cleanup-r2.ts`**
-  - Corrected authentication logic to properly check for secret key
-  - Now blocks access in production if no key is configured
-  - Shows warning in development mode when unprotected
-
 ## Actual things I wanted to do. Maximum priority!
 
-- [ ] First time pressing "generate" after uploading and adding a text gives an error. Pressing generate after that works again though. 
+- [x] ~~First time pressing "generate" after uploading and adding a text gives an error. Pressing generate after that works again though.~~ **FIXED!** 🎉 
 - [ ] We really should refactor all the "Template" names into "Project". It's getting confusing for the AI. 
 - [ ] When creating the first field on the preview panel, it should already be selected
 - [ ] Text field colour should adapt to the general tone of the background image. If it's a dark background, make a light colour for the text. 
