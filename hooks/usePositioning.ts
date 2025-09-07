@@ -17,6 +17,9 @@ export interface UsePositioningReturn {
 export function usePositioning({ tableData, setSelectedField }: UsePositioningProps): UsePositioningReturn {
   const [positions, setPositions] = useState<Positions>({});
 
+  // Track if we need to select the first field
+  const [shouldSelectFirst, setShouldSelectFirst] = useState<string | null>(null);
+
   // Ensure all table columns have positions
   useEffect(() => {
     if (tableData.length > 0) {
@@ -56,18 +59,23 @@ export function usePositioning({ tableData, setSelectedField }: UsePositioningPr
           }
         });
 
-        // If we created new positions and have a first visible field, select it
+        // If we created new positions and have a first visible field, mark it for selection
         if (hasNewPositions && firstVisibleField && setSelectedField) {
-          // Use setTimeout to ensure the state update happens after positions are set
-          setTimeout(() => {
-            setSelectedField(firstVisibleField);
-          }, 0);
+          setShouldSelectFirst(firstVisibleField);
         }
 
         return hasNewPositions ? newPositions : prevPositions;
       });
     }
   }, [tableData, setSelectedField]);
+
+  // Select the first field in a separate effect to avoid timing issues
+  useEffect(() => {
+    if (shouldSelectFirst && setSelectedField) {
+      setSelectedField(shouldSelectFirst);
+      setShouldSelectFirst(null);
+    }
+  }, [shouldSelectFirst, setSelectedField]);
 
   // Helper function to change alignment while keeping visual position
   const changeAlignment = useCallback(
