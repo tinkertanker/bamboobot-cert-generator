@@ -56,3 +56,6 @@ data/
 playwright-report/
 test-results/
 .crush/
+
+# Code agent artifacts
+/.code/
