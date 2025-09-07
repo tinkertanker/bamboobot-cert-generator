@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SaveTemplateModal } from '@/components/modals/SaveTemplateModal';
-import { TemplateStorage } from '@/lib/template-storage';
+import { SaveProjectModal } from "@/components/modals/SaveProjectModal';
+import { ProjectStorage } from "@/lib/project-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
 // Mock the Modal component to simplify testing
@@ -21,9 +21,9 @@ jest.mock('@/components/ui/button', () => ({
 }));
 
 // Mock the template storage
-jest.mock('@/lib/template-storage', () => ({
-  TemplateStorage: {
-    saveTemplate: jest.fn(),
+jest.mock('@/lib/project-storage', () => ({
+  ProjectStorage: {
+    saveProject: jest.fn(),
     getStorageInfo: jest.fn().mockReturnValue({
       used: 1024 * 1024, // 1MB used
       limit: 5 * 1024 * 1024, // 5MB limit
@@ -41,7 +41,7 @@ jest.mock('@/lib/storage-config', () => ({
   }
 }));
 
-describe('SaveTemplateModal', () => {
+describe('SaveProjectModal', () => {
   const mockPositions: Positions = {
     name: { x: 100, y: 200, fontSize: 16, fontFamily: 'Arial', color: '#000000', align: 'center', visible: true }
   };
@@ -77,7 +77,7 @@ describe('SaveTemplateModal', () => {
   });
 
   it('renders when open', () => {
-    render(<SaveTemplateModal {...defaultProps} />);
+    render(<SaveProjectModal {...defaultProps} />);
     
     expect(screen.getByRole('heading', { name: 'Save Project' })).toBeInTheDocument();
     expect(screen.getByLabelText('Project Name')).toBeInTheDocument();
@@ -85,13 +85,13 @@ describe('SaveTemplateModal', () => {
   });
 
   it('does not render when closed', () => {
-    render(<SaveTemplateModal {...defaultProps} isOpen={false} />);
+    render(<SaveProjectModal {...defaultProps} isOpen={false} />);
     
     expect(screen.queryByText('Save Project')).not.toBeInTheDocument();
   });
 
   it('displays template information correctly', () => {
-    render(<SaveTemplateModal {...defaultProps} emailConfig={mockEmailConfig} />);
+    render(<SaveProjectModal {...defaultProps} emailConfig={mockEmailConfig} />);
     
     expect(screen.getByText('1 configured text fields')).toBeInTheDocument();
     expect(screen.getByText('2 data columns')).toBeInTheDocument();
@@ -102,13 +102,13 @@ describe('SaveTemplateModal', () => {
   });
 
   it('saves template successfully', async () => {
-    const mockSaveTemplate = TemplateStorage.saveTemplate as jest.Mock;
+    const mockSaveTemplate = ProjectStorage.saveProject as jest.Mock;
     mockSaveTemplate.mockResolvedValue({
       success: true,
       id: 'template-123'
     });
 
-    render(<SaveTemplateModal {...defaultProps} />);
+    render(<SaveProjectModal {...defaultProps} />);
     
     const input = screen.getByLabelText('Project Name');
     fireEvent.change(input, { target: { value: 'My Test Template' } });
@@ -136,7 +136,7 @@ describe('SaveTemplateModal', () => {
   });
 
   it('disables save button when template name is empty', () => {
-    render(<SaveTemplateModal {...defaultProps} />);
+    render(<SaveProjectModal {...defaultProps} />);
     
     // Find the button by its text content
     const buttons = screen.getAllByRole('button');
@@ -154,7 +154,7 @@ describe('SaveTemplateModal', () => {
   });
 
   it('shows error when no certificate image', async () => {
-    render(<SaveTemplateModal {...defaultProps} certificateImageUrl={undefined} />);
+    render(<SaveProjectModal {...defaultProps} certificateImageUrl={undefined} />);
     
     const input = screen.getByLabelText('Project Name');
     await userEvent.type(input, 'Test Template');
@@ -168,13 +168,13 @@ describe('SaveTemplateModal', () => {
   });
 
   it('handles save error', async () => {
-    const mockSaveTemplate = TemplateStorage.saveTemplate as jest.Mock;
+    const mockSaveTemplate = ProjectStorage.saveProject as jest.Mock;
     mockSaveTemplate.mockResolvedValue({
       success: false,
       error: 'Storage limit exceeded'
     });
 
-    render(<SaveTemplateModal {...defaultProps} />);
+    render(<SaveProjectModal {...defaultProps} />);
     
     const input = screen.getByLabelText('Project Name');
     await userEvent.type(input, 'Test Template');
@@ -188,31 +188,31 @@ describe('SaveTemplateModal', () => {
   });
 
   it('displays storage usage indicator', () => {
-    render(<SaveTemplateModal {...defaultProps} />);
+    render(<SaveProjectModal {...defaultProps} />);
     
     expect(screen.getByText('Browser Storage')).toBeInTheDocument();
     expect(screen.getByText('20% used')).toBeInTheDocument();
   });
 
   it('shows warning when storage is nearly full', () => {
-    const mockGetStorageInfo = TemplateStorage.getStorageInfo as jest.Mock;
+    const mockGetStorageInfo = ProjectStorage.getStorageInfo as jest.Mock;
     mockGetStorageInfo.mockReturnValue({
       used: 4.5 * 1024 * 1024,
       limit: 5 * 1024 * 1024,
       percentage: 90
     });
 
-    render(<SaveTemplateModal {...defaultProps} />);
+    render(<SaveProjectModal {...defaultProps} />);
     
     expect(screen.getByText('90% used')).toBeInTheDocument();
     expect(screen.getByText('Storage is nearly full. Consider deleting old projects.')).toBeInTheDocument();
   });
 
   it('disables save button when saving', async () => {
-    const mockSaveTemplate = TemplateStorage.saveTemplate as jest.Mock;
+    const mockSaveTemplate = ProjectStorage.saveProject as jest.Mock;
     mockSaveTemplate.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
 
-    render(<SaveTemplateModal {...defaultProps} />);
+    render(<SaveProjectModal {...defaultProps} />);
     
     const input = screen.getByLabelText('Project Name');
     await userEvent.type(input, 'Test Template');
@@ -225,7 +225,7 @@ describe('SaveTemplateModal', () => {
   });
 
   it('closes modal on cancel', () => {
-    render(<SaveTemplateModal {...defaultProps} />);
+    render(<SaveProjectModal {...defaultProps} />);
     
     const cancelButton = screen.getByRole('button', { name: 'Cancel' });
     fireEvent.click(cancelButton);

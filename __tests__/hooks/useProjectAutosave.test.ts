@@ -1,20 +1,20 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useTemplateAutosave } from '@/hooks/useTemplateAutosave';
-import { TemplateStorage } from '@/lib/template-storage';
+import { useProjectAutosave } from "@/hooks/useProjectAutosave';
+import { ProjectStorage } from "@/lib/project-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
-// Mock TemplateStorage
-jest.mock('@/lib/template-storage', () => ({
-  TemplateStorage: {
-    saveTemplate: jest.fn(),
-    updateTemplate: jest.fn(),
+// Mock ProjectStorage
+jest.mock('@/lib/project-storage', () => ({
+  ProjectStorage: {
+    saveProject: jest.fn(),
+    updateProject: jest.fn(),
   },
 }));
 
 // Mock timers
 jest.useFakeTimers();
 
-describe('useTemplateAutosave', () => {
+describe('useProjectAutosave', () => {
   const mockPositions: Positions = {
     name: { x: 100, y: 200 },
     date: { x: 300, y: 400 },
@@ -45,11 +45,11 @@ describe('useTemplateAutosave', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (TemplateStorage.saveTemplate as jest.Mock).mockResolvedValue({
+    (ProjectStorage.saveProject as jest.Mock).mockResolvedValue({
       success: true,
       id: 'test-template-id',
     });
-    (TemplateStorage.updateTemplate as jest.Mock).mockResolvedValue({
+    (ProjectStorage.updateProject as jest.Mock).mockResolvedValue({
       success: true,
     });
   });
@@ -60,13 +60,13 @@ describe('useTemplateAutosave', () => {
 
   describe('Session Name Generation', () => {
     it('generates a unique session name on initialization', () => {
-      const { result } = renderHook(() => useTemplateAutosave(defaultProps));
+      const { result } = renderHook(() => useProjectAutosave(defaultProps));
       
       expect(result.current.sessionName).toMatch(/^Session \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);
     });
 
     it('maintains the same session name throughout the hook lifecycle', () => {
-      const { result, rerender } = renderHook(() => useTemplateAutosave(defaultProps));
+      const { result, rerender } = renderHook(() => useProjectAutosave(defaultProps));
       
       const initialSessionName = result.current.sessionName;
       
@@ -79,7 +79,7 @@ describe('useTemplateAutosave', () => {
 
   describe('Initial State', () => {
     it('initializes with correct default values', () => {
-      const { result } = renderHook(() => useTemplateAutosave(defaultProps));
+      const { result } = renderHook(() => useProjectAutosave(defaultProps));
       
       expect(result.current.lastAutosaved).toBeNull();
       expect(result.current.isAutosaving).toBe(false);
@@ -91,12 +91,12 @@ describe('useTemplateAutosave', () => {
     it('triggers autosave after 10 seconds when props change and template exists', async () => {
       const onAutosave = jest.fn();
       const { result, rerender } = renderHook(
-        (props) => useTemplateAutosave(props),
+        (props) => useProjectAutosave(props),
         { initialProps: { 
           ...defaultProps, 
           onAutosave,
-          currentTemplateId: 'existing-template-id',
-          currentTemplateName: 'Existing Template'
+          currentProjectId: 'existing-template-id',
+          currentProjectName: 'Existing Template'
         } }
       );
 
@@ -106,12 +106,12 @@ describe('useTemplateAutosave', () => {
         ...defaultProps, 
         positions: newPositions, 
         onAutosave,
-        currentTemplateId: 'existing-template-id',
-        currentTemplateName: 'Existing Template'
+        currentProjectId: 'existing-template-id',
+        currentProjectName: 'Existing Template'
       });
 
       // Should not save immediately
-      expect(TemplateStorage.saveTemplate).not.toHaveBeenCalled();
+      expect(ProjectStorage.saveProject).not.toHaveBeenCalled();
 
       // Fast forward 10 seconds and wait for async operations
       await act(async () => {
@@ -120,7 +120,7 @@ describe('useTemplateAutosave', () => {
       });
 
       await waitFor(() => {
-        expect(TemplateStorage.updateTemplate).toHaveBeenCalledWith(
+        expect(ProjectStorage.updateProject).toHaveBeenCalledWith(
           'existing-template-id',
           {
             positions: newPositions,
@@ -143,7 +143,7 @@ describe('useTemplateAutosave', () => {
 
     it('debounces autosave when multiple changes occur rapidly', async () => {
       const { rerender } = renderHook(
-        (props) => useTemplateAutosave(props),
+        (props) => useProjectAutosave(props),
         { initialProps: defaultProps }
       );
 
@@ -151,8 +151,8 @@ describe('useTemplateAutosave', () => {
       rerender({ 
         ...defaultProps, 
         positions: { ...mockPositions, name: { x: 110, y: 210 } },
-        currentTemplateId: 'existing-template-id',
-        currentTemplateName: 'Existing Template'
+        currentProjectId: 'existing-template-id',
+        currentProjectName: 'Existing Template'
       });
       
       act(() => {
@@ -162,8 +162,8 @@ describe('useTemplateAutosave', () => {
       rerender({ 
         ...defaultProps, 
         positions: { ...mockPositions, name: { x: 120, y: 220 } },
-        currentTemplateId: 'existing-template-id',
-        currentTemplateName: 'Existing Template'
+        currentProjectId: 'existing-template-id',
+        currentProjectName: 'Existing Template'
       });
       
       act(() => {
@@ -173,12 +173,12 @@ describe('useTemplateAutosave', () => {
       rerender({ 
         ...defaultProps, 
         positions: { ...mockPositions, name: { x: 130, y: 230 } },
-        currentTemplateId: 'existing-template-id',
-        currentTemplateName: 'Existing Template'
+        currentProjectId: 'existing-template-id',
+        currentProjectName: 'Existing Template'
       });
 
       // Should not have saved yet
-      expect(TemplateStorage.updateTemplate).not.toHaveBeenCalled();
+      expect(ProjectStorage.updateProject).not.toHaveBeenCalled();
 
       // Fast forward to complete the debounce (need full 10000ms from last change)
       await act(async () => {
@@ -188,8 +188,8 @@ describe('useTemplateAutosave', () => {
 
       await waitFor(() => {
         // Should only save once with the latest values
-        expect(TemplateStorage.updateTemplate).toHaveBeenCalledTimes(1);
-        expect(TemplateStorage.updateTemplate).toHaveBeenCalledWith(
+        expect(ProjectStorage.updateProject).toHaveBeenCalledTimes(1);
+        expect(ProjectStorage.updateProject).toHaveBeenCalledWith(
           'existing-template-id',
           {
             positions: { ...mockPositions, name: { x: 130, y: 230 } },
@@ -209,7 +209,7 @@ describe('useTemplateAutosave', () => {
 
     it('does not autosave when no certificate is loaded', () => {
       const { rerender } = renderHook(
-        (props) => useTemplateAutosave(props),
+        (props) => useProjectAutosave(props),
         { 
           initialProps: {
             ...defaultProps,
@@ -231,12 +231,12 @@ describe('useTemplateAutosave', () => {
         jest.advanceTimersByTime(3000);
       });
 
-      expect(TemplateStorage.saveTemplate).not.toHaveBeenCalled();
+      expect(ProjectStorage.saveProject).not.toHaveBeenCalled();
     });
 
     it('does not autosave when data has not changed', async () => {
       const { result, rerender } = renderHook(
-        (props) => useTemplateAutosave(props),
+        (props) => useProjectAutosave(props),
         { initialProps: defaultProps }
       );
 
@@ -261,7 +261,7 @@ describe('useTemplateAutosave', () => {
       });
 
       // Should not save again since data hasn't changed
-      expect(TemplateStorage.saveTemplate).not.toHaveBeenCalled();
+      expect(ProjectStorage.saveProject).not.toHaveBeenCalled();
     });
 
     it('sets isAutosaving during save operation', async () => {
@@ -270,20 +270,20 @@ describe('useTemplateAutosave', () => {
         resolveSave = resolve;
       });
       
-      (TemplateStorage.updateTemplate as jest.Mock).mockReturnValue(savePromise);
+      (ProjectStorage.updateProject as jest.Mock).mockReturnValue(savePromise);
 
-      const { result, rerender } = renderHook(() => useTemplateAutosave({
+      const { result, rerender } = renderHook(() => useProjectAutosave({
         ...defaultProps,
-        currentTemplateId: 'existing-template-id',
-        currentTemplateName: 'Existing Template'
+        currentProjectId: 'existing-template-id',
+        currentProjectName: 'Existing Template'
       }));
 
       // Trigger autosave
       rerender({ 
         ...defaultProps, 
         positions: { ...mockPositions, name: { x: 150, y: 250 } },
-        currentTemplateId: 'existing-template-id',
-        currentTemplateName: 'Existing Template'
+        currentProjectId: 'existing-template-id',
+        currentProjectName: 'Existing Template'
       });
 
       await act(async () => {
@@ -308,20 +308,20 @@ describe('useTemplateAutosave', () => {
 
     it('handles autosave errors gracefully', async () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-      (TemplateStorage.updateTemplate as jest.Mock).mockRejectedValue(new Error('Save failed'));
+      (ProjectStorage.updateProject as jest.Mock).mockRejectedValue(new Error('Save failed'));
 
-      const { result, rerender } = renderHook(() => useTemplateAutosave({
+      const { result, rerender } = renderHook(() => useProjectAutosave({
         ...defaultProps,
-        currentTemplateId: 'existing-template-id',
-        currentTemplateName: 'Existing Template'
+        currentProjectId: 'existing-template-id',
+        currentProjectName: 'Existing Template'
       }));
 
       // Trigger autosave
       rerender({ 
         ...defaultProps, 
         positions: { ...mockPositions, name: { x: 150, y: 250 } },
-        currentTemplateId: 'existing-template-id',
-        currentTemplateName: 'Existing Template'
+        currentProjectId: 'existing-template-id',
+        currentProjectName: 'Existing Template'
       });
 
       act(() => {
@@ -341,14 +341,14 @@ describe('useTemplateAutosave', () => {
 
   describe('Manual Save', () => {
     it('saves template with custom name', async () => {
-      const { result } = renderHook(() => useTemplateAutosave(defaultProps));
+      const { result } = renderHook(() => useProjectAutosave(defaultProps));
 
       let saveResult;
       await act(async () => {
         saveResult = await result.current.manualSave('My Custom Template');
       });
 
-      expect(TemplateStorage.saveTemplate).toHaveBeenCalledWith(
+      expect(ProjectStorage.saveProject).toHaveBeenCalledWith(
         'My Custom Template',
         mockPositions,
         mockColumns,
@@ -364,7 +364,7 @@ describe('useTemplateAutosave', () => {
     });
 
     it('returns error when no certificate is loaded', async () => {
-      const { result } = renderHook(() => useTemplateAutosave({
+      const { result } = renderHook(() => useProjectAutosave({
         ...defaultProps,
         certificateImageUrl: null,
         certificateFilename: null,
@@ -376,16 +376,16 @@ describe('useTemplateAutosave', () => {
       });
 
       expect(saveResult).toEqual({ success: false, error: 'No certificate to save' });
-      expect(TemplateStorage.saveTemplate).not.toHaveBeenCalled();
+      expect(ProjectStorage.saveProject).not.toHaveBeenCalled();
     });
 
     it('handles save errors', async () => {
-      (TemplateStorage.saveTemplate as jest.Mock).mockResolvedValue({
+      (ProjectStorage.saveProject as jest.Mock).mockResolvedValue({
         success: false,
         error: 'Storage error',
       });
 
-      const { result } = renderHook(() => useTemplateAutosave(defaultProps));
+      const { result } = renderHook(() => useProjectAutosave(defaultProps));
 
       let saveResult;
       await act(async () => {
@@ -399,7 +399,7 @@ describe('useTemplateAutosave', () => {
 
   describe('Email Config Handling', () => {
     it('saves without email config when null', async () => {
-      const { result } = renderHook(() => useTemplateAutosave({
+      const { result } = renderHook(() => useProjectAutosave({
         ...defaultProps,
         emailConfig: null,
       }));
@@ -408,7 +408,7 @@ describe('useTemplateAutosave', () => {
         await result.current.manualSave('No Email Template');
       });
 
-      expect(TemplateStorage.saveTemplate).toHaveBeenCalledWith(
+      expect(ProjectStorage.saveProject).toHaveBeenCalledWith(
         'No Email Template',
         mockPositions,
         mockColumns,
@@ -423,7 +423,7 @@ describe('useTemplateAutosave', () => {
 
   describe('Cleanup', () => {
     it('clears timeout on unmount', () => {
-      const { unmount, rerender } = renderHook(() => useTemplateAutosave(defaultProps));
+      const { unmount, rerender } = renderHook(() => useProjectAutosave(defaultProps));
 
       // Trigger a change to start the timeout
       rerender({ ...defaultProps, positions: { ...mockPositions, name: { x: 150, y: 250 } } });
@@ -437,7 +437,7 @@ describe('useTemplateAutosave', () => {
       });
 
       // Should not have called saveTemplate
-      expect(TemplateStorage.saveTemplate).not.toHaveBeenCalled();
+      expect(ProjectStorage.saveProject).not.toHaveBeenCalled();
     });
   });
 });

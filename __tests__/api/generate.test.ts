@@ -57,7 +57,7 @@ const mockHandler = jest.fn((req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
   
-  if (req.body.templateFilename && req.body.data && req.body.positions) {
+  if (req.body.projectFilename && req.body.data && req.body.positions) {
     return res.status(200).json({
       message: 'Certificates generated successfully',
       outputPath: `${req.headers.host}/generated/certificates_${Date.now()}.pdf`
@@ -78,7 +78,7 @@ describe('Generate API', () => {
     req = {
       method: 'POST',
       body: {
-        templateFilename: 'template.pdf',
+        projectFilename: 'template.pdf',
         data: [
           {
             name: { text: 'John Doe' },

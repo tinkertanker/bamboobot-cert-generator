@@ -1,7 +1,7 @@
-import { TemplateStorage, SavedTemplate, TemplateListItem } from '@/lib/template-storage';
+import { ProjectStorage, SavedProject, ProjectListItem } from "@/lib/project-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
-describe('TemplateStorage', () => {
+describe('ProjectStorage', () => {
   const mockPositions: Positions = {
     name: { x: 100, y: 200, fontSize: 16, fontFamily: 'Arial', color: '#000000', align: 'center', visible: true },
     date: { x: 300, y: 400, fontSize: 14, fontFamily: 'Times', color: '#333333', align: 'left', visible: true }
@@ -66,7 +66,7 @@ describe('TemplateStorage', () => {
 
   describe('saveTemplate', () => {
     it('should save a template successfully', async () => {
-      const result = await TemplateStorage.saveTemplate(
+      const result = await ProjectStorage.saveProject(
         'Test Template',
         mockPositions,
         mockColumns,
@@ -85,7 +85,7 @@ describe('TemplateStorage', () => {
       const keys = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith('bamboobot_template_v1_')) {
+        if (key && key.startsWith('bamboobot_project_v1_')) {
           keys.push(key);
         }
       }
@@ -93,7 +93,7 @@ describe('TemplateStorage', () => {
     });
 
     it('should handle empty template name', async () => {
-      const result = await TemplateStorage.saveTemplate(
+      const result = await ProjectStorage.saveProject(
         '   ', // Empty after trim
         mockPositions,
         mockColumns,
@@ -103,7 +103,7 @@ describe('TemplateStorage', () => {
       );
 
       expect(result.success).toBe(true);
-      const template = TemplateStorage.loadTemplate(result.id!);
+      const template = ProjectStorage.loadProject(result.id!);
       expect(template?.name).toBe('');
     });
 
@@ -116,7 +116,7 @@ describe('TemplateStorage', () => {
         throw error;
       });
 
-      const result = await TemplateStorage.saveTemplate(
+      const result = await ProjectStorage.saveProject(
         'Test Template',
         mockPositions,
         mockColumns,
@@ -132,7 +132,7 @@ describe('TemplateStorage', () => {
     });
 
     it('should save template with cloud storage info', async () => {
-      const result = await TemplateStorage.saveTemplate(
+      const result = await ProjectStorage.saveProject(
         'Cloud Template',
         mockPositions,
         mockColumns,
@@ -144,7 +144,7 @@ describe('TemplateStorage', () => {
       );
 
       expect(result.success).toBe(true);
-      const template = TemplateStorage.loadTemplate(result.id!);
+      const template = ProjectStorage.loadProject(result.id!);
       expect(template?.certificateImage.isCloudStorage).toBe(true);
       expect(template?.certificateImage.storageProvider).toBe('r2');
     });
@@ -152,7 +152,7 @@ describe('TemplateStorage', () => {
 
   describe('loadTemplate', () => {
     it('should load a saved template', async () => {
-      const saveResult = await TemplateStorage.saveTemplate(
+      const saveResult = await ProjectStorage.saveProject(
         'Test Template',
         mockPositions,
         mockColumns,
@@ -162,7 +162,7 @@ describe('TemplateStorage', () => {
         mockEmailConfig
       );
 
-      const template = TemplateStorage.loadTemplate(saveResult.id!);
+      const template = ProjectStorage.loadProject(saveResult.id!);
 
       expect(template).toBeDefined();
       expect(template?.name).toBe('Test Template');
@@ -174,20 +174,20 @@ describe('TemplateStorage', () => {
     });
 
     it('should return null for non-existent template', () => {
-      const template = TemplateStorage.loadTemplate('non-existent-id');
+      const template = ProjectStorage.loadProject('non-existent-id');
       expect(template).toBeNull();
     });
 
     it('should handle invalid template data', () => {
-      localStorage.setItem('bamboobot_template_v1_invalid', JSON.stringify({ invalid: 'data' }));
-      const template = TemplateStorage.loadTemplate('invalid');
+      localStorage.setItem('bamboobot_project_v1_invalid', JSON.stringify({ invalid: 'data' }));
+      const template = ProjectStorage.loadProject('invalid');
       expect(template).toBeNull();
     });
   });
 
   describe('deleteTemplate', () => {
     it('should delete a template successfully', async () => {
-      const saveResult = await TemplateStorage.saveTemplate(
+      const saveResult = await ProjectStorage.saveProject(
         'Test Template',
         mockPositions,
         mockColumns,
@@ -196,16 +196,16 @@ describe('TemplateStorage', () => {
         mockTableData
       );
 
-      const deleted = TemplateStorage.deleteTemplate(saveResult.id!);
+      const deleted = ProjectStorage.deleteProject(saveResult.id!);
       expect(deleted).toBe(true);
 
       // Verify template is gone
-      const template = TemplateStorage.loadTemplate(saveResult.id!);
+      const template = ProjectStorage.loadProject(saveResult.id!);
       expect(template).toBeNull();
     });
 
     it('should handle deletion of non-existent template', () => {
-      const deleted = TemplateStorage.deleteTemplate('non-existent-id');
+      const deleted = ProjectStorage.deleteProject('non-existent-id');
       expect(deleted).toBe(true); // Returns true even if not found
     });
   });
@@ -213,7 +213,7 @@ describe('TemplateStorage', () => {
   describe('listTemplates', () => {
     it('should list all templates sorted by lastModified', async () => {
       // Save multiple templates with slight delays to ensure different timestamps
-      const result1 = await TemplateStorage.saveTemplate(
+      const result1 = await ProjectStorage.saveProject(
         'Template 1',
         mockPositions,
         mockColumns,
@@ -224,7 +224,7 @@ describe('TemplateStorage', () => {
       
       await new Promise(resolve => setTimeout(resolve, 10));
       
-      const result2 = await TemplateStorage.saveTemplate(
+      const result2 = await ProjectStorage.saveProject(
         'Template 2',
         mockPositions,
         mockColumns,
@@ -234,7 +234,7 @@ describe('TemplateStorage', () => {
         mockEmailConfig
       );
 
-      const templates = await TemplateStorage.listTemplates();
+      const templates = await ProjectStorage.listProjects();
 
       expect(templates).toHaveLength(2);
       expect(templates[0].name).toBe('Template 2'); // Most recent first
@@ -245,7 +245,7 @@ describe('TemplateStorage', () => {
 
     it('should handle corrupted template data gracefully', async () => {
       // Save a valid template
-      await TemplateStorage.saveTemplate(
+      await ProjectStorage.saveProject(
         'Valid Template',
         mockPositions,
         mockColumns,
@@ -255,9 +255,9 @@ describe('TemplateStorage', () => {
       );
 
       // Add corrupted data
-      localStorage.setItem('bamboobot_template_v1_corrupted', 'invalid json');
+      localStorage.setItem('bamboobot_project_v1_corrupted', 'invalid json');
 
-      const templates = await TemplateStorage.listTemplates();
+      const templates = await ProjectStorage.listProjects();
       expect(templates).toHaveLength(1);
       expect(templates[0].name).toBe('Valid Template');
     });
@@ -265,7 +265,7 @@ describe('TemplateStorage', () => {
 
   describe('updateTemplate', () => {
     it('should update an existing template', async () => {
-      const saveResult = await TemplateStorage.saveTemplate(
+      const saveResult = await ProjectStorage.saveProject(
         'Original Name',
         mockPositions,
         mockColumns,
@@ -279,7 +279,7 @@ describe('TemplateStorage', () => {
         title: { x: 500, y: 100, fontSize: 20, fontFamily: 'Helvetica', color: '#FF0000', align: 'right', visible: true }
       };
 
-      const updateResult = await TemplateStorage.updateTemplate(saveResult.id!, {
+      const updateResult = await ProjectStorage.updateProject(saveResult.id!, {
         name: 'Updated Name',
         positions: newPositions,
         emailConfig: mockEmailConfig
@@ -287,7 +287,7 @@ describe('TemplateStorage', () => {
 
       expect(updateResult.success).toBe(true);
 
-      const updated = TemplateStorage.loadTemplate(saveResult.id!);
+      const updated = ProjectStorage.loadProject(saveResult.id!);
       expect(updated?.name).toBe('Updated Name');
       expect(updated?.positions).toEqual(newPositions);
       expect(updated?.emailConfig).toEqual(mockEmailConfig);
@@ -295,7 +295,7 @@ describe('TemplateStorage', () => {
     });
 
     it('should fail when updating non-existent template', async () => {
-      const result = await TemplateStorage.updateTemplate('non-existent', {
+      const result = await ProjectStorage.updateProject('non-existent', {
         name: 'New Name'
       });
 
@@ -311,7 +311,7 @@ describe('TemplateStorage', () => {
     });
 
     it('should export template without image', async () => {
-      const saveResult = await TemplateStorage.saveTemplate(
+      const saveResult = await ProjectStorage.saveProject(
         'Export Test',
         mockPositions,
         mockColumns,
@@ -320,7 +320,7 @@ describe('TemplateStorage', () => {
         mockTableData
       );
 
-      const exportResult = await TemplateStorage.exportTemplate(saveResult.id!, false);
+      const exportResult = await ProjectStorage.exportProject(saveResult.id!, false);
 
       expect(exportResult.success).toBe(true);
       expect(exportResult.data).toBeDefined();
@@ -333,7 +333,7 @@ describe('TemplateStorage', () => {
     });
 
     it('should handle export of non-existent template', async () => {
-      const result = await TemplateStorage.exportTemplate('non-existent');
+      const result = await ProjectStorage.exportProject('non-existent');
       expect(result.success).toBe(false);
       expect(result.error).toBe('Template not found');
     });
@@ -362,26 +362,26 @@ describe('TemplateStorage', () => {
         }
       };
 
-      const result = await TemplateStorage.importTemplate(JSON.stringify(exportData));
+      const result = await ProjectStorage.importProject(JSON.stringify(exportData));
 
       expect(result.success).toBe(true);
       expect(result.id).toBeDefined();
       expect(result.id).not.toBe('old-id'); // Should generate new ID
 
-      const imported = TemplateStorage.loadTemplate(result.id!);
+      const imported = ProjectStorage.loadProject(result.id!);
       expect(imported?.name).toBe('Imported Template (Imported)');
       expect(imported?.positions).toEqual(mockPositions);
     });
 
     it('should handle invalid import data', async () => {
-      const result = await TemplateStorage.importTemplate('invalid json');
+      const result = await ProjectStorage.importProject('invalid json');
       expect(result.success).toBe(false);
       expect(result.error).toBe('Failed to import template');
     });
 
     it('should validate import data structure', async () => {
       const invalidData = { notATemplate: true };
-      const result = await TemplateStorage.importTemplate(JSON.stringify(invalidData));
+      const result = await ProjectStorage.importProject(JSON.stringify(invalidData));
       expect(result.success).toBe(false);
       expect(result.error).toBe('Invalid template file');
     });
@@ -389,10 +389,10 @@ describe('TemplateStorage', () => {
 
   describe('storage management', () => {
     it('should calculate storage usage correctly', async () => {
-      const initialUsage = TemplateStorage.getStorageUsage();
+      const initialUsage = ProjectStorage.getStorageUsage();
       expect(initialUsage).toBe(0);
 
-      await TemplateStorage.saveTemplate(
+      await ProjectStorage.saveProject(
         'Test Template',
         mockPositions,
         mockColumns,
@@ -401,12 +401,12 @@ describe('TemplateStorage', () => {
         mockTableData
       );
 
-      const usage = TemplateStorage.getStorageUsage();
+      const usage = ProjectStorage.getStorageUsage();
       expect(usage).toBeGreaterThan(0);
     });
 
     it('should provide storage info', () => {
-      const info = TemplateStorage.getStorageInfo();
+      const info = ProjectStorage.getStorageInfo();
       expect(info.used).toBe(0);
       expect(info.limit).toBe(5 * 1024 * 1024); // 5MB
       expect(info.percentage).toBe(0);
@@ -414,15 +414,15 @@ describe('TemplateStorage', () => {
 
     it('should clear all templates', async () => {
       // Save multiple templates
-      await TemplateStorage.saveTemplate('Template 1', mockPositions, mockColumns, mockImageUrl, mockFilename, mockTableData);
-      await TemplateStorage.saveTemplate('Template 2', mockPositions, mockColumns, mockImageUrl, mockFilename, mockTableData);
+      await ProjectStorage.saveProject('Template 1', mockPositions, mockColumns, mockImageUrl, mockFilename, mockTableData);
+      await ProjectStorage.saveProject('Template 2', mockPositions, mockColumns, mockImageUrl, mockFilename, mockTableData);
 
-      const templatesBefore = await TemplateStorage.listTemplates();
+      const templatesBefore = await ProjectStorage.listProjects();
       expect(templatesBefore).toHaveLength(2);
 
-      TemplateStorage.clearAllTemplates();
+      ProjectStorage.clearAllProjects();
 
-      const templatesAfter = await TemplateStorage.listTemplates();
+      const templatesAfter = await ProjectStorage.listProjects();
       expect(templatesAfter).toHaveLength(0);
     });
   });
