@@ -201,7 +201,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
 let cleanupInterval: NodeJS.Timeout | null = null;
 
 // Only set up the interval if it hasn't been set up already
-if (!cleanupInterval && typeof global !== 'undefined') {
+if (!cleanupInterval) {
   cleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [sessionId, manager] of Array.from(queueManagers.entries())) {
