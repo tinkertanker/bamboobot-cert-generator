@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { ProjectStorage } from '@/lib/project-storage';
@@ -38,12 +38,13 @@ export function SaveProjectModal({
   const isCloudStorage = storageConfig.isR2Enabled || storageConfig.isS3Enabled;
   const storageProvider = storageConfig.isR2Enabled ? 'r2' : storageConfig.isS3Enabled ? 's3' : 'local';
   
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const handleSave = async () => {
     if (!projectName.trim()) {
       setError('Please enter a project name');
       // Keep focus on the input field when showing error
-      const input = document.getElementById('project-name') as HTMLInputElement;
-      input?.focus();
+      inputRef.current?.focus();
       return;
     }
     
@@ -125,12 +126,13 @@ export function SaveProjectModal({
             type="text"
             value={projectName}
             onChange={(e) => {
-              setProjectName(e.target.value)
-              if (error) setError(null)
+              setProjectName(e.target.value);
+              if (error) setError(null);
             }}
             placeholder="e.g., Annual Awards 2025"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
+            ref={inputRef}
             aria-invalid={!!error}
             aria-describedby={error ? 'project-name-error' : undefined}
           />
