@@ -2,7 +2,7 @@
 
 ## Actual things I wanted to do. Maximum priority!
 
-- [ ] First time pressing "generate" after uploading and adding a text gives an error. Pressing generate after that works again though. 
+- [x] ~~First time pressing "generate" after uploading and adding a text gives an error. Pressing generate after that works again though.~~ **FIXED!** 🎉 
 - [ ] We really should refactor all the "Template" names into "Project". It's getting confusing for the AI. 
 - [ ] When creating the first field on the preview panel, it should already be selected
 - [ ] Text field colour should adapt to the general tone of the background image. If it's a dark background, make a light colour for the text. 
