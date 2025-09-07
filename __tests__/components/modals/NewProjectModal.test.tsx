@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NewProjectModal } from "@/components/modals/NewProjectModal';
+import { NewProjectModal } from '@/components/modals/NewProjectModal';
 
 describe('NewProjectModal Component', () => {
   const defaultProps = {

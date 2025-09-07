@@ -1,4 +1,4 @@
-import { ProjectStorage, SavedProject, ProjectListItem } from "@/lib/project-storage';
+import { ProjectStorage, SavedProject, ProjectListItem } from '@/lib/project-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
 describe('ProjectStorage', () => {

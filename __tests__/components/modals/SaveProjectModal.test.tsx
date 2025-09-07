@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SaveProjectModal } from "@/components/modals/SaveProjectModal';
-import { ProjectStorage } from "@/lib/project-storage';
+import { SaveProjectModal } from '@/components/modals/SaveProjectModal';
+import { ProjectStorage } from '@/lib/project-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
 // Mock the Modal component to simplify testing

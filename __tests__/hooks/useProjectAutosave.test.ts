@@ -1,6 +1,6 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useProjectAutosave } from "@/hooks/useProjectAutosave';
-import { ProjectStorage } from "@/lib/project-storage';
+import { useProjectAutosave } from '@/hooks/useProjectAutosave';
+import { ProjectStorage } from '@/lib/project-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
 // Mock ProjectStorage

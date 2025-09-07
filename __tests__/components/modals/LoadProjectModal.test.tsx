@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { LoadProjectModal } from "@/components/modals/LoadProjectModal';
-import { ProjectStorage, type ProjectListItem, type SavedProject } from "@/lib/project-storage';
+import { LoadProjectModal } from '@/components/modals/LoadProjectModal';
+import { ProjectStorage, type ProjectListItem, type SavedProject } from '@/lib/project-storage';
 
 // Mock the Modal component to simplify testing
 jest.mock('@/components/ui/modal', () => ({

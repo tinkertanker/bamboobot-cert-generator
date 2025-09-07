@@ -1,4 +1,4 @@
-import { ProjectStorage } from "@/lib/project-storage';
+import { ProjectStorage } from '@/lib/project-storage';
 
 // Mock localStorage
 const mockLocalStorage = {
