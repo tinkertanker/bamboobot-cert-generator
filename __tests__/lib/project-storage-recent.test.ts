@@ -1,4 +1,4 @@
-import { TemplateStorage } from '@/lib/template-storage';
+import { ProjectStorage } from '@/lib/project-storage';
 
 // Mock localStorage
 const mockLocalStorage = {
@@ -27,14 +27,14 @@ Object.defineProperty(window, 'localStorage', {
   writable: true
 });
 
-describe('TemplateStorage - getMostRecentTemplate', () => {
+describe('ProjectStorage - getMostRecentTemplate', () => {
   beforeEach(() => {
     mockLocalStorage.clear();
     jest.clearAllMocks();
   });
 
   it('returns null when no templates exist', async () => {
-    const result = await TemplateStorage.getMostRecentTemplate();
+    const result = await ProjectStorage.getMostRecentProject();
     expect(result).toBeNull();
   });
 
@@ -74,10 +74,10 @@ describe('TemplateStorage - getMostRecentTemplate', () => {
     };
 
     // Save both templates
-    mockLocalStorage.setItem('bamboobot_template_v1_older', JSON.stringify(olderTemplate));
-    mockLocalStorage.setItem('bamboobot_template_v1_newer', JSON.stringify(newerTemplate));
+    mockLocalStorage.setItem('bamboobot_project_v1_older', JSON.stringify(olderTemplate));
+    mockLocalStorage.setItem('bamboobot_project_v1_newer', JSON.stringify(newerTemplate));
 
-    const result = await TemplateStorage.getMostRecentTemplate();
+    const result = await ProjectStorage.getMostRecentProject();
     
     expect(result).not.toBeNull();
     expect(result?.id).toBe('newer');
@@ -117,10 +117,10 @@ describe('TemplateStorage - getMostRecentTemplate', () => {
       }
     };
 
-    mockLocalStorage.setItem('bamboobot_template_v1_template1', JSON.stringify(template1));
-    mockLocalStorage.setItem('bamboobot_template_v1_template2', JSON.stringify(template2));
+    mockLocalStorage.setItem('bamboobot_project_v1_template1', JSON.stringify(template1));
+    mockLocalStorage.setItem('bamboobot_project_v1_template2', JSON.stringify(template2));
 
-    const result = await TemplateStorage.getMostRecentTemplate();
+    const result = await ProjectStorage.getMostRecentProject();
     
     expect(result).not.toBeNull();
     // Should return one of them consistently
@@ -145,10 +145,10 @@ describe('TemplateStorage - getMostRecentTemplate', () => {
       }
     };
 
-    mockLocalStorage.setItem('bamboobot_template_v1_valid', JSON.stringify(validTemplate));
-    mockLocalStorage.setItem('bamboobot_template_v1_corrupt', 'invalid json');
+    mockLocalStorage.setItem('bamboobot_project_v1_valid', JSON.stringify(validTemplate));
+    mockLocalStorage.setItem('bamboobot_project_v1_corrupt', 'invalid json');
 
-    const result = await TemplateStorage.getMostRecentTemplate();
+    const result = await ProjectStorage.getMostRecentProject();
     
     // Should still return the valid template
     expect(result).not.toBeNull();

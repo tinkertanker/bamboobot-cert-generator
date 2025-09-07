@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Bamboobot is a Next.js certificate generator that allows users to upload image templates, add draggable text fields, and generate bulk certificates from tabular data. The system now supports full project saves that include both the template image and all certificate data.
+Bamboobot is a Next.js certificate generator that allows users to upload certificate images, add draggable text fields, and generate bulk certificates from tabular data. The system supports full project saves that include both the certificate image and all certificate data.
 
 ## Development Commands
 

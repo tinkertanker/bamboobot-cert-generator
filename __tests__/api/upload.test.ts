@@ -170,7 +170,7 @@ describe('Upload API', () => {
     (jest.requireMock('formidable').IncomingForm as jest.Mock).mockImplementationOnce(() => mockFormWithTemplate);
     
     // Update mock handler to include isTemplate and storageType
-    const templateHandler = jest.fn((req, res) => {
+    const projectHandler = jest.fn((req, res) => {
       if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
       }
@@ -197,7 +197,7 @@ describe('Upload API', () => {
     });
     
     // Call the handler
-    templateHandler(req as NextApiRequest, res as NextApiResponse);
+    projectHandler(req as NextApiRequest, res as NextApiResponse);
     
     // Wait for the json method to be called
     await jsonPromise;

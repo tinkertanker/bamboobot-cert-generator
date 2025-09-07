@@ -5,7 +5,7 @@ Generate certificates from image templates with drag-and-drop text positioning a
 ## Key Features
 
 ### Core Functionality
-- **Image Template Upload** - JPG/PNG with automatic PDF conversion
+- **Certificate Image Upload** - JPG/PNG with automatic PDF conversion
 - **Drag-and-Drop Text Positioning** - Precision placement with visual feedback and keyboard nudging
 - **Advanced Text Formatting** - 10 fonts, bold/italic, color picker, alignment controls
 - **Flexible Text Sizing** - Shrink-to-fit for single lines or multi-line (2 lines) with word wrap
@@ -20,10 +20,10 @@ Generate certificates from image templates with drag-and-drop text positioning a
 - **Progressive Generation** - Batch processing for large server-side operations
 
 ### Project Management
-- **Complete Project System** - Save/load projects including template image and all certificate data
+- **Complete Project System** - Save/load projects including certificate image and all certificate data
 - **Project Autosave** - Smart autosave that updates existing projects without creating duplicates
 - **Project Management** - Inline rename, relative timestamps ("2 hours ago"), mass delete
-- **Background Image Replacement** - Replace template while preserving text field positions
+- **Background Image Replacement** - Replace certificate image while preserving text field positions
 
 ### Distribution & Delivery
 - **Multiple Download Options** - Individual PDFs, single combined PDF, or ZIP archives
@@ -32,7 +32,7 @@ Generate certificates from image templates with drag-and-drop text positioning a
 - **Bulk Operations** - Email all certificates with progress tracking
 
 ### Developer Features
-- **Dev Mode** - Quick testing with pre-loaded template and data
+- **Dev Mode** - Quick testing with pre-loaded certificate and data
 - **Storage Monitoring** - Real-time localStorage and file system monitoring with one-click cleanup
 - **Docker Support** - Production-ready containerization
 - **Keyboard Shortcuts** - Ctrl/Cmd+B (bold), Ctrl/Cmd+I (italic), ESC (dismiss modals)
@@ -60,7 +60,7 @@ docker-compose -f docker-compose.dev.yml up -d
 
 ## How to Use
 
-1. **Upload Template** - Drag & drop a JPG/PNG image
+1. **Upload Certificate** - Drag & drop a JPG/PNG image
 2. **Add Data** - Paste TSV/CSV data (header row automatically detected)
 3. **Position Text** - Drag text fields to desired positions
 4. **Format Text** - Click fields to access formatting controls
@@ -244,7 +244,7 @@ npm run test:e2e:debug  # Debug mode
 ```
 
 The E2E tests cover:
-- Dev Mode activation and template loading
+- Dev Mode activation and certificate loading
 - Text field interactions (drag, resize, format)
 - PDF generation with formatting verification
 - Entry navigation and data handling

@@ -3,7 +3,7 @@
 ## Actual things I wanted to do. Maximum priority!
 
 - [x] ~~First time pressing "generate" after uploading and adding a text gives an error. Pressing generate after that works again though.~~ **FIXED!** 🎉 
-- [ ] We really should refactor all the "Template" names into "Project". It's getting confusing for the AI. But we have to be very careful not to overwrite what else could be called a "template" in the code, so we don't just blindly change things! Also, beware the tests, which have lots of dependencies on these.
+- [x] ~~We really should refactor all the "Template" names into "Project". It's getting confusing for the AI. But we have to be very careful not to overwrite what else could be called a "template" in the code, so we don't just blindly change things! Also, beware the tests, which have lots of dependencies on these.~~ **DONE!** Refactored to use "Project" naming throughout
 - [ ] I get the nagging feeling that there's a lot of confusion over server-side rendering and client-side rendering in the code. Does this need to be cleaned up?
 - [x] ~~When creating the first field on the preview panel, it should already be selected~~ **DONE!**
 - [ ] Text field colour should adapt to the general tone of the background image. If it's a dark background, make a light colour for the text. 

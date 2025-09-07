@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { LoadTemplateModal } from '@/components/modals/LoadTemplateModal';
-import { TemplateStorage, type TemplateListItem, type SavedTemplate } from '@/lib/template-storage';
+import { LoadProjectModal } from '@/components/modals/LoadProjectModal';
+import { ProjectStorage, type ProjectListItem, type SavedProject } from '@/lib/project-storage';
 
 // Mock the Modal component to simplify testing
 jest.mock('@/components/ui/modal', () => ({
@@ -19,15 +19,15 @@ jest.mock('@/components/ui/button', () => ({
 }));
 
 // Mock the template storage
-jest.mock('@/lib/template-storage', () => ({
-  TemplateStorage: {
-    listTemplates: jest.fn(),
-    loadTemplate: jest.fn(),
-    deleteTemplate: jest.fn(),
-    exportTemplate: jest.fn(),
-    importTemplate: jest.fn(),
-    clearAllTemplates: jest.fn(),
-    updateTemplate: jest.fn()
+jest.mock('@/lib/project-storage', () => ({
+  ProjectStorage: {
+    listProjects: jest.fn(),
+    loadProject: jest.fn(),
+    deleteProject: jest.fn(),
+    exportProject: jest.fn(),
+    importProject: jest.fn(),
+    clearAllProjects: jest.fn(),
+    updateProject: jest.fn()
   }
 }));
 
@@ -35,8 +35,8 @@ jest.mock('@/lib/template-storage', () => ({
 global.URL.createObjectURL = jest.fn(() => 'blob:mock-url');
 global.URL.revokeObjectURL = jest.fn();
 
-describe('LoadTemplateModal', () => {
-  const mockTemplateList: TemplateListItem[] = [
+describe('LoadProjectModal', () => {
+  const mockProjectList: ProjectListItem[] = [
     {
       id: 'template-1',
       name: 'Template 1',
@@ -59,7 +59,7 @@ describe('LoadTemplateModal', () => {
     }
   ];
 
-  const mockSavedTemplate: SavedTemplate = {
+  const mockSavedProject: SavedProject = {
     id: 'template-1',
     name: 'Template 1',
     created: '2024-01-01T10:00:00Z',
@@ -94,14 +94,14 @@ describe('LoadTemplateModal', () => {
   const defaultProps = {
     isOpen: true,
     onClose: jest.fn(),
-    onLoadTemplate: jest.fn(),
-    onTemplateDeleted: jest.fn()
+    onLoadProject: jest.fn(),
+    onProjectDeleted: jest.fn()
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (TemplateStorage.listTemplates as jest.Mock).mockResolvedValue(mockTemplateList);
-    (TemplateStorage.loadTemplate as jest.Mock).mockReturnValue(mockSavedTemplate);
+    (ProjectStorage.listProjects as jest.Mock).mockResolvedValue(mockProjectList);
+    (ProjectStorage.loadProject as jest.Mock).mockReturnValue(mockSavedProject);
   });
   
   afterEach(() => {
@@ -109,7 +109,7 @@ describe('LoadTemplateModal', () => {
   });
 
   it('renders when open', async () => {
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     expect(screen.getByText('Projects')).toBeInTheDocument();
     
@@ -120,23 +120,23 @@ describe('LoadTemplateModal', () => {
   });
 
   it('does not render when closed', () => {
-    render(<LoadTemplateModal {...defaultProps} isOpen={false} />);
+    render(<LoadProjectModal {...defaultProps} isOpen={false} />);
     
     expect(screen.queryByText('Projects')).not.toBeInTheDocument();
   });
 
   it('loads template list on open', async () => {
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
-      expect(TemplateStorage.listTemplates).toHaveBeenCalled();
+      expect(ProjectStorage.listProjects).toHaveBeenCalled();
       expect(screen.getByText('Template 1')).toBeInTheDocument();
       expect(screen.getByText('Template 2')).toBeInTheDocument();
     });
   });
 
   it('displays template details correctly', async () => {
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       expect(screen.getByText('3 columns')).toBeInTheDocument();
@@ -146,7 +146,7 @@ describe('LoadTemplateModal', () => {
   });
 
   it('selects template on click', async () => {
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       const template1 = screen.getByText('Template 1').closest('div[class*="border"]');
@@ -157,7 +157,7 @@ describe('LoadTemplateModal', () => {
   });
 
   it('loads selected template', async () => {
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       const template1 = screen.getByText('Template 1').closest('div[class*="border"]');
@@ -167,13 +167,13 @@ describe('LoadTemplateModal', () => {
     const loadButton = screen.getByRole('button', { name: 'Load Project' });
     fireEvent.click(loadButton);
     
-    expect(TemplateStorage.loadTemplate).toHaveBeenCalledWith('template-1');
-    expect(defaultProps.onLoadTemplate).toHaveBeenCalledWith(mockSavedTemplate);
+    expect(ProjectStorage.loadProject).toHaveBeenCalledWith('template-1');
+    expect(defaultProps.onLoadProject).toHaveBeenCalledWith(mockSavedProject);
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 
   it('shows delete confirmation', async () => {
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       const deleteButtons = screen.getAllByTitle('Delete project');
@@ -190,9 +190,9 @@ describe('LoadTemplateModal', () => {
   });
 
   it('deletes template after confirmation', async () => {
-    (TemplateStorage.deleteTemplate as jest.Mock).mockReturnValue(true);
+    (ProjectStorage.deleteProject as jest.Mock).mockReturnValue(true);
     
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       const deleteButtons = screen.getAllByTitle('Delete project');
@@ -203,19 +203,19 @@ describe('LoadTemplateModal', () => {
     fireEvent.click(confirmButton);
     
     await waitFor(() => {
-      expect(TemplateStorage.deleteTemplate).toHaveBeenCalledWith('template-1');
-      expect(defaultProps.onTemplateDeleted).toHaveBeenCalled();
+      expect(ProjectStorage.deleteProject).toHaveBeenCalledWith('template-1');
+      expect(defaultProps.onProjectDeleted).toHaveBeenCalled();
     });
   });
 
   it('exports template', async () => {
-    (TemplateStorage.exportTemplate as jest.Mock).mockResolvedValue({
+    (ProjectStorage.exportProject as jest.Mock).mockResolvedValue({
       success: true,
-      data: JSON.stringify({ template: mockSavedTemplate }),
-      filename: 'template_1.json'
+      data: JSON.stringify({ project: mockSavedProject }),
+      filename: 'project_1.json'
     });
 
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       const exportButtons = screen.getAllByTitle('Export project');
@@ -223,24 +223,24 @@ describe('LoadTemplateModal', () => {
     });
     
     await waitFor(() => {
-      expect(TemplateStorage.exportTemplate).toHaveBeenCalledWith('template-1', true);
+      expect(ProjectStorage.exportProject).toHaveBeenCalledWith('template-1', true);
     });
   });
 
   it('imports template from file', async () => {
-    (TemplateStorage.importTemplate as jest.Mock).mockResolvedValue({
+    (ProjectStorage.importProject as jest.Mock).mockResolvedValue({
       success: true,
       id: 'imported-template'
     });
 
     // Mock File.text() method
-    const mockText = jest.fn().mockResolvedValue('{"template": {}}');
-    const file = new File(['{"template": {}}'], 'template.json', { type: 'application/json' });
+    const mockText = jest.fn().mockResolvedValue('{"project": {}}');
+    const file = new File(['{"project": {}}'], 'project.json', { type: 'application/json' });
     Object.defineProperty(file, 'text', {
       value: mockText
     });
     
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       const importLabel = screen.getByText('Import').closest('label');
@@ -252,15 +252,15 @@ describe('LoadTemplateModal', () => {
     
     await waitFor(() => {
       expect(mockText).toHaveBeenCalled();
-      expect(TemplateStorage.importTemplate).toHaveBeenCalledWith('{"template": {}}');
-      expect(TemplateStorage.listTemplates).toHaveBeenCalledTimes(2); // Once on open, once after import
+      expect(ProjectStorage.importProject).toHaveBeenCalledWith('{"project": {}}');
+      expect(ProjectStorage.listProjects).toHaveBeenCalledTimes(2); // Once on open, once after import
     });
   });
 
   it('shows error when no templates found', async () => {
-    (TemplateStorage.listTemplates as jest.Mock).mockResolvedValue([]);
+    (ProjectStorage.listProjects as jest.Mock).mockResolvedValue([]);
     
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       expect(screen.getByText('No saved projects found')).toBeInTheDocument();
@@ -269,9 +269,9 @@ describe('LoadTemplateModal', () => {
   });
 
   it('handles load template error', async () => {
-    (TemplateStorage.loadTemplate as jest.Mock).mockReturnValue(null);
+    (ProjectStorage.loadProject as jest.Mock).mockReturnValue(null);
     
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       const template1 = screen.getByText('Template 1').closest('div[class*="border"]');
@@ -287,7 +287,7 @@ describe('LoadTemplateModal', () => {
   });
 
   it('disables load button when no template selected', async () => {
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       const loadButton = screen.getByRole('button', { name: 'Load Project' });
@@ -296,7 +296,7 @@ describe('LoadTemplateModal', () => {
   });
 
   it('closes modal on cancel', async () => {
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       const cancelButton = screen.getByRole('button', { name: 'Cancel' });
@@ -307,14 +307,14 @@ describe('LoadTemplateModal', () => {
   });
 
   it('handles import error', async () => {
-    (TemplateStorage.importTemplate as jest.Mock).mockResolvedValue({
+    (ProjectStorage.importProject as jest.Mock).mockResolvedValue({
       success: false,
       error: 'Invalid project file'
     });
 
-    const file = new File(['invalid'], 'template.json', { type: 'application/json' });
+    const file = new File(['invalid'], 'project.json', { type: 'application/json' });
     
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       const importButton = screen.getByText('Import');
@@ -331,12 +331,12 @@ describe('LoadTemplateModal', () => {
   });
 
   it('handles export error', async () => {
-    (TemplateStorage.exportTemplate as jest.Mock).mockResolvedValue({
+    (ProjectStorage.exportProject as jest.Mock).mockResolvedValue({
       success: false,
       error: 'Failed to export'
     });
 
-    render(<LoadTemplateModal {...defaultProps} />);
+    render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
       const exportButtons = screen.getAllByTitle('Export project');

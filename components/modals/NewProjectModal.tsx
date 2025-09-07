@@ -3,14 +3,14 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
 
-interface NewTemplateModalProps {
+interface NewProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
   hasUnsavedWork: boolean;
 }
 
-export const NewTemplateModal: React.FC<NewTemplateModalProps> = ({
+export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   isOpen,
   onClose,
   onConfirm,

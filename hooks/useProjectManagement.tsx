@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect } from "react";
-import type { SavedTemplate } from "@/lib/template-storage";
+import type { SavedProject } from "@/lib/project-storage";
 import type { EmailConfig, TableData } from "@/types/certificate";
-import { TemplateStorage } from "@/lib/template-storage";
+import { ProjectStorage } from "@/lib/project-storage";
 import { SessionStorage } from "@/lib/session-storage";
 
-interface UseTemplateManagementProps {
+interface UseProjectManagementProps {
   // State setters
   setPositions: (positions: any) => void;
   setEmailConfig: (config: EmailConfig) => void;
@@ -20,7 +20,7 @@ interface UseTemplateManagementProps {
   // Toast notifications
   showToast: (options: { message: string; type: "success" | "error" | "info"; duration: number }) => void;
   
-  // Template autosave
+  // Project autosave
   manualSave: (name: string, url?: string, filename?: string) => Promise<{ success: boolean; error?: string }>;
   
   // Current state
@@ -37,24 +37,24 @@ interface UseTemplateManagementProps {
   clearData: () => void;
 }
 
-interface UseTemplateManagementReturn {
-  currentTemplateName: string | null;
-  currentTemplateId: string | null;
+interface UseProjectManagementReturn {
+  currentProjectName: string | null;
+  currentProjectId: string | null;
   hasManuallySaved: boolean;
-  showSaveTemplateModal: boolean;
-  showLoadTemplateModal: boolean;
-  showNewTemplateModal: boolean;
-  setShowSaveTemplateModal: (show: boolean) => void;
-  setShowLoadTemplateModal: (show: boolean) => void;
-  setShowNewTemplateModal: (show: boolean) => void;
-  handleLoadTemplate: (template: SavedTemplate) => Promise<void>;
-  handleSaveTemplateSuccess: (templateId: string, templateName: string) => void;
-  handleSaveToCurrentTemplate: () => Promise<void>;
-  handleNewTemplate: () => void;
-  confirmNewTemplate: () => void;
+  showSaveProjectModal: boolean;
+  showLoadProjectModal: boolean;
+  showNewProjectModal: boolean;
+  setShowSaveProjectModal: (show: boolean) => void;
+  setShowLoadProjectModal: (show: boolean) => void;
+  setShowNewProjectModal: (show: boolean) => void;
+  handleLoadProject: (project: SavedProject) => Promise<void>;
+  handleSaveProjectSuccess: (projectId: string, projectName: string) => void;
+  handleSaveToCurrentProject: () => Promise<void>;
+  handleNewProject: () => void;
+  confirmNewProject: () => void;
 }
 
-export function useTemplateManagement({
+export function useProjectManagement({
   setPositions,
   setEmailConfig,
   setUploadedFileUrl,
@@ -72,18 +72,24 @@ export function useTemplateManagement({
   clearPositions,
   clearDragState,
   clearData
-}: UseTemplateManagementProps): UseTemplateManagementReturn {
-  const [currentTemplateName, setCurrentTemplateName] = useState<string | null>(null);
-  const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(null);
+}: UseProjectManagementProps): UseProjectManagementReturn {
+  const [currentProjectName, setCurrentProjectName] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [hasManuallySaved, setHasManuallySaved] = useState<boolean>(false);
-  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState<boolean>(false);
-  const [showLoadTemplateModal, setShowLoadTemplateModal] = useState<boolean>(false);
-  const [showNewTemplateModal, setShowNewTemplateModal] = useState<boolean>(false);
+  const [showSaveProjectModal, setShowSaveProjectModal] = useState<boolean>(false);
+  const [showLoadProjectModal, setShowLoadProjectModal] = useState<boolean>(false);
+  const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
 
-  // Load most recent template and session data on startup
+  // Load most recent project and session data on startup
   useEffect(() => {
     const loadStartupData = async () => {
       try {
+        // Run migration on startup
+        const migrationResult = ProjectStorage.migrateFromTemplateStorage();
+        if (migrationResult.migrated > 0) {
+          console.log(`Migrated ${migrationResult.migrated} templates to projects`);
+        }
+
         // First, try to load session data
         const session = SessionStorage.loadSession();
         if (session) {
@@ -110,35 +116,35 @@ export function useTemplateManagement({
           }
         }
 
-        // Then load the most recent template
-        const template = await TemplateStorage.getMostRecentTemplate();
+        // Then load the most recent project
+        const project = await ProjectStorage.getMostRecentProject();
 
-        if (template) {
-          console.log("Loading most recent template:", template.name);
+        if (project) {
+          console.log("Loading most recent project:", project.name);
 
           // Load the positions
-          setPositions(template.positions);
+          setPositions(project.positions);
 
           // Load email configuration if present
-          if (template.emailConfig) {
-            setEmailConfig(template.emailConfig);
+          if (project.emailConfig) {
+            setEmailConfig(project.emailConfig);
           }
 
           // Load the certificate image
-          if (template.certificateImage.url) {
-            setUploadedFileUrl(template.certificateImage.url);
-            setUploadedFile(template.certificateImage.filename);
+          if (project.certificateImage.url) {
+            setUploadedFileUrl(project.certificateImage.url);
+            setUploadedFile(project.certificateImage.filename);
           }
 
           showToast({
-            message: `Loaded project: ${template.name}`,
+            message: `Loaded project: ${project.name}`,
             type: "info",
             duration: 3000
           });
 
           // Enable autosave since we loaded saved work
           setHasManuallySaved(true);
-          setCurrentTemplateName(template.name);
+          setCurrentProjectName(project.name);
         }
       } catch (error) {
         console.error("Error loading startup data:", error);
@@ -156,17 +162,17 @@ export function useTemplateManagement({
     showToast
   ]); // Include stable dependencies
 
-  // Template handlers
-  const handleLoadTemplate = useCallback(
-    async (template: SavedTemplate) => {
+  // Project handlers
+  const handleLoadProject = useCallback(
+    async (project: SavedProject) => {
       // Load the positions
-      setPositions(template.positions);
+      setPositions(project.positions);
 
       // Load the table data
-      if (template.tableData && template.tableData.length > 0) {
+      if (project.tableData && project.tableData.length > 0) {
         // Convert tableData array back to TSV format for loading
-        const headers = template.columns;
-        const rows = template.tableData.map(row => {
+        const headers = project.columns;
+        const rows = project.tableData.map(row => {
           return headers.map(col => row[col] || "").join("\t");
         });
         const tsvData = [headers.join("\t"), ...rows].join("\n");
@@ -175,36 +181,36 @@ export function useTemplateManagement({
         const IS_BINARY = false;
         const HAS_HEADERS = true;
         await loadSessionData(tsvData, IS_BINARY, HAS_HEADERS);
-        console.log(`Loaded ${template.tableData.length} rows of data`);
-      } else if (template.columns.length > 0) {
+        console.log(`Loaded ${project.tableData.length} rows of data`);
+      } else if (project.columns.length > 0) {
         // If no data but has columns, create empty row with those columns
-        const headers = template.columns;
+        const headers = project.columns;
         const emptyRow = headers.map(() => "").join("\t");
         const tsvData = [headers.join("\t"), emptyRow].join("\n");
         
         const IS_BINARY = false;
         const HAS_HEADERS = true;
         await loadSessionData(tsvData, IS_BINARY, HAS_HEADERS);
-        console.log("Project expects columns:", template.columns);
+        console.log("Project expects columns:", project.columns);
       }
 
       // Load email configuration if present
-      if (template.emailConfig) {
-        setEmailConfig(template.emailConfig);
+      if (project.emailConfig) {
+        setEmailConfig(project.emailConfig);
       }
       
-      // Set current template info and enable autosave
-      setCurrentTemplateId(template.id);
-      setCurrentTemplateName(template.name);
+      // Set current project info and enable autosave
+      setCurrentProjectId(project.id);
+      setCurrentProjectName(project.name);
       setHasManuallySaved(true);
 
       // Update the certificate image URL and file
-      if (template.certificateImage.url) {
-        setUploadedFileUrl(template.certificateImage.url);
-        setUploadedFile(template.certificateImage.filename);
+      if (project.certificateImage.url) {
+        setUploadedFileUrl(project.certificateImage.url);
+        setUploadedFile(project.certificateImage.filename);
       }
 
-      console.log("Project loaded successfully:", template.name);
+      console.log("Project loaded successfully:", project.name);
     },
     [
       setPositions,
@@ -215,29 +221,29 @@ export function useTemplateManagement({
     ]
   );
 
-  const handleSaveTemplateSuccess = useCallback(
-    (templateId: string, templateName: string) => {
+  const handleSaveProjectSuccess = useCallback(
+    (projectId: string, projectName: string) => {
       console.log("Project saved successfully:", {
-        id: templateId,
-        name: templateName
+        id: projectId,
+        name: projectName
       });
       showToast({
-        message: `Project "${templateName}" saved successfully`,
+        message: `Project "${projectName}" saved successfully`,
         type: "success",
         duration: 3000
       });
-      setShowSaveTemplateModal(false);
+      setShowSaveProjectModal(false);
       // Enable autosave after manual save
       setHasManuallySaved(true);
-      setCurrentTemplateName(templateName);
-      setCurrentTemplateId(templateId);
+      setCurrentProjectName(projectName);
+      setCurrentProjectId(projectId);
     },
     [showToast]
   );
 
-  // Save to current template (no modal)
-  const handleSaveToCurrentTemplate = useCallback(async () => {
-    if (!currentTemplateName || !uploadedFileUrl || !uploadedFile) return;
+  // Save to current project (no modal)
+  const handleSaveToCurrentProject = useCallback(async () => {
+    if (!currentProjectName || !uploadedFileUrl || !uploadedFile) return;
 
     let finalUrl = uploadedFileUrl;
     let finalFilename = uploadedFile as string;
@@ -263,7 +269,7 @@ export function useTemplateManagement({
       }
     }
 
-    const result = await manualSave(currentTemplateName, finalUrl, finalFilename);
+    const result = await manualSave(currentProjectName, finalUrl, finalFilename);
 
     if (result.success) {
       // Show subtle feedback that it was saved
@@ -280,7 +286,7 @@ export function useTemplateManagement({
       });
     }
   }, [
-    currentTemplateName,
+    currentProjectName,
     uploadedFileUrl,
     uploadedFile,
     uploadToServer,
@@ -288,14 +294,14 @@ export function useTemplateManagement({
     showToast
   ]);
 
-  // Handle new template
-  const handleNewTemplate = useCallback(() => {
+  // Handle new project
+  const handleNewProject = useCallback(() => {
     // Check if there's any work to save
     const hasWork =
       uploadedFileUrl && (Object.keys(positions).length > 0 || emailConfig);
 
     if (hasWork) {
-      setShowNewTemplateModal(true);
+      setShowNewProjectModal(true);
     } else {
       // No work to save, just clear everything
       clearFile();
@@ -319,7 +325,7 @@ export function useTemplateManagement({
     setEmailConfig
   ]);
 
-  const confirmNewTemplate = useCallback(() => {
+  const confirmNewProject = useCallback(() => {
     clearFile();
     clearPositions();
     clearDragState();
@@ -332,10 +338,10 @@ export function useTemplateManagement({
       deliveryMethod: "download",
       isConfigured: false
     });
-    setShowNewTemplateModal(false);
+    setShowNewProjectModal(false);
     setHasManuallySaved(false); // Reset autosave state
-    setCurrentTemplateName(null); // Reset template name
-    setCurrentTemplateId(null); // Reset template ID
+    setCurrentProjectName(null); // Reset project name
+    setCurrentProjectId(null); // Reset project ID
     showToast({
       message: "New project started",
       type: "info",
@@ -351,19 +357,19 @@ export function useTemplateManagement({
   ]);
 
   return {
-    currentTemplateName,
-    currentTemplateId,
+    currentProjectName,
+    currentProjectId,
     hasManuallySaved,
-    showSaveTemplateModal,
-    showLoadTemplateModal,
-    showNewTemplateModal,
-    setShowSaveTemplateModal,
-    setShowLoadTemplateModal,
-    setShowNewTemplateModal,
-    handleLoadTemplate,
-    handleSaveTemplateSuccess,
-    handleSaveToCurrentTemplate,
-    handleNewTemplate,
-    confirmNewTemplate
+    showSaveProjectModal,
+    showLoadProjectModal,
+    showNewProjectModal,
+    setShowSaveProjectModal,
+    setShowLoadProjectModal,
+    setShowNewProjectModal,
+    handleLoadProject,
+    handleSaveProjectSuccess,
+    handleSaveToCurrentProject,
+    handleNewProject,
+    confirmNewProject
   };
 }

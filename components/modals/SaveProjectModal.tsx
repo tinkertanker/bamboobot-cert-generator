@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
-import { TemplateStorage } from '@/lib/template-storage';
+import { ProjectStorage } from '@/lib/project-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
 import { AlertTriangle, Save, Cloud, HardDrive } from 'lucide-react';
 import storageConfig from '@/lib/storage-config';
 
-interface SaveTemplateModalProps {
+interface SaveProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   positions: Positions;
@@ -15,11 +15,11 @@ interface SaveTemplateModalProps {
   emailConfig?: EmailConfig;
   certificateImageUrl?: string;
   certificateFilename?: string;
-  onSaveSuccess?: (templateId: string, templateName: string) => void;
-  onManualSave?: (templateName: string) => Promise<{ success: boolean; id?: string; error?: string }>;
+  onSaveSuccess?: (projectId: string, projectName: string) => void;
+  onManualSave?: (projectName: string) => Promise<{ success: boolean; id?: string; error?: string }>;
 }
 
-export function SaveTemplateModal({
+export function SaveProjectModal({
   isOpen,
   onClose,
   positions,
@@ -30,8 +30,8 @@ export function SaveTemplateModal({
   certificateFilename,
   onSaveSuccess,
   onManualSave
-}: SaveTemplateModalProps) {
-  const [templateName, setTemplateName] = useState('');
+}: SaveProjectModalProps) {
+  const [projectName, setProjectName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -39,7 +39,7 @@ export function SaveTemplateModal({
   const storageProvider = storageConfig.isR2Enabled ? 'r2' : storageConfig.isS3Enabled ? 's3' : 'local';
   
   const handleSave = async () => {
-    if (!templateName.trim()) {
+    if (!projectName.trim()) {
       setError('Please enter a project name');
       return;
     }
@@ -57,11 +57,11 @@ export function SaveTemplateModal({
       
       if (onManualSave) {
         // Use the manual save function from the hook to prevent double save
-        result = await onManualSave(templateName);
+        result = await onManualSave(projectName);
       } else {
         // Fallback to direct save
-        result = await TemplateStorage.saveTemplate(
-          templateName,
+        result = await ProjectStorage.saveProject(
+          projectName,
           positions,
           columns,
           certificateImageUrl,
@@ -76,13 +76,13 @@ export function SaveTemplateModal({
       }
       
       if (result.success && result.id) {
-        onSaveSuccess?.(result.id, templateName);
+        onSaveSuccess?.(result.id, projectName);
         handleClose();
       } else {
         setError(result.error || 'Failed to save project');
       }
     } catch (err) {
-      console.error('Error saving template:', err);
+      console.error('Error saving project:', err);
       setError('An unexpected error occurred');
     } finally {
       setIsSaving(false);
@@ -90,13 +90,13 @@ export function SaveTemplateModal({
   };
   
   const handleClose = () => {
-    setTemplateName('');
+    setProjectName('');
     setError(null);
     onClose();
   };
   
   // Get storage info
-  const storageInfo = TemplateStorage.getStorageInfo();
+  const storageInfo = ProjectStorage.getStorageInfo();
   const storagePercentage = storageInfo.percentage;
   const isNearLimit = storagePercentage > 80;
   
@@ -112,8 +112,8 @@ export function SaveTemplateModal({
           <input
             id="project-name"
             type="text"
-            value={templateName}
-            onChange={(e) => setTemplateName(e.target.value)}
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
             placeholder="e.g., Annual Awards 2025"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
@@ -213,7 +213,7 @@ export function SaveTemplateModal({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={isSaving || !templateName.trim()}
+            disabled={isSaving || !projectName.trim()}
             className="inline-flex items-center gap-2"
           >
             {isSaving ? (

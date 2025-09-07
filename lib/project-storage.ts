@@ -7,7 +7,7 @@
 
 import type { Positions, EmailConfig } from '@/types/certificate';
 
-export interface SavedTemplate {
+export interface SavedProject {
   id: string;
   name: string;
   created: string;
@@ -35,7 +35,7 @@ export interface SavedTemplate {
   };
 }
 
-export interface TemplateListItem {
+export interface ProjectListItem {
   id: string;
   name: string;
   created: string;
@@ -46,14 +46,57 @@ export interface TemplateListItem {
   imageStatus: 'available' | 'missing' | 'checking';
 }
 
-const STORAGE_KEY_PREFIX = 'bamboobot_template_v1_';
+const STORAGE_KEY_PREFIX = 'bamboobot_project_v1_';
+const OLD_STORAGE_KEY_PREFIX = 'bamboobot_template_v1_'; // For migration
 const STORAGE_LIMIT_BYTES = 5 * 1024 * 1024; // 5MB limit for localStorage
 
-export class TemplateStorage {
+export class ProjectStorage {
   /**
-   * Save a template to localStorage
+   * Migrate old template storage keys to new project keys
    */
-  static async saveTemplate(
+  static migrateFromTemplateStorage(): { migrated: number; errors: number } {
+    let migrated = 0;
+    let errors = 0;
+
+    try {
+      const keysToMigrate: string[] = [];
+      
+      // Find all old template keys
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(OLD_STORAGE_KEY_PREFIX)) {
+          keysToMigrate.push(key);
+        }
+      }
+      
+      // Migrate each key
+      for (const oldKey of keysToMigrate) {
+        try {
+          const data = localStorage.getItem(oldKey);
+          if (data) {
+            const newKey = oldKey.replace(OLD_STORAGE_KEY_PREFIX, STORAGE_KEY_PREFIX);
+            localStorage.setItem(newKey, data);
+            // Keep old key temporarily for safety - can be removed in a future update
+            migrated++;
+          }
+        } catch (error) {
+          console.error(`Error migrating key ${oldKey}:`, error);
+          errors++;
+        }
+      }
+      
+      console.log(`Migration complete: ${migrated} projects migrated, ${errors} errors`);
+    } catch (error) {
+      console.error('Error during migration:', error);
+    }
+    
+    return { migrated, errors };
+  }
+
+  /**
+   * Save a project to localStorage
+   */
+  static async saveProject(
     name: string,
     positions: Positions,
     columns: string[],
@@ -67,7 +110,7 @@ export class TemplateStorage {
       const id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
       
-      const project: SavedTemplate = {
+      const project: SavedProject = {
         id,
         name: name.trim(),
         created: now,
@@ -105,25 +148,32 @@ export class TemplateStorage {
       
       return { success: true, id };
     } catch (error) {
-      console.error('Error saving template:', error);
+      console.error('Error saving project:', error);
       if (error instanceof Error && error.name === 'QuotaExceededError') {
         return { success: false, error: 'Browser storage quota exceeded' };
       }
-      return { success: false, error: 'Failed to save template' };
+      return { success: false, error: 'Failed to save project' };
     }
   }
   
   /**
-   * Load a template by ID
+   * Load a project by ID
    */
-  static loadTemplate(id: string): SavedTemplate | null {
+  static loadProject(id: string): SavedProject | null {
     try {
-      const key = `${STORAGE_KEY_PREFIX}${id}`;
-      const data = localStorage.getItem(key);
+      // Try new key first
+      let key = `${STORAGE_KEY_PREFIX}${id}`;
+      let data = localStorage.getItem(key);
+      
+      // Fall back to old key if not found (for backward compatibility)
+      if (!data) {
+        key = `${OLD_STORAGE_KEY_PREFIX}${id}`;
+        data = localStorage.getItem(key);
+      }
       
       if (!data) return null;
       
-      const project = JSON.parse(data) as SavedTemplate;
+      const project = JSON.parse(data) as SavedProject;
       
       // Validate project structure
       if (!project.id || !project.positions || !project.certificateImage) {
@@ -133,135 +183,156 @@ export class TemplateStorage {
       
       return project;
     } catch (error) {
-      console.error('Error loading template:', error);
+      console.error('Error loading project:', error);
       return null;
     }
   }
   
   /**
-   * Update an existing template
+   * Update an existing project
    */
-  static async updateTemplate(
+  static async updateProject(
     id: string,
-    updates: Partial<Omit<SavedTemplate, 'id' | 'created' | 'version'>>
+    updates: Partial<Omit<SavedProject, 'id' | 'created' | 'version'>>
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const existing = this.loadTemplate(id);
+      const existing = this.loadProject(id);
       if (!existing) {
-        return { success: false, error: 'Template not found' };
+        return { success: false, error: 'Project not found' };
       }
       
-      const updated: SavedTemplate = {
+      const updated: SavedProject = {
         ...existing,
         ...updates,
         lastModified: new Date().toISOString()
       };
       
+      // Save with new key format
       const key = `${STORAGE_KEY_PREFIX}${id}`;
       localStorage.setItem(key, JSON.stringify(updated));
       
+      // Remove old key if it exists
+      const oldKey = `${OLD_STORAGE_KEY_PREFIX}${id}`;
+      if (localStorage.getItem(oldKey)) {
+        localStorage.removeItem(oldKey);
+      }
+      
       return { success: true };
     } catch (error) {
-      console.error('Error updating template:', error);
-      return { success: false, error: 'Failed to update template' };
+      console.error('Error updating project:', error);
+      return { success: false, error: 'Failed to update project' };
     }
   }
   
   /**
-   * Delete a template
+   * Delete a project
    */
-  static deleteTemplate(id: string): boolean {
+  static deleteProject(id: string): boolean {
     try {
+      // Remove both new and old keys
       const key = `${STORAGE_KEY_PREFIX}${id}`;
+      const oldKey = `${OLD_STORAGE_KEY_PREFIX}${id}`;
       localStorage.removeItem(key);
+      localStorage.removeItem(oldKey);
       return true;
     } catch (error) {
-      console.error('Error deleting template:', error);
+      console.error('Error deleting project:', error);
       return false;
     }
   }
   
   /**
-   * List all templates
+   * List all projects (including migrated ones)
    */
-  static async listTemplates(): Promise<TemplateListItem[]> {
+  static async listProjects(): Promise<ProjectListItem[]> {
     try {
-      const templates: TemplateListItem[] = [];
+      const projects: ProjectListItem[] = [];
+      const processedIds = new Set<string>();
       
+      // Process both new and old keys
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (!key || !key.startsWith(STORAGE_KEY_PREFIX)) continue;
+        if (!key) continue;
+        
+        // Check if it's either new or old format
+        if (!key.startsWith(STORAGE_KEY_PREFIX) && !key.startsWith(OLD_STORAGE_KEY_PREFIX)) {
+          continue;
+        }
         
         try {
           const data = localStorage.getItem(key);
           if (!data) continue;
           
-          const template = JSON.parse(data) as SavedTemplate;
+          const project = JSON.parse(data) as SavedProject;
+          
+          // Skip if we've already processed this ID (avoid duplicates)
+          if (processedIds.has(project.id)) continue;
+          processedIds.add(project.id);
           
           // Check if certificate image is available
-          let imageStatus: TemplateListItem['imageStatus'] = 'checking';
+          let imageStatus: ProjectListItem['imageStatus'] = 'checking';
           
           // For cloud storage, assume available (would need actual check in production)
-          if (template.certificateImage.isCloudStorage) {
+          if (project.certificateImage.isCloudStorage) {
             imageStatus = 'available';
           } else {
             // For local storage, we can check if the URL is accessible
             // This is a simplified check - in production you'd want to actually verify
-            imageStatus = template.certificateImage.url ? 'available' : 'missing';
+            imageStatus = project.certificateImage.url ? 'available' : 'missing';
           }
           
-          templates.push({
-            id: template.id,
-            name: template.name,
-            created: template.created,
-            lastModified: template.lastModified,
-            columnsCount: template.columns.length,
-            rowsCount: template.tableData?.length || 0,
-            hasEmailConfig: !!template.emailConfig?.isConfigured,
+          projects.push({
+            id: project.id,
+            name: project.name,
+            created: project.created,
+            lastModified: project.lastModified,
+            columnsCount: project.columns.length,
+            rowsCount: project.tableData?.length || 0,
+            hasEmailConfig: !!project.emailConfig?.isConfigured,
             imageStatus
           });
         } catch (error) {
-          console.error('Error parsing template:', error);
+          console.error('Error parsing project:', error);
           continue;
         }
       }
       
       // Sort by last modified date (newest first)
-      return templates.sort((a, b) => 
+      return projects.sort((a, b) => 
         new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
       );
     } catch (error) {
-      console.error('Error listing templates:', error);
+      console.error('Error listing projects:', error);
       return [];
     }
   }
   
   /**
-   * Get the most recently modified template
+   * Get the most recently modified project
    */
-  static async getMostRecentTemplate(): Promise<SavedTemplate | null> {
+  static async getMostRecentProject(): Promise<SavedProject | null> {
     try {
-      const templates = await this.listTemplates();
+      const projects = await this.listProjects();
       
-      if (templates.length === 0) {
+      if (projects.length === 0) {
         return null;
       }
       
       // Sort by lastModified descending
-      templates.sort((a, b) => 
+      projects.sort((a, b) => 
         new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
       );
       
-      // Load and return the most recent template
-      return this.loadTemplate(templates[0].id);
+      // Load and return the most recent project
+      return this.loadProject(projects[0].id);
     } catch (error) {
-      console.error('Error getting most recent template:', error);
+      console.error('Error getting most recent project:', error);
       return null;
     }
   }
   
   /**
-   * Check storage usage
+   * Check storage usage (includes both old and new keys)
    */
   static getStorageUsage(): number {
     if (typeof window === 'undefined' || !window.localStorage) {
@@ -272,7 +343,12 @@ export class TemplateStorage {
     
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (!key || !key.startsWith(STORAGE_KEY_PREFIX)) continue;
+      if (!key) continue;
+      
+      // Count both old and new format keys
+      if (!key.startsWith(STORAGE_KEY_PREFIX) && !key.startsWith(OLD_STORAGE_KEY_PREFIX)) {
+        continue;
+      }
       
       const value = localStorage.getItem(key);
       if (value) {
@@ -295,30 +371,30 @@ export class TemplateStorage {
   }
   
   /**
-   * Export template for sharing
+   * Export project for sharing
    */
-  static async exportTemplate(id: string, includeImage = false): Promise<{
+  static async exportProject(id: string, includeImage = false): Promise<{
     success: boolean;
     data?: string;
     filename?: string;
     error?: string;
   }> {
     try {
-      const template = this.loadTemplate(id);
-      if (!template) {
-        return { success: false, error: 'Template not found' };
+      const project = this.loadProject(id);
+      if (!project) {
+        return { success: false, error: 'Project not found' };
       }
       
       const exportData: Record<string, unknown> = {
         version: '1.0',
         exportDate: new Date().toISOString(),
-        template: { ...template }
+        project: { ...project }
       };
       
       // Optionally include base64 image for full portability
-      if (includeImage && !template.certificateImage.isCloudStorage) {
+      if (includeImage && !project.certificateImage.isCloudStorage) {
         try {
-          const response = await fetch(template.certificateImage.url);
+          const response = await fetch(project.certificateImage.url);
           if (response.ok) {
             const blob = await response.blob();
             const base64 = await this.blobToBase64(blob);
@@ -333,19 +409,19 @@ export class TemplateStorage {
       }
       
       const json = JSON.stringify(exportData, null, 2);
-      const filename = `${template.name.replace(/[^a-z0-9]/gi, '_')}_template.json`;
+      const filename = `${project.name.replace(/[^a-z0-9]/gi, '_')}_project.json`;
       
       return { success: true, data: json, filename };
     } catch (error) {
-      console.error('Error exporting template:', error);
-      return { success: false, error: 'Failed to export template' };
+      console.error('Error exporting project:', error);
+      return { success: false, error: 'Failed to export project' };
     }
   }
   
   /**
-   * Import template from exported data
+   * Import project from exported data
    */
-  static async importTemplate(jsonData: string): Promise<{
+  static async importProject(jsonData: string): Promise<{
     success: boolean;
     id?: string;
     error?: string;
@@ -353,52 +429,53 @@ export class TemplateStorage {
     try {
       const importData = JSON.parse(jsonData);
       
-      // Validate import data
-      if (!importData.version || !importData.template) {
-        return { success: false, error: 'Invalid template file' };
+      // Validate import data - support both old "template" and new "project" format
+      if (!importData.version || (!importData.project && !importData.template)) {
+        return { success: false, error: 'Invalid project file' };
       }
       
-      const template = importData.template as SavedTemplate;
+      // Support both old and new format
+      const project = (importData.project || importData.template) as SavedProject;
       
       // Handle embedded image if present
       if (importData.certificateImage?.base64) {
         // In a real implementation, you'd upload this to the server
         // For now, we'll just note that the image needs to be re-uploaded
-        template.certificateImage.url = '';
-        console.warn('Imported template contains embedded image - user will need to re-upload');
+        project.certificateImage.url = '';
+        console.warn('Imported project contains embedded image - user will need to re-upload');
       }
       
       // Save with automatically generated new ID
-      const result = await this.saveTemplate(
-        `${template.name} (Imported)`,
-        template.positions,
-        template.columns,
-        template.certificateImage.url,
-        template.certificateImage.filename,
-        template.tableData || [],
-        template.emailConfig,
+      const result = await this.saveProject(
+        `${project.name} (Imported)`,
+        project.positions,
+        project.columns,
+        project.certificateImage.url,
+        project.certificateImage.filename,
+        project.tableData || [],
+        project.emailConfig,
         {
-          isCloudStorage: template.certificateImage.isCloudStorage,
-          provider: template.certificateImage.storageProvider
+          isCloudStorage: project.certificateImage.isCloudStorage,
+          provider: project.certificateImage.storageProvider
         }
       );
       
       return result;
     } catch (error) {
-      console.error('Error importing template:', error);
-      return { success: false, error: 'Failed to import template' };
+      console.error('Error importing project:', error);
+      return { success: false, error: 'Failed to import project' };
     }
   }
   
   /**
-   * Clear all templates (use with caution)
+   * Clear all projects (use with caution)
    */
-  static clearAllTemplates(): void {
+  static clearAllProjects(): void {
     const keys: string[] = [];
     
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith(STORAGE_KEY_PREFIX)) {
+      if (key && (key.startsWith(STORAGE_KEY_PREFIX) || key.startsWith(OLD_STORAGE_KEY_PREFIX))) {
         keys.push(key);
       }
     }
