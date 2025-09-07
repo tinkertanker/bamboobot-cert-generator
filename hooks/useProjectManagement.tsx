@@ -145,6 +145,8 @@ export function useProjectManagement({
           // Enable autosave since we loaded saved work
           setHasManuallySaved(true);
           setCurrentProjectName(project.name);
+          // Also set the project ID so subsequent saves update instead of creating new projects
+          setCurrentProjectId(project.id);
         }
       } catch (error) {
         console.error("Error loading startup data:", error);
@@ -269,7 +271,27 @@ export function useProjectManagement({
       }
     }
 
-    const result = await manualSave(currentProjectName, finalUrl, finalFilename);
+    // If we have a current project ID, perform an in-place update to avoid creating a new project
+    let result: { success: boolean; error?: string };
+    if (currentProjectId) {
+      const update = await ProjectStorage.updateProject(currentProjectId, {
+        positions,
+        columns: Object.keys(tableData[0] || {}),
+        tableData,
+        emailConfig,
+        certificateImage: {
+          url: finalUrl,
+          filename: finalFilename,
+          uploadedAt: new Date().toISOString(),
+          isCloudStorage: false,
+          storageProvider: 'local'
+        }
+      });
+      result = { success: update.success, error: update.error };
+    } else {
+      // Fallback: use manualSave (will create a new project)
+      result = await manualSave(currentProjectName, finalUrl, finalFilename);
+    }
 
     if (result.success) {
       // Show subtle feedback that it was saved
@@ -287,10 +309,14 @@ export function useProjectManagement({
     }
   }, [
     currentProjectName,
+    currentProjectId,
     uploadedFileUrl,
     uploadedFile,
     uploadToServer,
     manualSave,
+    positions,
+    tableData,
+    emailConfig,
     showToast
   ]);
 
