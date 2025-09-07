@@ -10,31 +10,36 @@ import { uploadToR2 } from '@/lib/r2-client';
 
 const sessionManager = PdfSessionManager.getInstance();
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   try {
     switch (req.method) {
       case 'POST':
-        return handlePost(req, res);
+        await handlePost(req, res);
+        return;
       case 'GET':
-        return handleGet(req, res);
+        await handleGet(req, res);
+        return;
       case 'PUT':
-        return handlePut(req, res);
+        await handlePut(req, res);
+        return;
       default:
-        return res.status(405).json({ error: 'Method not allowed' });
+        res.status(405).json({ error: 'Method not allowed' });
+        return;
     }
   } catch (error) {
     console.error('Progressive generation error:', error);
-    return res.status(500).json({ 
+    res.status(500).json({ 
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
+    return;
   }
 }
 
 /**
  * Start a new progressive PDF generation session
  */
-async function handlePost(req: NextApiRequest, res: NextApiResponse) {
+async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   const {
     templateFilename,
     data,
@@ -47,11 +52,13 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
 
   // Validate required fields
   if (!templateFilename || !data || !positions || !uiContainerDimensions) {
-    return res.status(400).json({ error: 'Missing required fields' });
+    res.status(400).json({ error: 'Missing required fields' });
+    return;
   }
 
   if (!Array.isArray(data) || data.length === 0) {
-    return res.status(400).json({ error: 'Data must be a non-empty array' });
+    res.status(400).json({ error: 'Data must be a non-empty array' });
+    return;
   }
 
   // Create session
@@ -86,13 +93,14 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
     // Process first batch immediately
     processNextBatch(sessionId, sessionDir);
 
-    return res.status(200).json({
+    res.status(200).json({
       sessionId,
       status: 'started',
       total: data.length,
       batchSize,
       message: 'PDF generation started'
     });
+    return;
   } catch (error) {
     sessionManager.removeSession(sessionId);
     throw error;
@@ -102,16 +110,18 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
 /**
  * Get progress of a PDF generation session
  */
-async function handleGet(req: NextApiRequest, res: NextApiResponse) {
+async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   const { sessionId } = req.query;
 
   if (!sessionId || typeof sessionId !== 'string') {
-    return res.status(400).json({ error: 'Session ID required' });
+    res.status(400).json({ error: 'Session ID required' });
+    return;
   }
 
   const queueManager = sessionManager.getSession(sessionId);
   if (!queueManager) {
-    return res.status(404).json({ error: 'Session not found' });
+    res.status(404).json({ error: 'Session not found' });
+    return;
   }
 
   const progress = queueManager.getProgress();
@@ -119,33 +129,38 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   // Check if we have results available
   if (progress.status === 'completed' || progress.status === 'error') {
     const results = queueManager.getResults();
-    return res.status(200).json({
+    res.status(200).json({
       ...progress,
       results
     });
+    return;
   }
 
-  return res.status(200).json(progress);
+  res.status(200).json(progress);
+  return;
 }
 
 /**
  * Control a PDF generation session (pause, resume, cancel)
  */
-async function handlePut(req: NextApiRequest, res: NextApiResponse) {
+async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   const { sessionId } = req.query;
   const { action } = req.body;
 
   if (!sessionId || typeof sessionId !== 'string') {
-    return res.status(400).json({ error: 'Session ID required' });
+    res.status(400).json({ error: 'Session ID required' });
+    return;
   }
 
   if (!action || !['pause', 'resume', 'cancel'].includes(action)) {
-    return res.status(400).json({ error: 'Invalid action' });
+    res.status(400).json({ error: 'Invalid action' });
+    return;
   }
 
   const queueManager = sessionManager.getSession(sessionId);
   if (!queueManager) {
-    return res.status(404).json({ error: 'Session not found' });
+    res.status(404).json({ error: 'Session not found' });
+    return;
   }
 
   try {
@@ -168,15 +183,17 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse) {
         break;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       sessionId,
       action,
       status: queueManager.getProgress().status
     });
+    return;
   } catch (error) {
-    return res.status(400).json({
+    res.status(400).json({
       error: error instanceof Error ? error.message : 'Action failed'
     });
+    return;
   }
 }
 

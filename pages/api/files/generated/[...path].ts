@@ -6,15 +6,17 @@ import storageConfig from '@/lib/storage-config';
 import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
 import { getS3SignedUrl } from '@/lib/s3-client';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   const { path: filePath } = req.query;
   
   if (!filePath || !Array.isArray(filePath)) {
-    return res.status(400).json({ error: 'Invalid file path' });
+    res.status(400).json({ error: 'Invalid file path' });
+    return;
   }
 
   // Join the path segments
@@ -26,14 +28,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // For R2, generate a signed URL and redirect
       const key = `generated/${relativePath}`;
       const signedUrl = await getR2SignedUrl(key);
-      return res.redirect(302, signedUrl);
+      res.redirect(302, signedUrl);
+      return;
     }
     
     if (storageConfig.isS3Enabled) {
       // For S3, generate a signed URL and redirect
       const key = `generated/${relativePath}`;
       const signedUrl = await getS3SignedUrl(key);
-      return res.redirect(302, signedUrl);
+      res.redirect(302, signedUrl);
+      return;
     }
     
     // For local storage, serve from filesystem
@@ -43,11 +47,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const normalizedPath = path.normalize(fullPath);
     const generatedDir = path.join(process.cwd(), 'public', 'generated');
     if (!normalizedPath.startsWith(generatedDir)) {
-      return res.status(403).json({ error: 'Access denied' });
+      res.status(403).json({ error: 'Access denied' });
+      return;
     }
 
     if (!fs.existsSync(fullPath)) {
-      return res.status(404).json({ error: 'File not found' });
+      res.status(404).json({ error: 'File not found' });
+      return;
     }
 
     const fileBuffer = fs.readFileSync(fullPath);
@@ -60,5 +66,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } catch (error) {
     console.error('Error serving file:', error);
     res.status(500).json({ error: 'Error serving file' });
+    return;
   }
 }

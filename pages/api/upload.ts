@@ -17,9 +17,10 @@ export const config = {
 const MAX_FILE_SIZE = parseInt(process.env.MAX_UPLOAD_SIZE || '10485760'); // 10MB in bytes
 const UPLOAD_TEMP_DIR = process.env.UPLOAD_TEMP_DIR || null;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   // Ensure directories exist before processing upload
@@ -75,24 +76,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const fileArray = files.template as File[] | File | undefined;
     if (!fileArray) {
-      return res.status(400).json({ error: 'No file uploaded' });
+      res.status(400).json({ error: 'No file uploaded' });
+      return;
     }
 
     const file = Array.isArray(fileArray) ? fileArray[0] : fileArray;
     if (!file) {
-      return res.status(400).json({ error: 'Invalid file data' });
+      res.status(400).json({ error: 'Invalid file data' });
+      return;
     }
 
     const { filepath, mimetype } = file;
     if (!filepath || !mimetype) {
-      return res.status(400).json({ error: 'Missing file path or mime type' });
+      res.status(400).json({ error: 'Missing file path or mime type' });
+      return;
     }
     const filename = path.basename(filepath);
     const fileExtension = path.extname(filepath); // Get the original file extension
     console.log("File extension: " + fileExtension);
 
     if (mimetype !== 'image/png' && mimetype !== 'image/jpeg') {
-      return res.status(400).json({ error: 'The input is not a PNG or JPEG file!' });
+      res.status(400).json({ error: 'The input is not a PNG or JPEG file!' });
+      return;
     }
 
     let pdfFilename = filename.replace(/\.[^/.]+$/, ""); // Remove existing extension
@@ -146,12 +151,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     console.log("imageUrl:", imageUrl);
 
-    return res.status(200).json({
+    res.status(200).json({
       message: 'Template uploaded successfully',
       filename: pdfFilename,
       image: imageUrl,
       storageType: storageConfig.isR2Enabled ? 'r2' : storageConfig.isS3Enabled ? 's3' : 'local'
     });
+    return;
   } catch (err) {
     console.error('Upload error:', err);
     
@@ -160,35 +166,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Provide more specific error messages
     if (error.code === 'LIMIT_FILE_SIZE' || error.httpCode === 413) {
       const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
-      return res.status(413).json({ 
+      res.status(413).json({ 
         error: `File size exceeds maximum allowed size of ${maxSizeMB}MB` 
       });
+      return;
     }
     
     if (error.code === 'ENOENT') {
-      return res.status(500).json({ 
+      res.status(500).json({ 
         error: 'Server configuration error: Unable to save uploaded file. Please contact support.' 
       });
+      return;
     }
     
     if (error.code === 'EACCES') {
-      return res.status(500).json({ 
+      res.status(500).json({ 
         error: 'Server configuration error: Permission denied. Please contact support.' 
       });
+      return;
     }
     
     // Check for generic file size error messages
     if (error.message && error.message.includes('maxFileSize exceeded')) {
       const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
-      return res.status(413).json({ 
+      res.status(413).json({ 
         error: `File size exceeds maximum allowed size of ${maxSizeMB}MB` 
       });
+      return;
     }
     
-    return res.status(500).json({ 
+    res.status(500).json({ 
       error: process.env.NODE_ENV === 'development' 
         ? `Error uploading file: ${error.message}` 
         : 'Error uploading file. Please try again.'
     });
+    return;
   }
 }

@@ -19,20 +19,20 @@ describe('NewTemplateModal Component', () => {
     it('renders when isOpen is true', () => {
       render(<NewTemplateModal {...defaultProps} />);
       
-      expect(screen.getByText('Start New Template?')).toBeInTheDocument();
+      expect(screen.getByText('Start New Project?')).toBeInTheDocument();
     });
 
     it('does not render when isOpen is false', () => {
       render(<NewTemplateModal {...defaultProps} isOpen={false} />);
       
-      expect(screen.queryByText('Start New Template?')).not.toBeInTheDocument();
+      expect(screen.queryByText('Start New Project?')).not.toBeInTheDocument();
     });
 
     it('renders warning icon', () => {
       render(<NewTemplateModal {...defaultProps} />);
       
       // Find the container with the warning icon
-      const contentContainer = screen.getByText('Start New Template?').closest('.flex');
+      const contentContainer = screen.getByText('Start New Project?').closest('.flex');
       const icon = contentContainer?.querySelector('svg');
       expect(icon).toBeInTheDocument();
       expect(icon).toHaveClass('text-amber-500');
@@ -42,7 +42,7 @@ describe('NewTemplateModal Component', () => {
       render(<NewTemplateModal {...defaultProps} hasUnsavedWork={true} />);
       
       expect(screen.getByText(/Your current work has been autosaved/)).toBeInTheDocument();
-      expect(screen.getByText(/will remain accessible via Load Template/)).toBeInTheDocument();
+      expect(screen.getByText(/will remain accessible via Load Projects/)).toBeInTheDocument();
     });
 
     it('renders correct message when hasUnsavedWork is false', () => {
@@ -107,7 +107,7 @@ describe('NewTemplateModal Component', () => {
     it('sets correct width on modal', () => {
       render(<NewTemplateModal {...defaultProps} />);
       
-      const modalContent = screen.getByText('Start New Template?').closest('.w-96');
+      const modalContent = screen.getByText('Start New Project?').closest('.w-96');
       expect(modalContent).toHaveClass('w-96');
     });
   });
@@ -158,10 +158,10 @@ describe('NewTemplateModal Component', () => {
     it('uses correct spacing classes', () => {
       render(<NewTemplateModal {...defaultProps} />);
       
-      const contentWrapper = screen.getByText('Start New Template?').closest('.space-y-4');
+      const contentWrapper = screen.getByText('Start New Project?').closest('.space-y-4');
       expect(contentWrapper).toHaveClass('space-y-4');
       
-      const iconWrapper = screen.getByText('Start New Template?').closest('.flex');
+      const iconWrapper = screen.getByText('Start New Project?').closest('.flex');
       expect(iconWrapper).toHaveClass('flex', 'items-start', 'gap-3');
     });
 

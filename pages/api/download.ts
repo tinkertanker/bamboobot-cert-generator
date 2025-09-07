@@ -1,11 +1,15 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getPublicUrl, isR2Configured } from '@/lib/r2-client';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+): Promise<void> {
   const { url } = req.query;
   
   if (!url || typeof url !== 'string') {
-    return res.status(400).json({ error: 'URL parameter is required' });
+    res.status(400).json({ error: 'URL parameter is required' });
+    return;
   }
 
   try {
@@ -23,13 +27,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const downloadUrl = await getPublicUrl(key, true);
       
       // Redirect to the download URL
-      return res.redirect(downloadUrl);
+      res.redirect(downloadUrl);
+      return;
     }
     
     // For non-R2 URLs, just redirect
-    return res.redirect(url);
+    res.redirect(url);
+    return;
   } catch (error) {
     console.error('Download error:', error);
-    return res.status(500).json({ error: 'Failed to generate download URL' });
+    res.status(500).json({ error: 'Failed to generate download URL' });
+    return;
   }
 }
