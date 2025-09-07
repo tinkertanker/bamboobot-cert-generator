@@ -1,8 +1,8 @@
-# Client-Side PDF Generation
+# Client-Side PDF Generation (DEFAULT)
 
 ## Overview
 
-The certificate generator now supports client-side PDF generation, allowing PDFs to be created directly in the browser without server round-trips. This feature reduces server load, improves performance, and enables offline PDF generation.
+**As of September 2025, client-side PDF generation is the DEFAULT method.** PDFs are created directly in the browser without server round-trips, reducing server load, improving performance, and enabling offline PDF generation. Server-side generation is maintained only as a legacy fallback for unsupported browsers.
 
 ## Architecture
 
@@ -60,13 +60,14 @@ The shared coordinate transformation module (`lib/pdf/shared/coordinate-transfor
 
 ## Usage
 
-### Enable Client-Side Generation
+### Automatic Client-Side Generation
 
-Client-side PDF generation is currently only available in development mode. To use it:
+Client-side PDF generation is the DEFAULT for all users:
 
 1. The system automatically detects browser capabilities
-2. If supported, PDFs are generated client-side
+2. If supported (most modern browsers), PDFs are generated client-side
 3. If not supported, falls back to server-side generation
+4. In Dev Mode, you can explicitly choose server-side for testing
 
 ### Browser Requirements
 

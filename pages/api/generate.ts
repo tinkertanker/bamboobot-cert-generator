@@ -1,3 +1,15 @@
+/**
+ * LEGACY SERVER-SIDE PDF GENERATION API
+ * 
+ * This endpoint is maintained for backward compatibility only.
+ * As of September 2025, client-side PDF generation is the default.
+ * 
+ * This server-side endpoint is only used when:
+ * - Browser doesn't support client-side generation (no Web Workers, insufficient memory)
+ * - Explicitly requested in Dev Mode for testing
+ * 
+ * For new features, enhance the client-side implementation instead.
+ */
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PDFDocument } from 'pdf-lib';
 import fsPromises from 'fs/promises';

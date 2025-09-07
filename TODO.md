@@ -2,11 +2,13 @@
 
 ## Actual things I wanted to do. Maximum priority!
 
-- [x] Project saving: When I click "save" I think it creates a new project, instead of saving over the existing one. That shouldn't be the case right?
-  - Fix: ensure startup flow sets the current project ID so "Save" updates the loaded project (not "Save as new"). Implemented in `hooks/useProjectManagement.tsx` by setting `setCurrentProjectId(project.id)` after loading the most recent project. (2025-09-07)
-- [x] When entering a project name, pressing enter should let the user save
-  - Implemented form submit and Enter-to-save in `SaveProjectModal` with tests. (2025-09-07)
-- [ ] I get the nagging feeling that there's a lot of confusion over server-side rendering and client-side rendering in the code. Does this need to be cleaned up?
+- [x] ✅ I get the nagging feeling that there's a lot of confusion over server-side rendering and client-side rendering in the code. Does this need to be cleaned up?
+  - **COMPLETED (Sept 2025)**: Cleaned up the confusion. Now CLIENT-FIRST by default:
+    - Client-side PDF generation is now the DEFAULT when supported
+    - Server-side is only used as fallback (unsupported browsers) or when explicitly requested in Dev Mode
+    - Updated `usePdfGenerationMethods` hook to prioritize client-side
+    - Added clear documentation and legacy markers to all server-side code
+    - Updated CLAUDE.md and CLIENT_SIDE_PDF.md to reflect this philosophy
 - [ ] Text field colour should adapt to the general tone of the background image. If it's a dark background, make a light colour for the text.
 - [ ] We should have some kind of email download links; see below.
 
