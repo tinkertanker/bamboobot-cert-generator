@@ -4,6 +4,7 @@ import type { TableData, Position, Positions, TextAlignment } from "@/types/cert
 
 export interface UsePositioningProps {
   tableData: TableData[];
+  setSelectedField?: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 export interface UsePositioningReturn {
@@ -13,7 +14,7 @@ export interface UsePositioningReturn {
   clearPositions: () => void;
 }
 
-export function usePositioning({ tableData }: UsePositioningProps): UsePositioningReturn {
+export function usePositioning({ tableData, setSelectedField }: UsePositioningProps): UsePositioningReturn {
   const [positions, setPositions] = useState<Positions>({});
 
   // Ensure all table columns have positions
@@ -22,6 +23,7 @@ export function usePositioning({ tableData }: UsePositioningProps): UsePositioni
       setPositions((prevPositions) => {
         const newPositions = { ...prevPositions };
         let hasNewPositions = false;
+        let firstVisibleField: string | null = null;
 
         Object.keys(tableData[0]).forEach((key, index) => {
           if (!newPositions[key]) {
@@ -31,6 +33,8 @@ export function usePositioning({ tableData }: UsePositioningProps): UsePositioni
               key.toLowerCase().includes("e-mail") ||
               key.toLowerCase().includes("mail");
 
+            const isVisible = !isEmailField;
+            
             newPositions[key] = {
               x: 50,
               y: 50 + index * 10,
@@ -38,19 +42,32 @@ export function usePositioning({ tableData }: UsePositioningProps): UsePositioni
               fontFamily: "Helvetica",
               color: "#000000",
               alignment: "center",
-              isVisible: !isEmailField, // Hide email fields by default
+              isVisible, // Hide email fields by default
               width: 90, // Default to 90% width
               textMode: "shrink", // Default to shrink-to-fit mode
               lineHeight: 1.2
             };
             hasNewPositions = true;
+            
+            // Track the first visible field
+            if (isVisible && !firstVisibleField) {
+              firstVisibleField = key;
+            }
           }
         });
+
+        // If we created new positions and have a first visible field, select it
+        if (hasNewPositions && firstVisibleField && setSelectedField) {
+          // Use setTimeout to ensure the state update happens after positions are set
+          setTimeout(() => {
+            setSelectedField(firstVisibleField);
+          }, 0);
+        }
 
         return hasNewPositions ? newPositions : prevPositions;
       });
     }
-  }, [tableData]);
+  }, [tableData, setSelectedField]);
 
   // Helper function to change alignment while keeping visual position
   const changeAlignment = useCallback(
