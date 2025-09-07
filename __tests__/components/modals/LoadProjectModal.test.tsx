@@ -211,8 +211,8 @@ describe('LoadProjectModal', () => {
   it('exports template', async () => {
     (ProjectStorage.exportProject as jest.Mock).mockResolvedValue({
       success: true,
-      data: JSON.stringify({ template: mockSavedProject }),
-      filename: 'template_1.json'
+      data: JSON.stringify({ project: mockSavedProject }),
+      filename: 'project_1.json'
     });
 
     render(<LoadProjectModal {...defaultProps} />);
@@ -234,8 +234,8 @@ describe('LoadProjectModal', () => {
     });
 
     // Mock File.text() method
-    const mockText = jest.fn().mockResolvedValue('{"template": {}}');
-    const file = new File(['{"template": {}}'], 'template.json', { type: 'application/json' });
+    const mockText = jest.fn().mockResolvedValue('{"project": {}}');
+    const file = new File(['{"project": {}}'], 'project.json', { type: 'application/json' });
     Object.defineProperty(file, 'text', {
       value: mockText
     });
@@ -252,7 +252,7 @@ describe('LoadProjectModal', () => {
     
     await waitFor(() => {
       expect(mockText).toHaveBeenCalled();
-      expect(ProjectStorage.importProject).toHaveBeenCalledWith('{"template": {}}');
+      expect(ProjectStorage.importProject).toHaveBeenCalledWith('{"project": {}}');
       expect(ProjectStorage.listProjects).toHaveBeenCalledTimes(2); // Once on open, once after import
     });
   });
@@ -312,7 +312,7 @@ describe('LoadProjectModal', () => {
       error: 'Invalid project file'
     });
 
-    const file = new File(['invalid'], 'template.json', { type: 'application/json' });
+    const file = new File(['invalid'], 'project.json', { type: 'application/json' });
     
     render(<LoadProjectModal {...defaultProps} />);
     

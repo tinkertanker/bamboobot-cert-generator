@@ -132,6 +132,7 @@ describe('useProjectAutosave', () => {
               filename: 'test-cert.pdf',
               uploadedAt: expect.any(String),
               isCloudStorage: false,
+              storageProvider: 'local'
             }
           }
         );
@@ -201,6 +202,7 @@ describe('useProjectAutosave', () => {
               filename: 'test-cert.pdf',
               uploadedAt: expect.any(String),
               isCloudStorage: false,
+              storageProvider: 'local'
             }
           }
         );
@@ -356,7 +358,7 @@ describe('useProjectAutosave', () => {
         'test-cert.pdf',
         mockTableData,
         mockEmailConfig,
-        undefined
+        { isCloudStorage: false, provider: 'local' }
       );
 
       expect(saveResult).toEqual({ success: true, id: 'test-template-id' });
@@ -375,7 +377,7 @@ describe('useProjectAutosave', () => {
         saveResult = await result.current.manualSave('My Template');
       });
 
-      expect(saveResult).toEqual({ success: false, error: 'No certificate to save' });
+      expect(saveResult).toEqual({ success: false, error: 'No certificate image to save' });
       expect(ProjectStorage.saveProject).not.toHaveBeenCalled();
     });
 
@@ -416,7 +418,7 @@ describe('useProjectAutosave', () => {
         'test-cert.pdf',
         mockTableData,
         undefined,
-        undefined
+        { isCloudStorage: false, provider: 'local' }
       );
     });
   });

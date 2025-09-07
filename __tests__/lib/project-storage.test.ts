@@ -300,7 +300,7 @@ describe('ProjectStorage', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Template not found');
+      expect(result.error).toBe('Project not found');
     });
   });
 
@@ -324,18 +324,18 @@ describe('ProjectStorage', () => {
 
       expect(exportResult.success).toBe(true);
       expect(exportResult.data).toBeDefined();
-      expect(exportResult.filename).toBe('Export_Test_template.json');
+      expect(exportResult.filename).toBe('Export_Test_project.json');
 
       const exportData = JSON.parse(exportResult.data!);
       expect(exportData.version).toBe('1.0');
-      expect(exportData.template.name).toBe('Export Test');
+      expect(exportData.project.name).toBe('Export Test');
       expect(exportData.certificateImage).toBeUndefined();
     });
 
     it('should handle export of non-existent template', async () => {
       const result = await ProjectStorage.exportProject('non-existent');
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Template not found');
+      expect(result.error).toBe('Project not found');
     });
   });
 
@@ -344,9 +344,9 @@ describe('ProjectStorage', () => {
       const exportData = {
         version: '1.0',
         exportDate: new Date().toISOString(),
-        template: {
+        project: {
           id: 'old-id',
-          name: 'Imported Template',
+          name: 'Imported Project',
           created: new Date().toISOString(),
           lastModified: new Date().toISOString(),
           version: '1.0',
@@ -369,21 +369,21 @@ describe('ProjectStorage', () => {
       expect(result.id).not.toBe('old-id'); // Should generate new ID
 
       const imported = ProjectStorage.loadProject(result.id!);
-      expect(imported?.name).toBe('Imported Template (Imported)');
+      expect(imported?.name).toBe('Imported Project (Imported)');
       expect(imported?.positions).toEqual(mockPositions);
     });
 
     it('should handle invalid import data', async () => {
       const result = await ProjectStorage.importProject('invalid json');
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Failed to import template');
+      expect(result.error).toBe('Failed to import project');
     });
 
     it('should validate import data structure', async () => {
       const invalidData = { notATemplate: true };
       const result = await ProjectStorage.importProject(JSON.stringify(invalidData));
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Invalid template file');
+      expect(result.error).toBe('Invalid project file');
     });
   });
 
