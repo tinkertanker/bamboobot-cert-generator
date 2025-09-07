@@ -187,7 +187,7 @@ export function usePdfGeneration({
         templateFilename = uploadedFile;
       } else if (uploadedFile) {
         // File object - use its name (though this might fail if not uploaded)
-        console.warn('Using File object name - file may not be uploaded yet');
+        console.warn('Using File object name - this may cause template not found errors if file is not uploaded to server yet');
         templateFilename = uploadedFile.name;
       } else {
         throw new Error('No valid template filename');

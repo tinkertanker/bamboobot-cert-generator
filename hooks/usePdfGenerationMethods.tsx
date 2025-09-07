@@ -105,6 +105,12 @@ export function usePdfGenerationMethods({
     return typeof uploadedFile === 'string' ? uploadedFile : null;
   }, [localBlobUrl, uploadedFileUrl, uploadToServer, uploadedFile]);
 
+  // Helper function to handle upload failures
+  const handleUploadFailure = useCallback(() => {
+    console.error('Failed to get uploaded filename');
+    alert('Failed to get uploaded filename. Please try again.');
+  }, []);
+
   const handleGeneratePdf = useCallback(async (useServer = false) => {
     const method = getPdfGenerationMethod({ useServer, forceServer: false });
     
@@ -114,8 +120,7 @@ export function usePdfGenerationMethods({
       const uploadedFilename = await ensureFileUploadedForServer();
       
       if (!uploadedFilename) {
-        console.error('Failed to get uploaded filename');
-        alert('Failed to upload template. Please try again.');
+        handleUploadFailure();
         return;
       }
       
@@ -131,6 +136,7 @@ export function usePdfGenerationMethods({
     isDevelopment,
     devMode,
     ensureFileUploadedForServer,
+    handleUploadFailure,
     generateClientPdf,
     generatePdf
   ]);
@@ -145,8 +151,7 @@ export function usePdfGenerationMethods({
       const uploadedFilename = await ensureFileUploadedForServer();
       
       if (!uploadedFilename) {
-        console.error('Failed to get uploaded filename');
-        alert('Failed to upload template. Please try again.');
+        handleUploadFailure();
         return;
       }
       
@@ -171,6 +176,7 @@ export function usePdfGenerationMethods({
     isDevelopment,
     devMode,
     ensureFileUploadedForServer,
+    handleUploadFailure,
     startProgressiveGeneration,
     generateIndividualPdfs,
     generateClientIndividualPdfs

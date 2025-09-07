@@ -181,7 +181,7 @@ export function useProgressivePdfGeneration({
       } else if (typeof uploadedFile === 'string') {
         templateFilename = uploadedFile;
       } else if (uploadedFile) {
-        console.warn('Using File object name for progressive generation - file may not be uploaded yet');
+        console.warn('Using File object name for progressive generation - this may cause template not found errors if file is not uploaded to server yet');
         templateFilename = uploadedFile.name;
       }
 
