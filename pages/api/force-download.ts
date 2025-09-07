@@ -3,11 +3,12 @@ import { isR2Configured } from '@/lib/r2-client';
 import fs from 'fs';
 import path from 'path';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   const { url, filename } = req.query;
   
   if (!url || typeof url !== 'string') {
-    return res.status(400).json({ error: 'URL parameter is required' });
+    res.status(400).json({ error: 'URL parameter is required' });
+    return;
   }
 
   const downloadFilename = (filename && typeof filename === 'string') ? filename : 'download.pdf';
@@ -24,7 +25,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       if (!response.ok) {
         console.error(`Failed to fetch from R2: ${response.status}`);
-        return res.status(404).json({ error: 'File not found' });
+        res.status(404).json({ error: 'File not found' });
+        return;
       }
 
       // Stream the response
@@ -42,19 +44,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const relativePath = parsedUrl.pathname.replace(/^\/generated\//, '');
         filePath = path.join(process.cwd(), 'public', 'generated', relativePath);
       } else {
-        return res.status(400).json({ error: 'Invalid URL format' });
+        res.status(400).json({ error: 'Invalid URL format' });
+        return;
       }
 
       // Security check
       const normalizedPath = path.normalize(filePath);
       const generatedDir = path.join(process.cwd(), 'public', 'generated');
       if (!normalizedPath.startsWith(generatedDir)) {
-        return res.status(400).json({ error: 'Invalid file path' });
+        res.status(400).json({ error: 'Invalid file path' });
+        return;
       }
 
       // Check if file exists and stream it
       if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'File not found' });
+        res.status(404).json({ error: 'File not found' });
+        return;
       }
 
       const fileBuffer = fs.readFileSync(filePath);
@@ -65,5 +70,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to download file' });
     }
+    return;
   }
 }

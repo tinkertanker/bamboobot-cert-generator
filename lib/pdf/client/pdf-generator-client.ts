@@ -427,7 +427,8 @@ export class ClientPdfGenerator {
    * Create a blob URL from PDF data
    */
   static createBlobUrl(pdfData: Uint8Array): string {
-    const blob = new Blob([pdfData], { type: 'application/pdf' });
+    const copy = new Uint8Array(pdfData);
+    const blob = new Blob([copy], { type: 'application/pdf' });
     return URL.createObjectURL(blob);
   }
 

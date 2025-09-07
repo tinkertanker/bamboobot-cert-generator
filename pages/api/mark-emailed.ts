@@ -5,9 +5,10 @@ import { markAsEmailedS3, isS3Configured } from '../../lib/s3-client';
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
-) {
+): Promise<void> {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   // Check which storage provider is configured
@@ -15,14 +16,16 @@ export default async function handler(
   
   if (storageProvider === 'local') {
     // Local storage, skip marking
-    return res.status(200).json({ success: true, message: 'Local storage, skipping' });
+    res.status(200).json({ success: true, message: 'Local storage, skipping' });
+    return;
   }
 
   try {
     const { fileUrl } = req.body;
 
     if (!fileUrl) {
-      return res.status(400).json({ error: 'Missing fileUrl' });
+      res.status(400).json({ error: 'Missing fileUrl' });
+      return;
     }
 
     // Handle different storage providers
@@ -59,6 +62,7 @@ export default async function handler(
       message: 'File marked as emailed',
       storageProvider
     });
+    return;
 
   } catch (error) {
     console.error('Error marking file as emailed:', error);
@@ -67,5 +71,6 @@ export default async function handler(
       error: 'Failed to mark file as emailed', 
       details: errorMessage 
     });
+    return;
   }
 }

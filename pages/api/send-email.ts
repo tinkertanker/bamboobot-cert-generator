@@ -14,9 +14,10 @@ export const config = {
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
-) {
+): Promise<void> {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   try {
@@ -33,7 +34,8 @@ export default async function handler(
     } = req.body;
 
     if (!to || !subject) {
-      return res.status(400).json({ error: 'Missing required fields: to, subject' });
+      res.status(400).json({ error: 'Missing required fields: to, subject' });
+      return;
     }
 
     // Get email provider (supports both Resend and SES)
@@ -108,10 +110,11 @@ Important: This download link will expire in 90 days. Please save your certifica
 
     if (!result.success) {
       console.error(`${result.provider} email error:`, result.error);
-      return res.status(400).json({ 
+      res.status(400).json({ 
         error: result.error || 'Failed to send email',
         provider: result.provider 
       });
+      return;
     }
 
     // Return success with email ID and provider info
@@ -121,6 +124,7 @@ Important: This download link will expire in 90 days. Please save your certifica
       provider: result.provider,
       message: `Email sent successfully via ${result.provider.toUpperCase()}` 
     });
+    return;
 
   } catch (error) {
     console.error('Error sending email:', error);
@@ -129,5 +133,6 @@ Important: This download link will expire in 90 days. Please save your certifica
       error: 'Failed to send email', 
       details: errorMessage 
     });
+    return;
   }
 }

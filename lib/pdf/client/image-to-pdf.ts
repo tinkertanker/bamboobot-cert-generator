@@ -49,8 +49,10 @@ export class ImageToPdfConverter {
       // Generate PDF bytes
       const pdfBytes = await pdfDoc.save();
       
-      // Convert to blob
-      return new Blob([pdfBytes], { type: 'application/pdf' });
+      // Convert to blob with a safe ArrayBuffer slice for strict DOM typings
+      // Create a copy to ensure ArrayBuffer compatibility with DOM typings
+      const copy = new Uint8Array(pdfBytes);
+      return new Blob([copy], { type: 'application/pdf' });
     } catch (error) {
       throw new Error(`Failed to convert image to PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

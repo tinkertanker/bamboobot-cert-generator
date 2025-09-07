@@ -3,15 +3,17 @@ import fs from 'fs';
 import path from 'path';
 import { lookup } from 'mime-types';
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse): void {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   const { filename } = req.query;
   
   if (!filename || typeof filename !== 'string') {
-    return res.status(400).json({ error: 'Invalid filename' });
+    res.status(400).json({ error: 'Invalid filename' });
+    return;
   }
 
   const filePath = path.join(process.cwd(), 'public', 'generated', filename);
@@ -20,11 +22,13 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const normalizedPath = path.normalize(filePath);
   const generatedDir = path.join(process.cwd(), 'public', 'generated');
   if (!normalizedPath.startsWith(generatedDir)) {
-    return res.status(403).json({ error: 'Access denied' });
+    res.status(403).json({ error: 'Access denied' });
+    return;
   }
 
   if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'File not found' });
+    res.status(404).json({ error: 'File not found' });
+    return;
   }
 
   try {
@@ -37,5 +41,6 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   } catch (error) {
     console.error('Error serving file:', error);
     res.status(500).json({ error: 'Error serving file' });
+    return;
   }
 }

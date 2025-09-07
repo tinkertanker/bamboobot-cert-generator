@@ -2,11 +2,12 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   const { filename } = req.query;
 
   if (!filename || typeof filename !== 'string') {
-    return res.status(400).json({ error: 'Invalid filename' });
+    res.status(400).json({ error: 'Invalid filename' });
+    return;
   }
 
   const filePath = path.join(process.cwd(), 'public', 'template_images', filename);
@@ -14,7 +15,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     // Check if file exists
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'File not found' });
+      res.status(404).json({ error: 'File not found' });
+      return;
     }
 
     // Read file
@@ -47,5 +49,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } catch (error) {
     console.error('Error serving template file:', error);
     res.status(500).json({ error: 'Error serving file' });
+    return;
   }
 }

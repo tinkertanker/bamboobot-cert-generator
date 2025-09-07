@@ -7,7 +7,7 @@
 
 import type { Positions, EmailConfig } from '@/types/certificate';
 
-export interface SavedProject {
+export interface SavedTemplate {
   id: string;
   name: string;
   created: string;
@@ -67,7 +67,7 @@ export class TemplateStorage {
       const id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
       
-      const project: SavedProject = {
+      const project: SavedTemplate = {
         id,
         name: name.trim(),
         created: now,
@@ -116,14 +116,14 @@ export class TemplateStorage {
   /**
    * Load a template by ID
    */
-  static loadTemplate(id: string): SavedProject | null {
+  static loadTemplate(id: string): SavedTemplate | null {
     try {
       const key = `${STORAGE_KEY_PREFIX}${id}`;
       const data = localStorage.getItem(key);
       
       if (!data) return null;
       
-      const project = JSON.parse(data) as SavedProject;
+      const project = JSON.parse(data) as SavedTemplate;
       
       // Validate project structure
       if (!project.id || !project.positions || !project.certificateImage) {

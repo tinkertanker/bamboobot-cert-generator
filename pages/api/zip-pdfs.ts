@@ -10,15 +10,17 @@ interface FileInfo {
   filename: string;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   const { files }: { files: FileInfo[] } = req.body;
 
   if (!files || !Array.isArray(files) || files.length === 0) {
-    return res.status(400).json({ error: 'No files provided' });
+    res.status(400).json({ error: 'No files provided' });
+    return;
   }
 
   try {
@@ -116,5 +118,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to create ZIP file' });
     }
+    return;
   }
 }

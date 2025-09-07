@@ -138,14 +138,16 @@ function getDirSize(dirPath: string): number {
   return size;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   // Only allow in development mode for security
   if (process.env.NODE_ENV !== 'development') {
-    return res.status(403).json({ error: 'Only available in development mode' });
+    res.status(403).json({ error: 'Only available in development mode' });
+    return;
   }
 
   try {
@@ -169,8 +171,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     res.status(200).json(stats);
+    return;
   } catch (error) {
     console.error('Error getting storage stats:', error);
     res.status(500).json({ error: 'Failed to get storage stats' });
+    return;
   }
 }

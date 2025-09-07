@@ -1,8 +1,23 @@
 # TODOs 
 
+## 🔴 CRITICAL FIXES (Security & Stability)
+
+These pre-existing issues need immediate attention:
+
+- [ ] **Fix Memory Leak in `pages/api/send-bulk-email.ts`** (line 200)
+  - `setInterval` runs forever without being cleared
+  - Store interval ID and clear on server shutdown or add proper cleanup
+  
+- [ ] **Fix Authentication Bypass in `pages/api/cleanup-r2.ts`** (line 23)
+  - Current logic: API is accessible when `CLEANUP_SECRET_KEY` is NOT set
+  - Should be: `if (process.env.CLEANUP_SECRET_KEY && authKey !== process.env.CLEANUP_SECRET_KEY)`
+
 ## Actual things I wanted to do. Maximum priority!
 
-- [ ] Dev mode way to find out how much storage is being used and clear things out? Especially large "single PDF"s
+- [ ] First time pressing "generate" after uploading and adding a text gives an error. Pressing generate after that works again though. 
+- [ ] We really should refactor all the "Template" names into "Project". It's getting confusing for the AI. 
+- [ ] When creating the first field on the preview panel, it should already be selected
+- [ ] Text field colour should adapt to the general tone of the background image. If it's a dark background, make a light colour for the text. 
 - [ ] We should have some kind of email download links; see below. 
 
 ## Future Enhancement: Email Download Links for Client-Side PDFs

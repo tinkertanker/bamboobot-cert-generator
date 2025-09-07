@@ -15,9 +15,10 @@ import {
   addTextToPage
 } from '@/lib/pdf/shared/pdf-generation-core';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   try {
@@ -36,17 +37,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Validate required parameters
     if (!templateFilename) {
       console.error('Missing templateFilename in request');
-      return res.status(400).json({ error: 'Template filename is required' });
+      res.status(400).json({ error: 'Template filename is required' });
+      return;
     }
     
     if (!data || !Array.isArray(data) || data.length === 0) {
       console.error('Missing or invalid data in request');
-      return res.status(400).json({ error: 'Data array is required and must not be empty' });
+      res.status(400).json({ error: 'Data array is required and must not be empty' });
+      return;
     }
     
     if (!positions || typeof positions !== 'object') {
       console.error('Missing or invalid positions in request');
-      return res.status(400).json({ error: 'Positions object is required' });
+      res.status(400).json({ error: 'Positions object is required' });
+      return;
     }
     
     // Handle R2 storage - download template if using R2
@@ -79,7 +83,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('Template loaded successfully, size:', templatePdfBytes.length);
       } else {
         console.error('Template not found in either directory:', { templateImagePath, tempImagePath });
-        return res.status(404).json({ error: 'Template not found' });
+        res.status(404).json({ error: 'Template not found' });
+        return;
       }
     } else {
       // Check both directories - template_images first, then temp_images
@@ -97,7 +102,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('Local mode - reading from temp_images:', templatePath);
       } else {
         console.error('Template not found in either directory:', { templateImagePath, tempImagePath });
-        return res.status(404).json({ error: 'Template not found in both template_images and temp_images' });
+        res.status(404).json({ error: 'Template not found in both template_images and temp_images' });
+        return;
       }
       
       templatePdfBytes = await fsPromises.readFile(templatePath);
@@ -268,11 +274,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         };
       }));
 
-      return res.status(200).json({
+      res.status(200).json({
         message: 'Individual certificates generated successfully',
         mode: 'individual',
         files
       });
+      return;
     } else {
       // Merge PDFs into single file (existing behavior)
       const mergedPdf = await PDFDocument.create();
@@ -297,13 +304,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         fileUrl = storageConfig.getFileUrl(outputFilename);
       }
       
-      return res.status(200).json({
+      res.status(200).json({
         message: 'Certificates generated successfully',
         outputPath: fileUrl
       });
+      return;
     }
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
+    return;
   }
 }
