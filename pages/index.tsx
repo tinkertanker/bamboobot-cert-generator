@@ -111,10 +111,12 @@ export default function HomePage() {
   // CUSTOM HOOKS FOR FEATURE MANAGEMENT
   // ============================================================================
 
+  // Selected field state (needs to be before usePositioning)
+  const [selectedField, setSelectedField] = useState<string | null>(null);
+  
   // Positioning hook
   const { positions, setPositions, changeAlignment, clearPositions } =
-    usePositioning({ tableData });
-  const [selectedField, setSelectedField] = useState<string | null>(null);
+    usePositioning({ tableData, setSelectedField });
   const [activeTab, setActiveTab] = useState<"data" | "formatting" | "email">(
     "data"
   );
