@@ -208,6 +208,62 @@ describe('SaveProjectModal', () => {
     expect(screen.getByText('Storage is nearly full. Consider deleting old projects.')).toBeInTheDocument();
   });
 
+  it('saves project when pressing Enter in the name input', async () => {
+    const mockSave = ProjectStorage.saveProject as jest.Mock;
+    mockSave.mockResolvedValue({ success: true, id: 'template-123' });
+
+    render(<SaveProjectModal {...defaultProps} />);
+
+    const input = screen.getByLabelText('Project Name');
+    await userEvent.type(input, 'My Test Template');
+
+    // Submit the surrounding form (simulates pressing Enter)
+    fireEvent.submit(input);
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalled();
+      expect(defaultProps.onSaveSuccess).toHaveBeenCalledWith('template-123', 'My Test Template');
+    });
+  });
+
+  it('shows error on Enter when name is empty', async () => {
+    render(<SaveProjectModal {...defaultProps} />);
+    const input = screen.getByLabelText('Project Name');
+    
+    // Submit the form with empty name (simulates pressing Enter)
+    fireEvent.submit(input);
+    
+    await waitFor(() => {
+      expect(screen.getByText('Please enter a project name')).toBeInTheDocument();
+      expect(ProjectStorage.saveProject).not.toHaveBeenCalled();
+      expect(defaultProps.onClose).not.toHaveBeenCalled();
+    });
+  });
+
+  it('does not trigger an extra save on Enter while saving', async () => {
+    const mockSave = ProjectStorage.saveProject as jest.Mock;
+    let resolveSave: (v?: unknown) => void = () => {};
+    const pending = new Promise((resolve) => { resolveSave = resolve; });
+    mockSave.mockImplementation(() => pending.then(() => ({ success: true, id: 'p1' })));
+
+    render(<SaveProjectModal {...defaultProps} />);
+    const input = screen.getByLabelText('Project Name');
+    await userEvent.type(input, 'Slow Save');
+
+    // Click save to start saving
+    fireEvent.click(screen.getByRole('button', { name: /Save Project/i }));
+
+    // Try to submit form again during the pending save (simulates pressing Enter)
+    fireEvent.submit(input);
+    expect(mockSave).toHaveBeenCalledTimes(1);
+
+    // Finish pending save
+    resolveSave();
+    await waitFor(() => {
+      expect(defaultProps.onSaveSuccess).toHaveBeenCalledWith('p1', 'Slow Save');
+    });
+  });
+
   it('disables save button when saving', async () => {
     const mockSaveTemplate = ProjectStorage.saveProject as jest.Mock;
     mockSaveTemplate.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
@@ -230,6 +286,18 @@ describe('SaveProjectModal', () => {
     const cancelButton = screen.getByRole('button', { name: 'Cancel' });
     fireEvent.click(cancelButton);
     
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it('cancel button does not submit the form', () => {
+    render(<SaveProjectModal {...defaultProps} />);
+    
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancelButton).toHaveAttribute('type', 'button');
+    
+    // Clicking cancel should not trigger save
+    fireEvent.click(cancelButton);
+    expect(ProjectStorage.saveProject).not.toHaveBeenCalled();
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 

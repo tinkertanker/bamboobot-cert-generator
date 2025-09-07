@@ -15,6 +15,7 @@ const customJestConfig = {
     '<rootDir>/__tests__/__mocks__/', // Exclude mock files from test discovery
     '<rootDir>/e2e/', // Exclude Playwright tests from Jest
     '<rootDir>/.conductor/', // Exclude all conductor directory tests
+    '<rootDir>/.code/', // Exclude agent worktrees to avoid duplicate tests/mocks
   ],
   moduleNameMapper: {
     // Handle module aliases (this will be automatically configured for you soon)
