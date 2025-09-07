@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { SavedProject } from "@/lib/project-storage";
 import type { EmailConfig, TableData } from "@/types/certificate";
 import { ProjectStorage } from "@/lib/project-storage";
@@ -73,6 +73,23 @@ export function useProjectManagement({
   clearDragState,
   clearData
 }: UseProjectManagementProps): UseProjectManagementReturn {
+  // Keep latest mutable references for frequently changing objects to avoid
+  // recreating callbacks excessively while still reading fresh values.
+  const latestPositionsRef = useRef(positions);
+  const latestTableDataRef = useRef(tableData);
+  const latestEmailConfigRef = useRef(emailConfig);
+
+  useEffect(() => {
+    latestPositionsRef.current = positions;
+  }, [positions]);
+
+  useEffect(() => {
+    latestTableDataRef.current = tableData;
+  }, [tableData]);
+
+  useEffect(() => {
+    latestEmailConfigRef.current = emailConfig;
+  }, [emailConfig]);
   const [currentProjectName, setCurrentProjectName] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [hasManuallySaved, setHasManuallySaved] = useState<boolean>(false);
@@ -275,10 +292,10 @@ export function useProjectManagement({
     let result: { success: boolean; error?: string };
     if (currentProjectId) {
       const update = await ProjectStorage.updateProject(currentProjectId, {
-        positions,
-        columns: Object.keys(tableData[0] || {}),
-        tableData,
-        emailConfig,
+        positions: latestPositionsRef.current,
+        columns: Object.keys(latestTableDataRef.current?.[0] || {}),
+        tableData: latestTableDataRef.current,
+        emailConfig: latestEmailConfigRef.current,
         certificateImage: {
           url: finalUrl,
           filename: finalFilename,
@@ -314,9 +331,6 @@ export function useProjectManagement({
     uploadedFile,
     uploadToServer,
     manualSave,
-    positions,
-    tableData,
-    emailConfig,
     showToast
   ]);
 
