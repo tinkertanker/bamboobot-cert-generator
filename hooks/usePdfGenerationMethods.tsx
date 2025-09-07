@@ -94,19 +94,20 @@ export function usePdfGenerationMethods({
     useServer: boolean;
     forceServer?: boolean;
   }): "server" | "client" => {
-    // Priority 1: Always use client-side if supported (unless explicitly forced to server)
-    if (isClientSupported && !forceServer && !useServer) {
-      return "client";
-    }
-    // Priority 2: Use server only when:
-    // - Client is not supported (fallback)
-    // - Explicitly requested in dev mode (for testing)
-    // - Forced to server (legacy compatibility)
-    if (!isClientSupported || (useServer && isDevelopment && devMode) || forceServer) {
+    // Priority 1: Explicit server request in dev mode (for testing)
+    if (useServer && isDevelopment && devMode) {
       return "server";
     }
-    // Default to client-side (this should never be reached, but for safety)
-    return "client";
+    // Priority 2: Forced to server (legacy compatibility)
+    if (forceServer) {
+      return "server";
+    }
+    // Priority 3: Use client-side if supported
+    if (isClientSupported) {
+      return "client";
+    }
+    // Priority 4: Fallback to server when client not supported
+    return "server";
   }, [isDevelopment, devMode, isClientSupported]);
 
   // Helper function to ensure file is uploaded for server-side generation

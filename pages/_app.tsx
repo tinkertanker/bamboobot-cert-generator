@@ -5,6 +5,8 @@ import "../styles/globals.css";
 
 // Switch to local fonts to avoid network fetch during build/tests.
 // All referenced TTFs live under public/fonts.
+// Note: Next.js font loader requires literal strings, not template literals,
+// so we cannot use a constant for the base path.
 const rubik = localFont({
   src: [
     { path: "../public/fonts/Rubik-Regular.ttf", weight: "400", style: "normal" },
