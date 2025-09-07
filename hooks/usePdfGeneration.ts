@@ -163,8 +163,11 @@ export function usePdfGeneration({
     }
   }, [uploadedFile, getContainerDimensions, prepareDataForApi, preparePositionsForApi]);
 
-  const generateIndividualPdfs = useCallback(async () => {
-    if (!uploadedFile) {
+  const generateIndividualPdfs = useCallback(async (overrideFilename?: string) => {
+    // Use the override filename if provided (from fresh upload), otherwise use state
+    const fileToUse = overrideFilename || uploadedFile;
+    
+    if (!fileToUse) {
       console.error("No template file uploaded");
       alert("Please upload a template image first");
       return;
@@ -174,6 +177,24 @@ export function usePdfGeneration({
     try {
       const containerDimensions = getContainerDimensions();
 
+      // Determine the filename to send to the API
+      let templateFilename: string;
+      if (overrideFilename) {
+        // Use the provided filename (after fresh upload)
+        templateFilename = overrideFilename;
+      } else if (typeof uploadedFile === 'string') {
+        // Already uploaded, use the string filename
+        templateFilename = uploadedFile;
+      } else if (uploadedFile) {
+        // File object - use its name (though this might fail if not uploaded)
+        console.warn('Using File object name - file may not be uploaded yet');
+        templateFilename = uploadedFile.name;
+      } else {
+        throw new Error('No valid template filename');
+      }
+
+      console.log('Generating individual PDFs with filename:', templateFilename);
+
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
@@ -181,7 +202,7 @@ export function usePdfGeneration({
         },
         body: JSON.stringify({
           mode: "individual",
-          templateFilename: typeof uploadedFile === 'string' ? uploadedFile : uploadedFile.name,
+          templateFilename,
           uiContainerDimensions: containerDimensions,
           namingColumn: selectedNamingColumn,
           data: prepareDataForApi(),
