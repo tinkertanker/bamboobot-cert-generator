@@ -1,54 +1,80 @@
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
-import { Rubik, Montserrat, Poppins, Source_Sans_3, Nunito, Great_Vibes, Archivo } from "next/font/google";
+import localFont from 'next/font/local';
 import "../styles/globals.css";
 
-const rubik = Rubik({
-  subsets: ["latin"],
+// Switch to local fonts to avoid network fetch during build/tests.
+// All referenced TTFs live under public/fonts.
+const rubik = localFont({
+  src: [
+    { path: "../public/fonts/Rubik-Regular.ttf", weight: "400", style: "normal" },
+    { path: "../public/fonts/Rubik-Italic.ttf", weight: "400", style: "italic" },
+    { path: "../public/fonts/Rubik-Bold.ttf", weight: "700", style: "normal" },
+    { path: "../public/fonts/Rubik-BoldItalic.ttf", weight: "700", style: "italic" },
+  ],
   variable: "--font-rubik",
-  weight: ["400", "700"],
-  style: ["normal", "italic"],
+  display: "swap",
 });
 
-const montserrat = Montserrat({
-  subsets: ["latin"],
+const montserrat = localFont({
+  src: [
+    { path: "../public/fonts/Montserrat-Regular.ttf", weight: "400", style: "normal" },
+    { path: "../public/fonts/Montserrat-Bold.ttf", weight: "700", style: "normal" },
+  ],
   variable: "--font-montserrat",
-  weight: ["400", "700"],
+  display: "swap",
 });
 
-const poppins = Poppins({
-  subsets: ["latin"],
+const poppins = localFont({
+  src: [
+    { path: "../public/fonts/Poppins-Regular.ttf", weight: "400", style: "normal" },
+    { path: "../public/fonts/Poppins-Italic.ttf", weight: "400", style: "italic" },
+    { path: "../public/fonts/Poppins-Bold.ttf", weight: "700", style: "normal" },
+    { path: "../public/fonts/Poppins-BoldItalic.ttf", weight: "700", style: "italic" },
+  ],
   variable: "--font-poppins",
-  weight: ["400", "700"],
-  style: ["normal", "italic"],
+  display: "swap",
 });
 
-
-const sourceSansPro = Source_Sans_3({
-  subsets: ["latin"],
+const sourceSansPro = localFont({
+  src: [
+    { path: "../public/fonts/SourceSansPro-Regular.ttf", weight: "400", style: "normal" },
+    { path: "../public/fonts/SourceSansPro-Italic.ttf", weight: "400", style: "italic" },
+    { path: "../public/fonts/SourceSansPro-Bold.ttf", weight: "700", style: "normal" },
+    { path: "../public/fonts/SourceSansPro-BoldItalic.ttf", weight: "700", style: "italic" },
+  ],
   variable: "--font-source-sans-pro",
-  weight: ["400", "700"],
-  style: ["normal", "italic"],
+  display: "swap",
 });
 
-const nunito = Nunito({
-  subsets: ["latin"],
+const nunito = localFont({
+  src: [
+    { path: "../public/fonts/Nunito-Regular.ttf", weight: "400", style: "normal" },
+    { path: "../public/fonts/Nunito-Italic.ttf", weight: "400", style: "italic" },
+    { path: "../public/fonts/Nunito-Bold.ttf", weight: "700", style: "normal" },
+    { path: "../public/fonts/Nunito-BoldItalic.ttf", weight: "700", style: "italic" },
+  ],
   variable: "--font-nunito",
-  weight: ["400", "700"],
-  style: ["normal", "italic"],
+  display: "swap",
 });
 
-const greatVibes = Great_Vibes({
-  subsets: ["latin"],
+const greatVibes = localFont({
+  src: [
+    { path: "../public/fonts/GreatVibes-Regular.ttf", weight: "400", style: "normal" },
+  ],
   variable: "--font-great-vibes",
-  weight: ["400"],
+  display: "swap",
 });
 
-const archivo = Archivo({
-  subsets: ["latin"],
+const archivo = localFont({
+  src: [
+    { path: "../public/fonts/Archivo-Regular.ttf", weight: "400", style: "normal" },
+    { path: "../public/fonts/Archivo-Italic.ttf", weight: "400", style: "italic" },
+    { path: "../public/fonts/Archivo-Bold.ttf", weight: "700", style: "normal" },
+    { path: "../public/fonts/Archivo-BoldItalic.ttf", weight: "700", style: "italic" },
+  ],
   variable: "--font-archivo",
-  weight: ["400", "700"],
-  style: ["normal", "italic"],
+  display: "swap",
 });
 
 export default function App({ Component, pageProps }: AppProps) {

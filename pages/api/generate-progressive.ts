@@ -1,3 +1,16 @@
+/**
+ * LEGACY PROGRESSIVE SERVER-SIDE PDF GENERATION API
+ * 
+ * This endpoint is maintained for backward compatibility only.
+ * As of September 2025, client-side PDF generation is the default.
+ * 
+ * Progressive generation is used for large datasets when:
+ * - Browser doesn't support client-side generation
+ * - Explicitly requested in Dev Mode for testing
+ * 
+ * Note: Client-side generation handles large datasets efficiently without
+ * needing progressive/batch processing, making this endpoint largely obsolete.
+ */
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { v4 as uuidv4 } from 'uuid';
 import { PdfSessionManager } from '@/lib/pdf/session-manager';

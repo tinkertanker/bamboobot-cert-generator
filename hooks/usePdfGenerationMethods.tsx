@@ -1,3 +1,18 @@
+/**
+ * PDF Generation Methods Hook
+ * 
+ * This hook manages the logic for choosing between client-side and server-side PDF generation.
+ * 
+ * Philosophy: CLIENT-FIRST
+ * - Client-side generation is the DEFAULT when supported
+ * - Server-side is only used as a fallback or when explicitly requested in Dev Mode
+ * - This reduces server load and improves performance
+ * 
+ * When server-side is used:
+ * 1. Browser doesn't support client-side generation (no Web Workers, insufficient memory)
+ * 2. Explicitly requested via Dev Mode buttons (for testing/comparison)
+ * 3. Future: Special cases requiring server-only features
+ */
 import { useCallback, useEffect } from "react";
 import { PROGRESSIVE_PDF } from "@/utils/constants";
 import type { TableData } from "@/types/certificate";
@@ -79,16 +94,19 @@ export function usePdfGenerationMethods({
     useServer: boolean;
     forceServer?: boolean;
   }): "server" | "client" => {
-    // Priority 1: Explicit server request in dev mode
-    if (useServer && isDevelopment && devMode) {
-      return "server";
-    }
-    // Priority 2: Client-side if supported and not forced to server
-    if (isClientSupported && !forceServer) {
+    // Priority 1: Always use client-side if supported (unless explicitly forced to server)
+    if (isClientSupported && !forceServer && !useServer) {
       return "client";
     }
-    // Priority 3: Fallback to server
-    return "server";
+    // Priority 2: Use server only when:
+    // - Client is not supported (fallback)
+    // - Explicitly requested in dev mode (for testing)
+    // - Forced to server (legacy compatibility)
+    if (!isClientSupported || (useServer && isDevelopment && devMode) || forceServer) {
+      return "server";
+    }
+    // Default to client-side (this should never be reached, but for safety)
+    return "client";
   }, [isDevelopment, devMode, isClientSupported]);
 
   // Helper function to ensure file is uploaded for server-side generation
@@ -115,7 +133,9 @@ export function usePdfGenerationMethods({
     const method = getPdfGenerationMethod({ useServer, forceServer: false });
     
     if (method === "server") {
-      const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
+      const reason = !isClientSupported ? "(Client not supported)" : 
+                     useServer && isDevelopment && devMode ? "(Dev Mode - explicit server request)" : 
+                     "(Legacy fallback)";
       console.log(`📡 Using SERVER-SIDE PDF generation ${reason}`);
       const uploadedFilename = await ensureFileUploadedForServer();
       
@@ -128,7 +148,7 @@ export function usePdfGenerationMethods({
       // It uses the state value, but ensureFileUploadedForServer ensures it's updated
       await generatePdf();
     } else {
-      console.log("🚀 Using CLIENT-SIDE PDF generation");
+      console.log("🚀 Using CLIENT-SIDE PDF generation (default)");
       await generateClientPdf();
     }
   }, [
@@ -146,7 +166,9 @@ export function usePdfGenerationMethods({
     const isProgressive = tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD;
     
     if (method === "server") {
-      const reason = useServer && isDevelopment && devMode ? "(Dev Mode)" : "(Fallback)";
+      const reason = !isClientSupported ? "(Client not supported)" : 
+                     useServer && isDevelopment && devMode ? "(Dev Mode - explicit server request)" : 
+                     "(Legacy fallback)";
       // Ensure file is uploaded and get the correct filename
       const uploadedFilename = await ensureFileUploadedForServer();
       
@@ -163,7 +185,7 @@ export function usePdfGenerationMethods({
         await generateIndividualPdfs(uploadedFilename);
       }
     } else {
-      console.log(`🚀 Using CLIENT-SIDE generation for ${tableData.length} rows`);
+      console.log(`🚀 Using CLIENT-SIDE generation for ${tableData.length} rows (default)`);
       if (isProgressive) {
         console.log(`   ℹ️ Large dataset (${tableData.length} rows) - client-side handles this efficiently`);
       }

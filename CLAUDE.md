@@ -37,6 +37,20 @@ npm run cleanup:old # Delete old generated files (7+ days PDFs, 30+ days temp im
 npm run cleanup:old:dry # Preview what would be deleted without actually deleting
 ```
 
+## PDF Generation Philosophy
+
+**CLIENT-FIRST APPROACH**: As of September 2025, the application defaults to client-side PDF generation whenever possible. Server-side generation is considered legacy and only used as a fallback.
+
+### When Client-Side is Used (DEFAULT)
+- Browser supports Web Workers and has sufficient memory
+- All standard PDF generation operations
+- Both single and individual PDF generation
+
+### When Server-Side is Used (FALLBACK/LEGACY)
+- Browser doesn't support required features (no Web Workers, insufficient memory)
+- Explicitly requested in Dev Mode for testing/comparison
+- Future: Special server-only features (if any)
+
 ## Architecture
 
 ### Component Structure
