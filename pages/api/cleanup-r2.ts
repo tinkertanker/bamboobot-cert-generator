@@ -31,7 +31,7 @@ export default async function handler(
       res.status(401).json({ error: 'Authentication not configured' });
       return;
     }
-    console.warn('⚠️ WARNING: CLEANUP_SECRET_KEY not set - R2 cleanup endpoint is unprotected in development');
+    console.warn('⚠️ WARNING: Authentication for the R2 cleanup endpoint is not configured and the endpoint is unprotected in development');
   }
 
   try {
