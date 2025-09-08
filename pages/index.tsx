@@ -40,6 +40,7 @@ import { ErrorModal } from "@/components/ui/error-alert";
 import { MobileWarningScreen } from "@/components/MobileWarningScreen";
 import { useMobileDetection } from "@/hooks/useMobileDetection";
 import { COLORS, GRADIENTS } from "@/utils/styles";
+import { getImageAverageLuminance, getReadableTextColorForLuminance } from "@/utils/imageAnalysis";
 import { SplitButton } from "@/components/ui/split-button";
 import { useToast, ToastContainer } from "@/components/ui/toast";
 import { useProjectAutosave } from "@/hooks/useProjectAutosave";
@@ -191,6 +192,43 @@ export default function HomePage() {
     localBlobUrl,
     uploadToServer
   } = useFileUpload();
+
+  // Adapt default text color to background tone when a new image is loaded
+  useEffect(() => {
+    (async () => {
+      if (!uploadedFileUrl || tableData.length === 0) return;
+      try {
+        const lum = await getImageAverageLuminance(uploadedFileUrl);
+        const autoColor = getReadableTextColorForLuminance(lum); // '#000000' or '#ffffff'
+
+        setPositions((prev) => {
+          const next = { ...prev };
+          let changed = false;
+          const defaultBlack = '#000000';
+          const defaultWhite = '#ffffff';
+
+          // Only set auto color for fields that are at default color
+          Object.keys(tableData[0] || {}).forEach((key) => {
+            const current = next[key];
+            if (!current) return;
+            const currentColor = (current.color || '').toLowerCase();
+            if (current.color === undefined || currentColor === defaultBlack) {
+              // untouched or default black -> apply auto color
+              next[key] = { ...current, color: autoColor };
+              changed = true;
+            } else if ((currentColor === defaultWhite || currentColor === defaultBlack) && currentColor !== autoColor) {
+              // If a prior auto applied simple black/white exists, keep adapting
+              next[key] = { ...current, color: autoColor };
+              changed = true;
+            }
+          });
+          return changed ? next : prev;
+        });
+      } catch {
+        // Ignore analysis errors silently
+      }
+    })();
+  }, [uploadedFileUrl, tableData, setPositions]);
 
 
   // PDF generation hook (must come after file upload hook)
