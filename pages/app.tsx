@@ -203,6 +203,13 @@ export default function HomePage() {
     (async () => {
       if (!uploadedFileUrl || tableData.length === 0) return;
       try {
+        // If positions already contain any non-default colors, do not auto-adjust
+        const hasCustomColors = Object.values(positions || {}).some((p: any) => {
+          const c = (p?.color || '').toLowerCase();
+          return c && c !== '#000000' && c !== '#ffffff';
+        });
+        if (hasCustomColors) return;
+
         const lum = await getImageAverageLuminance(uploadedFileUrl);
         const autoColor = getReadableTextColorForLuminance(lum); // '#000000' or '#ffffff'
 
@@ -233,7 +240,7 @@ export default function HomePage() {
         // Ignore analysis errors silently
       }
     })();
-  }, [uploadedFileUrl, tableData, setPositions]);
+  }, [uploadedFileUrl, tableData, setPositions, positions]);
 
 
   // PDF generation hook (must come after file upload hook)

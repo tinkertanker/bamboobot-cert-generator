@@ -365,16 +365,25 @@ export class ProjectStorage {
         const res = await fetch('/api/projects');
         if (!res.ok) return [];
         const json = await res.json();
-        const projects = (json?.projects ?? []) as Array<{ id: string; name: string; createdAt: string; updatedAt: string }>;
+        const projects = (json?.projects ?? []) as Array<{
+          id: string;
+          name: string;
+          createdAt: string;
+          updatedAt: string;
+          columnsCount?: number;
+          rowsCount?: number;
+          hasEmailConfig?: boolean;
+          imageStatus?: 'available' | 'missing' | 'checking';
+        }>;
         return projects.map(p => ({
           id: p.id,
           name: p.name,
           created: p.createdAt,
           lastModified: p.updatedAt,
-          columnsCount: 0,
-          rowsCount: 0,
-          hasEmailConfig: false,
-          imageStatus: 'checking',
+          columnsCount: p.columnsCount ?? 0,
+          rowsCount: p.rowsCount ?? 0,
+          hasEmailConfig: !!p.hasEmailConfig,
+          imageStatus: p.imageStatus ?? 'checking',
         }));
       }
       const projects: ProjectListItem[] = [];
