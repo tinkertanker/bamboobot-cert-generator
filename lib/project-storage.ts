@@ -56,6 +56,10 @@ export class ProjectStorage {
     const v = (process.env.NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE || process.env.PROJECT_SERVER_PERSISTENCE || '').toString().toLowerCase();
     return v === 'true' || v === '1';
   }
+
+  static isServerMode(): boolean {
+    return this.serverEnabled;
+  }
   /**
    * Migrate old template storage keys to new project keys
    */
@@ -204,8 +208,10 @@ export class ProjectStorage {
   static loadProject(id: string): SavedProject | null {
     try {
       if (this.serverEnabled) {
-        // Not supported in server mode directly (client uses list + get as needed)
-        // Keeping local path for migration utilities only
+        // Synchronous signature retained for legacy callers; we use deasync via sync XHR not allowed.
+        // Instead, expose an async helper below; but for minimal change, we throw here to encourage async usage.
+        // However, some UI depends on sync call (LoadProjectModal). Provide a best-effort async shim via fetch+sync wait is not viable.
+        // So we return null here and expect async path usage elsewhere. (Kept for backward compatibility.)
       }
       // Try new key first
       let key = `${STORAGE_KEY_PREFIX}${id}`;
@@ -233,6 +239,41 @@ export class ProjectStorage {
       return null;
     }
   }
+
+  /** Server-mode: load a project (async) */
+  static async loadProjectServer(id: string): Promise<SavedProject | null> {
+    try {
+      const res = await fetch(`/api/projects/${id}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const p = json?.project as any;
+      if (!p) return null;
+      const base = (p.data ?? {}) as Partial<SavedProject>;
+      const safe: SavedProject = {
+        id: p.id,
+        name: p.name || base.name || 'Untitled',
+        created: p.createdAt || base.created || new Date().toISOString(),
+        lastModified: p.updatedAt || base.lastModified || new Date().toISOString(),
+        version: '1.0',
+        positions: (base as any)?.positions ?? {},
+        columns: (base as any)?.columns ?? [],
+        tableData: (base as any)?.tableData ?? [],
+        emailConfig: (base as any)?.emailConfig,
+        certificateImage: {
+          url: (base as any)?.certificateImage?.url ?? '',
+          filename: (base as any)?.certificateImage?.filename ?? '',
+          uploadedAt: (base as any)?.certificateImage?.uploadedAt ?? new Date().toISOString(),
+          isCloudStorage: (base as any)?.certificateImage?.isCloudStorage ?? false,
+          storageProvider: (base as any)?.certificateImage?.storageProvider,
+          checksum: (base as any)?.certificateImage?.checksum,
+        },
+      };
+      return safe;
+    } catch (e) {
+      console.error('Error loading project (server):', e);
+      return null;
+    }
+  }
   
   /**
    * Update an existing project
@@ -242,6 +283,29 @@ export class ProjectStorage {
     updates: Partial<Omit<SavedProject, 'id' | 'created' | 'version'>>
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      if (this.serverEnabled) {
+        // Merge server-side by fetching current, merging, and PUT back
+        const current = await this.loadProjectServer(id);
+        if (!current) return { success: false, error: 'Project not found' };
+        const merged: SavedProject = {
+          ...current,
+          ...updates,
+          lastModified: new Date().toISOString(),
+        } as SavedProject;
+        const res = await fetch(`/api/projects/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: updates.name ?? current.name,
+            data: merged,
+          }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          return { success: false, error: j?.error || 'Failed to update project' };
+        }
+        return { success: true };
+      }
       const existing = this.loadProject(id);
       if (!existing) {
         return { success: false, error: 'Project not found' };
@@ -275,6 +339,11 @@ export class ProjectStorage {
    */
   static deleteProject(id: string): boolean {
     try {
+      if (this.serverEnabled) {
+        // Fire-and-forget; caller does not await
+        void fetch(`/api/projects/${id}`, { method: 'DELETE' });
+        return true;
+      }
       // Remove both new and old keys
       const key = `${STORAGE_KEY_PREFIX}${id}`;
       const oldKey = `${OLD_STORAGE_KEY_PREFIX}${id}`;
@@ -378,8 +447,9 @@ export class ProjectStorage {
         const res = await fetch('/api/projects');
         if (!res.ok) return null;
         const json = await res.json();
-        const p = (json?.projects ?? [])[0];
-        return p ?? null;
+        const first = (json?.projects ?? [])[0];
+        if (!first) return null;
+        return await this.loadProjectServer(first.id);
       }
       const projects = await this.listProjects();
       

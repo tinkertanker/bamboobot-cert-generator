@@ -160,7 +160,7 @@ export function SaveProjectModal({
             <ul className="mt-1 space-y-1">
               <li className="flex items-center gap-2">
                 <span className="text-green-600">✓</span>
-                {Object.keys(positions).length} configured text fields
+                {Object.keys(positions || {}).length} configured text fields
               </li>
               <li className="flex items-center gap-2">
                 <span className="text-green-600">✓</span>

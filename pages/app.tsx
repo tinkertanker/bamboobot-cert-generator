@@ -177,7 +177,7 @@ export default function HomePage() {
     goToNext,
     goToLast,
     setCurrentPreviewIndex
-  } = usePreview(tableData.length, Object.keys(positions).length);
+  } = usePreview(tableData.length, Object.keys(positions || {}).length);
 
   // File upload hook
   const {
@@ -606,7 +606,7 @@ export default function HomePage() {
                   icon: <FileUp className="h-4 w-4" />,
                   onClick: handleNewProject,
                   disabled:
-                    !uploadedFileUrl && Object.keys(positions).length === 0
+                    !uploadedFileUrl && Object.keys(positions || {}).length === 0
                 },
                 {
                   label: "Projects...",
@@ -618,7 +618,7 @@ export default function HomePage() {
                   icon: <Save className="h-4 w-4" />,
                   onClick: () => setShowSaveProjectModal(true),
                   disabled:
-                    !uploadedFileUrl || Object.keys(positions).length === 0
+                    !uploadedFileUrl || Object.keys(positions || {}).length === 0
                 }
               ]}
               gradientClass={SPLIT_BUTTON_THEME.projects.gradient}
@@ -1084,7 +1084,7 @@ export default function HomePage() {
         onClose={() => setShowNewProjectModal(false)}
         onConfirm={confirmNewProject}
         hasUnsavedWork={
-          uploadedFileUrl !== null && Object.keys(positions).length > 0
+          uploadedFileUrl !== null && Object.keys(positions || {}).length > 0
         }
       />
 
