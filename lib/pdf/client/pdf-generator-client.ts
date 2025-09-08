@@ -15,6 +15,7 @@ import type {
 } from './worker/worker-types';
 import type { PdfGenerationProgress } from '../types';
 import { PROGRESSIVE_PDF } from '@/utils/constants';
+import { ImageToPdfConverter } from './image-to-pdf';
 
 export interface ClientPdfOptions {
   enableFallback?: boolean;
@@ -246,10 +247,28 @@ export class ClientPdfGenerator {
     // Handle local paths (avoid CORS issues with remote URLs)
     if (url.startsWith('/')) {
       const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to load local template: ${response.statusText}`);
+      if (response.ok) {
+        return response.arrayBuffer();
       }
-      return response.arrayBuffer();
+      // If the PDF is missing (e.g., imported project only has image), try converting image URL to PDF on the fly
+      if (url.toLowerCase().endsWith('.pdf')) {
+        const pngUrl = url.replace(/\.pdf$/i, '.png');
+        const jpgUrl = url.replace(/\.pdf$/i, '.jpg');
+        const jpegUrl = url.replace(/\.pdf$/i, '.jpeg');
+
+        // Try PNG, then JPG/JPEG
+        const candidates = [pngUrl, jpgUrl, jpegUrl];
+        for (const candidate of candidates) {
+          try {
+            const pdfBlob = await ImageToPdfConverter.convertImageUrlToPdf(candidate);
+            const buf = await pdfBlob.arrayBuffer();
+            return buf;
+          } catch (_) {
+            // keep trying
+          }
+        }
+      }
+      throw new Error(`Failed to load local template: ${response.statusText}`);
     }
     
     // Avoid fetching remote URLs to prevent CORS issues
