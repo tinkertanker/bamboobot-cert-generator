@@ -212,7 +212,7 @@ export default function HomePage() {
             const current = next[key];
             if (!current) return;
             const currentColor = (current.color || '').toLowerCase();
-            if (current.color === undefined || currentColor === defaultBlack) {
+            if (current.color === undefined || currentColor === defaultBlack || currentColor === '') {
               // untouched or default black -> apply auto color
               next[key] = { ...current, color: autoColor };
               changed = true;
