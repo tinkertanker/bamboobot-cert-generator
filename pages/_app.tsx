@@ -1,6 +1,7 @@
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import localFont from 'next/font/local';
+import { SessionProvider } from 'next-auth/react';
 import "../styles/globals.css";
 
 // Switch to local fonts to avoid network fetch during build/tests.
@@ -81,7 +82,7 @@ const archivo = localFont({
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <>
+    <SessionProvider>
       <Head>
         <title>Bamboobot Certificate Generator</title>
         <meta 
@@ -91,11 +92,9 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <div
-        className={`${rubik.variable} ${montserrat.variable} ${poppins.variable} ${sourceSansPro.variable} ${nunito.variable} ${greatVibes.variable} ${archivo.variable} antialiased`}
-      >
+      <div className={`${rubik.variable} ${montserrat.variable} ${poppins.variable} ${sourceSansPro.variable} ${nunito.variable} ${greatVibes.variable} ${archivo.variable} antialiased`}>
         <Component {...pageProps} />
       </div>
-    </>
+    </SessionProvider>
   );
 }

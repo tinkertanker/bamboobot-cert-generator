@@ -5,7 +5,8 @@ import path from 'path';
 import { IncomingForm, File, Fields, Files } from 'formidable';
 import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
-import { getTempImagesDir, ensureAllDirectoriesExist } from '@/lib/paths';
+import { getTempImagesDir, ensureAllDirectoriesExist, ensureDirectoryExists } from '@/lib/paths';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 export const config = {
   api: {
@@ -18,6 +19,10 @@ const MAX_FILE_SIZE = parseInt(process.env.MAX_UPLOAD_SIZE || '10485760'); // 10
 const UPLOAD_TEMP_DIR = process.env.UPLOAD_TEMP_DIR || null;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+  // Require authentication
+  const session = await requireAuth(req, res);
+  if (!session) return;
+  const userId = (session.user as any).id as string;
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
@@ -25,25 +30,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Ensure directories exist before processing upload
   ensureAllDirectoriesExist();
-  
-  const tempDir = getTempImagesDir();
-  
-  // Create a dedicated temp directory for formidable in Docker
-  let formidableTempDir = tempDir;
+
+  const baseTempDir = getTempImagesDir();
+  const userTempDir = `${baseTempDir}/u_${userId}`;
+
+  // Ensure user-scoped temp dir exists (both dev/prod)
+  try {
+    ensureDirectoryExists(userTempDir);
+  } catch (err) {
+    console.error('Failed to ensure user temp dir:', err);
+    res.status(500).json({ error: 'Server temp directory error' });
+    return;
+  }
+
+  // Create a dedicated temp directory for formidable; default to user temp dir
+  let formidableTempDir = userTempDir;
   if (process.env.NODE_ENV === 'production' || UPLOAD_TEMP_DIR) {
-    formidableTempDir = UPLOAD_TEMP_DIR || '/app/tmp/uploads';
-    try {
-      await fsPromises.mkdir(formidableTempDir, { recursive: true });
-      await fsPromises.chmod(formidableTempDir, 0o777);
-    } catch (err) {
-      console.error('Failed to create formidable temp directory:', err);
-      // Fall back to default temp directory
-      formidableTempDir = tempDir;
-    }
+    formidableTempDir = UPLOAD_TEMP_DIR ? `${UPLOAD_TEMP_DIR}/u_${userId}` : `/app/tmp/uploads/u_${userId}`;
+  }
+  try {
+    await fsPromises.mkdir(formidableTempDir, { recursive: true });
+    await fsPromises.chmod(formidableTempDir, 0o777).catch(() => {});
+  } catch (err) {
+    console.error('Failed to create formidable temp directory:', err);
+    formidableTempDir = userTempDir; // fallback
   }
   
   console.log('Upload configuration:', {
-    tempDir,
+    tempDir: userTempDir,
     formidableTempDir,
     maxFileSize: MAX_FILE_SIZE,
     environment: process.env.NODE_ENV
@@ -91,17 +105,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(400).json({ error: 'Missing file path or mime type' });
       return;
     }
-    const filename = path.basename(filepath);
-    const fileExtension = path.extname(filepath); // Get the original file extension
-    console.log("File extension: " + fileExtension);
+    const originalName = (file as File & { originalFilename?: string }).originalFilename || 'upload';
+    const baseFromName = path.basename(originalName, path.extname(originalName)) || 'upload';
+    const safeBase = baseFromName.replace(/[^a-z0-9_-]/gi, '_');
+    const fileExtension = mimetype === 'image/png' ? '.png' : '.jpg';
+    console.log('Upload name resolution:', { originalName, detectedExt: fileExtension, mimetype });
 
     if (mimetype !== 'image/png' && mimetype !== 'image/jpeg') {
       res.status(400).json({ error: 'The input is not a PNG or JPEG file!' });
       return;
     }
 
-    let pdfFilename = filename.replace(/\.[^/.]+$/, ""); // Remove existing extension
-    pdfFilename += ".pdf"; // Ensure the filename ends with .pdf
+    let pdfFilename = `${safeBase}.pdf`;
     const imageBytes = await fsPromises.readFile(filepath);
     const pdfDoc = await PDFDocument.create();
 
@@ -116,13 +131,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // Read original image bytes
     const originalImageBytes = await fsPromises.readFile(filepath);
-    const imageName = `${path.basename(filename, fileExtension)}${fileExtension}`;
+    const imageName = `${safeBase}${fileExtension}`;
     
     let imageUrl: string;
     
-    // User uploads always go to temp_images (they're temporary)
+    // User uploads always go to temp_images/user (they're temporary)
     // Only dev-mode templates go to template_images (permanent storage)
-    const pdfFilepath = path.join(tempDir, pdfFilename);
+    await fsPromises.mkdir(userTempDir, { recursive: true });
+    const pdfFilepath = path.join(userTempDir, pdfFilename);
     await fsPromises.writeFile(pdfFilepath, pdfBytes);
     
     if (storageConfig.isR2Enabled) {
@@ -131,22 +147,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Upload original image to R2 for display
       const uploadResult = await uploadToR2(
         Buffer.from(originalImageBytes),
-        `temp_images/${imageName}`,
+        `temp_images/u_${userId}/${imageName}`,
         mimetype,
         imageName
       );
       imageUrl = uploadResult.url;
       
       // Also save image locally as backup
-      const imageFilepath = path.join(tempDir, imageName);
+      const imageFilepath = path.join(userTempDir, imageName);
       await fsPromises.copyFile(filepath, imageFilepath);
       
       console.log('R2 upload successful:', imageUrl);
     } else {
       // Fallback to local storage - always use temp_images for user uploads
-      const imageFilepath = path.join(tempDir, imageName);
+      const imageFilepath = path.join(userTempDir, imageName);
       await fsPromises.copyFile(filepath, imageFilepath);
-      imageUrl = storageConfig.getFileUrl(imageName, undefined, 'temp_images');
+      imageUrl = storageConfig.getFileUrl(`u_${userId}/${imageName}`, undefined, 'temp_images');
     }
     
     console.log("imageUrl:", imageUrl);

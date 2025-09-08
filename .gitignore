@@ -59,3 +59,7 @@ test-results/
 
 # Code agent artifacts
 /.code/
+
+# Prisma / SQLite database
+prisma/*.db
+prisma/*.db-journal
