@@ -53,6 +53,7 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingModal } from "@/components/modals/OnboardingModal";
 import { HelpCircle } from "lucide-react";
 import { useSession, signOut } from 'next-auth/react';
+import { useProjectMigration } from "@/hooks/useProjectMigration";
 
 export default function HomePage() {
   // ============================================================================
@@ -62,6 +63,8 @@ export default function HomePage() {
   const { isMobile, isLoading: isMobileLoading } = useMobileDetection();
   const [forceMobileAccess, setForceMobileAccess] = useState(false);
   const { data: session } = useSession();
+  // Check for localStorage projects on first login and offer import
+  useProjectMigration();
 
   // ============================================================================
   // ONBOARDING & TUTORIAL

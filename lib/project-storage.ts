@@ -51,6 +51,11 @@ const OLD_STORAGE_KEY_PREFIX = 'bamboobot_template_v1_'; // For migration
 const STORAGE_LIMIT_BYTES = 5 * 1024 * 1024; // 5MB limit for localStorage
 
 export class ProjectStorage {
+  private static get serverEnabled(): boolean {
+    // Allow either new NEXT_PUBLIC_* or legacy flag name
+    const v = (process.env.NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE || process.env.PROJECT_SERVER_PERSISTENCE || '').toString().toLowerCase();
+    return v === 'true' || v === '1';
+  }
   /**
    * Migrate old template storage keys to new project keys
    */
@@ -107,6 +112,43 @@ export class ProjectStorage {
     storageInfo?: { isCloudStorage: boolean; provider?: 'r2' | 's3' | 'local' }
   ): Promise<{ success: boolean; id?: string; error?: string }> {
     try {
+      if (this.serverEnabled) {
+        // Persist to server
+        const body = {
+          name,
+          data: {
+            id: 'server-generated',
+            name,
+            created: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+            version: '1.0',
+            positions,
+            columns,
+            tableData,
+            emailConfig,
+            certificateImage: {
+              url: certificateImageUrl,
+              filename: certificateFilename,
+              uploadedAt: new Date().toISOString(),
+              isCloudStorage: !!storageInfo?.isCloudStorage,
+              storageProvider: storageInfo?.provider,
+            },
+          },
+          clientProjectId: undefined,
+        };
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          return { success: false, error: j?.error || 'Failed to save project (server)' };
+        }
+        const json = await res.json();
+        return { success: true, id: json?.project?.id };
+      }
+
       const id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
       
@@ -161,6 +203,10 @@ export class ProjectStorage {
    */
   static loadProject(id: string): SavedProject | null {
     try {
+      if (this.serverEnabled) {
+        // Not supported in server mode directly (client uses list + get as needed)
+        // Keeping local path for migration utilities only
+      }
       // Try new key first
       let key = `${STORAGE_KEY_PREFIX}${id}`;
       let data = localStorage.getItem(key);
@@ -246,6 +292,22 @@ export class ProjectStorage {
    */
   static async listProjects(): Promise<ProjectListItem[]> {
     try {
+      if (this.serverEnabled) {
+        const res = await fetch('/api/projects');
+        if (!res.ok) return [];
+        const json = await res.json();
+        const projects = (json?.projects ?? []) as Array<{ id: string; name: string; createdAt: string; updatedAt: string }>;
+        return projects.map(p => ({
+          id: p.id,
+          name: p.name,
+          created: p.createdAt,
+          lastModified: p.updatedAt,
+          columnsCount: 0,
+          rowsCount: 0,
+          hasEmailConfig: false,
+          imageStatus: 'checking',
+        }));
+      }
       const projects: ProjectListItem[] = [];
       const processedIds = new Set<string>();
       
@@ -312,6 +374,13 @@ export class ProjectStorage {
    */
   static async getMostRecentProject(): Promise<SavedProject | null> {
     try {
+      if (this.serverEnabled) {
+        const res = await fetch('/api/projects');
+        if (!res.ok) return null;
+        const json = await res.json();
+        const p = (json?.projects ?? [])[0];
+        return p ?? null;
+      }
       const projects = await this.listProjects();
       
       if (projects.length === 0) {

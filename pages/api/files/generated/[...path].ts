@@ -3,10 +3,14 @@ import fs from 'fs';
 import path from 'path';
 import { lookup } from 'mime-types';
 import storageConfig from '@/lib/storage-config';
+import { requireAuth } from '@/lib/auth/requireAuth';
 import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
 import { getS3SignedUrl } from '@/lib/s3-client';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+  // Require auth for local serving and signed URL issuance
+  const session = await requireAuth(req, res);
+  if (!session) return;
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });
     return;

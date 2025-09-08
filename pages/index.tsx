@@ -35,6 +35,7 @@ export default function MarketingPage() {
             Learn More
           </a>
         </div>
+        <p className="mt-3 text-sm text-emerald-900/70">Prefer not to use Google? Email me and I’ll add another option.</p>
         <section id="features" className="mt-16 grid sm:grid-cols-3 gap-6 text-left">
           <div className="bg-white p-4 rounded-lg border border-emerald-100 shadow-sm">
             <h3 className="font-semibold text-emerald-900">Drag & Drop</h3>
