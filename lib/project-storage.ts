@@ -447,6 +447,55 @@ export class ProjectStorage {
       return [];
     }
   }
+
+  /**
+   * List projects stored in localStorage only (ignores server mode)
+   * Used by migration prompt to avoid confusing server projects with local ones.
+   */
+  static async listLocalProjects(): Promise<ProjectListItem[]> {
+    try {
+      const projects: ProjectListItem[] = [];
+      const processedIds = new Set<string>();
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        if (!key.startsWith(STORAGE_KEY_PREFIX) && !key.startsWith(OLD_STORAGE_KEY_PREFIX)) continue;
+        try {
+          const data = localStorage.getItem(key);
+          if (!data) continue;
+          const project = JSON.parse(data) as SavedProject;
+          if (processedIds.has(project.id)) continue;
+          processedIds.add(project.id);
+
+          let imageStatus: ProjectListItem['imageStatus'] = 'checking';
+          if (project.certificateImage.isCloudStorage) {
+            imageStatus = 'available';
+          } else {
+            imageStatus = project.certificateImage.url ? 'available' : 'missing';
+          }
+
+          projects.push({
+            id: project.id,
+            name: project.name,
+            created: project.created,
+            lastModified: project.lastModified,
+            columnsCount: project.columns.length,
+            rowsCount: project.tableData?.length || 0,
+            hasEmailConfig: !!project.emailConfig?.isConfigured,
+            imageStatus,
+          });
+        } catch (e) {
+          console.error('Error parsing local project:', e);
+        }
+      }
+
+      return projects.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+    } catch (e) {
+      console.error('Error listing local projects:', e);
+      return [];
+    }
+  }
   
   /**
    * Get the most recently modified project

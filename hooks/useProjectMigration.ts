@@ -14,7 +14,8 @@ export function useProjectMigration() {
     // Peek at local projects; do not block UI
     (async () => {
       try {
-        const list = await ProjectStorage.listProjects();
+        // Only consider local (browser) projects for migration prompting
+        const list = await ProjectStorage.listLocalProjects();
         if (!list || list.length === 0) {
           setChecked(true);
           return;
@@ -47,4 +48,3 @@ export function useProjectMigration() {
     })();
   }, [status, checked]);
 }
-
