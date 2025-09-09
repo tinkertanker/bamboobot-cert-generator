@@ -2,6 +2,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getEmailProvider } from '@/lib/email/provider-factory';
 import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
 import type { EmailAttachment } from '@/lib/email/types';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { rateLimit, buildKey } from '@/lib/rate-limit';
 
 export const config = {
   api: {
@@ -17,6 +19,22 @@ export default async function handler(
 ): Promise<void> {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  // Auth + rate limit
+  const session = await requireAuth(req, res);
+  if (!session) return;
+  const userId = (session.user as any).id as string;
+  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  const key = buildKey({ userId, ip, route: 'send-email', category: 'email' });
+  const rl = rateLimit(key, 'email');
+  res.setHeader('X-RateLimit-Limit', String(rl.limit));
+  res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
+  res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+  if (!rl.allowed) {
+    res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000))));
+    res.status(429).json({ error: 'Too many emails sent. Please wait before sending more.' });
     return;
   }
 

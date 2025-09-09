@@ -36,7 +36,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         imageStatus,
       };
     });
-    return res.status(200).json({ projects });
+    res.status(200).json({ projects });
+    return;
   }
 
   if (req.method === 'POST') {
@@ -48,15 +49,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         data: { name: String(name).trim(), data, ownerId: userId, clientProjectId: clientProjectId ?? null },
         select: { id: true, name: true, createdAt: true, updatedAt: true },
       });
-      return res.status(201).json({ project: created });
+      res.status(201).json({ project: created });
+      return;
     } catch (e: any) {
       // unique constraint on (ownerId, name)
-      if (e?.code === 'P2002') return res.status(409).json({ error: 'Project name already exists' });
+      if (e?.code === 'P2002') { res.status(409).json({ error: 'Project name already exists' }); return; }
       console.error('Create project error:', e);
-      return res.status(500).json({ error: 'Failed to create project' });
+      res.status(500).json({ error: 'Failed to create project' });
+      return;
     }
   }
 
   res.setHeader('Allow', 'GET,POST');
-  return res.status(405).end();
+  res.status(405).end();
+  return;
 }

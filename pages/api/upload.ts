@@ -7,6 +7,8 @@ import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
 import { getTempImagesDir, ensureAllDirectoriesExist, ensureDirectoryExists } from '@/lib/paths';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { debug, error } from '@/lib/log';
+import { rateLimit, buildKey } from '@/lib/rate-limit';
 
 export const config = {
   api: {
@@ -23,6 +25,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const session = await requireAuth(req, res);
   if (!session) return;
   const userId = (session.user as any).id as string;
+  // Rate limit uploads
+  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  const key = buildKey({ userId, ip, route: 'upload', category: 'upload' });
+  const rl = rateLimit(key, 'upload');
+  res.setHeader('X-RateLimit-Limit', String(rl.limit));
+  res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
+  res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+  if (!rl.allowed) {
+    res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000))));
+    res.status(429).json({ error: 'Too many uploads. Please wait a moment and try again.' });
+    return;
+  }
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
@@ -56,7 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     formidableTempDir = userTempDir; // fallback
   }
   
-  console.log('Upload configuration:', {
+  debug('Upload configuration:', {
     tempDir: userTempDir,
     formidableTempDir,
     maxFileSize: MAX_FILE_SIZE,
@@ -74,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { files } = await new Promise<{fields: Fields, files: Files}>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
-          console.error('Formidable parse error:', {
+          error('Formidable parse error:', {
             error: err.message,
             code: (err as Error & { code?: string }).code,
             httpCode: (err as Error & { httpCode?: number }).httpCode,
@@ -109,7 +123,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const baseFromName = path.basename(originalName, path.extname(originalName)) || 'upload';
     const safeBase = baseFromName.replace(/[^a-z0-9_-]/gi, '_');
     const fileExtension = mimetype === 'image/png' ? '.png' : '.jpg';
-    console.log('Upload name resolution:', { originalName, detectedExt: fileExtension, mimetype });
+    debug('Upload name resolution:', { originalName, detectedExt: fileExtension, mimetype });
 
     if (mimetype !== 'image/png' && mimetype !== 'image/jpeg') {
       res.status(400).json({ error: 'The input is not a PNG or JPEG file!' });
@@ -142,7 +156,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await fsPromises.writeFile(pdfFilepath, pdfBytes);
     
     if (storageConfig.isR2Enabled) {
-      console.log('Uploading to R2...');
+      debug('Uploading to R2...');
       
       // Upload original image to R2 for display
       const uploadResult = await uploadToR2(
@@ -157,7 +171,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const imageFilepath = path.join(userTempDir, imageName);
       await fsPromises.copyFile(filepath, imageFilepath);
       
-      console.log('R2 upload successful:', imageUrl);
+      debug('R2 upload successful:', imageUrl);
     } else {
       // Fallback to local storage - always use temp_images for user uploads
       const imageFilepath = path.join(userTempDir, imageName);
@@ -165,7 +179,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       imageUrl = storageConfig.getFileUrl(`u_${userId}/${imageName}`, undefined, 'temp_images');
     }
     
-    console.log("imageUrl:", imageUrl);
+    debug('imageUrl:', imageUrl);
 
     res.status(200).json({
       message: 'Template uploaded successfully',
@@ -175,7 +189,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     return;
   } catch (err) {
-    console.error('Upload error:', err);
+    error('Upload error:', err);
     
     const error = err as Error & { code?: string; httpCode?: number };
     

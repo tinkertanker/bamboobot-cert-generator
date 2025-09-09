@@ -52,7 +52,8 @@ const STORAGE_LIMIT_BYTES = 5 * 1024 * 1024; // 5MB limit for localStorage
 
 export class ProjectStorage {
   private static get serverEnabled(): boolean {
-    // Allow either new NEXT_PUBLIC_* or legacy flag name
+    // Only enable in browser environments, and only when flag is explicitly set
+    if (typeof window === 'undefined') return false;
     const v = (process.env.NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE || process.env.PROJECT_SERVER_PERSISTENCE || '').toString().toLowerCase();
     return v === 'true' || v === '1';
   }

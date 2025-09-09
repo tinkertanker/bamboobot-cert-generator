@@ -10,11 +10,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
-    return res.status(405).end();
+    res.status(405).end();
+    return;
   }
 
   const { projects } = req.body ?? {};
-  if (!Array.isArray(projects)) return res.status(400).json({ error: 'projects array required' });
+  if (!Array.isArray(projects)) { res.status(400).json({ error: 'projects array required' }); return; }
 
   try {
     const ops = projects.map((p: any) => {
@@ -51,10 +52,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    return res.status(200).json({ imported: created.length });
+    res.status(200).json({ imported: created.length });
+    return;
   } catch (e) {
     console.error('Import projects error:', e);
-    return res.status(500).json({ error: 'Failed to import projects' });
+    res.status(500).json({ error: 'Failed to import projects' });
+    return;
   }
 }
-

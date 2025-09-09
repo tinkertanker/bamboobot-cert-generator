@@ -8,12 +8,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const userId = (session.user as any).id as string;
   const { id } = req.query as { id: string };
 
-  if (!id) return res.status(400).json({ error: 'id is required' });
+  if (!id) { res.status(400).json({ error: 'id is required' }); return; }
 
   if (req.method === 'GET') {
     const project = await prisma.project.findFirst({ where: { id, ownerId: userId } });
-    if (!project) return res.status(404).json({ error: 'Not found' });
-    return res.status(200).json({ project });
+    if (!project) { res.status(404).json({ error: 'Not found' }); return; }
+    res.status(200).json({ project });
+    return;
   }
 
   if (req.method === 'PUT') {
@@ -23,29 +24,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         where: { id },
         data: { name: name ? String(name).trim() : undefined, data: data ?? undefined },
       });
-      if (updated.ownerId !== userId) return res.status(403).json({ error: 'Forbidden' });
-      return res.status(200).json({ project: updated });
+      if (updated.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
+      res.status(200).json({ project: updated });
+      return;
     } catch (e: any) {
-      if (e?.code === 'P2025') return res.status(404).json({ error: 'Not found' });
-      if (e?.code === 'P2002') return res.status(409).json({ error: 'Project name already exists' });
+      if (e?.code === 'P2025') { res.status(404).json({ error: 'Not found' }); return; }
+      if (e?.code === 'P2002') { res.status(409).json({ error: 'Project name already exists' }); return; }
       console.error('Update project error:', e);
-      return res.status(500).json({ error: 'Failed to update project' });
+      res.status(500).json({ error: 'Failed to update project' });
+      return;
     }
   }
 
   if (req.method === 'DELETE') {
     try {
       const existing = await prisma.project.findUnique({ where: { id } });
-      if (!existing || existing.ownerId !== userId) return res.status(404).json({ error: 'Not found' });
+      if (!existing || existing.ownerId !== userId) { res.status(404).json({ error: 'Not found' }); return; }
       await prisma.project.delete({ where: { id } });
-      return res.status(204).end();
+      res.status(204).end();
+      return;
     } catch (e) {
       console.error('Delete project error:', e);
-      return res.status(500).json({ error: 'Failed to delete project' });
+      res.status(500).json({ error: 'Failed to delete project' });
+      return;
     }
   }
 
   res.setHeader('Allow', 'GET,PUT,DELETE');
-  return res.status(405).end();
+  res.status(405).end();
+  return;
 }
-

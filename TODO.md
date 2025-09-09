@@ -1,5 +1,30 @@
 # TODOs
 
+## Progress Snapshot (Sept 2025)
+
+- **Auth + Gating:** Google login via NextAuth with JWT sessions; middleware protects pages/APIs; public marketing home at `/`. Key: `pages/api/auth/[...nextauth].ts`, `middleware.ts`, `pages/index.tsx`, `pages/app.tsx`, `pages/_app.tsx`.
+- **Persistence:** Prisma + SQLite projects with CRUD and idempotent import; ownership checks throughout. Key: `prisma/schema.prisma`, `lib/server/prisma.ts`, `pages/api/projects/*`.
+- **Files & Storage:** User‑scoped uploads; protected serving for temp/generated; R2/S3 aware. Key: `pages/api/upload.ts`, `pages/api/files/*`, `lib/r2-client.ts`, `lib/storage-config.ts`.
+- **Admin:** Dashboard with users/projects and 7‑day active users. Key: `pages/dashboard.tsx` (emails in `ADMIN_EMAILS`).
+- **Rate Limiting:** In‑memory limiter with headers and graceful 400/429 ordering. Key: `lib/rate-limit.ts`; applied to `upload`, `generate`, `generate-progressive`, `zip-pdfs`, `send-email`, `send-bulk-email`.
+- **Activity Tracking:** `lastActiveAt` touch on requests + heartbeat pinger. Key: `lib/auth/requireAuth.ts`, `pages/api/metrics/heartbeat.ts`, `components/AuthHeartbeat.tsx` (wired in `_app.tsx`).
+- **Logging Hygiene:** Added `lib/log.ts`; switched noisy API logs to `debug()` (silent in production) while keeping errors visible.
+- **Tests/Build:** New/updated unit tests (rate limit + email). All Jest suites passing locally and Next.js build verified.
+- **Secrets/Ops:** `.env` is ignored by git (not committed) and now excluded from Docker build context (added to `.dockerignore`).
+
+**Env Flags To Tweak**
+- **Auth:** `NEXT_PUBLIC_REQUIRE_AUTH`
+- **Admin:** `ADMIN_EMAILS`
+- **Limits:** `RATE_LIMIT_WINDOW_SECONDS`, `RATE_LIMIT_*_PER_MIN`
+- **Storage/Email:** existing R2/S3/Resend/SES variables
+
+**Open Items (Next)**
+- **Rate limits (prod):** Move to Redis for multi‑instance deployments.
+- **UI logging:** Convert remaining `console.log` in hooks/components to `lib/log` if we want quieter consoles.
+- **Types polish:** Reduce lingering `any` in APIs and hooks (lint‑only).
+- **E2E:** Add Playwright auth‑redirect + first‑login import coverage with auth gating enabled.
+
+
 ## Actual things I wanted to do. Maximum priority!
 
 - [x] ✅ I get the nagging feeling that there's a lot of confusion over server-side rendering and client-side rendering in the code. Does this need to be cleaned up?

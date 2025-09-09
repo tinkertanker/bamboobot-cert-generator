@@ -57,7 +57,8 @@ export function LoadProjectModal({
 
     try {
       let project: SavedProject | null = null;
-      if (ProjectStorage.isServerMode()) {
+      const canServer = (ProjectStorage as any).isServerMode ? (ProjectStorage as any).isServerMode() : false;
+      if (canServer) {
         project = await ProjectStorage.loadProjectServer(selectedProjectId);
       } else {
         project = ProjectStorage.loadProject(selectedProjectId);

@@ -2,11 +2,22 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getEmailProvider } from '@/lib/email/provider-factory';
 import { EmailQueueManager } from '@/lib/email/email-queue';
 import { EmailParams } from '@/lib/email/types';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { rateLimit, buildKey } from '@/lib/rate-limit';
 
 // Store queue managers in memory (in production, use Redis or database)
 const queueManagers = new Map<string, EmailQueueManager>();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+  // Require auth for all bulk email operations
+  const session = await requireAuth(req, res);
+  if (!session) return;
+  const userId = (session.user as any).id as string;
+  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  // Pass to subhandlers
+  (req as any).__uid = userId;
+  (req as any).__ip = ip;
+
   if (req.method === 'POST') {
     await handlePost(req, res);
     return;
@@ -35,6 +46,15 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       res.status(400).json({ error: 'Email configuration incomplete' });
       return;
     }
+
+    // Rate limit after validation
+    const userId = (req as any).__uid as string | undefined;
+    const ip = ((req as any).__ip as string | null) ?? null;
+    const rl = rateLimit(buildKey({ userId, ip, route: 'send-bulk-email:POST', category: 'email' }), 'email');
+    res.setHeader('X-RateLimit-Limit', String(rl.limit));
+    res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
+    res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+    if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Email rate limit exceeded.' }); return; }
 
     // Get or create queue manager for this session
     let queueManager = queueManagers.get(sessionId);
@@ -141,6 +161,15 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
       return;
     }
 
+    // Light rate limit after validation
+    const userId = (req as any).__uid as string | undefined;
+    const ip = ((req as any).__ip as string | null) ?? null;
+    const rl = rateLimit(buildKey({ userId, ip, route: 'send-bulk-email:GET', category: 'api' }), 'api');
+    res.setHeader('X-RateLimit-Limit', String(rl.limit));
+    res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
+    res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+    if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Too many status checks.' }); return; }
+
     const queueManager = queueManagers.get(sessionId);
     if (!queueManager) {
       res.status(200).json({
@@ -177,6 +206,15 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
       res.status(404).json({ error: 'No active queue found' });
       return;
     }
+
+    // Rate limit after validation
+    const userId = (req as any).__uid as string | undefined;
+    const ip = ((req as any).__ip as string | null) ?? null;
+    const rl = rateLimit(buildKey({ userId, ip, route: 'send-bulk-email:PUT', category: 'api' }), 'api');
+    res.setHeader('X-RateLimit-Limit', String(rl.limit));
+    res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
+    res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+    if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Too many control requests.' }); return; }
 
     if (action === 'pause') {
       await queueManager.pause();

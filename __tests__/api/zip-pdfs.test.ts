@@ -1,4 +1,6 @@
 import { createMocks } from 'node-mocks-http';
+jest.mock('@/pages/api/auth/[...nextauth]', () => ({ __esModule: true, authOptions: {}, default: jest.fn() }));
+jest.mock('@/lib/auth/requireAuth', () => ({ requireAuth: jest.fn(async () => ({ user: { id: 'u1' } })) }));
 import handler from '@/pages/api/zip-pdfs';
 import fs from 'fs';
 import path from 'path';

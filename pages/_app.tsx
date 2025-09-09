@@ -2,6 +2,7 @@ import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import localFont from 'next/font/local';
 import { SessionProvider } from 'next-auth/react';
+import { AuthHeartbeat } from '@/components/AuthHeartbeat';
 import "../styles/globals.css";
 
 // Switch to local fonts to avoid network fetch during build/tests.
@@ -93,6 +94,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <div className={`${rubik.variable} ${montserrat.variable} ${poppins.variable} ${sourceSansPro.variable} ${nunito.variable} ${greatVibes.variable} ${archivo.variable} antialiased`}>
+        <AuthHeartbeat />
         <Component {...pageProps} />
       </div>
     </SessionProvider>
