@@ -27,15 +27,6 @@
 
 ## Actual things I wanted to do. Maximum priority!
 
-- [x] ✅ I get the nagging feeling that there's a lot of confusion over server-side rendering and client-side rendering in the code. Does this need to be cleaned up?
-  - **COMPLETED (Sept 2025)**: Cleaned up the confusion. Now CLIENT-FIRST by default:
-    - Client-side PDF generation is now the DEFAULT when supported
-    - Server-side is only used as fallback (unsupported browsers) or when explicitly requested in Dev Mode
-    - Updated `usePdfGenerationMethods` hook to prioritize client-side
-    - Added clear documentation and legacy markers to all server-side code
-    - Updated CLAUDE.md and CLIENT_SIDE_PDF.md to reflect this philosophy
-- [x] ✅ Text field colour should adapt to the general tone of the background image. If it's a dark background, make a light colour for the text.
-  - COMPLETED: On image load, the app analyzes average image luminance and auto-sets default text colours to ensure contrast (white on dark images, black on light images). Existing custom colours are preserved; only default black/white values are adapted.
 - [ ] We should have some kind of email download links; see below.
 
 ## Future Enhancement: Email Download Links for Client-Side PDFs
