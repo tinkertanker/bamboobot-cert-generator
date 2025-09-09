@@ -9,13 +9,14 @@ export async function middleware(req: NextRequest) {
 
   const { pathname } = req.nextUrl;
 
-  // Always allow auth routes, static assets, and root marketing page
+  // Always allow auth routes, Next internals, and static assets (including root-level files from /public)
   if (
     pathname === '/' ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
-    pathname.startsWith('/public')
+    pathname.startsWith('/public') ||
+    /\.(?:png|jpg|jpeg|gif|svg|ico|webp|avif|txt|xml|json|map)$/i.test(pathname)
   ) {
     return NextResponse.next();
   }
@@ -42,6 +43,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api/auth|_next|favicon|public).*)'],
+  // Match all routes except Next internals, auth routes, and any path with a file extension
+  matcher: ['/((?!api/auth|_next|favicon|public|.*\\..*).*)'],
 };
-
