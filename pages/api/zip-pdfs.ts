@@ -133,8 +133,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Finalize the archive
     await archive.finalize();
 
-  } catch (error) {
-    error('ZIP creation error:', error);
+  } catch (err) {
+    error('ZIP creation error:', err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to create ZIP file' });
     }

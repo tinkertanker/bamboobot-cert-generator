@@ -70,11 +70,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.status(405).json({ error: 'Method not allowed' });
         return;
     }
-  } catch (error) {
-    error('Progressive generation error:', error);
+  } catch (err) {
+    error('Progressive generation error:', err);
     res.status(500).json({ 
       error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: err instanceof Error ? err.message : 'Unknown error'
     });
     return;
   }
@@ -145,9 +145,9 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       message: 'PDF generation started'
     });
     return;
-  } catch (error) {
+  } catch (err) {
     sessionManager.removeSession(sessionId);
-    throw error;
+    throw err;
   }
 }
 
@@ -233,9 +233,9 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
       status: queueManager.getProgress().status
     });
     return;
-  } catch (error) {
+  } catch (err) {
     res.status(400).json({
-      error: error instanceof Error ? error.message : 'Action failed'
+      error: err instanceof Error ? err.message : 'Action failed'
     });
     return;
   }
@@ -325,8 +325,8 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
     } else if (progress.status === 'completed') {
       debug(`Session ${sessionId} completed: ${progress.processed} processed, ${progress.failed} failed`);
   }
-  } catch (error) {
-    error(`Error processing batch for session ${sessionId}:`, error);
+  } catch (err) {
+    error(`Error processing batch for session ${sessionId}:`, err);
     await queueManager.cancel();
   }
 }

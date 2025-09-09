@@ -213,6 +213,7 @@ export class ProjectStorage {
         // Instead, expose an async helper below; but for minimal change, we throw here to encourage async usage.
         // However, some UI depends on sync call (LoadProjectModal). Provide a best-effort async shim via fetch+sync wait is not viable.
         // So we return null here and expect async path usage elsewhere. (Kept for backward compatibility.)
+        return null;
       }
       // Try new key first
       let key = `${STORAGE_KEY_PREFIX}${id}`;

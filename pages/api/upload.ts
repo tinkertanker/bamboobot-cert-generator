@@ -191,10 +191,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } catch (err) {
     error('Upload error:', err);
     
-    const error = err as Error & { code?: string; httpCode?: number };
+    const errObj = err as Error & { code?: string; httpCode?: number };
     
     // Provide more specific error messages
-    if (error.code === 'LIMIT_FILE_SIZE' || error.httpCode === 413) {
+    if (errObj.code === 'LIMIT_FILE_SIZE' || errObj.httpCode === 413) {
       const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
       res.status(413).json({ 
         error: `File size exceeds maximum allowed size of ${maxSizeMB}MB` 
@@ -202,14 +202,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
     
-    if (error.code === 'ENOENT') {
+    if (errObj.code === 'ENOENT') {
       res.status(500).json({ 
         error: 'Server configuration error: Unable to save uploaded file. Please contact support.' 
       });
       return;
     }
     
-    if (error.code === 'EACCES') {
+    if (errObj.code === 'EACCES') {
       res.status(500).json({ 
         error: 'Server configuration error: Permission denied. Please contact support.' 
       });
@@ -217,7 +217,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     
     // Check for generic file size error messages
-    if (error.message && error.message.includes('maxFileSize exceeded')) {
+    if (errObj.message && errObj.message.includes('maxFileSize exceeded')) {
       const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
       res.status(413).json({ 
         error: `File size exceeds maximum allowed size of ${maxSizeMB}MB` 
@@ -227,7 +227,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     res.status(500).json({ 
       error: process.env.NODE_ENV === 'development' 
-        ? `Error uploading file: ${error.message}` 
+        ? `Error uploading file: ${errObj.message}` 
         : 'Error uploading file. Please try again.'
     });
     return;

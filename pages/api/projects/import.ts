@@ -23,13 +23,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const clientProjectId: string | null = p?.id ? String(p.id) : null;
       // Keep entire payload in data for compatibility
       const data = p ?? {};
-      return prisma.project.upsert({
-        where: {
-          // Prefer clientProjectId matching; fallback to name uniqueness
-          id: '', // will be unused; we use composite check via name + owner in below create
-        },
-        update: {}, // unreachable; using createMany-like semantics via create or ignore
-        create: { ownerId: userId, name, data, clientProjectId, importSource: 'localStorage' },
+      return prisma.project.create({
+        data: { ownerId: userId, name, data, clientProjectId, importSource: 'localStorage' },
       });
     });
 
