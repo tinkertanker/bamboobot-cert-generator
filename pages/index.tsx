@@ -19,7 +19,7 @@ export default function MarketingPage() {
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-white to-emerald-50 px-6 text-center">
       <div className="max-w-2xl">
         <div className="mb-6 flex justify-center">
-          <Image src="/bamboobot-icon.png" alt="Bamboobot" width={64} height={64} className="mx-auto" />
+          <Image src="/bamboobot-icon.png" alt="Bamboobot" width={64} height={64} />
         </div>
         <h1 className="text-4xl font-bold tracking-tight text-emerald-900">Bamboobot Certificate Generator</h1>
         <p className="mt-3 text-lg text-emerald-800 opacity-90">

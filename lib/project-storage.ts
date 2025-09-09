@@ -209,10 +209,8 @@ export class ProjectStorage {
   static loadProject(id: string): SavedProject | null {
     try {
       if (this.serverEnabled) {
-        // Synchronous signature retained for legacy callers; we use deasync via sync XHR not allowed.
-        // Instead, expose an async helper below; but for minimal change, we throw here to encourage async usage.
-        // However, some UI depends on sync call (LoadProjectModal). Provide a best-effort async shim via fetch+sync wait is not viable.
-        // So we return null here and expect async path usage elsewhere. (Kept for backward compatibility.)
+        // Returns null in server mode to encourage use of the async loadProjectServer() method.
+        // Legacy synchronous API is maintained for backward compatibility.
         return null;
       }
       // Try new key first
