@@ -23,8 +23,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const project = p as Record<string, unknown>;
       const name: string = (project?.name ?? 'Imported Project').toString().trim();
       const clientProjectId: string | null = project?.id ? String(project.id) : null;
-      // Keep entire payload in data for compatibility
-      const data = project ?? {};
+      // Keep entire payload in data for compatibility - must be JSON-serializable
+      const data = JSON.parse(JSON.stringify(project ?? {}));
       return prisma.project.create({
         data: { ownerId: userId, name, data, clientProjectId, importSource: 'localStorage' },
       });
@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // duplicate name for this user; append suffix
           const createArgs = (op as { args?: { data?: { name?: string; data?: unknown; clientProjectId?: string | null } } })?.args?.data;
           const base = createArgs?.name || 'Imported Project';
-          const data = createArgs?.data || {};
+          const data = JSON.parse(JSON.stringify(createArgs?.data || {}));
           const clientProjectId = createArgs?.clientProjectId || null;
           const alt = `${base} (Imported ${new Date().toISOString().slice(0,10)})`;
           created.push(await prisma.project.create({ data: { ownerId: userId, name: alt, data, clientProjectId, importSource: 'localStorage' } }));

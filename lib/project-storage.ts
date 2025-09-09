@@ -252,10 +252,10 @@ export class ProjectStorage {
       if (!p) return null;
       const base = (p.data ?? {}) as Partial<SavedProject>;
       const safe: SavedProject = {
-        id: p.id,
-        name: p.name || base.name || 'Untitled',
-        created: p.createdAt || base.created || new Date().toISOString(),
-        lastModified: p.updatedAt || base.lastModified || new Date().toISOString(),
+        id: String(p.id),
+        name: String(p.name || base.name || 'Untitled'),
+        created: String(p.createdAt || base.created || new Date().toISOString()),
+        lastModified: String(p.updatedAt || base.lastModified || new Date().toISOString()),
         version: '1.0',
         positions: (base as SavedProject)?.positions ?? {},
         columns: (base as SavedProject)?.columns ?? [],
