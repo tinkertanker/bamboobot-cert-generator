@@ -1,16 +1,52 @@
 # TODOs
 
-## Progress Snapshot (Sept 2025)
+## Admin Panel Roadmap
 
-- **Auth + Gating:** Google login via NextAuth with JWT sessions; middleware protects pages/APIs; public marketing home at `/`. Key: `pages/api/auth/[...nextauth].ts`, `middleware.ts`, `pages/index.tsx`, `pages/app.tsx`, `pages/_app.tsx`.
-- **Persistence:** Prisma + SQLite projects with CRUD and idempotent import; ownership checks throughout. Key: `prisma/schema.prisma`, `lib/server/prisma.ts`, `pages/api/projects/*`.
-- **Files & Storage:** User‑scoped uploads; protected serving for temp/generated; R2/S3 aware. Key: `pages/api/upload.ts`, `pages/api/files/*`, `lib/r2-client.ts`, `lib/storage-config.ts`.
-- **Admin:** Dashboard with users/projects and 7‑day active users. Key: `pages/dashboard.tsx` (emails in `ADMIN_EMAILS`).
-- **Rate Limiting:** In‑memory limiter with headers and graceful 400/429 ordering. Key: `lib/rate-limit.ts`; applied to `upload`, `generate`, `generate-progressive`, `zip-pdfs`, `send-email`, `send-bulk-email`.
-- **Activity Tracking:** `lastActiveAt` touch on requests + heartbeat pinger. Key: `lib/auth/requireAuth.ts`, `pages/api/metrics/heartbeat.ts`, `components/AuthHeartbeat.tsx` (wired in `_app.tsx`).
-- **Logging Hygiene:** Added `lib/log.ts`; switched noisy API logs to `debug()` (silent in production) while keeping errors visible.
-- **Tests/Build:** New/updated unit tests (rate limit + email). All Jest suites passing locally and Next.js build verified.
-- **Secrets/Ops:** `.env` is ignored by git (not committed) and now excluded from Docker build context (added to `.dockerignore`).
+Goals
+- Give admins clear visibility into usage, health, and content.
+- Provide safe management tools with audit trails and least‑privilege.
+
+MVP Scope (Phase 1)
+- Overview: tiles for users, projects, active 7d, emails sent 24h, rate‑limit hits.
+- Users: searchable list, last active, project count; view‑only.
+- Projects: recent projects with owner, size, last modified; soft delete/restore.
+- Activity: last 100 actions (sign‑ins, imports, generates) with timestamps.
+- System: storage usage (local/R2), queue/backlog estimates, env sanity checks.
+
+Phase 2
+- User management: deactivate/reactivate, force passwordless invite, impersonate (secure, audited).
+- Project tools: transfer ownership, export JSON, verify image assets, bulk delete.
+- Emails: delivery log (status, provider response), re‑send failed, rate dashboards.
+- Rate limiting: per‑route charts, banlist allowlist controls, IP/user views.
+- Feature flags: toggles for experimental features (client PDFs, progressive gen).
+- Support: in‑app admin notes on users/projects; canned diagnostics export.
+
+Data Model Additions (Prisma)
+- AuditLog { id, actorId, action, targetType, targetId, metadata Json, createdAt }
+- EmailLog { id, userId, projectId?, status, provider, response Json, createdAt }
+- Flag { key unique, value Json, updatedAt }
+
+APIs
+- GET/POST `/api/admin/audit`, `/api/admin/users`, `/api/admin/projects`, `/api/admin/rate`, `/api/admin/emails`, `/api/admin/flags`.
+- All endpoints require admin check via `ADMIN_EMAILS` and JWT.
+
+Access Control & Security
+- Gate UI and APIs behind admin middleware; server‑verify on every request.
+- No destructive actions without confirmation; require reason text for deletes/transfers.
+- Full audit log for all admin actions; include actor, IP, user‑agent.
+
+Observability
+- Surface error rates (5xx), slow endpoints (p95), queue lengths if applicable.
+- Add lightweight server counters; later wire to external monitoring.
+
+Testing
+- Playwright admin flows (auth, navigation, soft delete/restore).
+- Unit tests for audit logging and permission checks.
+
+Rollout Plan
+- P1: Overview + Users/Projects read‑only + AuditLog write.
+- P2: Safe writes (soft delete/restore, transfers) + Email/Rate views.
+- P3: Feature flags, impersonation (guarded), exports.
 
 **Env Flags To Tweak**
 - **Auth:** `NEXT_PUBLIC_REQUIRE_AUTH`
