@@ -248,7 +248,7 @@ export class ProjectStorage {
       const res = await fetch(`/api/projects/${id}`);
       if (!res.ok) return null;
       const json = await res.json();
-      const p = json?.project as any;
+      const p = json?.project as Record<string, unknown>;
       if (!p) return null;
       const base = (p.data ?? {}) as Partial<SavedProject>;
       const safe: SavedProject = {
@@ -257,17 +257,17 @@ export class ProjectStorage {
         created: p.createdAt || base.created || new Date().toISOString(),
         lastModified: p.updatedAt || base.lastModified || new Date().toISOString(),
         version: '1.0',
-        positions: (base as any)?.positions ?? {},
-        columns: (base as any)?.columns ?? [],
-        tableData: (base as any)?.tableData ?? [],
-        emailConfig: (base as any)?.emailConfig,
+        positions: (base as SavedProject)?.positions ?? {},
+        columns: (base as SavedProject)?.columns ?? [],
+        tableData: (base as SavedProject)?.tableData ?? [],
+        emailConfig: (base as SavedProject)?.emailConfig,
         certificateImage: {
-          url: (base as any)?.certificateImage?.url ?? '',
-          filename: (base as any)?.certificateImage?.filename ?? '',
-          uploadedAt: (base as any)?.certificateImage?.uploadedAt ?? new Date().toISOString(),
-          isCloudStorage: (base as any)?.certificateImage?.isCloudStorage ?? false,
-          storageProvider: (base as any)?.certificateImage?.storageProvider,
-          checksum: (base as any)?.certificateImage?.checksum,
+          url: (base as SavedProject)?.certificateImage?.url ?? '',
+          filename: (base as SavedProject)?.certificateImage?.filename ?? '',
+          uploadedAt: (base as SavedProject)?.certificateImage?.uploadedAt ?? new Date().toISOString(),
+          isCloudStorage: (base as SavedProject)?.certificateImage?.isCloudStorage ?? false,
+          storageProvider: (base as SavedProject)?.certificateImage?.storageProvider,
+          checksum: (base as SavedProject)?.certificateImage?.checksum,
         },
       };
       return safe;
