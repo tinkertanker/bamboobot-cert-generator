@@ -1,16 +1,68 @@
 # TODOs
 
+## Admin Panel Roadmap
+
+Goals
+- Give admins clear visibility into usage, health, and content.
+- Provide safe management tools with audit trails and least‑privilege.
+
+MVP Scope (Phase 1)
+- Overview: tiles for users, projects, active 7d, emails sent 24h, rate‑limit hits.
+- Users: searchable list, last active, project count; view‑only.
+- Projects: recent projects with owner, size, last modified; soft delete/restore.
+- Activity: last 100 actions (sign‑ins, imports, generates) with timestamps.
+- System: storage usage (local/R2), queue/backlog estimates, env sanity checks.
+
+Phase 2
+- User management: deactivate/reactivate, force passwordless invite, impersonate (secure, audited).
+- Project tools: transfer ownership, export JSON, verify image assets, bulk delete.
+- Emails: delivery log (status, provider response), re‑send failed, rate dashboards.
+- Rate limiting: per‑route charts, banlist allowlist controls, IP/user views.
+- Feature flags: toggles for experimental features (client PDFs, progressive gen).
+- Support: in‑app admin notes on users/projects; canned diagnostics export.
+
+Data Model Additions (Prisma)
+- AuditLog { id, actorId, action, targetType, targetId, metadata Json, createdAt }
+- EmailLog { id, userId, projectId?, status, provider, response Json, createdAt }
+- Flag { key unique, value Json, updatedAt }
+
+APIs
+- GET/POST `/api/admin/audit`, `/api/admin/users`, `/api/admin/projects`, `/api/admin/rate`, `/api/admin/emails`, `/api/admin/flags`.
+- All endpoints require admin check via `ADMIN_EMAILS` and JWT.
+
+Access Control & Security
+- Gate UI and APIs behind admin middleware; server‑verify on every request.
+- No destructive actions without confirmation; require reason text for deletes/transfers.
+- Full audit log for all admin actions; include actor, IP, user‑agent.
+
+Observability
+- Surface error rates (5xx), slow endpoints (p95), queue lengths if applicable.
+- Add lightweight server counters; later wire to external monitoring.
+
+Testing
+- Playwright admin flows (auth, navigation, soft delete/restore).
+- Unit tests for audit logging and permission checks.
+
+Rollout Plan
+- P1: Overview + Users/Projects read‑only + AuditLog write.
+- P2: Safe writes (soft delete/restore, transfers) + Email/Rate views.
+- P3: Feature flags, impersonation (guarded), exports.
+
+**Env Flags To Tweak**
+- **Auth:** `NEXT_PUBLIC_REQUIRE_AUTH`
+- **Admin:** `ADMIN_EMAILS`
+- **Limits:** `RATE_LIMIT_WINDOW_SECONDS`, `RATE_LIMIT_*_PER_MIN`
+- **Storage/Email:** existing R2/S3/Resend/SES variables
+
+**Open Items (Next)**
+- **Rate limits (prod):** Move to Redis for multi‑instance deployments.
+- **UI logging:** Convert remaining `console.log` in hooks/components to `lib/log` if we want quieter consoles.
+- **Types polish:** Reduce lingering `any` in APIs and hooks (lint‑only).
+- **E2E:** Add Playwright auth‑redirect + first‑login import coverage with auth gating enabled.
+
+
 ## Actual things I wanted to do. Maximum priority!
 
-- [x] ✅ I get the nagging feeling that there's a lot of confusion over server-side rendering and client-side rendering in the code. Does this need to be cleaned up?
-  - **COMPLETED (Sept 2025)**: Cleaned up the confusion. Now CLIENT-FIRST by default:
-    - Client-side PDF generation is now the DEFAULT when supported
-    - Server-side is only used as fallback (unsupported browsers) or when explicitly requested in Dev Mode
-    - Updated `usePdfGenerationMethods` hook to prioritize client-side
-    - Added clear documentation and legacy markers to all server-side code
-    - Updated CLAUDE.md and CLIENT_SIDE_PDF.md to reflect this philosophy
-- [x] ✅ Text field colour should adapt to the general tone of the background image. If it's a dark background, make a light colour for the text.
-  - COMPLETED: On image load, the app analyzes average image luminance and auto-sets default text colours to ensure contrast (white on dark images, black on light images). Existing custom colours are preserved; only default black/white values are adapted.
 - [ ] We should have some kind of email download links; see below.
 
 ## Future Enhancement: Email Download Links for Client-Side PDFs

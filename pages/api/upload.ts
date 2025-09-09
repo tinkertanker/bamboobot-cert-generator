@@ -5,7 +5,10 @@ import path from 'path';
 import { IncomingForm, File, Fields, Files } from 'formidable';
 import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
-import { getTempImagesDir, ensureAllDirectoriesExist } from '@/lib/paths';
+import { getTempImagesDir, ensureAllDirectoriesExist, ensureDirectoryExists } from '@/lib/paths';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { debug, error } from '@/lib/log';
+import { rateLimit, buildKey } from '@/lib/rate-limit';
 
 export const config = {
   api: {
@@ -18,6 +21,22 @@ const MAX_FILE_SIZE = parseInt(process.env.MAX_UPLOAD_SIZE || '10485760'); // 10
 const UPLOAD_TEMP_DIR = process.env.UPLOAD_TEMP_DIR || null;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+  // Require authentication
+  const session = await requireAuth(req, res);
+  if (!session) return;
+  const userId = (session.user as { id: string }).id;
+  // Rate limit uploads
+  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  const key = buildKey({ userId, ip, route: 'upload', category: 'upload' });
+  const rl = rateLimit(key, 'upload');
+  res.setHeader('X-RateLimit-Limit', String(rl.limit));
+  res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
+  res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+  if (!rl.allowed) {
+    res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000))));
+    res.status(429).json({ error: 'Too many uploads. Please wait a moment and try again.' });
+    return;
+  }
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
@@ -25,25 +44,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Ensure directories exist before processing upload
   ensureAllDirectoriesExist();
-  
-  const tempDir = getTempImagesDir();
-  
-  // Create a dedicated temp directory for formidable in Docker
-  let formidableTempDir = tempDir;
+
+  const baseTempDir = getTempImagesDir();
+  const userTempDir = `${baseTempDir}/u_${userId}`;
+
+  // Ensure user-scoped temp dir exists (both dev/prod)
+  try {
+    ensureDirectoryExists(userTempDir);
+  } catch (err) {
+    console.error('Failed to ensure user temp dir:', err);
+    res.status(500).json({ error: 'Server temp directory error' });
+    return;
+  }
+
+  // Create a dedicated temp directory for formidable; default to user temp dir
+  let formidableTempDir = userTempDir;
   if (process.env.NODE_ENV === 'production' || UPLOAD_TEMP_DIR) {
-    formidableTempDir = UPLOAD_TEMP_DIR || '/app/tmp/uploads';
-    try {
-      await fsPromises.mkdir(formidableTempDir, { recursive: true });
-      await fsPromises.chmod(formidableTempDir, 0o777);
-    } catch (err) {
-      console.error('Failed to create formidable temp directory:', err);
-      // Fall back to default temp directory
-      formidableTempDir = tempDir;
-    }
+    formidableTempDir = UPLOAD_TEMP_DIR ? `${UPLOAD_TEMP_DIR}/u_${userId}` : `/app/tmp/uploads/u_${userId}`;
+  }
+  try {
+    await fsPromises.mkdir(formidableTempDir, { recursive: true });
+    await fsPromises.chmod(formidableTempDir, 0o777).catch(() => {});
+  } catch (err) {
+    console.error('Failed to create formidable temp directory:', err);
+    formidableTempDir = userTempDir; // fallback
   }
   
-  console.log('Upload configuration:', {
-    tempDir,
+  debug('Upload configuration:', {
+    tempDir: userTempDir,
     formidableTempDir,
     maxFileSize: MAX_FILE_SIZE,
     environment: process.env.NODE_ENV
@@ -60,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { files } = await new Promise<{fields: Fields, files: Files}>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
-          console.error('Formidable parse error:', {
+          error('Formidable parse error:', {
             error: err.message,
             code: (err as Error & { code?: string }).code,
             httpCode: (err as Error & { httpCode?: number }).httpCode,
@@ -91,17 +119,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(400).json({ error: 'Missing file path or mime type' });
       return;
     }
-    const filename = path.basename(filepath);
-    const fileExtension = path.extname(filepath); // Get the original file extension
-    console.log("File extension: " + fileExtension);
+    const originalName = (file as File & { originalFilename?: string }).originalFilename || 'upload';
+    const baseFromName = path.basename(originalName, path.extname(originalName)) || 'upload';
+    const safeBase = baseFromName.replace(/[^a-z0-9_-]/gi, '_');
+    const fileExtension = mimetype === 'image/png' ? '.png' : '.jpg';
+    debug('Upload name resolution:', { originalName, detectedExt: fileExtension, mimetype });
 
     if (mimetype !== 'image/png' && mimetype !== 'image/jpeg') {
       res.status(400).json({ error: 'The input is not a PNG or JPEG file!' });
       return;
     }
 
-    let pdfFilename = filename.replace(/\.[^/.]+$/, ""); // Remove existing extension
-    pdfFilename += ".pdf"; // Ensure the filename ends with .pdf
+    const pdfFilename = `${safeBase}.pdf`;
     const imageBytes = await fsPromises.readFile(filepath);
     const pdfDoc = await PDFDocument.create();
 
@@ -116,40 +145,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // Read original image bytes
     const originalImageBytes = await fsPromises.readFile(filepath);
-    const imageName = `${path.basename(filename, fileExtension)}${fileExtension}`;
+    const imageName = `${safeBase}${fileExtension}`;
     
     let imageUrl: string;
     
-    // User uploads always go to temp_images (they're temporary)
+    // User uploads always go to temp_images/user (they're temporary)
     // Only dev-mode templates go to template_images (permanent storage)
-    const pdfFilepath = path.join(tempDir, pdfFilename);
+    await fsPromises.mkdir(userTempDir, { recursive: true });
+    const pdfFilepath = path.join(userTempDir, pdfFilename);
     await fsPromises.writeFile(pdfFilepath, pdfBytes);
     
     if (storageConfig.isR2Enabled) {
-      console.log('Uploading to R2...');
+      debug('Uploading to R2...');
       
       // Upload original image to R2 for display
       const uploadResult = await uploadToR2(
         Buffer.from(originalImageBytes),
-        `temp_images/${imageName}`,
+        `temp_images/u_${userId}/${imageName}`,
         mimetype,
         imageName
       );
       imageUrl = uploadResult.url;
       
       // Also save image locally as backup
-      const imageFilepath = path.join(tempDir, imageName);
+      const imageFilepath = path.join(userTempDir, imageName);
       await fsPromises.copyFile(filepath, imageFilepath);
       
-      console.log('R2 upload successful:', imageUrl);
+      debug('R2 upload successful:', imageUrl);
     } else {
       // Fallback to local storage - always use temp_images for user uploads
-      const imageFilepath = path.join(tempDir, imageName);
+      const imageFilepath = path.join(userTempDir, imageName);
       await fsPromises.copyFile(filepath, imageFilepath);
-      imageUrl = storageConfig.getFileUrl(imageName, undefined, 'temp_images');
+      imageUrl = storageConfig.getFileUrl(`u_${userId}/${imageName}`, undefined, 'temp_images');
     }
     
-    console.log("imageUrl:", imageUrl);
+    debug('imageUrl:', imageUrl);
 
     res.status(200).json({
       message: 'Template uploaded successfully',
@@ -159,12 +189,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
     return;
   } catch (err) {
-    console.error('Upload error:', err);
+    error('Upload error:', err);
     
-    const error = err as Error & { code?: string; httpCode?: number };
+    const errObj = err as Error & { code?: string; httpCode?: number };
     
     // Provide more specific error messages
-    if (error.code === 'LIMIT_FILE_SIZE' || error.httpCode === 413) {
+    if (errObj.code === 'LIMIT_FILE_SIZE' || errObj.httpCode === 413) {
       const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
       res.status(413).json({ 
         error: `File size exceeds maximum allowed size of ${maxSizeMB}MB` 
@@ -172,14 +202,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
     
-    if (error.code === 'ENOENT') {
+    if (errObj.code === 'ENOENT') {
       res.status(500).json({ 
         error: 'Server configuration error: Unable to save uploaded file. Please contact support.' 
       });
       return;
     }
     
-    if (error.code === 'EACCES') {
+    if (errObj.code === 'EACCES') {
       res.status(500).json({ 
         error: 'Server configuration error: Permission denied. Please contact support.' 
       });
@@ -187,7 +217,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     
     // Check for generic file size error messages
-    if (error.message && error.message.includes('maxFileSize exceeded')) {
+    if (errObj.message && errObj.message.includes('maxFileSize exceeded')) {
       const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
       res.status(413).json({ 
         error: `File size exceeds maximum allowed size of ${maxSizeMB}MB` 
@@ -197,7 +227,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     res.status(500).json({ 
       error: process.env.NODE_ENV === 'development' 
-        ? `Error uploading file: ${error.message}` 
+        ? `Error uploading file: ${errObj.message}` 
         : 'Error uploading file. Please try again.'
     });
     return;

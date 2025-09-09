@@ -52,14 +52,25 @@ export function LoadProjectModal({
     }
   };
   
-  const handleLoadProject = () => {
+  const handleLoadProject = async () => {
     if (!selectedProjectId) return;
-    
-    const project = ProjectStorage.loadProject(selectedProjectId);
-    if (project) {
-      onLoadProject(project);
-      handleClose();
-    } else {
+
+    try {
+      let project: SavedProject | null = null;
+      const canServer = (ProjectStorage as any).isServerMode ? (ProjectStorage as any).isServerMode() : false;
+      if (canServer) {
+        project = await ProjectStorage.loadProjectServer(selectedProjectId);
+      } else {
+        project = ProjectStorage.loadProject(selectedProjectId);
+      }
+      if (project) {
+        onLoadProject(project);
+        handleClose();
+      } else {
+        setError('Failed to load project');
+      }
+    } catch (e) {
+      console.error('Load project error:', e);
       setError('Failed to load project');
     }
   };

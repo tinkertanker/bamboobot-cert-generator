@@ -20,30 +20,61 @@ import path from 'path';
 import fs from 'fs/promises';
 import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
+import { debug, error } from '@/lib/log';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { rateLimit, buildKey } from '@/lib/rate-limit';
 
 const sessionManager = PdfSessionManager.getInstance();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+  // Require auth for all methods (middleware also enforces when enabled)
+  const session = await requireAuth(req, res);
+  if (!session) return;
+  const userId = (session.user as any).id as string;
+  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+
   try {
     switch (req.method) {
       case 'POST':
-        await handlePost(req, res);
+        {
+          const rl = rateLimit(buildKey({ userId, ip, route: 'generate-progressive:POST', category: 'generate' }), 'generate');
+          res.setHeader('X-RateLimit-Limit', String(rl.limit));
+          res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
+          res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+          if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Rate limit exceeded for batch generation.' }); return; }
+          await handlePost(req, res);
+        }
         return;
       case 'GET':
-        await handleGet(req, res);
+        {
+          // Light limit for polling
+          const rl = rateLimit(buildKey({ userId, ip, route: 'generate-progressive:GET', category: 'api' }), 'api');
+          res.setHeader('X-RateLimit-Limit', String(rl.limit));
+          res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
+          res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+          if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Too many status checks.' }); return; }
+          await handleGet(req, res);
+        }
         return;
       case 'PUT':
-        await handlePut(req, res);
+        {
+          const rl = rateLimit(buildKey({ userId, ip, route: 'generate-progressive:PUT', category: 'api' }), 'api');
+          res.setHeader('X-RateLimit-Limit', String(rl.limit));
+          res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
+          res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+          if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Too many control requests.' }); return; }
+          await handlePut(req, res);
+        }
         return;
       default:
         res.status(405).json({ error: 'Method not allowed' });
         return;
     }
-  } catch (error) {
-    console.error('Progressive generation error:', error);
+  } catch (err) {
+    error('Progressive generation error:', err);
     res.status(500).json({ 
       error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: err instanceof Error ? err.message : 'Unknown error'
     });
     return;
   }
@@ -114,9 +145,9 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       message: 'PDF generation started'
     });
     return;
-  } catch (error) {
+  } catch (err) {
     sessionManager.removeSession(sessionId);
-    throw error;
+    throw err;
   }
 }
 
@@ -202,9 +233,9 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
       status: queueManager.getProgress().status
     });
     return;
-  } catch (error) {
+  } catch (err) {
     res.status(400).json({
-      error: error instanceof Error ? error.message : 'Action failed'
+      error: err instanceof Error ? err.message : 'Action failed'
     });
     return;
   }
@@ -216,7 +247,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
 async function processNextBatch(sessionId: string, sessionDir: string) {
   const queueManager = sessionManager.getSession(sessionId);
   if (!queueManager) {
-    console.error(`Session ${sessionId} not found`);
+    error(`Session ${sessionId} not found`);
     return;
   }
 
@@ -224,7 +255,7 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
   
   // Check if we should continue processing
   if (queue.status !== 'processing') {
-    console.log(`Session ${sessionId} is not in processing state: ${queue.status}`);
+    debug(`Session ${sessionId} is not in processing state: ${queue.status}`);
     return;
   }
 
@@ -282,7 +313,7 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
       }
     );
 
-    console.log(`Batch processed for session ${sessionId}: ${completed.length} completed, ${failed.length} failed`);
+    debug(`Batch processed for session ${sessionId}: ${completed.length} completed, ${failed.length} failed`);
 
     // Check if there are more items to process
     const progress = queueManager.getProgress();
@@ -292,10 +323,10 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
         processNextBatch(sessionId, sessionDir);
       }, 100);
     } else if (progress.status === 'completed') {
-      console.log(`Session ${sessionId} completed: ${progress.processed} processed, ${progress.failed} failed`);
-    }
-  } catch (error) {
-    console.error(`Error processing batch for session ${sessionId}:`, error);
+      debug(`Session ${sessionId} completed: ${progress.processed} processed, ${progress.failed} failed`);
+  }
+  } catch (err) {
+    error(`Error processing batch for session ${sessionId}:`, err);
     await queueManager.cancel();
   }
 }

@@ -26,6 +26,8 @@ jest.mock('@/lib/email/email-queue', () => ({
 jest.mock('@/lib/email/provider-factory');
 
 // Import handler after mocks
+jest.mock('@/pages/api/auth/[...nextauth]', () => ({ __esModule: true, authOptions: {}, default: jest.fn() }));
+jest.mock('@/lib/auth/requireAuth', () => ({ requireAuth: jest.fn(async () => ({ user: { id: 'u1' } })) }));
 import handler from '../../pages/api/send-bulk-email';
 import { getEmailProvider } from '@/lib/email/provider-factory';
 

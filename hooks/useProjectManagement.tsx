@@ -337,8 +337,7 @@ export function useProjectManagement({
   // Handle new project
   const handleNewProject = useCallback(() => {
     // Check if there's any work to save
-    const hasWork =
-      uploadedFileUrl && (Object.keys(positions).length > 0 || emailConfig);
+    const hasWork = uploadedFileUrl && ((Object.keys(positions || {}).length > 0) || emailConfig);
 
     if (hasWork) {
       setShowNewProjectModal(true);

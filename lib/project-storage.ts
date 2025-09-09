@@ -51,6 +51,16 @@ const OLD_STORAGE_KEY_PREFIX = 'bamboobot_template_v1_'; // For migration
 const STORAGE_LIMIT_BYTES = 5 * 1024 * 1024; // 5MB limit for localStorage
 
 export class ProjectStorage {
+  private static get serverEnabled(): boolean {
+    // Only enable in browser environments, and only when flag is explicitly set
+    if (typeof window === 'undefined') return false;
+    const v = (process.env.NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE || process.env.PROJECT_SERVER_PERSISTENCE || '').toString().toLowerCase();
+    return v === 'true' || v === '1';
+  }
+
+  static isServerMode(): boolean {
+    return this.serverEnabled;
+  }
   /**
    * Migrate old template storage keys to new project keys
    */
@@ -107,6 +117,43 @@ export class ProjectStorage {
     storageInfo?: { isCloudStorage: boolean; provider?: 'r2' | 's3' | 'local' }
   ): Promise<{ success: boolean; id?: string; error?: string }> {
     try {
+      if (this.serverEnabled) {
+        // Persist to server
+        const body = {
+          name,
+          data: {
+            id: 'server-generated',
+            name,
+            created: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+            version: '1.0',
+            positions,
+            columns,
+            tableData,
+            emailConfig,
+            certificateImage: {
+              url: certificateImageUrl,
+              filename: certificateFilename,
+              uploadedAt: new Date().toISOString(),
+              isCloudStorage: !!storageInfo?.isCloudStorage,
+              storageProvider: storageInfo?.provider,
+            },
+          },
+          clientProjectId: undefined,
+        };
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          return { success: false, error: j?.error || 'Failed to save project (server)' };
+        }
+        const json = await res.json();
+        return { success: true, id: json?.project?.id };
+      }
+
       const id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const now = new Date().toISOString();
       
@@ -161,6 +208,11 @@ export class ProjectStorage {
    */
   static loadProject(id: string): SavedProject | null {
     try {
+      if (this.serverEnabled) {
+        // Returns null in server mode to encourage use of the async loadProjectServer() method.
+        // Legacy synchronous API is maintained for backward compatibility.
+        return null;
+      }
       // Try new key first
       let key = `${STORAGE_KEY_PREFIX}${id}`;
       let data = localStorage.getItem(key);
@@ -187,6 +239,41 @@ export class ProjectStorage {
       return null;
     }
   }
+
+  /** Server-mode: load a project (async) */
+  static async loadProjectServer(id: string): Promise<SavedProject | null> {
+    try {
+      const res = await fetch(`/api/projects/${id}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const p = json?.project as Record<string, unknown>;
+      if (!p) return null;
+      const base = (p.data ?? {}) as Partial<SavedProject>;
+      const safe: SavedProject = {
+        id: String(p.id),
+        name: String(p.name || base.name || 'Untitled'),
+        created: String(p.createdAt || base.created || new Date().toISOString()),
+        lastModified: String(p.updatedAt || base.lastModified || new Date().toISOString()),
+        version: '1.0',
+        positions: (base as SavedProject)?.positions ?? {},
+        columns: (base as SavedProject)?.columns ?? [],
+        tableData: (base as SavedProject)?.tableData ?? [],
+        emailConfig: (base as SavedProject)?.emailConfig,
+        certificateImage: {
+          url: (base as SavedProject)?.certificateImage?.url ?? '',
+          filename: (base as SavedProject)?.certificateImage?.filename ?? '',
+          uploadedAt: (base as SavedProject)?.certificateImage?.uploadedAt ?? new Date().toISOString(),
+          isCloudStorage: (base as SavedProject)?.certificateImage?.isCloudStorage ?? false,
+          storageProvider: (base as SavedProject)?.certificateImage?.storageProvider,
+          checksum: (base as SavedProject)?.certificateImage?.checksum,
+        },
+      };
+      return safe;
+    } catch (e) {
+      console.error('Error loading project (server):', e);
+      return null;
+    }
+  }
   
   /**
    * Update an existing project
@@ -196,6 +283,29 @@ export class ProjectStorage {
     updates: Partial<Omit<SavedProject, 'id' | 'created' | 'version'>>
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      if (this.serverEnabled) {
+        // Merge server-side by fetching current, merging, and PUT back
+        const current = await this.loadProjectServer(id);
+        if (!current) return { success: false, error: 'Project not found' };
+        const merged: SavedProject = {
+          ...current,
+          ...updates,
+          lastModified: new Date().toISOString(),
+        } as SavedProject;
+        const res = await fetch(`/api/projects/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: updates.name ?? current.name,
+            data: merged,
+          }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          return { success: false, error: j?.error || 'Failed to update project' };
+        }
+        return { success: true };
+      }
       const existing = this.loadProject(id);
       if (!existing) {
         return { success: false, error: 'Project not found' };
@@ -229,6 +339,11 @@ export class ProjectStorage {
    */
   static deleteProject(id: string): boolean {
     try {
+      if (this.serverEnabled) {
+        // Fire-and-forget; caller does not await
+        void fetch(`/api/projects/${id}`, { method: 'DELETE' });
+        return true;
+      }
       // Remove both new and old keys
       const key = `${STORAGE_KEY_PREFIX}${id}`;
       const oldKey = `${OLD_STORAGE_KEY_PREFIX}${id}`;
@@ -246,6 +361,31 @@ export class ProjectStorage {
    */
   static async listProjects(): Promise<ProjectListItem[]> {
     try {
+      if (this.serverEnabled) {
+        const res = await fetch('/api/projects');
+        if (!res.ok) return [];
+        const json = await res.json();
+        const projects = (json?.projects ?? []) as Array<{
+          id: string;
+          name: string;
+          createdAt: string;
+          updatedAt: string;
+          columnsCount?: number;
+          rowsCount?: number;
+          hasEmailConfig?: boolean;
+          imageStatus?: 'available' | 'missing' | 'checking';
+        }>;
+        return projects.map(p => ({
+          id: p.id,
+          name: p.name,
+          created: p.createdAt,
+          lastModified: p.updatedAt,
+          columnsCount: p.columnsCount ?? 0,
+          rowsCount: p.rowsCount ?? 0,
+          hasEmailConfig: !!p.hasEmailConfig,
+          imageStatus: p.imageStatus ?? 'checking',
+        }));
+      }
       const projects: ProjectListItem[] = [];
       const processedIds = new Set<string>();
       
@@ -306,12 +446,69 @@ export class ProjectStorage {
       return [];
     }
   }
+
+  /**
+   * List projects stored in localStorage only (ignores server mode)
+   * Used by migration prompt to avoid confusing server projects with local ones.
+   */
+  static async listLocalProjects(): Promise<ProjectListItem[]> {
+    try {
+      const projects: ProjectListItem[] = [];
+      const processedIds = new Set<string>();
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        if (!key.startsWith(STORAGE_KEY_PREFIX) && !key.startsWith(OLD_STORAGE_KEY_PREFIX)) continue;
+        try {
+          const data = localStorage.getItem(key);
+          if (!data) continue;
+          const project = JSON.parse(data) as SavedProject;
+          if (processedIds.has(project.id)) continue;
+          processedIds.add(project.id);
+
+          let imageStatus: ProjectListItem['imageStatus'] = 'checking';
+          if (project.certificateImage.isCloudStorage) {
+            imageStatus = 'available';
+          } else {
+            imageStatus = project.certificateImage.url ? 'available' : 'missing';
+          }
+
+          projects.push({
+            id: project.id,
+            name: project.name,
+            created: project.created,
+            lastModified: project.lastModified,
+            columnsCount: project.columns.length,
+            rowsCount: project.tableData?.length || 0,
+            hasEmailConfig: !!project.emailConfig?.isConfigured,
+            imageStatus,
+          });
+        } catch (e) {
+          console.error('Error parsing local project:', e);
+        }
+      }
+
+      return projects.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+    } catch (e) {
+      console.error('Error listing local projects:', e);
+      return [];
+    }
+  }
   
   /**
    * Get the most recently modified project
    */
   static async getMostRecentProject(): Promise<SavedProject | null> {
     try {
+      if (this.serverEnabled) {
+        const res = await fetch('/api/projects');
+        if (!res.ok) return null;
+        const json = await res.json();
+        const first = (json?.projects ?? [])[0];
+        if (!first) return null;
+        return await this.loadProjectServer(first.id);
+      }
       const projects = await this.listProjects();
       
       if (projects.length === 0) {

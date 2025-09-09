@@ -1,6 +1,6 @@
 # Bamboobot Certificate Generator
 
-Generate certificates from image templates with drag-and-drop text positioning and bulk data processing.
+Generate beautiful, personalized certificates from an image background with drag‑and‑drop text fields, rich formatting, and bulk PDF/email workflows. Includes Google sign‑in with route gating, server persistence (Prisma + SQLite), and a basic admin dashboard.
 
 ## Key Features
 
@@ -25,6 +25,15 @@ Generate certificates from image templates with drag-and-drop text positioning a
 - **Project Management** - Inline rename, relative timestamps ("2 hours ago"), mass delete
 - **Background Image Replacement** - Replace certificate image while preserving text field positions
 
+### Authentication & Access Control
+- **Google Sign‑in (NextAuth)** with JWT sessions
+- **Route Gating** via `NEXT_PUBLIC_REQUIRE_AUTH=true` (everything except `/` + static assets)
+- **Marketing Landing** at `/`; signed‑in users redirect to `/app`
+
+### Persistence & Migration
+- **Server Persistence** with Prisma + SQLite; projects stored per user
+- **Local Migration** on first login: import existing browser localStorage projects, then clear
+
 ### Distribution & Delivery
 - **Multiple Download Options** - Individual PDFs, single combined PDF, or ZIP archives
 - **Email Delivery** - Multi-provider support (Resend/SES) with preview and retry logic
@@ -45,6 +54,7 @@ Generate certificates from image templates with drag-and-drop text positioning a
 git clone <repository-url>
 cd bamboobot-cert-generator
 npm install
+npx prisma db push  # initialize SQLite for NextAuth + projects
 npm run dev
 # Open http://localhost:3000
 ```
@@ -71,6 +81,24 @@ docker-compose -f docker-compose.dev.yml up -d
 6. **Configure Email** (Optional) - Set up sender info and custom message if email column detected
 7. **Generate** - Create single PDF or individual PDFs
 8. **Send/Download** - Email certificates or download as PDF/ZIP
+
+## Authentication
+
+- Set `NEXT_PUBLIC_REQUIRE_AUTH=true` to gate the app behind login. Public landing remains available at `/`.
+- Configure Google provider in `.env` and set `NEXTAUTH_SECRET`.
+- Admin dashboard at `/dashboard` is gated by `ADMIN_EMAILS` (comma‑separated emails).
+
+Example env snippet:
+
+```bash
+NEXT_PUBLIC_REQUIRE_AUTH=true
+NEXTAUTH_SECRET=replace-with-random-string
+GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=...
+
+# Admin access
+ADMIN_EMAILS=you@example.com, teammate@example.com
+```
 
 ## Dev Mode Features
 
@@ -121,7 +149,7 @@ When using cloud storage (R2 or S3), files automatically expire:
 - **Bulk PDFs**: 7 days
 - **Previews**: 24 hours
 
-Note: Projects are stored locally in browser localStorage, not in cloud storage.
+Note: Projects are persisted in the database per user. Legacy localStorage projects are auto‑imported on first login.
 
 ```bash
 # Cloudflare R2
@@ -189,8 +217,9 @@ docker-compose -f docker-compose.dev.yml up -d
 
 ```
 pages/
-  ├── index.tsx               # Main application page
-  ├── _app.tsx                # App wrapper with fonts
+  ├── index.tsx               # Public marketing landing page
+  ├── app.tsx                 # Authenticated application
+  ├── _app.tsx                # App wrapper with fonts and AuthHeartbeat
   └── api/                    # API endpoints
 components/
   ├── CertificatePreview.tsx  # Certificate display with drag positioning
@@ -201,11 +230,15 @@ components/
   └── modals/                 # PDF generation, email, confirmation modals
 hooks/                        # Feature-specific state management
 lib/
+  ├── auth/                   # Auth helpers (e.g., requireAuth)
   ├── pdf/                    # Client and server PDF generation
   ├── email/                  # Email providers and queue system
   ├── r2-client.ts           # Cloudflare R2 integration
   ├── s3-client.ts           # Amazon S3 integration
   └── storage-config.ts      # Multi-provider storage
+middleware.ts                 # Auth gating by env flag
+prisma/
+  └── schema.prisma          # SQLite models for NextAuth + Projects
 types/certificate.ts         # TypeScript interfaces
 utils/
   ├── styles.ts              # Color constants and theme
@@ -256,7 +289,7 @@ The E2E tests cover:
 - **Package Manager**: npm
 - **UI**: Tailwind CSS
 - **PDF**: pdf-lib (client-side and server-side)
-- **Storage**: Local, Cloudflare R2, or Amazon S3
+- **Storage**: DB for projects; Local/Cloudflare R2/Amazon S3 for files
 - **Email**: Resend or Amazon SES
 - **Testing**: Jest + React Testing Library + Playwright
 - **Deployment**: Docker

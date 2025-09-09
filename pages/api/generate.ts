@@ -18,6 +18,9 @@ import * as fontkit from '@pdf-lib/fontkit';
 import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
 import fs from 'fs';
+import { debug, error } from '@/lib/log';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { rateLimit, buildKey } from '@/lib/rate-limit';
 import {
   Entry,
   Position,
@@ -32,10 +35,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
+  // Auth + rate limit
+  const session = await requireAuth(req, res);
+  if (!session) return;
+  const userId = (session.user as any).id as string;
+  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  const key = buildKey({ userId, ip, route: 'generate', category: 'generate' });
+  const rl = rateLimit(key, 'generate');
+  res.setHeader('X-RateLimit-Limit', String(rl.limit));
+  res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
+  res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+  if (!rl.allowed) {
+    res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000))));
+    res.status(429).json({ error: 'Rate limit exceeded for PDF generation.' });
+    return;
+  }
 
   try {
-    console.log('Generate API called with:', { mode: req.body.mode, templateFilename: req.body.templateFilename });
-    console.log('R2 enabled:', storageConfig.isR2Enabled);
+    debug('Generate API called with:', { mode: req.body.mode, templateFilename: req.body.templateFilename });
+    debug('R2 enabled:', storageConfig.isR2Enabled);
     
     const { mode = 'single', templateFilename, data, positions, uiContainerDimensions, namingColumn }: { 
       mode?: 'single' | 'individual';
@@ -68,7 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Handle R2 storage - download template if using R2
     let templatePdfBytes: Buffer;
     
-    console.log('Looking for template:', templateFilename);
+    debug('Looking for template:', templateFilename);
     
     // Check if this is a template file (e.g., dev-mode-template.pdf)
     // const isTemplate = templateFilename.startsWith('dev-mode-template');
@@ -79,22 +97,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const templateImagePath = path.join(process.cwd(), 'public', 'template_images', templateFilename);
       const tempImagePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename);
       
-      console.log('R2 mode - checking for template in both directories');
+      debug('R2 mode - checking for template in both directories');
       
       let localTemplatePath: string | null = null;
       if (fs.existsSync(templateImagePath)) {
         localTemplatePath = templateImagePath;
-        console.log('Template found in template_images:', localTemplatePath);
+        debug('Template found in template_images:', localTemplatePath);
       } else if (fs.existsSync(tempImagePath)) {
         localTemplatePath = tempImagePath;
-        console.log('Template found in temp_images:', localTemplatePath);
+        debug('Template found in temp_images:', localTemplatePath);
       }
       
       if (localTemplatePath) {
         templatePdfBytes = await fsPromises.readFile(localTemplatePath);
-        console.log('Template loaded successfully, size:', templatePdfBytes.length);
+        debug('Template loaded successfully, size:', templatePdfBytes.length);
       } else {
-        console.error('Template not found in either directory:', { templateImagePath, tempImagePath });
+        error('Template not found in either directory:', { templateImagePath, tempImagePath });
         res.status(404).json({ error: 'Template not found' });
         return;
       }
@@ -108,10 +126,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Check both locations regardless of isTemplate flag
       if (fs.existsSync(templateImagePath)) {
         templatePath = templateImagePath;
-        console.log('Local mode - reading template from template_images:', templatePath);
+        debug('Local mode - reading template from template_images:', templatePath);
       } else if (fs.existsSync(tempImagePath)) {
         templatePath = tempImagePath;
-        console.log('Local mode - reading from temp_images:', templatePath);
+        debug('Local mode - reading from temp_images:', templatePath);
       } else {
         console.error('Template not found in either directory:', { templateImagePath, tempImagePath });
         res.status(404).json({ error: 'Template not found in both template_images and temp_images' });
