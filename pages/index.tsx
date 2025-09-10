@@ -1,19 +1,10 @@
-"use client";
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/router';
-import { signIn, useSession } from 'next-auth/react';
+import { GetServerSideProps } from 'next';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/pages/api/auth/[...nextauth]';
+import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 
 export default function MarketingPage() {
-  const { status } = useSession();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (status === 'authenticated') {
-      router.replace('/app');
-    }
-  }, [status, router]);
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-white to-emerald-50 px-6 text-center">
@@ -54,3 +45,22 @@ export default function MarketingPage() {
     </main>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const session = await getServerSession(context.req, context.res, authOptions);
+  
+  // If user is authenticated, redirect to app page
+  if (session) {
+    return {
+      redirect: {
+        destination: '/app',
+        permanent: false,
+      },
+    };
+  }
+  
+  // Otherwise, show the marketing page
+  return {
+    props: {},
+  };
+};

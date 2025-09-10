@@ -1,65 +1,87 @@
 # TODOs
 
-## Admin Panel Roadmap
+## Admin Panel & Monetization Roadmap
 
-Goals
-- Give admins clear visibility into usage, health, and content.
-- Provide safe management tools with audit trails and least‑privilege.
+### Phase 1: User Tiers & Feature Gating (Priority: CRITICAL)
 
-MVP Scope (Phase 1)
-- Overview: tiles for users, projects, active 7d, emails sent 24h, rate‑limit hits.
-- Users: searchable list, last active, project count; view‑only.
-- Projects: recent projects with owner, size, last modified; soft delete/restore.
-- Activity: last 100 actions (sign‑ins, imports, generates) with timestamps.
-- System: storage usage (local/R2), queue/backlog estimates, env sanity checks.
+#### 1.1 User Tier System
+- [ ] Database schema for user tiers (free, plus, admin, super_admin)
+- [ ] User limits tracking (daily_pdf_count, daily_email_count, project_count)
+- [ ] Daily reset mechanism for usage counters
+- [ ] Domain-based auto-upgrade (tinkertanker.com → admin)
+- [ ] Super admin detection (yjsoon@tinkertanker.com from .env)
 
-Phase 2
-- User management: deactivate/reactivate, force passwordless invite, impersonate (secure, audited).
-- Project tools: transfer ownership, export JSON, verify image assets, bulk delete.
-- Emails: delivery log (status, provider response), re‑send failed, rate dashboards.
-- Rate limiting: per‑route charts, banlist allowlist controls, IP/user views.
-- Feature flags: toggles for experimental features (client PDFs, progressive gen).
-- Support: in‑app admin notes on users/projects; canned diagnostics export.
+#### 1.2 Feature Gates Implementation
+- [ ] PDF Generation: 10/day for free, unlimited for plus/admin
+- [ ] Email Sending: 0 for free, 100/day for plus, unlimited for admin
+- [ ] Project Storage: 1 for free, 10 for plus, unlimited for admin
+- [ ] Client-side limit checking with upgrade prompts
+- [ ] Server-side enforcement in API routes
 
-Data Model Additions (Prisma)
-- AuditLog { id, actorId, action, targetType, targetId, metadata Json, createdAt }
-- EmailLog { id, userId, projectId?, status, provider, response Json, createdAt }
-- Flag { key unique, value Json, updatedAt }
+#### 1.3 Usage Tracking
+- [ ] Activity log table (user_id, action, timestamp, metadata)
+- [ ] Track: PDF generations, emails sent, projects created/deleted
+- [ ] Real-time usage dashboard component
+- [ ] Cost projection based on usage patterns
 
-APIs
-- GET/POST `/api/admin/audit`, `/api/admin/users`, `/api/admin/projects`, `/api/admin/rate`, `/api/admin/emails`, `/api/admin/flags`.
-- All endpoints require admin check via `ADMIN_EMAILS` and JWT.
+### Phase 2: Admin Dashboard (Priority: HIGH)
 
-Access Control & Security
-- Gate UI and APIs behind admin middleware; server‑verify on every request.
-- No destructive actions without confirmation; require reason text for deletes/transfers.
-- Full audit log for all admin actions; include actor, IP, user‑agent.
+#### 2.1 Core Admin Pages
+- [ ] `/admin` - Overview dashboard with key metrics
+- [ ] `/admin/users` - User list with tier, usage, last active
+- [ ] `/admin/projects` - All projects with owner, size, age
+- [ ] `/admin/usage` - Detailed usage analytics and trends
+- [ ] `/admin/system` - Storage usage, queue status, health checks
 
-Observability
-- Surface error rates (5xx), slow endpoints (p95), queue lengths if applicable.
-- Add lightweight server counters; later wire to external monitoring.
+#### 2.2 User Management
+- [ ] Search/filter users by email, tier, usage
+- [ ] Upgrade/downgrade user tiers
+- [ ] View individual user's projects and usage history
+- [ ] Bulk actions: upgrade multiple users, cleanup old accounts
+- [ ] Export user data for analysis
 
-Testing
-- Playwright admin flows (auth, navigation, soft delete/restore).
-- Unit tests for audit logging and permission checks.
+#### 2.3 Project Management
+- [ ] List all projects with metadata (owner, size, last modified)
+- [ ] Bulk delete old projects (with age filter)
+- [ ] Storage usage breakdown by user
+- [ ] Orphaned project detection and cleanup
+- [ ] Transfer project ownership
 
-Rollout Plan
-- P1: Overview + Users/Projects read‑only + AuditLog write.
-- P2: Safe writes (soft delete/restore, transfers) + Email/Rate views.
-- P3: Feature flags, impersonation (guarded), exports.
+### Phase 3: Monitoring & Analytics (Priority: MEDIUM)
 
-**Env Flags To Tweak**
-- **Auth:** `NEXT_PUBLIC_REQUIRE_AUTH`
-- **Admin:** `ADMIN_EMAILS`
-- **Limits:** `RATE_LIMIT_WINDOW_SECONDS`, `RATE_LIMIT_*_PER_MIN`
-- **Storage/Email:** existing R2/S3/Resend/SES variables
+#### 3.1 Usage Analytics
+- [ ] Daily/weekly/monthly usage reports
+- [ ] Top users by PDF generation, email, storage
+- [ ] Growth metrics: new users, upgrades, churn
+- [ ] Cost analysis: estimated monthly costs by feature
+- [ ] Conversion funnel: free → plus upgrade rate
 
-**Open Items (Next)**
-- **Rate limits (prod):** Move to Redis for multi‑instance deployments.
-- **UI logging:** Convert remaining `console.log` in hooks/components to `lib/log` if we want quieter consoles.
-- **Types polish:** Reduce lingering `any` in APIs and hooks (lint‑only).
-- **E2E:** Add Playwright auth‑redirect + first‑login import coverage with auth gating enabled.
+#### 3.2 System Health
+- [ ] Storage usage alerts (approaching limits)
+- [ ] Email provider status and quota monitoring
+- [ ] Error rate tracking by feature
+- [ ] Performance metrics (API response times)
+- [ ] Automated health check notifications
 
+### Phase 4: Advanced Features (Priority: LOW)
+
+#### 4.1 Automation
+- [ ] Automated project cleanup (age-based with warnings)
+- [ ] Usage-based tier suggestions
+- [ ] Inactive user notifications
+- [ ] Storage optimization recommendations
+
+#### 4.2 Support Tools
+- [ ] In-app admin notes on users/projects
+- [ ] User impersonation (with audit log)
+- [ ] Debug mode for specific users
+- [ ] Export diagnostic bundle for troubleshooting
+
+#### 4.3 Feature Flags
+- [ ] Toggle experimental features per tier
+- [ ] A/B testing framework
+- [ ] Gradual rollout controls
+- [ ] Emergency kill switches
 
 ## Actual things I wanted to do. Maximum priority!
 
