@@ -1,9 +1,11 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import { NextApiResponse } from 'next';
+import type { AuthenticatedRequest } from '@/types/api';
 import { getEmailProvider } from '@/lib/email/provider-factory';
 import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
 import type { EmailAttachment } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { rateLimit, buildKey } from '@/lib/rate-limit';
+import { withFeatureGate } from '@/lib/server/middleware/featureGate';
 
 export const config = {
   api: {
@@ -13,8 +15,8 @@ export const config = {
   }
 };
 
-export default async function handler(
-  req: NextApiRequest,
+async function sendEmailHandler(
+  req: AuthenticatedRequest,
   res: NextApiResponse
 ): Promise<void> {
   if (req.method !== 'POST') {
@@ -22,10 +24,11 @@ export default async function handler(
     return;
   }
 
-  // Auth + rate limit
-  const session = await requireAuth(req, res);
-  if (!session) return;
-  const userId = (session.user as any).id as string;
+  // User is already authenticated and authorized by the middleware
+  const user = req.user;
+  const userId = user.id;
+  
+  // Apply existing rate limiting (separate from tier limits)
   const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
   const key = buildKey({ userId, ip, route: 'send-email', category: 'email' });
   const rl = rateLimit(key, 'email');
@@ -154,3 +157,13 @@ Important: This download link will expire in 90 days. Please save your certifica
     return;
   }
 }
+
+// Export with feature gate - checks email sending limits and increments usage
+export default withFeatureGate(
+  { 
+    feature: 'email', 
+    increment: true,
+    metadata: { endpoint: 'send-email' }
+  },
+  sendEmailHandler
+);

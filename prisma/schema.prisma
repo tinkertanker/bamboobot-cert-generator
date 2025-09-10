@@ -18,10 +18,20 @@ model User {
   image         String?
   createdAt     DateTime  @default(now())
   lastActiveAt  DateTime?
+  
+  // Tier and usage tracking
+  tier              String    @default("free") // free, plus, admin, super_admin
+  dailyPdfCount     Int       @default(0)
+  dailyEmailCount   Int       @default(0)
+  lastUsageReset    DateTime  @default(now())
+  lifetimePdfCount  Int       @default(0)
+  lifetimeEmailCount Int      @default(0)
 
   accounts      Account[]
   sessions      Session[]
   projects      Project[]
+  usageLogs     UsageLog[]
+  auditLogs     AuditLog[]
 }
 
 model Account {
@@ -75,5 +85,36 @@ model Project {
 
   @@index([ownerId])
   @@unique([ownerId, name])
+}
+
+// Usage tracking
+model UsageLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String   // pdf_generate, email_send, project_create, project_delete
+  metadata   Json?    // Additional context (e.g., recipient email, project name, pdf count)
+  createdAt  DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, action])
+  @@index([createdAt])
+}
+
+// Audit logs for admin actions
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String   // Admin who performed the action
+  action      String   // user_upgrade, user_downgrade, project_delete, etc.
+  targetId    String?  // ID of affected user/project
+  targetType  String?  // user, project, etc.
+  metadata    Json?    // Additional context
+  createdAt   DateTime @default(now())
+  
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  
+  @@index([actorId])
+  @@index([targetId])
+  @@index([createdAt])
 }
 
