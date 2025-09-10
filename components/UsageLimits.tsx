@@ -94,7 +94,7 @@ export const UsageLimits: React.FC<UsageLimitsProps> = ({ feature, onUpgrade }) 
       {!canGenerate && feature === 'pdf' && (
         <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
           <p className="text-sm text-red-700">
-            You've reached your daily PDF generation limit.
+            You&apos;ve reached your daily PDF generation limit.
             {tier === 'free' && (
               <>
                 {' '}
