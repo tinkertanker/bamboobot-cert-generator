@@ -3,6 +3,17 @@ import { createMocks } from 'node-mocks-http';
 jest.mock('@/pages/api/auth/[...nextauth]', () => ({ __esModule: true, authOptions: {}, default: jest.fn() }));
 jest.mock('@/lib/auth/requireAuth', () => ({ requireAuth: jest.fn(async () => ({ user: { id: 'u1' } })) }));
 
+// Mock the featureGate middleware to avoid NextAuth import issues
+jest.mock('@/lib/server/middleware/featureGate', () => ({
+  withFeatureGate: jest.fn((options, handler) => {
+    // Return a wrapped handler that adds the user to the request
+    return async (req: any, res: any) => {
+      req.user = { id: 'u1', email: 'test@test.com', tier: 'free' };
+      return handler(req, res);
+    };
+  })
+}));
+
 // Mock provider to avoid real email sending
 jest.mock('@/lib/email/provider-factory', () => ({
   getEmailProvider: () => ({

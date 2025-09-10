@@ -27,7 +27,7 @@ export const authOptions: NextAuthOptions = {
         token.uid = dbUser.id;
         
         // Detect and set initial tier based on email
-        const detectedTier = detectUserTier(user.email, dbUser.tier);
+        const detectedTier = detectUserTier(user.email ?? null, dbUser.tier);
         token.tier = detectedTier;
         
         // Update tier in database if it changed

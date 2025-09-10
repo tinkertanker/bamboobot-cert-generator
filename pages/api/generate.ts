@@ -343,8 +343,8 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
       });
       return;
     }
-  } catch (error) {
-    error('PDF generation error:', error);
+  } catch (err) {
+    error('PDF generation error:', err);
     res.status(500).json({ error: 'Server error' });
     return;
   }

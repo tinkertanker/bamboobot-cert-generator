@@ -71,7 +71,9 @@ async function deleteProjectsHandler(
       deleted: result.deleted
     });
   } catch (error) {
-    console.error('Error deleting projects:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error deleting projects:', error);
+    }
     res.status(500).json({ error: 'Failed to delete projects' });
   }
 }
