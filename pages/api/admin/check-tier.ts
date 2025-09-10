@@ -2,7 +2,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
-import { prisma } from '@/lib/server/prisma';
 import { detectUserTier, updateUserTierIfNeeded } from '@/lib/server/tiers';
 
 export default async function handler(
@@ -19,7 +18,7 @@ export default async function handler(
   const updatedUser = await updateUserTierIfNeeded(session.user.id);
   
   // Get detected tier
-  const detectedTier = detectUserTier(session.user.email);
+  const detectedTier = detectUserTier(session.user.email || null);
   
   res.status(200).json({
     email: session.user.email,

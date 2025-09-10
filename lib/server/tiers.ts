@@ -121,7 +121,7 @@ export async function logUsage(
     data: {
       userId,
       action,
-      metadata: metadata || {}
+      metadata: metadata as any || {}
     }
   });
 }
@@ -142,7 +142,7 @@ export async function logAudit(
       action,
       targetId,
       targetType,
-      metadata: metadata || {}
+      metadata: metadata as any || {}
     }
   });
 }

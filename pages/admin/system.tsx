@@ -343,7 +343,7 @@ export const getServerSideProps: GetServerSideProps<SystemPageProps> = async (co
   try {
     const stats = fs.statSync(dbPath);
     dbSize = stats.size;
-  } catch (e) {}
+  } catch {}
   
   // Get table counts
   const [userCount, projectCount, sessionCount, usageLogCount, auditLogCount] = await Promise.all([
@@ -371,9 +371,9 @@ export const getServerSideProps: GetServerSideProps<SystemPageProps> = async (co
             size += stats.size;
             count++;
           }
-        } catch (e) {}
+        } catch {}
       });
-    } catch (e) {}
+    } catch {}
     return { size, count };
   };
   

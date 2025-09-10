@@ -2,7 +2,7 @@ import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { PrismaClient } from '@prisma/client';
-import { detectUserTier, updateUserTierIfNeeded, resetDailyUsageIfNeeded } from '@/lib/server/tiers';
+import { detectUserTier, resetDailyUsageIfNeeded } from '@/lib/server/tiers';
 import type { UserTier } from '@/types/user';
 
 const prisma = new PrismaClient();
@@ -83,7 +83,7 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async signIn({ user, account, profile }) {
+    async signIn({ user }) {
       // Auto-detect tier on sign in
       if (user.email) {
         const detectedTier = detectUserTier(user.email);

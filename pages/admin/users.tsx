@@ -32,7 +32,6 @@ interface UsersPageProps {
 export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersPageProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [tierFilter, setTierFilter] = useState<UserTier | 'all'>('all');
-  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   
   const filteredUsers = users.filter(user => {
     const matchesSearch = searchTerm === '' || 

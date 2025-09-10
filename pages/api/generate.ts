@@ -20,7 +20,6 @@ import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
 import fs from 'fs';
 import { debug, error } from '@/lib/log';
-import { requireAuth } from '@/lib/auth/requireAuth';
 import { rateLimit, buildKey } from '@/lib/rate-limit';
 import { withFeatureGate } from '@/lib/server/middleware/featureGate';
 import {
