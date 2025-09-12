@@ -8,18 +8,22 @@ import type { UserTier } from '@/types/user';
 
 /**
  * Validates and normalizes an email address
+ * More robust validation that handles edge cases like consecutive dots, invalid characters
  */
 function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  // Practical email validation: basic structure with TLD requirement
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(email) && !email.includes('..') && email.length <= 254;
 }
 
 /**
  * Validates and normalizes a domain name
+ * Requires at least one dot and a valid TLD structure
  */
 function isValidDomain(domain: string): boolean {
-  const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-  return domainRegex.test(domain);
+  // Simple domain validation that requires at least one dot and TLD
+  const domainRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return domainRegex.test(domain) && domain.length <= 253 && !domain.includes('..') && !domain.startsWith('.') && !domain.endsWith('.');
 }
 
 /**

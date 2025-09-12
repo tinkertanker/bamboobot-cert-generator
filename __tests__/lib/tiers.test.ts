@@ -136,6 +136,10 @@ describe('Multi-domain Admin Configuration', () => {
       });
 
       it('should detect admin from legacy ADMIN_DOMAIN', () => {
+        // Clear multi-value env vars to test legacy fallback
+        delete process.env.SUPER_ADMIN_EMAILS;
+        delete process.env.ADMIN_DOMAINS;
+        
         process.env.SUPER_ADMIN_EMAIL = 'legacy@admin.com';
         process.env.ADMIN_DOMAIN = 'legacy.com';
         const detectUserTier = getDetectUserTier();
@@ -143,6 +147,10 @@ describe('Multi-domain Admin Configuration', () => {
       });
 
       it('should be case insensitive for legacy values', () => {
+        // Clear multi-value env vars to test legacy fallback
+        delete process.env.SUPER_ADMIN_EMAILS;
+        delete process.env.ADMIN_DOMAINS;
+        
         process.env.SUPER_ADMIN_EMAIL = 'legacy@admin.com';
         process.env.ADMIN_DOMAIN = 'legacy.com';
         const detectUserTier = getDetectUserTier();
