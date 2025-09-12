@@ -17,6 +17,8 @@ services:
       - ./data/temp_images:/app/public/temp_images
       - ./data/generated:/app/public/generated
       - ./data/template_images:/app/public/template_images
+      # Persist SQLite database file only (preserves schema.prisma from image)
+      - ./data/database.db:/app/prisma/database.db
     networks:
       devtksg: # same network that our reverse proxy is on
     restart: always
