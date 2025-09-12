@@ -15,6 +15,7 @@ const config: Config = {
         dancing: ["var(--font-dancing-script)", "cursive"],
       },
       colors: {
+        salmon: "#FA8072",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
