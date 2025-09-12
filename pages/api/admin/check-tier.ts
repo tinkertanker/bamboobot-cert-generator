@@ -26,8 +26,10 @@ export default async function handler(
     detectedTier,
     shouldBeAdmin: detectedTier === 'admin' || detectedTier === 'super_admin',
     envVars: {
-      SUPER_ADMIN_EMAIL: process.env.SUPER_ADMIN_EMAIL ? 'Set' : 'Not set',
-      ADMIN_DOMAIN: process.env.ADMIN_DOMAIN ? 'Set' : 'Not set'
+      SUPER_ADMIN_EMAILS: process.env.SUPER_ADMIN_EMAILS ? 'Set' : 'Not set',
+      SUPER_ADMIN_EMAIL: process.env.SUPER_ADMIN_EMAIL ? 'Set (legacy)' : 'Not set',
+      ADMIN_DOMAINS: process.env.ADMIN_DOMAINS ? 'Set' : 'Not set',
+      ADMIN_DOMAIN: process.env.ADMIN_DOMAIN ? 'Set (legacy)' : 'Not set'
     }
   });
 }

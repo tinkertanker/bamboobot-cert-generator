@@ -434,8 +434,8 @@ export const getServerSideProps: GetServerSideProps<SystemPageProps> = async (co
     configuration: {
       requireAuth: process.env.NEXT_PUBLIC_REQUIRE_AUTH === 'true',
       projectPersistence: process.env.NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE === 'true',
-      superAdminConfigured: !!process.env.SUPER_ADMIN_EMAIL,
-      adminDomainConfigured: !!process.env.ADMIN_DOMAIN
+      superAdminConfigured: !!(process.env.SUPER_ADMIN_EMAILS || process.env.SUPER_ADMIN_EMAIL),
+      adminDomainConfigured: !!(process.env.ADMIN_DOMAINS || process.env.ADMIN_DOMAIN)
     }
   };
   
