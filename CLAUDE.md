@@ -56,7 +56,7 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 ### Component Structure
 - `pages/index.tsx` - Main orchestration layer managing state and coordinating components
 - `components/CertificatePreview.tsx` - Certificate display with drag-and-drop text positioning
-- `components/VirtualizedTable.tsx` - Performance-optimized table for large datasets (400+ rows)
+- `components/VirtualizedTable.tsx` - Performance-optimised table for large datasets (400+ rows)
 - `components/LocalStorageMonitor.tsx` - Dev Mode localStorage monitoring and cleanup
 - `components/StorageMonitor.tsx` - File system storage monitoring and cleanup
 - `components/panels/` - Data input, formatting controls, email configuration
@@ -80,9 +80,9 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 
 - **Imports**: Use `@/` alias for root imports
 - **Components**: React functional components with TypeScript interfaces in `types/certificate.ts`
-- **Styling**: Tailwind CSS with centralized `COLORS` constants from `utils/styles.ts`
+- **Styling**: Tailwind CSS with centralised `COLORS` constants from `utils/styles.ts`
 - **State**: Custom hooks for feature-specific logic
-- **Types**: All interfaces centralized in `types/certificate.ts`
+- **Types**: All interfaces centralised in `types/certificate.ts`
 - **Error Handling**: Try-catch blocks with console.error logging
 
 ## Completed Features ✅
@@ -220,7 +220,7 @@ Only consider Web Workers if:
 3. **Keep It Simple** - Complexity has a maintenance cost
 4. **Server vs Client** - Use the right tool for the job
 
-Remember: The app is designed for certificate generation for events/courses (50-500 participants typical). It's already well-optimized for this use case. Don't over-engineer!
+Remember: The app is designed for certificate generation for events/courses (50-500 participants typical). It's already well-optimised for this use case. Don't over-engineer!
 
 ### Important: Internal Tool vs SaaS Considerations
 
@@ -288,7 +288,7 @@ When implementing new features:
 
 ## Testing
 
-Tests organized by type:
+Tests organised by type:
 - `__tests__/components/` - UI component tests
 - `__tests__/pages/api/` - API endpoint tests
 - `__tests__/lib/` - Utility function tests

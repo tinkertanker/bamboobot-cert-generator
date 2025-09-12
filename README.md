@@ -1,6 +1,6 @@
 # Bamboobot Certificate Generator
 
-Generate beautiful, personalized certificates from an image background with drag‑and‑drop text fields, rich formatting, and bulk PDF/email workflows. Includes Google sign‑in with route gating, server persistence (Prisma + SQLite), and a basic admin dashboard.
+Generate beautiful, personalised certificates from an image background with drag‑and‑drop text fields, rich formatting, and bulk PDF/email workflows. Includes Google sign‑in with route gating, server persistence (Prisma + SQLite), and a basic admin dashboard.
 
 ## Key Features
 
@@ -223,7 +223,7 @@ pages/
   └── api/                    # API endpoints
 components/
   ├── CertificatePreview.tsx  # Certificate display with drag positioning
-  ├── VirtualizedTable.tsx    # Performance-optimized table for large datasets
+  ├── VirtualizedTable.tsx    # Performance-optimised table for large datasets
   ├── LocalStorageMonitor.tsx # Dev Mode localStorage monitoring
   ├── StorageMonitor.tsx      # File system storage monitoring
   ├── panels/                 # Data, formatting, email config panels
@@ -246,7 +246,7 @@ utils/
 ```
 
 ### Development Guidelines
-- Types centralized in `types/certificate.ts`
+- Types centralised in `types/certificate.ts`
 - Use provider factory for email/storage, never hardcode
 - Use `COLORS` constants from `utils/styles.ts`
 - Extract complex UI into focused components
@@ -257,7 +257,7 @@ utils/
 The project includes comprehensive unit and end-to-end tests:
 
 ### Unit Tests (Jest + React Testing Library)
-Tests organized by type:
+Tests organised by type:
 - `__tests__/components/` - UI component tests
 - `__tests__/pages/api/` - API endpoint tests
 - `__tests__/lib/` - Utility function tests
