@@ -5,26 +5,115 @@ import type { UserTier } from '@/types/user';
 
 // Get admin configuration from environment variables
 // These are optional - if not set, admin features are disabled
-const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL;
-const ADMIN_DOMAIN = process.env.ADMIN_DOMAIN;
+
+/**
+ * Validates and normalizes an email address
+ */
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+/**
+ * Validates and normalizes a domain name
+ */
+function isValidDomain(domain: string): boolean {
+  const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  return domainRegex.test(domain);
+}
+
+/**
+ * Parse and validate comma-separated email list from environment variable
+ */
+function parseEmailList(envValue: string | undefined): string[] {
+  if (!envValue || typeof envValue !== 'string') {
+    return [];
+  }
+  
+  return envValue
+    .split(',')
+    .map(email => email.trim().toLowerCase())
+    .filter(email => email.length > 0 && isValidEmail(email));
+}
+
+/**
+ * Parse and validate comma-separated domain list from environment variable
+ */
+function parseDomainList(envValue: string | undefined): string[] {
+  if (!envValue || typeof envValue !== 'string') {
+    return [];
+  }
+  
+  return envValue
+    .split(',')
+    .map(domain => domain.trim().toLowerCase())
+    .filter(domain => domain.length > 0 && isValidDomain(domain));
+}
+
+/**
+ * Get super admin emails from environment (supports both new and legacy formats)
+ */
+function getSuperAdminEmails(): string[] {
+  const multiEmails = parseEmailList(process.env.SUPER_ADMIN_EMAILS);
+  if (multiEmails.length > 0) {
+    return multiEmails;
+  }
+  
+  // Fallback to legacy single email
+  return parseEmailList(process.env.SUPER_ADMIN_EMAIL);
+}
+
+/**
+ * Get admin domains from environment (supports both new and legacy formats)
+ */
+function getAdminDomains(): string[] {
+  const multiDomains = parseDomainList(process.env.ADMIN_DOMAINS);
+  if (multiDomains.length > 0) {
+    return multiDomains;
+  }
+  
+  // Fallback to legacy single domain
+  return parseDomainList(process.env.ADMIN_DOMAIN);
+}
+
+/**
+ * Safely extract domain from email address
+ */
+function extractEmailDomain(email: string): string | null {
+  if (!isValidEmail(email)) {
+    return null;
+  }
+  
+  const parts = email.split('@');
+  return parts.length === 2 ? parts[1].toLowerCase() : null;
+}
 
 /**
  * Determine user tier based on email and existing tier
  */
 export function detectUserTier(email: string | null, currentTier?: UserTier): UserTier {
-  if (!email) return currentTier || 'free';
+  if (!email || typeof email !== 'string') {
+    return currentTier || 'free';
+  }
   
-  // Check if super admin (only if configured)
-  if (SUPER_ADMIN_EMAIL && email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
+  const normalizedEmail = email.trim().toLowerCase();
+  
+  // Validate email format before processing
+  if (!isValidEmail(normalizedEmail)) {
+    return currentTier || 'free';
+  }
+  
+  // Check if super admin (highest priority)
+  const superAdminEmails = getSuperAdminEmails();
+  if (superAdminEmails.includes(normalizedEmail)) {
     return 'super_admin';
   }
   
-  // Check if admin domain (only if configured)
-  if (ADMIN_DOMAIN) {
-    const domain = email.split('@')[1];
-    if (domain && domain.toLowerCase() === ADMIN_DOMAIN.toLowerCase()) {
-      return 'admin';
-    }
+  // Check if admin domain
+  const domain = extractEmailDomain(normalizedEmail);
+  const adminDomains = getAdminDomains();
+  if (domain && adminDomains.includes(domain)) {
+    return 'admin';
   }
   
   // Return existing tier or default to free
