@@ -3,8 +3,8 @@ services:
     build:
       context: .
       target: builder  # Use the builder stage for development
-    expose:
-      - 3000
+    ports:
+      - "3000:3000"  # Access Next.js dev server from host
     env_file:
       - .env  # Load environment variables from file
     environment:
@@ -22,7 +22,9 @@ services:
       - ./data/temp_images:/app/public/temp_images
       - ./data/generated:/app/public/generated
       - ./data/template_images:/app/public/template_images
-    command: npm run dev
+      # Optional: persist local SQLite database across restarts (uncomment if desired)
+      # - ./data/dev/database.db:/app/prisma/database.db
+    command: sh -c "npx prisma generate && npm run dev"
     networks:
       devtksg:
     restart: always
