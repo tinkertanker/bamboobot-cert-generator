@@ -1,6 +1,5 @@
 // Server-side tier detection and management
 import { prisma } from './prisma';
-import type { User } from '@prisma/client';
 import type { UserTier } from '@/types/user';
 
 // Get admin configuration from environment variables
@@ -127,7 +126,9 @@ export function detectUserTier(email: string | null, currentTier?: UserTier): Us
 /**
  * Update user tier if needed based on email
  */
-export async function updateUserTierIfNeeded(userId: string): Promise<User> {
+type DbUser = NonNullable<Awaited<ReturnType<typeof prisma.user.findUnique>>>;
+
+export async function updateUserTierIfNeeded(userId: string): Promise<DbUser> {
   const user = await prisma.user.findUnique({
     where: { id: userId }
   });
@@ -256,7 +257,7 @@ export async function setUserTier(
   actorId: string,
   targetUserId: string,
   newTier: UserTier
-): Promise<User> {
+): Promise<DbUser> {
   const updatedUser = await prisma.user.update({
     where: { id: targetUserId },
     data: { tier: newTier }
