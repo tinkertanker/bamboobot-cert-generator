@@ -104,7 +104,7 @@ export function DevModeFooter({
         {/* Minimize button */}
         <button
           onClick={() => setIsMinimized(true)}
-          className="p-1 hover:bg-gray-800 rounded transition-colors"
+          className="p-1 hover:bg-gray-800 rounded transition-colors ml-4"
           title="Minimize Dev Mode"
         >
           <Minimize2 className="w-4 h-4 text-gray-400" />
