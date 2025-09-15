@@ -120,7 +120,7 @@ export function LocalStorageMonitor() {
         <button
           ref={buttonRef}
           onClick={() => setShowDetails(!showDetails)}
-          className="text-xs text-blue-600 hover:text-blue-800 ml-1"
+          className="text-xs text-blue-600 hover:text-blue-800 ml-1 w-12"
         >
           {showDetails ? 'Hide' : 'Details'}
         </button>
