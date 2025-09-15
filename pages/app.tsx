@@ -51,8 +51,9 @@ import { usePdfGenerationMethods } from "@/hooks/usePdfGenerationMethods";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingModal } from "@/components/modals/OnboardingModal";
+import { UserAvatarDropdown } from "@/components/UserAvatarDropdown";
 import { HelpCircle } from "lucide-react";
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useProjectMigration } from "@/hooks/useProjectMigration";
 
 export default function HomePage() {
@@ -571,6 +572,9 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex gap-3">
+            {/* User Avatar Dropdown */}
+            {session && <UserAvatarDropdown />}
+
             {/* Help/Tutorial Button */}
             <Button
               onClick={() => setShowOnboarding(true)}
@@ -696,16 +700,6 @@ export default function HomePage() {
                 SPLIT_BUTTON_THEME.generate.dropdownHoverColor
               }
             />
-            {session && (
-              <Button
-                onClick={() => signOut()}
-                variant="outline"
-                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                title={session.user?.email || 'Sign out'}
-              >
-                Sign out
-              </Button>
-            )}
           </div>
         </div>
       </header>

@@ -86,6 +86,11 @@
 ## Actual things I wanted to do. Maximum priority!
 
 - [ ] We should have some kind of email download links; see below.
+- [ ] Settings page - Add user settings accessible from avatar dropdown menu
+  - [ ] Preference for default PDF generation method (client/server)
+  - [ ] Default email configuration
+  - [ ] UI preferences (theme, layout)
+  - [ ] Account management options
 
 ## Future Enhancement: Email Download Links for Client-Side PDFs
 
