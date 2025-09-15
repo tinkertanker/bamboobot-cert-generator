@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Database, Trash2, RefreshCw, AlertTriangle, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
-import { analyzeLocalStorage, cleanupLocalStorage, formatBytes, type LocalStorageStats, type CleanupOptions } from '@/lib/localStorage-monitor';
+import { analyzeLocalStorage, cleanupLocalStorage, type LocalStorageStats, type CleanupOptions } from '@/lib/localStorage-monitor';
+import { formatBytes } from '@/lib/format';
+import { useClickOutside } from '@/hooks/useClickOutside';
 
 export function LocalStorageMonitor() {
   const [stats, setStats] = useState<LocalStorageStats | null>(null);
@@ -12,6 +14,25 @@ export function LocalStorageMonitor() {
   const detailsRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const { showToast } = useToast();
+
+  // Derived values declared before early returns for hook rules
+  const hasOldProjects = useMemo(() => {
+    if (!stats) return false;
+    return stats.byType.projects.items.some(item => {
+      if (!item.lastModified) return false;
+      const age = (Date.now() - new Date(item.lastModified).getTime()) / (1000 * 60 * 60 * 24);
+      return age > 30;
+    });
+  }, [stats]);
+  const hasOldEmailQueues = useMemo(() => {
+    if (!stats) return false;
+    return stats.byType.emailQueues.items.some(item => {
+      if (!item.lastModified) return false;
+      const age = (Date.now() - new Date(item.lastModified).getTime()) / (1000 * 60 * 60 * 24);
+      return age > 7;
+    });
+  }, [stats]);
+  const isHighUsage = (stats?.quotaUsage ?? 0) > 80;
 
   const refreshStats = async () => {
     setLoading(true);
@@ -51,27 +72,8 @@ export function LocalStorageMonitor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle click outside to close details
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        showDetails &&
-        detailsRef.current &&
-        !detailsRef.current.contains(event.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target as Node)
-      ) {
-        setShowDetails(false);
-      }
-    };
-
-    if (showDetails) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showDetails]);
+  // Click outside to close details
+  useClickOutside([detailsRef, buttonRef], () => setShowDetails(false), showDetails);
 
   if (!stats) {
     return (
@@ -82,18 +84,6 @@ export function LocalStorageMonitor() {
       </div>
     );
   }
-
-  const isHighUsage = stats.quotaUsage > 80; // >80% of quota
-  const hasOldProjects = stats.byType.projects.items.some(item => {
-    if (!item.lastModified) return false;
-    const age = (Date.now() - new Date(item.lastModified).getTime()) / (1000 * 60 * 60 * 24);
-    return age > 30; // >30 days old
-  });
-  const hasOldEmailQueues = stats.byType.emailQueues.items.some(item => {
-    if (!item.lastModified) return false;
-    const age = (Date.now() - new Date(item.lastModified).getTime()) / (1000 * 60 * 60 * 24);
-    return age > 7; // >7 days old
-  });
 
   return (
     <div className="flex items-center gap-2">
@@ -121,6 +111,8 @@ export function LocalStorageMonitor() {
           ref={buttonRef}
           onClick={() => setShowDetails(!showDetails)}
           className="text-xs text-blue-600 hover:text-blue-800 ml-1 w-12"
+          aria-expanded={showDetails}
+          aria-controls="localStorage-breakdown"
         >
           {showDetails ? 'Hide' : 'Details'}
         </button>
@@ -141,6 +133,7 @@ export function LocalStorageMonitor() {
             aria-modal="true"
             aria-labelledby="localStorage-breakdown-title"
             tabIndex={-1}
+            id="localStorage-breakdown"
             className="absolute bottom-full right-0 mb-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg"
             onKeyDown={(e) => {
               if (e.key === 'Escape') {

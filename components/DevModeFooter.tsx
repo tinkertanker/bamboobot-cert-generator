@@ -7,8 +7,8 @@ interface DevModeFooterProps {
   isDevelopment: boolean;
   devMode: boolean;
   handleDevModeToggle: () => void;
-  emailTemplate: string;
-  setEmailTemplate: (value: string) => void;
+  baseEmail: string;
+  setBaseEmail: (value: string) => void;
   numTestEmails: number;
   setNumTestEmails: (value: number) => void;
   handleEmailTemplateUpdate: () => void;
@@ -18,8 +18,8 @@ export function DevModeFooter({
   isDevelopment,
   devMode,
   handleDevModeToggle,
-  emailTemplate,
-  setEmailTemplate,
+  baseEmail,
+  setBaseEmail,
   numTestEmails,
   setNumTestEmails,
   handleEmailTemplateUpdate
@@ -78,8 +78,9 @@ export function DevModeFooter({
               <input
                 type="email"
                 placeholder="test@gmail.com"
-                value={emailTemplate}
-                onChange={(e) => setEmailTemplate(e.target.value)}
+                aria-label="Base email for testing"
+                value={baseEmail}
+                onChange={(e) => setBaseEmail(e.target.value)}
                 className="w-40 px-2 py-1 text-xs bg-gray-800 text-gray-100 border border-gray-600 rounded placeholder-gray-500"
               />
               <input
@@ -87,15 +88,18 @@ export function DevModeFooter({
                 min="1"
                 max="100"
                 value={numTestEmails}
-                onChange={(e) =>
-                  setNumTestEmails(parseInt(e.target.value) || 10)
-                }
+                aria-label="Number of test emails"
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  const clamped = Number.isFinite(n) ? Math.min(100, Math.max(1, Math.floor(n))) : 10;
+                  setNumTestEmails(clamped);
+                }}
                 className="w-12 px-1 py-1 text-xs bg-gray-800 text-gray-100 border border-gray-600 rounded text-center"
               />
               <button
                 onClick={handleEmailTemplateUpdate}
                 className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                disabled={!emailTemplate || !emailTemplate.includes("@")}>
+                disabled={!baseEmail || !baseEmail.includes("@")}>
                 Generate
               </button>
             </div>

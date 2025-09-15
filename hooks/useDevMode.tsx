@@ -5,8 +5,8 @@ interface UseDevModeProps {
   isDevelopment: boolean;
   devMode: boolean;
   setDevMode: (value: boolean) => void;
-  emailTemplate: string;
-  setEmailTemplate: (value: string) => void;
+  baseEmail: string;
+  setBaseEmail: (value: string) => void;
   numTestEmails: number;
   setNumTestEmails: (value: number) => void;
   loadPresetData: (data: string) => Promise<void>;
@@ -32,12 +32,12 @@ Bartholomäus von Quackenbusch-Wetherell,Innovation & Strategy,b@b.com
 Anastasiopolis Meridienne Calderón-Rutherford,Global Operations,c@c.com`;
 
 // Generate email test data function
-const generateEmailTestData = (baseEmail: string, count: number): string => {
-  if (!baseEmail || !baseEmail.includes("@")) {
+const generateEmailTestData = (email: string, count: number): string => {
+  if (!email || !email.includes("@")) {
     return PRESET_CSV_DATA; // Fallback to original preset data
   }
 
-  const [localPart, domain] = baseEmail.split("@");
+  const [localPart, domain] = email.split("@");
   const headers = "Name,Department,Email";
   const rows = Array.from({ length: count }, (_, i) => {
     const emailWithPlus = `${localPart}+${i + 1}@${domain}`;
@@ -89,8 +89,8 @@ export function useDevMode({
   isDevelopment,
   devMode,
   setDevMode,
-  emailTemplate,
-  setEmailTemplate,
+  baseEmail,
+  setBaseEmail,
   numTestEmails,
   setNumTestEmails,
   loadPresetData,
@@ -108,11 +108,11 @@ export function useDevMode({
     if (!isDevelopment || !devMode) return;
 
     console.log("🔧 Dev Mode: Updating email template data...");
-    const testData = emailTemplate
-      ? generateEmailTestData(emailTemplate, numTestEmails)
+    const testData = baseEmail
+      ? generateEmailTestData(baseEmail, numTestEmails)
       : presetCSVData;
     loadPresetData(testData);
-  }, [isDevelopment, devMode, emailTemplate, numTestEmails, presetCSVData, loadPresetData]);
+  }, [isDevelopment, devMode, baseEmail, numTestEmails, presetCSVData, loadPresetData]);
 
   const handleDevModeToggle = useCallback(() => {
     if (!isDevelopment) return; // Safety check - only works in development
@@ -125,8 +125,8 @@ export function useDevMode({
 
       // Enable dev mode: load preset data and template
       console.log("🔧 Dev Mode: Loading preset data...");
-      const testData = emailTemplate
-        ? generateEmailTestData(emailTemplate, numTestEmails)
+      const testData = baseEmail
+        ? generateEmailTestData(baseEmail, numTestEmails)
         : presetCSVData;
       
       // Load data asynchronously
@@ -193,7 +193,7 @@ Email Sending Robot`,
     isDevelopment,
     devMode,
     setDevMode,
-    emailTemplate,
+    baseEmail,
     numTestEmails,
     presetCSVData,
     loadPresetData,

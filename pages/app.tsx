@@ -94,7 +94,7 @@ export default function HomePage() {
 
   // Dev mode state (defined early to avoid dependency issues)
   const [devMode, setDevMode] = useState<boolean>(false);
-  const [emailTemplate, setEmailTemplate] = useState<string>("");
+  const [baseEmail, setBaseEmail] = useState<string>("");
   const [numTestEmails, setNumTestEmails] = useState<number>(10);
 
   // Table data management via custom hook
@@ -347,8 +347,8 @@ export default function HomePage() {
     isDevelopment,
     devMode,
     setDevMode,
-    emailTemplate,
-    setEmailTemplate,
+    baseEmail,
+    setBaseEmail,
     numTestEmails,
     setNumTestEmails,
     loadPresetData,
@@ -1126,8 +1126,8 @@ export default function HomePage() {
         isDevelopment={isDevelopment}
         devMode={devMode}
         handleDevModeToggle={handleDevModeToggle}
-        emailTemplate={emailTemplate}
-        setEmailTemplate={setEmailTemplate}
+        baseEmail={baseEmail}
+        setBaseEmail={setBaseEmail}
         numTestEmails={numTestEmails}
         setNumTestEmails={setNumTestEmails}
         handleEmailTemplateUpdate={handleEmailTemplateUpdate}
