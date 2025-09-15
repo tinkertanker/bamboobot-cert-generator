@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { StorageMonitor } from "@/components/StorageMonitor";
 import { LocalStorageMonitor } from "@/components/LocalStorageMonitor";
-import { ChevronDown, ChevronUp, Minimize2 } from "lucide-react";
+import { ChevronUp, Minimize2, Code2, Wrench } from "lucide-react";
 
 interface DevModeFooterProps {
   isDevelopment: boolean;
@@ -24,7 +24,7 @@ export function DevModeFooter({
   setNumTestEmails,
   handleEmailTemplateUpdate
 }: DevModeFooterProps) {
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true); // Default to minimized
 
   // Only render in development mode
   if (!isDevelopment) return null;
@@ -35,10 +35,11 @@ export function DevModeFooter({
       <div className="fixed bottom-4 right-4 z-50">
         <button
           onClick={() => setIsMinimized(false)}
-          className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white rounded-lg shadow-lg hover:bg-gray-800 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 bg-gray-900 text-white rounded-lg shadow-lg hover:bg-gray-800 transition-colors"
+          title="Expand Dev Mode Panel"
         >
           <ChevronUp className="w-4 h-4" />
-          <span className="text-sm font-medium">Dev Mode</span>
+          <Wrench className="w-4 h-4" />
         </button>
       </div>
     );
