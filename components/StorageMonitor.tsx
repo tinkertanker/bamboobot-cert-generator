@@ -134,7 +134,7 @@ export function StorageMonitor() {
             aria-modal="true"
             aria-labelledby="storage-breakdown-title"
             tabIndex={-1}
-            className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg"
+            className="absolute bottom-full right-0 mb-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg"
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setShowDetails(false);

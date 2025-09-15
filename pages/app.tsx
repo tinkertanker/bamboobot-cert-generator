@@ -46,7 +46,7 @@ import { useToast, ToastContainer } from "@/components/ui/toast";
 import { useProjectAutosave } from "@/hooks/useProjectAutosave";
 import { useSessionAutosave } from "@/hooks/useSessionAutosave";
 import { useDevMode } from "@/hooks/useDevMode";
-import { DevModeControls } from "@/components/DevModeControls";
+import { DevModeFooter } from "@/components/DevModeFooter";
 import { usePdfGenerationMethods } from "@/hooks/usePdfGenerationMethods";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
 import { useOnboarding } from "@/hooks/useOnboarding";
@@ -569,17 +569,6 @@ export default function HomePage() {
                 Bamboobot
               </h1>
             </div>
-            {/* Dev Mode Controls - Only visible in development */}
-            <DevModeControls
-              isDevelopment={isDevelopment}
-              devMode={devMode}
-              handleDevModeToggle={handleDevModeToggle}
-              emailTemplate={emailTemplate}
-              setEmailTemplate={setEmailTemplate}
-              numTestEmails={numTestEmails}
-              setNumTestEmails={setNumTestEmails}
-              handleEmailTemplateUpdate={handleEmailTemplateUpdate}
-            />
           </div>
           <div className="flex gap-3">
             {/* Help/Tutorial Button */}
@@ -1130,6 +1119,18 @@ export default function HomePage() {
           setShowOnboarding(false);
           skipOnboarding();
         }}
+      />
+
+      {/* Dev Mode Footer - Only visible in development */}
+      <DevModeFooter
+        isDevelopment={isDevelopment}
+        devMode={devMode}
+        handleDevModeToggle={handleDevModeToggle}
+        emailTemplate={emailTemplate}
+        setEmailTemplate={setEmailTemplate}
+        numTestEmails={numTestEmails}
+        setNumTestEmails={setNumTestEmails}
+        handleEmailTemplateUpdate={handleEmailTemplateUpdate}
       />
     </div>
   );
