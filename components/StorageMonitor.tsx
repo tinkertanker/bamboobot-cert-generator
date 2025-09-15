@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { HardDrive, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
+import { formatBytes } from '@/lib/format';
+import { useClickOutside } from '@/hooks/useClickOutside';
 
 interface FileInfo {
   name: string;
@@ -26,20 +28,22 @@ interface StorageStats {
   };
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
 export function StorageMonitor() {
   const [stats, setStats] = useState<StorageStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const { showToast } = useToast();
+
+  // Derived values must be declared before any early return to satisfy hook rules
+  const largePdfs = useMemo(() => (
+    stats?.directories?.generated?.files
+      ? stats.directories.generated.files.filter(f => f.type === 'pdf' && f.size > 1024 * 1024)
+      : []
+  ), [stats]);
+  const isHighUsage = (stats?.totalSize ?? 0) > 100 * 1024 * 1024; // > 100MB
 
   const fetchStats = async () => {
     setLoading(true);
@@ -85,6 +89,9 @@ export function StorageMonitor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Click outside to close details
+  useClickOutside([detailsRef, buttonRef], () => setShowDetails(false), showDetails);
+
   if (!stats) {
     return (
       <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 rounded-lg border">
@@ -94,11 +101,6 @@ export function StorageMonitor() {
       </div>
     );
   }
-
-  const isHighUsage = stats.totalSize > 100 * 1024 * 1024; // > 100MB
-  const largePdfs = stats.directories.generated.files.filter(f => 
-    f.type === 'pdf' && f.size > 1024 * 1024 // > 1MB
-  );
 
   return (
     <div className="flex items-center gap-2">
@@ -113,8 +115,11 @@ export function StorageMonitor() {
         {isHighUsage && <AlertTriangle className="w-3 h-3 text-amber-600" />}
         
         <button
+          ref={buttonRef}
           onClick={() => setShowDetails(!showDetails)}
-          className="text-xs text-blue-600 hover:text-blue-800 ml-1"
+          className="text-xs text-blue-600 hover:text-blue-800 ml-1 w-12"
+        aria-expanded={showDetails}
+        aria-controls="storage-breakdown"
         >
           {showDetails ? 'Hide' : 'Details'}
         </button>
@@ -129,12 +134,14 @@ export function StorageMonitor() {
 
         {/* Detailed Breakdown */}
         {showDetails && (
-          <div 
+          <div
+            ref={detailsRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="storage-breakdown-title"
             tabIndex={-1}
-            className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg"
+            id="storage-breakdown"
+            className="absolute bottom-full right-0 mb-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg"
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setShowDetails(false);

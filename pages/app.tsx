@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { useTable, Column } from "react-table";
 import { useTableData } from "@/hooks/useTableData";
-import type { TableData } from "@/types/certificate";
+import type { TableData, Position } from "@/types/certificate";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { usePreview } from "@/hooks/usePreview";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -46,13 +46,14 @@ import { useToast, ToastContainer } from "@/components/ui/toast";
 import { useProjectAutosave } from "@/hooks/useProjectAutosave";
 import { useSessionAutosave } from "@/hooks/useSessionAutosave";
 import { useDevMode } from "@/hooks/useDevMode";
-import { DevModeControls } from "@/components/DevModeControls";
+import { DevModeFooter } from "@/components/DevModeFooter";
 import { usePdfGenerationMethods } from "@/hooks/usePdfGenerationMethods";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingModal } from "@/components/modals/OnboardingModal";
+import { UserAvatarDropdown } from "@/components/UserAvatarDropdown";
 import { HelpCircle } from "lucide-react";
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useProjectMigration } from "@/hooks/useProjectMigration";
 
 export default function HomePage() {
@@ -94,7 +95,7 @@ export default function HomePage() {
 
   // Dev mode state (defined early to avoid dependency issues)
   const [devMode, setDevMode] = useState<boolean>(false);
-  const [emailTemplate, setEmailTemplate] = useState<string>("");
+  const [baseEmail, setBaseEmail] = useState<string>("");
   const [numTestEmails, setNumTestEmails] = useState<number>(10);
 
   // Table data management via custom hook
@@ -204,7 +205,7 @@ export default function HomePage() {
       if (!uploadedFileUrl || tableData.length === 0) return;
       try {
         // If positions already contain any non-default colors, do not auto-adjust
-        const hasCustomColors = Object.values(positions || {}).some((p: any) => {
+        const hasCustomColors = Object.values(positions || {}).some((p: Position) => {
           const c = (p?.color || '').toLowerCase();
           return c && c !== '#000000' && c !== '#ffffff';
         });
@@ -347,8 +348,8 @@ export default function HomePage() {
     isDevelopment,
     devMode,
     setDevMode,
-    emailTemplate,
-    setEmailTemplate,
+    baseEmail,
+    setBaseEmail,
     numTestEmails,
     setNumTestEmails,
     loadPresetData,
@@ -569,19 +570,11 @@ export default function HomePage() {
                 Bamboobot
               </h1>
             </div>
-            {/* Dev Mode Controls - Only visible in development */}
-            <DevModeControls
-              isDevelopment={isDevelopment}
-              devMode={devMode}
-              handleDevModeToggle={handleDevModeToggle}
-              emailTemplate={emailTemplate}
-              setEmailTemplate={setEmailTemplate}
-              numTestEmails={numTestEmails}
-              setNumTestEmails={setNumTestEmails}
-              handleEmailTemplateUpdate={handleEmailTemplateUpdate}
-            />
           </div>
           <div className="flex gap-3">
+            {/* User Avatar Dropdown */}
+            {session && <UserAvatarDropdown />}
+
             {/* Help/Tutorial Button */}
             <Button
               onClick={() => setShowOnboarding(true)}
@@ -707,16 +700,6 @@ export default function HomePage() {
                 SPLIT_BUTTON_THEME.generate.dropdownHoverColor
               }
             />
-            {session && (
-              <Button
-                onClick={() => signOut()}
-                variant="outline"
-                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                title={session.user?.email || 'Sign out'}
-              >
-                Sign out
-              </Button>
-            )}
           </div>
         </div>
       </header>
@@ -1130,6 +1113,18 @@ export default function HomePage() {
           setShowOnboarding(false);
           skipOnboarding();
         }}
+      />
+
+      {/* Dev Mode Footer - Only visible in development */}
+      <DevModeFooter
+        isDevelopment={isDevelopment}
+        devMode={devMode}
+        handleDevModeToggle={handleDevModeToggle}
+        baseEmail={baseEmail}
+        setBaseEmail={setBaseEmail}
+        numTestEmails={numTestEmails}
+        setNumTestEmails={setNumTestEmails}
+        handleEmailTemplateUpdate={handleEmailTemplateUpdate}
       />
     </div>
   );
