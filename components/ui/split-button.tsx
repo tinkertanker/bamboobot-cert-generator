@@ -1,6 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
+import { useClickOutside } from "@/hooks/useClickOutside";
 
 export interface SplitButtonMenuItem {
   label: string;
@@ -48,23 +49,7 @@ export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
   }, ref) => {
     const [isOpen, setIsOpen] = React.useState(false);
     const dropdownRef = React.useRef<HTMLDivElement>(null);
-
-    // Close dropdown when clicking outside
-    React.useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-          setIsOpen(false);
-        }
-      };
-
-      if (isOpen) {
-        document.addEventListener("mousedown", handleClickOutside);
-      }
-
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }, [isOpen]);
+    useClickOutside(dropdownRef, () => setIsOpen(false), isOpen);
 
     const baseClasses = "relative font-medium transition-all duration-200";
     const enabledClasses = variant === "primary" 
