@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HardDrive, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -39,6 +39,8 @@ export function StorageMonitor() {
   const [loading, setLoading] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const { showToast } = useToast();
 
   const fetchStats = async () => {
@@ -85,6 +87,28 @@ export function StorageMonitor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Handle click outside to close details
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        showDetails &&
+        detailsRef.current &&
+        !detailsRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
+        setShowDetails(false);
+      }
+    };
+
+    if (showDetails) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showDetails]);
+
   if (!stats) {
     return (
       <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 rounded-lg border">
@@ -113,6 +137,7 @@ export function StorageMonitor() {
         {isHighUsage && <AlertTriangle className="w-3 h-3 text-amber-600" />}
         
         <button
+          ref={buttonRef}
           onClick={() => setShowDetails(!showDetails)}
           className="text-xs text-blue-600 hover:text-blue-800 ml-1"
         >
@@ -129,7 +154,8 @@ export function StorageMonitor() {
 
         {/* Detailed Breakdown */}
         {showDetails && (
-          <div 
+          <div
+            ref={detailsRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="storage-breakdown-title"
