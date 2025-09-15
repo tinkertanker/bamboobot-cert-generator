@@ -141,8 +141,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!isDevelopment) {
     // Check if user is super admin
     const session = await getServerSession(req, res, authOptions);
-    if (!session?.user?.email) {
-      res.status(401).json({ error: 'Unauthorized' });
+
+    // Validate session exists and has required user data
+    // getServerSession validates JWT token expiry and signature internally
+    if (!session || !session.user || !session.user.email || !session.user.id) {
+      res.status(401).json({ error: 'Unauthorized - valid session required' });
       return;
     }
 
