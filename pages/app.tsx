@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { useTable, Column } from "react-table";
 import { useTableData } from "@/hooks/useTableData";
-import type { TableData } from "@/types/certificate";
+import type { TableData, Position } from "@/types/certificate";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { usePreview } from "@/hooks/usePreview";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -204,7 +204,7 @@ export default function HomePage() {
       if (!uploadedFileUrl || tableData.length === 0) return;
       try {
         // If positions already contain any non-default colors, do not auto-adjust
-        const hasCustomColors = Object.values(positions || {}).some((p: any) => {
+        const hasCustomColors = Object.values(positions || {}).some((p: Position) => {
           const c = (p?.color || '').toLowerCase();
           return c && c !== '#000000' && c !== '#ffffff';
         });

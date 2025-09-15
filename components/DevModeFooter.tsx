@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { StorageMonitor } from "@/components/StorageMonitor";
 import { LocalStorageMonitor } from "@/components/LocalStorageMonitor";
-import { ChevronUp, Minimize2, Code2, Wrench } from "lucide-react";
+import { ChevronUp, Minimize2, Wrench } from "lucide-react";
 
 interface DevModeFooterProps {
   isDevelopment: boolean;
