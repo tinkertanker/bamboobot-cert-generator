@@ -2,6 +2,9 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
 import { getTempImagesDir, getGeneratedDir } from '@/lib/paths';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/pages/api/auth/[...nextauth]';
+import { detectUserTier } from '@/lib/server/tiers';
 
 interface FileInfo {
   name: string;
@@ -144,10 +147,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  // Only allow in development mode for security
-  if (process.env.NODE_ENV !== 'development') {
-    res.status(403).json({ error: 'Only available in development mode' });
-    return;
+  // Allow in development mode OR for super admins in production
+  const isDevelopment = process.env.NODE_ENV === 'development';
+
+  if (!isDevelopment) {
+    // Check if user is super admin
+    const session = await getServerSession(req, res, authOptions);
+    if (!session?.user?.email) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const userTier = detectUserTier(session.user.email);
+    if (userTier !== 'super_admin') {
+      res.status(403).json({ error: 'Only available for super admins in production' });
+      return;
+    }
   }
 
   try {
