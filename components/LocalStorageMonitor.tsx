@@ -115,7 +115,7 @@ export function LocalStorageMonitor() {
             aria-modal="true"
             aria-labelledby="localStorage-breakdown-title"
             tabIndex={-1}
-            className="absolute top-full left-0 mt-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg"
+            className="absolute bottom-full right-0 mb-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg"
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setShowDetails(false);
@@ -161,7 +161,7 @@ export function LocalStorageMonitor() {
                           <div className="truncate font-mono text-gray-800" title={item.key}>
                             {item.key}
                           </div>
-                          {item.data && 'name' in item.data && typeof item.data.name === 'string' && (
+                          {item.data && typeof item.data === 'object' && 'name' in item.data && typeof item.data.name === 'string' && (
                             <div className="text-gray-500 text-xs">
                               {item.data.name}
                             </div>
