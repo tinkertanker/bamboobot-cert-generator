@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Database, Trash2, RefreshCw, AlertTriangle, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -9,6 +9,8 @@ export function LocalStorageMonitor() {
   const [loading, setLoading] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const { showToast } = useToast();
 
   const refreshStats = async () => {
@@ -48,6 +50,28 @@ export function LocalStorageMonitor() {
     refreshStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Handle click outside to close details
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        showDetails &&
+        detailsRef.current &&
+        !detailsRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
+        setShowDetails(false);
+      }
+    };
+
+    if (showDetails) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showDetails]);
 
   if (!stats) {
     return (
@@ -94,6 +118,7 @@ export function LocalStorageMonitor() {
         {isHighUsage && <AlertTriangle className="w-3 h-3 text-red-600" />}
         
         <button
+          ref={buttonRef}
           onClick={() => setShowDetails(!showDetails)}
           className="text-xs text-blue-600 hover:text-blue-800 ml-1"
         >
@@ -110,7 +135,8 @@ export function LocalStorageMonitor() {
 
         {/* Detailed Breakdown */}
         {showDetails && (
-          <div 
+          <div
+            ref={detailsRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="localStorage-breakdown-title"
