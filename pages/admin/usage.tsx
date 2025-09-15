@@ -5,9 +5,8 @@ import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/lib/server/prisma';
 import { getTierLimits } from '@/types/user';
 import type { UserTier } from '@/types/user';
-import Link from 'next/link';
 import { useState } from 'react';
-import { signOut } from 'next-auth/react';
+import AdminLayout from '@/components/admin/AdminLayout';
 
 interface UsageStats {
   daily: {
@@ -67,66 +66,29 @@ export default function UsagePage({ stats, currentPeriod }: UsagePageProps) {
     projects: Math.round(totals.projects / stats.daily.length)
   };
   
+  const subNav = (
+    <div className="inline-flex rounded-md shadow-sm">
+      <button
+        onClick={() => setPeriod('week')}
+        className={`px-3 py-1.5 text-sm font-medium rounded-l-md ${
+          period === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100'
+        }`}
+      >
+        Last 7 Days
+      </button>
+      <button
+        onClick={() => setPeriod('month')}
+        className={`px-3 py-1.5 text-sm font-medium rounded-r-md ${
+          period === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100'
+        }`}
+      >
+        Last 30 Days
+      </button>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-gray-900">Usage Analytics</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link
-                href="/admin"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Back to Dashboard
-              </Link>
-              <Link
-                href="/"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Back to App
-              </Link>
-              <button
-                onClick={() => signOut({ callbackUrl: '/' })}
-                className="text-sm text-red-600 hover:text-red-700"
-              >
-                Sign Out
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-      
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Period Selector */}
-        <div className="mb-6">
-          <div className="inline-flex rounded-md shadow-sm">
-            <button
-              onClick={() => setPeriod('week')}
-              className={`px-4 py-2 text-sm font-medium rounded-l-md ${
-                period === 'week'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              } border`}
-            >
-              Last 7 Days
-            </button>
-            <button
-              onClick={() => setPeriod('month')}
-              className={`px-4 py-2 text-sm font-medium rounded-r-md ${
-                period === 'month'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              } border-t border-b border-r`}
-            >
-              Last 30 Days
-            </button>
-          </div>
-        </div>
+    <AdminLayout title="Usage Analytics" subNav={subNav}>
         
         {/* Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -276,8 +238,7 @@ export default function UsagePage({ stats, currentPeriod }: UsagePageProps) {
             </table>
           </div>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
 

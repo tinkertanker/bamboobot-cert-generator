@@ -9,7 +9,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // Initialize S3 client
-const s3Client = new S3Client({
+export const s3Client = new S3Client({
   region: process.env.S3_REGION || 'us-east-1',
   credentials: {
     accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
@@ -191,6 +191,34 @@ export async function listS3Objects(
   );
   
   return objectsWithMetadata.filter((obj): obj is NonNullable<typeof obj> => obj !== null);
+}
+
+/**
+ * List ALL objects in S3 with optional prefix, using pagination
+ */
+export async function listAllS3Objects(
+  prefix?: string
+): Promise<Array<{key: string; lastModified?: Date; size?: number}>> {
+  const results: Array<{key: string; lastModified?: Date; size?: number}> = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const command = new ListObjectsV2Command({
+      Bucket: BUCKET_NAME,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    });
+    const response = await s3Client.send(command);
+    const batch = (response.Contents || []).map(o => ({
+      key: o.Key || '',
+      lastModified: o.LastModified,
+      size: o.Size,
+    }));
+    results.push(...batch);
+    continuationToken = response.NextContinuationToken;
+  } while (continuationToken);
+
+  return results;
 }
 
 /**

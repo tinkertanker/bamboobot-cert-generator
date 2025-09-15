@@ -12,6 +12,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 const r2Client = new S3Client({
   region: 'auto',
   endpoint: process.env.R2_ENDPOINT || '',
+  forcePathStyle: true, // R2 prefers path-style requests with the account endpoint
   credentials: {
     accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
@@ -159,8 +160,8 @@ export async function getFileMetadata(key: string): Promise<FileMetadata | null>
 /**
  * List all files with optional prefix filter
  */
-export async function listFiles(prefix?: string): Promise<Array<{key: string, lastModified?: Date}>> {
-  const files: Array<{key: string, lastModified?: Date}> = [];
+export async function listFiles(prefix?: string): Promise<Array<{key: string, lastModified?: Date, size?: number}>> {
+  const files: Array<{key: string, lastModified?: Date, size?: number}> = [];
   let continuationToken: string | undefined;
   
   do {
@@ -176,6 +177,7 @@ export async function listFiles(prefix?: string): Promise<Array<{key: string, la
       files.push(...response.Contents.map(obj => ({
         key: obj.Key || '',
         lastModified: obj.LastModified,
+        size: obj.Size,
       })));
     }
     

@@ -5,9 +5,8 @@ import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/lib/server/prisma';
 import { getTierLimits } from '@/types/user';
 import type { UserTier } from '@/types/user';
-import Link from 'next/link';
-import { signOut } from 'next-auth/react';
 import { useState } from 'react';
+import AdminLayout from '@/components/admin/AdminLayout';
 
 interface AdminDashboardProps {
   stats: {
@@ -28,67 +27,8 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ stats, recentActivity }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState('overview');
-  
-  const tabs = [
-    { id: 'overview', label: 'Overview', href: '/admin' },
-    { id: 'users', label: 'Users', href: '/admin/users' },
-    { id: 'projects', label: 'Projects', href: '/admin/projects' },
-    { id: 'usage', label: 'Usage Analytics', href: '/admin/usage' },
-    { id: 'system', label: 'System', href: '/admin/system' },
-  ];
-  
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link
-                href="/"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Back to App
-              </Link>
-              <button
-                onClick={() => signOut({ callbackUrl: '/' })}
-                className="text-sm text-red-600 hover:text-red-700"
-              >
-                Sign Out
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-      
-      {/* Navigation Tabs */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-8">
-            {tabs.map((tab) => (
-              <Link
-                key={tab.id}
-                href={tab.href}
-                className={`py-4 px-1 border-b-2 text-sm font-medium transition-colors ${
-                  tab.id === activeTab
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-      </div>
-      
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <AdminLayout title="Dashboard">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <StatCard
@@ -174,8 +114,7 @@ export default function AdminDashboard({ stats, recentActivity }: AdminDashboard
             </table>
           </div>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
 
