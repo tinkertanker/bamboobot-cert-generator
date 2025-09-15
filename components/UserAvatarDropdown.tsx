@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { User, LogOut, Settings, ChevronDown } from 'lucide-react';
+import { LogOut, Settings, ChevronDown } from 'lucide-react';
 import { useClickOutside } from '@/hooks/useClickOutside';
 
 export function UserAvatarDropdown() {

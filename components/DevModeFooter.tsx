@@ -5,6 +5,7 @@ import { ChevronUp, Minimize2, Wrench } from "lucide-react";
 
 interface DevModeFooterProps {
   isDevelopment: boolean;
+  isSuperAdmin?: boolean;
   devMode: boolean;
   handleDevModeToggle: () => void;
   baseEmail: string;
@@ -16,6 +17,7 @@ interface DevModeFooterProps {
 
 export function DevModeFooter({
   isDevelopment,
+  isSuperAdmin = false,
   devMode,
   handleDevModeToggle,
   baseEmail,
@@ -29,8 +31,8 @@ export function DevModeFooter({
   const MAX_TEST_EMAILS = 100;
   const DEFAULT_TEST_EMAILS = 10;
 
-  // Only render in development mode
-  if (!isDevelopment) return null;
+  // Show for development mode OR super admins in production
+  if (!isDevelopment && !isSuperAdmin) return null;
 
   // Minimized state - shows in bottom right corner
   if (isMinimized) {

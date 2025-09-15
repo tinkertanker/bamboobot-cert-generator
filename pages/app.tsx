@@ -55,6 +55,7 @@ import { UserAvatarDropdown } from "@/components/UserAvatarDropdown";
 import { HelpCircle } from "lucide-react";
 import { useSession } from 'next-auth/react';
 import { useProjectMigration } from "@/hooks/useProjectMigration";
+import { useUserTier } from "@/hooks/useUserTier";
 
 export default function HomePage() {
   // ============================================================================
@@ -64,6 +65,7 @@ export default function HomePage() {
   const { isMobile, isLoading: isMobileLoading } = useMobileDetection();
   const [forceMobileAccess, setForceMobileAccess] = useState(false);
   const { data: session } = useSession();
+  const { isSuperAdmin } = useUserTier();
   // Check for localStorage projects on first login and offer import
   useProjectMigration();
 
@@ -1115,9 +1117,10 @@ export default function HomePage() {
         }}
       />
 
-      {/* Dev Mode Footer - Only visible in development */}
+      {/* Dev Mode Footer - Visible in development OR for super admins */}
       <DevModeFooter
         isDevelopment={isDevelopment}
+        isSuperAdmin={isSuperAdmin}
         devMode={devMode}
         handleDevModeToggle={handleDevModeToggle}
         baseEmail={baseEmail}
