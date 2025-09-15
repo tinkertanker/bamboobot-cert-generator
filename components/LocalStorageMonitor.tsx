@@ -15,6 +15,10 @@ export function LocalStorageMonitor() {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const { showToast } = useToast();
 
+  function hasNameString(data: unknown): data is { name: string } {
+    return typeof data === 'object' && data !== null && 'name' in data && typeof (data as any).name === 'string';
+  }
+
   // Derived values declared before early returns for hook rules
   const hasOldProjects = useMemo(() => {
     if (!stats) return false;
@@ -180,7 +184,7 @@ export function LocalStorageMonitor() {
                           <div className="truncate font-mono text-gray-800" title={item.key}>
                             {item.key}
                           </div>
-                          {item.data && typeof item.data === 'object' && 'name' in item.data && typeof item.data.name === 'string' && (
+                          {hasNameString(item.data) && (
                             <div className="text-gray-500 text-xs">
                               {item.data.name}
                             </div>

@@ -24,7 +24,10 @@ export function DevModeFooter({
   setNumTestEmails,
   handleEmailTemplateUpdate
 }: DevModeFooterProps) {
-  const [isMinimized, setIsMinimized] = useState(true); // Default to minimized
+  const [isMinimized, setIsMinimized] = useState(true); // Default to minimised
+  const MIN_TEST_EMAILS = 1;
+  const MAX_TEST_EMAILS = 100;
+  const DEFAULT_TEST_EMAILS = 10;
 
   // Only render in development mode
   if (!isDevelopment) return null;
@@ -85,13 +88,15 @@ export function DevModeFooter({
               />
               <input
                 type="number"
-                min="1"
-                max="100"
+                min={MIN_TEST_EMAILS}
+                max={MAX_TEST_EMAILS}
                 value={numTestEmails}
                 aria-label="Number of test emails"
                 onChange={(e) => {
                   const n = Number(e.target.value);
-                  const clamped = Number.isFinite(n) ? Math.min(100, Math.max(1, Math.floor(n))) : 10;
+                  const clamped = Number.isFinite(n)
+                    ? Math.min(MAX_TEST_EMAILS, Math.max(MIN_TEST_EMAILS, Math.floor(n)))
+                    : DEFAULT_TEST_EMAILS;
                   setNumTestEmails(clamped);
                 }}
                 className="w-12 px-1 py-1 text-xs bg-gray-800 text-gray-100 border border-gray-600 rounded text-center"

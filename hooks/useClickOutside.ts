@@ -1,7 +1,7 @@
 import { useEffect, RefObject } from 'react';
 
 export function useClickOutside(
-  refs: Array<RefObject<HTMLElement | null>> | RefObject<HTMLElement | null>,
+  refs: RefObject<HTMLElement>[] | RefObject<HTMLElement>,
   onOutside: () => void,
   enabled: boolean = true
 ) {
@@ -23,4 +23,3 @@ export function useClickOutside(
     return () => document.removeEventListener('mousedown', handle);
   }, [enabled, refs, onOutside]);
 }
-
