@@ -619,7 +619,8 @@ export function IndividualPdfsModal({
                 return {
                   email,
                   downloadUrl: file.url,
-                  fileName: filename
+                  fileName: filename,
+                  data: file.data  // Include PDF bytes for client-side PDFs
                 };
               })}
             />

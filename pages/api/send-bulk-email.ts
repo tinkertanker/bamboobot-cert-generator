@@ -87,9 +87,17 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     // Add emails to queue
     const emailParams: EmailParams[] = await Promise.all(validEmails.map(async email => {
       let attachments = undefined;
-      
-      // Handle attachments if delivery method is attachment
-      if (email.attachments && email.attachments.length > 0) {
+
+      // Handle client-side PDF data (sent as array of bytes)
+      if (email.attachmentData && email.attachmentData.data) {
+        attachments = [{
+          filename: email.attachmentData.filename,
+          content: Buffer.from(email.attachmentData.data),
+          contentType: 'application/pdf'
+        }];
+      }
+      // Handle server-side PDF URLs (need to fetch)
+      else if (email.attachments && email.attachments.length > 0) {
         attachments = await Promise.all(email.attachments.map(async (att: { path?: string; filename: string; content?: Buffer | string }) => {
           if (att.path) {
             // Fetch the attachment content
@@ -112,7 +120,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
           }
           return att;
         }));
-        
+
         // Filter out any failed attachments
         attachments = attachments.filter(att => att !== null);
       }
