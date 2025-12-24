@@ -4,6 +4,14 @@ import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { rateLimit, buildKey } from '@/lib/rate-limit';
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb'
+    }
+  }
+};
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
