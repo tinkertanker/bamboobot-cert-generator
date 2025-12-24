@@ -8,6 +8,7 @@ export interface UseTableDataReturn {
   isFirstRowHeader: boolean;
   useCSVMode: boolean;
   detectedEmailColumn: string | null;
+  hasEmailColumn: boolean;
   isProcessingData: boolean;
   handleTableDataChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleHeaderToggle: () => void;
@@ -324,6 +325,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     isFirstRowHeader,
     useCSVMode,
     detectedEmailColumn,
+    hasEmailColumn: detectedEmailColumn !== null,
     isProcessingData,
     handleTableDataChange,
     handleHeaderToggle,

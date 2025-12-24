@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import type { TableData, EmailConfig, EmailSendingStatus, PdfFile } from "@/types/certificate";
-import { isValidEmailValue } from "@/utils/email-utils";
 
 export interface UseEmailConfigProps {
   detectedEmailColumn: string | null;
@@ -61,25 +60,8 @@ export function useEmailConfig({
     });
   }, [detectedEmailColumn]);
 
-  // Function to detect if any column contains email addresses
-  const hasEmailColumn = (() => {
-    if (tableData.length === 0) return false;
-
-    // Check each column for email patterns
-    const columns = Object.keys(tableData[0]);
-    return columns.some((column) => {
-      // Check if at least 50% of non-empty values in this column are emails
-      const values = tableData
-        .map((row) => row[column])
-        .filter((val) => val && val.trim());
-      if (values.length === 0) return false;
-
-      const emailCount = values.filter((val) =>
-        isValidEmailValue(val)
-      ).length;
-      return emailCount / values.length >= 0.5;
-    });
-  })();
+  // Derive from detectedEmailColumn (already computed by useTableData)
+  const hasEmailColumn = detectedEmailColumn !== null;
 
   // Send individual certificate via email
   const sendCertificateEmail = useCallback(async (
