@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { TableData, EmailConfig, EmailSendingStatus, PdfFile } from "@/types/certificate";
+import { isValidEmailValue } from "@/utils/email-utils";
 
 export interface UseEmailConfigProps {
   detectedEmailColumn: string | null;
@@ -34,6 +35,12 @@ export function useEmailConfig({
 
   const [emailSendingStatus, setEmailSendingStatus] = useState<EmailSendingStatus>({});
 
+  // Reset email sending status when table data changes (new recipients loaded)
+  useEffect(() => {
+    console.log("📧 useEmailConfig: tableData changed, resetting email sending status");
+    setEmailSendingStatus({});
+  }, [tableData]);
+
   // Handle email config reset when email column changes
   useEffect(() => {
     console.log("📧 useEmailConfig: detectedEmailColumn changed to:", detectedEmailColumn);
@@ -58,8 +65,6 @@ export function useEmailConfig({
   const hasEmailColumn = (() => {
     if (tableData.length === 0) return false;
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
     // Check each column for email patterns
     const columns = Object.keys(tableData[0]);
     return columns.some((column) => {
@@ -70,7 +75,7 @@ export function useEmailConfig({
       if (values.length === 0) return false;
 
       const emailCount = values.filter((val) =>
-        emailRegex.test(val.trim())
+        isValidEmailValue(val)
       ).length;
       return emailCount / values.length >= 0.5;
     });
