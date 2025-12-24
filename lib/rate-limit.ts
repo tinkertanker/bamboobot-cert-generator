@@ -45,7 +45,7 @@ const DEFAULTS: Record<LimitCategory, number> = {
   upload: parseInt(process.env.RATE_LIMIT_UPLOAD_PER_MIN || '6', 10),
   generate: parseInt(process.env.RATE_LIMIT_GENERATE_PER_MIN || '10', 10),
   zip: parseInt(process.env.RATE_LIMIT_ZIP_PER_MIN || '5', 10),
-  email: parseInt(process.env.RATE_LIMIT_EMAIL_PER_MIN || '3', 10),
+  email: parseInt(process.env.RATE_LIMIT_EMAIL_PER_MIN || '60', 10),
 };
 
 export function rateLimit(key: string, category: LimitCategory) {
