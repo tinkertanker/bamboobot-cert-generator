@@ -28,7 +28,13 @@ interface BulkEmailModalProps {
     email: string;
     downloadUrl: string;
     fileName: string;
+    data?: Uint8Array;  // PDF bytes for client-side generated PDFs
   }>;
+}
+
+interface FailedEmail {
+  email: string;
+  error: string;
 }
 
 interface EmailStatus {
@@ -46,6 +52,7 @@ interface EmailStatus {
   currentEmail?: string;
   currentIndex?: number;
   error?: string;
+  failedEmails?: FailedEmail[];
 }
 
 export function BulkEmailModal({ 
@@ -72,6 +79,11 @@ export function BulkEmailModal({
   const [startTime, setStartTime] = useState<number>(0);
   const [showPreview, setShowPreview] = useState(false);
   const [restoredFromStorage, setRestoredFromStorage] = useState(false);
+
+  // Test email state
+  const [testEmail, setTestEmail] = useState('');
+  const [isTestSending, setIsTestSending] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Restore state from localStorage when modal opens
   useEffect(() => {
@@ -152,19 +164,39 @@ export function BulkEmailModal({
 
     try {
       // Prepare email data (only valid certificates)
-      const emails = validCertificates.map(cert => ({
-        to: cert.email,
-        senderName: emailConfig.senderName,
-        subject: emailConfig.subject,
-        html: emailConfig.deliveryMethod === 'download' 
-          ? buildLinkEmail(emailConfig.message, cert.downloadUrl)
-          : buildAttachmentEmail(emailConfig.message),
-        text: emailConfig.message,
-        attachments: emailConfig.deliveryMethod === 'attachment' 
-          ? [{ filename: cert.fileName, path: cert.downloadUrl }]
-          : undefined,
-        certificateUrl: cert.downloadUrl
-      }));
+      const emails = validCertificates.map(cert => {
+        const isClientSidePdf = cert.data && cert.downloadUrl.startsWith('blob:');
+
+        // For client-side PDFs with attachment delivery, send the actual data
+        let attachments;
+        let attachmentData;
+
+        if (emailConfig.deliveryMethod === 'attachment') {
+          if (isClientSidePdf && cert.data) {
+            // Client-side PDF: send raw data as array
+            attachmentData = {
+              filename: cert.fileName,
+              data: Array.from(cert.data)
+            };
+          } else {
+            // Server-side PDF: send URL for server to fetch
+            attachments = [{ filename: cert.fileName, path: cert.downloadUrl }];
+          }
+        }
+
+        return {
+          to: cert.email,
+          senderName: emailConfig.senderName,
+          subject: emailConfig.subject,
+          html: emailConfig.deliveryMethod === 'download'
+            ? buildLinkEmail(emailConfig.message, cert.downloadUrl)
+            : buildAttachmentEmail(emailConfig.message),
+          text: emailConfig.message,
+          attachments,
+          attachmentData,
+          certificateUrl: cert.downloadUrl
+        };
+      });
 
       const response = await fetch('/api/send-bulk-email', {
         method: 'POST',
@@ -217,6 +249,66 @@ export function BulkEmailModal({
     onClose();
   };
 
+  const sendTestEmail = async () => {
+    if (!testEmail.trim() || validCertificates.length === 0) return;
+
+    setIsTestSending(true);
+    setTestResult(null);
+
+    try {
+      const firstCert = validCertificates[0];
+      const isClientSidePdf = firstCert.data && firstCert.downloadUrl.startsWith('blob:');
+
+      // Prepare attachment data based on PDF source
+      let attachment;
+      let attachmentData;
+
+      if (emailConfig.deliveryMethod === 'attachment') {
+        if (isClientSidePdf && firstCert.data) {
+          // Client-side PDF: send raw data
+          attachmentData = {
+            filename: firstCert.fileName,
+            data: Array.from(firstCert.data)
+          };
+        } else {
+          // Server-side PDF: send URL
+          attachment = { filename: firstCert.fileName, path: firstCert.downloadUrl };
+        }
+      }
+
+      const response = await fetch('/api/send-test-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          testEmailAddress: testEmail.trim(),
+          senderName: emailConfig.senderName,
+          subject: emailConfig.subject,
+          html: emailConfig.deliveryMethod === 'download'
+            ? buildLinkEmail(emailConfig.message, firstCert.downloadUrl)
+            : buildAttachmentEmail(emailConfig.message),
+          text: emailConfig.message,
+          attachment,
+          attachmentData,
+          certificateUrl: firstCert.downloadUrl
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setTestResult({ success: true, message: `Test email sent to ${testEmail}` });
+      } else {
+        setTestResult({ success: false, message: data.error || 'Failed to send test email' });
+      }
+    } catch (error) {
+      setTestResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to send test email'
+      });
+    } finally {
+      setIsTestSending(false);
+    }
+  };
 
   const progress = status.total > 0 ? ((status.processed + status.failed) / status.total) * 100 : 0;
 
@@ -271,6 +363,45 @@ export function BulkEmailModal({
                   )}
                 </ul>
               </div>
+            </div>
+          )}
+
+          {/* Test Email Section */}
+          {status.status === 'idle' && !isStarted && validCertificates.length > 0 && (
+            <div className="bg-gray-50 border border-gray-200 rounded p-3">
+              <p className="text-sm font-medium text-gray-900 mb-2">
+                Send a test email first?
+              </p>
+              <p className="text-xs text-gray-600 mb-3">
+                Send the first certificate to your email address to verify formatting.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isTestSending}
+                />
+                <Button
+                  onClick={sendTestEmail}
+                  disabled={!testEmail.trim() || isTestSending}
+                  variant="outline"
+                  className="whitespace-nowrap"
+                >
+                  {isTestSending ? 'Sending...' : 'Test Run'}
+                </Button>
+              </div>
+              {testResult && (
+                <div className={`mt-2 p-2 rounded text-sm ${
+                  testResult.success
+                    ? 'bg-green-50 text-green-800 border border-green-200'
+                    : 'bg-red-50 text-red-800 border border-red-200'
+                }`}>
+                  {testResult.message}
+                </div>
+              )}
             </div>
           )}
 
@@ -338,6 +469,25 @@ export function BulkEmailModal({
           {status.error && (
             <div className="bg-red-50 border border-red-200 rounded p-3">
               <p className="text-sm text-red-800">{status.error}</p>
+            </div>
+          )}
+
+          {/* Failed emails list */}
+          {status.failedEmails && status.failedEmails.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded p-3">
+              <p className="text-sm font-medium text-red-800 mb-2">
+                Failed to send to {status.failedEmails.length} recipient{status.failedEmails.length > 1 ? 's' : ''}:
+              </p>
+              <div className="max-h-40 overflow-y-auto">
+                <ul className="text-xs text-red-700 space-y-1">
+                  {status.failedEmails.map((failed, idx) => (
+                    <li key={idx} className="flex justify-between items-start gap-2">
+                      <span className="font-medium truncate">{failed.email}</span>
+                      <span className="text-red-600 text-right shrink-0">{failed.error}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
 

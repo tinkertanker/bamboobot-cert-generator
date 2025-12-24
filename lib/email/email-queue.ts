@@ -387,12 +387,21 @@ export class EmailQueueManager {
     };
     currentEmail?: string;
     currentIndex?: number;
+    failedEmails?: { email: string; error: string }[];
   } {
     const remaining = this.queue.items.filter(i => i.status === 'pending').length;
     const resetIn = Math.max(0, this.queue.rateLimit.reset.getTime() - Date.now());
     const sendingItem = this.queue.items.find(i => i.status === 'sending');
     const sendingIndex = sendingItem ? this.queue.items.indexOf(sendingItem) : undefined;
-    
+
+    // Get list of failed emails with their error messages
+    const failedEmails = this.queue.items
+      .filter(i => i.status === 'failed')
+      .map(i => ({
+        email: i.to,
+        error: i.lastError || 'Unknown error'
+      }));
+
     return {
       status: this.queue.status,
       processed: this.queue.processed,
@@ -406,7 +415,8 @@ export class EmailQueueManager {
         resetIn
       },
       currentEmail: sendingItem?.to,
-      currentIndex: sendingIndex
+      currentIndex: sendingIndex,
+      failedEmails: failedEmails.length > 0 ? failedEmails : undefined
     };
   }
 }
