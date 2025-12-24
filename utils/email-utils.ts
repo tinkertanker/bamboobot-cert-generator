@@ -177,5 +177,5 @@ export async function buildPdfAttachments(
     }
   }
 
-  return result.length > 0 ? result : undefined;
+  return undefined;
 }

@@ -63,14 +63,21 @@ export function buildKey(opts: { userId?: string | null; ip?: string | null; rou
 
 // Extract IP from request headers
 // x-forwarded-for can be "client, proxy1, proxy2" - take the first (original client)
+// Headers can be string | string[] in Next.js, handle both cases
 export function getClientIp(req: { headers: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }): string | null {
   const xRealIp = req.headers['x-real-ip'];
   const xForwardedFor = req.headers['x-forwarded-for'];
-  const realIp = typeof xRealIp === 'string' ? xRealIp.trim() : null;
+  const realIp = Array.isArray(xRealIp)
+    ? xRealIp[0]?.trim() || null
+    : typeof xRealIp === 'string'
+      ? xRealIp.trim()
+      : null;
   // Extract first IP from comma-separated list
-  const forwardedFor = typeof xForwardedFor === 'string'
-    ? xForwardedFor.split(',')[0]?.trim() || null
-    : null;
+  const forwardedFor = Array.isArray(xForwardedFor)
+    ? xForwardedFor[0]?.split(',')[0]?.trim() || null
+    : typeof xForwardedFor === 'string'
+      ? xForwardedFor.split(',')[0]?.trim() || null
+      : null;
   return realIp || forwardedFor || req.socket?.remoteAddress || null;
 }
 

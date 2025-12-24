@@ -4,7 +4,7 @@ import { EmailQueueManager } from '@/lib/email/email-queue';
 import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { parseRecipients, buildPdfAttachments } from '@/utils/email-utils';
+import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
 
 export const config = {
   api: {
@@ -93,12 +93,18 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       attachments?: { path?: string; filename: string; content?: Buffer | string }[];
       certificateUrl?: string;
     };
+    const rejectedEmails: string[] = [];
     const emailsWithRecipients = (emails as EmailInput[])
-      .map(email => ({
-        ...email,
-        recipients: parseRecipients(email.to || '')
-      }))
+      .map(email => {
+        const { valid, rejected } = parseRecipientsDetailed(email.to || '');
+        rejectedEmails.push(...rejected);
+        return { ...email, recipients: valid };
+      })
       .filter(email => email.recipients.length > 0);
+
+    if (rejectedEmails.length > 0) {
+      console.warn(`Bulk email - invalid addresses filtered: ${rejectedEmails.join(', ')}`);
+    }
 
     const skippedCount = emails.length - emailsWithRecipients.length;
 

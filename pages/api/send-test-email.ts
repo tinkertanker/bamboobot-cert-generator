@@ -3,7 +3,7 @@ import { getEmailProvider } from '@/lib/email/provider-factory';
 import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { parseRecipients, buildPdfAttachments } from '@/utils/email-utils';
+import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
 
 export const config = {
   api: {
@@ -40,7 +40,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Parse and validate recipients
-    const recipients = parseRecipients(testEmailAddress);
+    const { valid: recipients, rejected } = parseRecipientsDetailed(testEmailAddress);
+    if (rejected.length > 0) {
+      console.warn(`Test email - invalid addresses filtered: ${rejected.join(', ')}`);
+    }
     if (recipients.length === 0) {
       res.status(400).json({ error: 'Invalid email address format' });
       return;

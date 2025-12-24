@@ -5,7 +5,7 @@ import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { withFeatureGate } from '@/lib/server/middleware/featureGate';
-import { parseRecipients, buildPdfAttachments } from '@/utils/email-utils';
+import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
 
 export const config = {
   api: {
@@ -54,7 +54,10 @@ async function sendEmailHandler(
     }
 
     // Parse and validate recipients before proceeding
-    const recipients = parseRecipients(to);
+    const { valid: recipients, rejected } = parseRecipientsDetailed(to);
+    if (rejected.length > 0) {
+      console.warn(`Send email - invalid addresses filtered for ${userId}: ${rejected.join(', ')}`);
+    }
     if (recipients.length === 0) {
       res.status(400).json({ error: 'No valid email addresses provided' });
       return;
