@@ -3,8 +3,8 @@ import { getEmailProvider } from '@/lib/email/provider-factory';
 import { EmailQueueManager } from '@/lib/email/email-queue';
 import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { rateLimit, buildKey } from '@/lib/rate-limit';
-import { parseRecipients } from '@/utils/email-utils';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import { parseRecipients, buildPdfAttachments } from '@/utils/email-utils';
 
 export const config = {
   api: {
@@ -58,12 +58,11 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
 
     // Rate limit after validation
     const userId = (req as any).__uid as string | undefined;
-    const ip = ((req as any).__ip as string | null) ?? null;
-    const rl = rateLimit(buildKey({ userId, ip, route: 'send-bulk-email:POST', category: 'email' }), 'email');
-    res.setHeader('X-RateLimit-Limit', String(rl.limit));
-    res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
-    res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
-    if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Email rate limit exceeded.' }); return; }
+    const rl = enforceRateLimit(req, res, { userId, route: 'send-bulk-email:POST', category: 'email' });
+    if (!rl.allowed) {
+      res.status(429).json({ error: 'Email rate limit exceeded.' });
+      return;
+    }
 
     // Get or create queue manager for this session
     let queueManager = queueManagers.get(sessionId);
@@ -95,45 +94,12 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
 
     // Add emails to queue
     const emailParams: EmailParams[] = await Promise.all(validEmails.map(async email => {
-      let attachments = undefined;
+      // Build attachments from client-side data or server-side URLs
+      const attachments = await buildPdfAttachments({
+        attachmentData: email.attachmentData,
+        attachments: email.attachments
+      });
 
-      // Handle client-side PDF data (sent as array of bytes)
-      if (email.attachmentData && email.attachmentData.data) {
-        attachments = [{
-          filename: email.attachmentData.filename,
-          content: Buffer.from(email.attachmentData.data),
-          contentType: 'application/pdf'
-        }];
-      }
-      // Handle server-side PDF URLs (need to fetch)
-      else if (email.attachments && email.attachments.length > 0) {
-        attachments = await Promise.all(email.attachments.map(async (att: { path?: string; filename: string; content?: Buffer | string }) => {
-          if (att.path) {
-            // Fetch the attachment content
-            try {
-              const response = await fetch(att.path);
-              if (!response.ok) {
-                console.error(`Failed to fetch attachment from ${att.path}`);
-                return null;
-              }
-              const arrayBuffer = await response.arrayBuffer();
-              return {
-                filename: att.filename,
-                content: Buffer.from(arrayBuffer),
-                contentType: 'application/pdf'
-              };
-            } catch (error) {
-              console.error('Error fetching attachment:', error);
-              return null;
-            }
-          }
-          return att;
-        }));
-
-        // Filter out any failed attachments
-        attachments = attachments.filter(att => att !== null);
-      }
-      
       return {
         to: parseRecipients(email.to),
         from: email.senderName
@@ -178,14 +144,13 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
       return;
     }
 
-    // Light rate limit after validation
+    // Light rate limit for status checks
     const userId = (req as any).__uid as string | undefined;
-    const ip = ((req as any).__ip as string | null) ?? null;
-    const rl = rateLimit(buildKey({ userId, ip, route: 'send-bulk-email:GET', category: 'api' }), 'api');
-    res.setHeader('X-RateLimit-Limit', String(rl.limit));
-    res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
-    res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
-    if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Too many status checks.' }); return; }
+    const rl = enforceRateLimit(req, res, { userId, route: 'send-bulk-email:GET', category: 'api' });
+    if (!rl.allowed) {
+      res.status(429).json({ error: 'Too many status checks.' });
+      return;
+    }
 
     const queueManager = queueManagers.get(sessionId);
     if (!queueManager) {
@@ -224,14 +189,13 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
       return;
     }
 
-    // Rate limit after validation
+    // Rate limit control actions
     const userId = (req as any).__uid as string | undefined;
-    const ip = ((req as any).__ip as string | null) ?? null;
-    const rl = rateLimit(buildKey({ userId, ip, route: 'send-bulk-email:PUT', category: 'api' }), 'api');
-    res.setHeader('X-RateLimit-Limit', String(rl.limit));
-    res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
-    res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
-    if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Too many control requests.' }); return; }
+    const rl = enforceRateLimit(req, res, { userId, route: 'send-bulk-email:PUT', category: 'api' });
+    if (!rl.allowed) {
+      res.status(429).json({ error: 'Too many control requests.' });
+      return;
+    }
 
     if (action === 'pause') {
       await queueManager.pause();

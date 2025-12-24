@@ -2,11 +2,10 @@ import { NextApiResponse } from 'next';
 import type { AuthenticatedRequest } from '@/types/api';
 import { getEmailProvider } from '@/lib/email/provider-factory';
 import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
-import type { EmailAttachment } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { rateLimit, buildKey } from '@/lib/rate-limit';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { withFeatureGate } from '@/lib/server/middleware/featureGate';
-import { parseRecipients } from '@/utils/email-utils';
+import { parseRecipients, buildPdfAttachments } from '@/utils/email-utils';
 
 export const config = {
   api: {
@@ -28,16 +27,10 @@ async function sendEmailHandler(
   // User is already authenticated and authorized by the middleware
   const user = req.user;
   const userId = user.id;
-  
-  // Apply existing rate limiting (separate from tier limits)
-  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
-  const key = buildKey({ userId, ip, route: 'send-email', category: 'email' });
-  const rl = rateLimit(key, 'email');
-  res.setHeader('X-RateLimit-Limit', String(rl.limit));
-  res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
-  res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+
+  // Apply rate limiting
+  const rl = enforceRateLimit(req, res, { userId, route: 'send-email', category: 'email' });
   if (!rl.allowed) {
-    res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000))));
     res.status(429).json({ error: 'Too many emails sent. Please wait before sending more.' });
     return;
   }
@@ -86,6 +79,15 @@ Important: This download link will expire in 90 days. Please save your certifica
     : 
       customMessage;
 
+    // Build attachments if delivery method is attachment
+    const attachments = deliveryMethod === 'attachment'
+      ? await buildPdfAttachments({
+          attachmentData,
+          attachmentUrl,
+          defaultFilename: attachmentName || 'certificate.pdf'
+        })
+      : undefined;
+
     // Prepare email parameters using the standard EmailParams interface
     const emailParams = {
       to: parseRecipients(to),
@@ -93,39 +95,8 @@ Important: This download link will expire in 90 days. Please save your certifica
       subject,
       html: htmlContent,
       text: textContent,
-      attachments: undefined as EmailAttachment[] | undefined
+      attachments
     };
-
-    // Handle attachments if delivery method is attachment
-    if (deliveryMethod === 'attachment') {
-      if (attachmentData) {
-        // Client-side generated PDF - convert data to Buffer
-        let pdfBuffer: Buffer;
-        
-        if (typeof attachmentData === 'string') {
-          // Base64 string
-          pdfBuffer = Buffer.from(attachmentData, 'base64');
-        } else if (Array.isArray(attachmentData)) {
-          // Uint8Array sent as array
-          pdfBuffer = Buffer.from(attachmentData);
-        } else {
-          throw new Error('Invalid attachment data format');
-        }
-        
-        emailParams.attachments = [{
-          filename: attachmentName || 'certificate.pdf',
-          content: pdfBuffer,
-          contentType: 'application/pdf'
-        }];
-      } else if (attachmentUrl) {
-        // Server-side generated PDF - use URL
-        emailParams.attachments = [{
-          filename: attachmentName || 'certificate.pdf',
-          path: attachmentUrl, // Let the provider handle fetching
-          contentType: 'application/pdf'
-        }];
-      }
-    }
 
     // Send email using the provider (works with both Resend and SES)
     const result = await emailProvider.sendEmail(emailParams);

@@ -22,7 +22,7 @@ import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
 import { debug, error } from '@/lib/log';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { rateLimit, buildKey } from '@/lib/rate-limit';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 const sessionManager = PdfSessionManager.getInstance();
 
@@ -31,38 +31,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const session = await requireAuth(req, res);
   if (!session) return;
   const userId = (session.user as any).id as string;
-  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
 
   try {
     switch (req.method) {
       case 'POST':
         {
-          const rl = rateLimit(buildKey({ userId, ip, route: 'generate-progressive:POST', category: 'generate' }), 'generate');
-          res.setHeader('X-RateLimit-Limit', String(rl.limit));
-          res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
-          res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
-          if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Rate limit exceeded for batch generation.' }); return; }
+          const rl = enforceRateLimit(req, res, { userId, route: 'generate-progressive:POST', category: 'generate' });
+          if (!rl.allowed) { res.status(429).json({ error: 'Rate limit exceeded for batch generation.' }); return; }
           await handlePost(req, res);
         }
         return;
       case 'GET':
         {
-          // Light limit for polling
-          const rl = rateLimit(buildKey({ userId, ip, route: 'generate-progressive:GET', category: 'api' }), 'api');
-          res.setHeader('X-RateLimit-Limit', String(rl.limit));
-          res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
-          res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
-          if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Too many status checks.' }); return; }
+          const rl = enforceRateLimit(req, res, { userId, route: 'generate-progressive:GET', category: 'api' });
+          if (!rl.allowed) { res.status(429).json({ error: 'Too many status checks.' }); return; }
           await handleGet(req, res);
         }
         return;
       case 'PUT':
         {
-          const rl = rateLimit(buildKey({ userId, ip, route: 'generate-progressive:PUT', category: 'api' }), 'api');
-          res.setHeader('X-RateLimit-Limit', String(rl.limit));
-          res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
-          res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
-          if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Too many control requests.' }); return; }
+          const rl = enforceRateLimit(req, res, { userId, route: 'generate-progressive:PUT', category: 'api' });
+          if (!rl.allowed) { res.status(429).json({ error: 'Too many control requests.' }); return; }
           await handlePut(req, res);
         }
         return;
