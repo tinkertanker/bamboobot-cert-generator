@@ -3,7 +3,16 @@ import { getEmailProvider } from '@/lib/email/provider-factory';
 import { EmailQueueManager } from '@/lib/email/email-queue';
 import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { rateLimit, buildKey } from '@/lib/rate-limit';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb' // Bulk emails with PDF attachments can be large
+    }
+  }
+};
 
 // Store queue managers in memory (in production, use Redis or database)
 const queueManagers = new Map<string, EmailQueueManager>();
@@ -49,12 +58,11 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
 
     // Rate limit after validation
     const userId = (req as any).__uid as string | undefined;
-    const ip = ((req as any).__ip as string | null) ?? null;
-    const rl = rateLimit(buildKey({ userId, ip, route: 'send-bulk-email:POST', category: 'email' }), 'email');
-    res.setHeader('X-RateLimit-Limit', String(rl.limit));
-    res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
-    res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
-    if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Email rate limit exceeded.' }); return; }
+    const rl = enforceRateLimit(req, res, { userId, route: 'send-bulk-email:POST', category: 'email' });
+    if (!rl.allowed) {
+      res.status(429).json({ error: 'Email rate limit exceeded.' });
+      return;
+    }
 
     // Get or create queue manager for this session
     let queueManager = queueManagers.get(sessionId);
@@ -74,60 +82,50 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     // Get from address from env or use default
     const fromAddress = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
-    // Filter out emails without valid addresses
-    const validEmails = emails.filter((email: { to: string; [key: string]: unknown }) => email.to && email.to.trim() !== '');
-    
-    if (validEmails.length === 0) {
-      res.status(400).json({ 
-        error: 'No valid email addresses found. All entries are missing email addresses.' 
+    // Parse recipients and filter out emails with no valid addresses
+    type EmailInput = {
+      to: string;
+      senderName?: string;
+      subject: string;
+      html: string;
+      text?: string;
+      attachmentData?: { data: number[]; filename: string };
+      attachments?: { path?: string; filename: string; content?: Buffer | string }[];
+      certificateUrl?: string;
+    };
+    const rejectedEmails: string[] = [];
+    const emailsWithRecipients = (emails as EmailInput[])
+      .map(email => {
+        const { valid, rejected } = parseRecipientsDetailed(email.to || '');
+        rejectedEmails.push(...rejected);
+        return { ...email, recipients: valid };
+      })
+      .filter(email => email.recipients.length > 0);
+
+    if (rejectedEmails.length > 0) {
+      console.warn(`Bulk email - invalid addresses filtered: ${rejectedEmails.join(', ')}`);
+    }
+
+    const skippedCount = emails.length - emailsWithRecipients.length;
+
+    if (emailsWithRecipients.length === 0) {
+      res.status(400).json({
+        error: 'No valid email addresses found. All entries are missing or have invalid email addresses.'
       });
       return;
     }
 
     // Add emails to queue
-    const emailParams: EmailParams[] = await Promise.all(validEmails.map(async email => {
-      let attachments = undefined;
+    const emailParams = await Promise.all(emailsWithRecipients.map(async email => {
+      // Build attachments from client-side data or server-side URLs
+      const attachments = await buildPdfAttachments({
+        attachmentData: email.attachmentData,
+        attachments: email.attachments
+      });
 
-      // Handle client-side PDF data (sent as array of bytes)
-      if (email.attachmentData && email.attachmentData.data) {
-        attachments = [{
-          filename: email.attachmentData.filename,
-          content: Buffer.from(email.attachmentData.data),
-          contentType: 'application/pdf'
-        }];
-      }
-      // Handle server-side PDF URLs (need to fetch)
-      else if (email.attachments && email.attachments.length > 0) {
-        attachments = await Promise.all(email.attachments.map(async (att: { path?: string; filename: string; content?: Buffer | string }) => {
-          if (att.path) {
-            // Fetch the attachment content
-            try {
-              const response = await fetch(att.path);
-              if (!response.ok) {
-                console.error(`Failed to fetch attachment from ${att.path}`);
-                return null;
-              }
-              const arrayBuffer = await response.arrayBuffer();
-              return {
-                filename: att.filename,
-                content: Buffer.from(arrayBuffer),
-                contentType: 'application/pdf'
-              };
-            } catch (error) {
-              console.error('Error fetching attachment:', error);
-              return null;
-            }
-          }
-          return att;
-        }));
-
-        // Filter out any failed attachments
-        attachments = attachments.filter(att => att !== null);
-      }
-      
       return {
-        to: email.to,
-        from: email.senderName 
+        to: email.recipients,
+        from: email.senderName
           ? `${email.senderName} <${fromAddress}>`
           : `Bamboobot Certificates <${fromAddress}>`,
         subject: email.subject,
@@ -149,6 +147,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       success: true,
       queueLength: queueManager.getQueueLength(),
       status: queueManager.getStatus(),
+      skippedCount, // Number of emails skipped due to invalid addresses
     });
     return;
   } catch (error) {
@@ -169,14 +168,13 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
       return;
     }
 
-    // Light rate limit after validation
+    // Light rate limit for status checks
     const userId = (req as any).__uid as string | undefined;
-    const ip = ((req as any).__ip as string | null) ?? null;
-    const rl = rateLimit(buildKey({ userId, ip, route: 'send-bulk-email:GET', category: 'api' }), 'api');
-    res.setHeader('X-RateLimit-Limit', String(rl.limit));
-    res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
-    res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
-    if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Too many status checks.' }); return; }
+    const rl = enforceRateLimit(req, res, { userId, route: 'send-bulk-email:GET', category: 'api' });
+    if (!rl.allowed) {
+      res.status(429).json({ error: 'Too many status checks.' });
+      return;
+    }
 
     const queueManager = queueManagers.get(sessionId);
     if (!queueManager) {
@@ -215,14 +213,13 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
       return;
     }
 
-    // Rate limit after validation
+    // Rate limit control actions
     const userId = (req as any).__uid as string | undefined;
-    const ip = ((req as any).__ip as string | null) ?? null;
-    const rl = rateLimit(buildKey({ userId, ip, route: 'send-bulk-email:PUT', category: 'api' }), 'api');
-    res.setHeader('X-RateLimit-Limit', String(rl.limit));
-    res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
-    res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
-    if (!rl.allowed) { res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000)))); res.status(429).json({ error: 'Too many control requests.' }); return; }
+    const rl = enforceRateLimit(req, res, { userId, route: 'send-bulk-email:PUT', category: 'api' });
+    if (!rl.allowed) {
+      res.status(429).json({ error: 'Too many control requests.' });
+      return;
+    }
 
     if (action === 'pause') {
       await queueManager.pause();

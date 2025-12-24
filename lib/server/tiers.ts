@@ -1,19 +1,10 @@
 // Server-side tier detection and management
 import { prisma } from './prisma';
 import type { UserTier } from '@/types/user';
+import { isValidEmail, normaliseEmail } from '@/utils/email-utils';
 
 // Get admin configuration from environment variables
 // These are optional - if not set, admin features are disabled
-
-/**
- * Validates and normalizes an email address
- * More robust validation that handles edge cases like consecutive dots, invalid characters
- */
-function isValidEmail(email: string): boolean {
-  // Practical email validation: basic structure with TLD requirement
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  return emailRegex.test(email) && !email.includes('..') && email.length <= 254;
-}
 
 /**
  * Validates and normalizes a domain name
@@ -32,10 +23,10 @@ function parseEmailList(envValue: string | undefined): string[] {
   if (!envValue || typeof envValue !== 'string') {
     return [];
   }
-  
+
   return envValue
     .split(',')
-    .map(email => email.trim().toLowerCase())
+    .map(email => normaliseEmail(email))
     .filter(email => email.length > 0 && isValidEmail(email));
 }
 

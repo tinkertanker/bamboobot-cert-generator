@@ -34,16 +34,25 @@ export function useEmailConfig({
 
   const [emailSendingStatus, setEmailSendingStatus] = useState<EmailSendingStatus>({});
 
+  // Reset email sending status when table data changes (new recipients loaded)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log("📧 useEmailConfig: tableData changed, resetting email sending status");
+    }
+    setEmailSendingStatus({});
+  }, [tableData]);
+
   // Handle email config reset when email column changes
   useEffect(() => {
-    console.log("📧 useEmailConfig: detectedEmailColumn changed to:", detectedEmailColumn);
+    const isDev = process.env.NODE_ENV === 'development';
+    if (isDev) console.log("📧 useEmailConfig: detectedEmailColumn changed to:", detectedEmailColumn);
     // Only reset if email config is not already configured (e.g., not in dev mode)
     setEmailConfig((prev) => {
       if (prev.isConfigured) {
-        console.log("📧 useEmailConfig: Email config already configured, keeping existing config");
+        if (isDev) console.log("📧 useEmailConfig: Email config already configured, keeping existing config");
         return prev;
       }
-      console.log("📧 useEmailConfig: Resetting email config...");
+      if (isDev) console.log("📧 useEmailConfig: Resetting email config...");
       return {
         senderName: "",
         subject: "",
@@ -54,27 +63,8 @@ export function useEmailConfig({
     });
   }, [detectedEmailColumn]);
 
-  // Function to detect if any column contains email addresses
-  const hasEmailColumn = (() => {
-    if (tableData.length === 0) return false;
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    // Check each column for email patterns
-    const columns = Object.keys(tableData[0]);
-    return columns.some((column) => {
-      // Check if at least 50% of non-empty values in this column are emails
-      const values = tableData
-        .map((row) => row[column])
-        .filter((val) => val && val.trim());
-      if (values.length === 0) return false;
-
-      const emailCount = values.filter((val) =>
-        emailRegex.test(val.trim())
-      ).length;
-      return emailCount / values.length >= 0.5;
-    });
-  })();
+  // Derive from detectedEmailColumn (already computed by useTableData)
+  const hasEmailColumn = detectedEmailColumn !== null;
 
   // Send individual certificate via email
   const sendCertificateEmail = useCallback(async (

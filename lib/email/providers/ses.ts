@@ -75,7 +75,7 @@ export class SESProvider implements EmailProvider {
         const rawMessage = await this.buildRawEmailMessage(params);
         const command = new SendRawEmailCommand({
           Source: params.from,
-          Destinations: [params.to],
+          Destinations: params.to,
           RawMessage: {
             Data: Buffer.from(rawMessage)
           }
@@ -86,7 +86,7 @@ export class SESProvider implements EmailProvider {
         const emailParams = {
           Source: params.from,
           Destination: {
-            ToAddresses: [params.to]
+            ToAddresses: params.to
           },
           Message: {
             Subject: {
@@ -142,7 +142,7 @@ export class SESProvider implements EmailProvider {
 
     // Headers
     message += `From: ${params.from}\r\n`;
-    message += `To: ${params.to}\r\n`;
+    message += `To: ${params.to.join(', ')}\r\n`;
     message += `Subject: ${params.subject}\r\n`;
     message += `MIME-Version: 1.0\r\n`;
     message += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;

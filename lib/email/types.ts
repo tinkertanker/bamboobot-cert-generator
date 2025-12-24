@@ -3,7 +3,7 @@
  */
 
 export interface EmailParams {
-  to: string;
+  to: string[];
   from: string;
   subject: string;
   html: string;
@@ -41,7 +41,7 @@ export interface EmailProvider {
 
 export interface EmailQueueItem {
   id: string;
-  to: string;
+  to: string[];
   from?: string;
   subject?: string;
   html?: string;

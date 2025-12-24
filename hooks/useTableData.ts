@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import type { TableData } from "@/types/certificate";
+import { isValidEmailValue } from "@/utils/email-validation";
 
 export interface UseTableDataReturn {
   tableData: TableData[];
@@ -7,6 +8,7 @@ export interface UseTableDataReturn {
   isFirstRowHeader: boolean;
   useCSVMode: boolean;
   detectedEmailColumn: string | null;
+  hasEmailColumn: boolean;
   isProcessingData: boolean;
   handleTableDataChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleHeaderToggle: () => void;
@@ -143,8 +145,6 @@ const detectEmailColumn = (headers: string[], data: TableData[]): string | null 
 
   // If not found by header, try to detect by content
   if (!emailColumn && data.length > 0) {
-    const emailContentPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
     for (const header of headers) {
       // Check if at least 50% of non-empty values in this column look like emails
       const columnValues = data
@@ -153,7 +153,7 @@ const detectEmailColumn = (headers: string[], data: TableData[]): string | null 
 
       if (columnValues.length > 0) {
         const emailCount = columnValues.filter((val) =>
-          emailContentPattern.test(val.trim())
+          isValidEmailValue(val)
         ).length;
 
         if (emailCount / columnValues.length >= 0.5) {
@@ -325,6 +325,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     isFirstRowHeader,
     useCSVMode,
     detectedEmailColumn,
+    hasEmailColumn: detectedEmailColumn !== null,
     isProcessingData,
     handleTableDataChange,
     handleHeaderToggle,
