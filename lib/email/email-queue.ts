@@ -164,7 +164,8 @@ export class EmailQueueManager {
     pendingItem.attempts++;
     
     // Update current email in status
-    this.reportProgress(pendingItem.to, pendingItemIndex);
+    const displayEmail = Array.isArray(pendingItem.to) ? pendingItem.to.join(', ') : pendingItem.to;
+    this.reportProgress(displayEmail, pendingItemIndex);
     
     try {
       await this.sendEmail(pendingItem);
@@ -398,7 +399,7 @@ export class EmailQueueManager {
     const failedEmails = this.queue.items
       .filter(i => i.status === 'failed')
       .map(i => ({
-        email: i.to,
+        email: Array.isArray(i.to) ? i.to.join(', ') : i.to,
         error: i.lastError || 'Unknown error'
       }));
 
@@ -414,7 +415,7 @@ export class EmailQueueManager {
         remaining: this.queue.rateLimit.remaining,
         resetIn
       },
-      currentEmail: sendingItem?.to,
+      currentEmail: sendingItem?.to ? (Array.isArray(sendingItem.to) ? sendingItem.to.join(', ') : sendingItem.to) : undefined,
       currentIndex: sendingIndex,
       failedEmails: failedEmails.length > 0 ? failedEmails : undefined
     };

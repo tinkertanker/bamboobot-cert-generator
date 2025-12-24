@@ -6,6 +6,7 @@ import type { EmailAttachment } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { rateLimit, buildKey } from '@/lib/rate-limit';
 import { withFeatureGate } from '@/lib/server/middleware/featureGate';
+import { parseRecipients } from '@/utils/email-utils';
 
 export const config = {
   api: {
@@ -87,7 +88,7 @@ Important: This download link will expire in 90 days. Please save your certifica
 
     // Prepare email parameters using the standard EmailParams interface
     const emailParams = {
-      to,
+      to: parseRecipients(to),
       from: fromField,
       subject,
       html: htmlContent,

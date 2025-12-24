@@ -4,6 +4,15 @@ import { EmailQueueManager } from '@/lib/email/email-queue';
 import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { rateLimit, buildKey } from '@/lib/rate-limit';
+import { parseRecipients } from '@/utils/email-utils';
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb' // Bulk emails with PDF attachments can be large
+    }
+  }
+};
 
 // Store queue managers in memory (in production, use Redis or database)
 const queueManagers = new Map<string, EmailQueueManager>();
@@ -126,8 +135,8 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       }
       
       return {
-        to: email.to,
-        from: email.senderName 
+        to: parseRecipients(email.to),
+        from: email.senderName
           ? `${email.senderName} <${fromAddress}>`
           : `Bamboobot Certificates <${fromAddress}>`,
         subject: email.subject,

@@ -73,9 +73,10 @@ export class SESProvider implements EmailProvider {
       // Use SendRawEmailCommand if attachments are present
       if (params.attachments && params.attachments.length > 0) {
         const rawMessage = await this.buildRawEmailMessage(params);
+        const destinations = Array.isArray(params.to) ? params.to : [params.to];
         const command = new SendRawEmailCommand({
           Source: params.from,
-          Destinations: [params.to],
+          Destinations: destinations,
           RawMessage: {
             Data: Buffer.from(rawMessage)
           }
@@ -83,10 +84,11 @@ export class SESProvider implements EmailProvider {
         response = await this.client.send(command);
       } else {
         // Use simple SendEmailCommand for text/html only emails
+        const toAddresses = Array.isArray(params.to) ? params.to : [params.to];
         const emailParams = {
           Source: params.from,
           Destination: {
-            ToAddresses: [params.to]
+            ToAddresses: toAddresses
           },
           Message: {
             Subject: {
@@ -141,8 +143,9 @@ export class SESProvider implements EmailProvider {
     let message = '';
 
     // Headers
+    const toHeader = Array.isArray(params.to) ? params.to.join(', ') : params.to;
     message += `From: ${params.from}\r\n`;
-    message += `To: ${params.to}\r\n`;
+    message += `To: ${toHeader}\r\n`;
     message += `Subject: ${params.subject}\r\n`;
     message += `MIME-Version: 1.0\r\n`;
     message += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
