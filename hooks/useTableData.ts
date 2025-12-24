@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import type { TableData } from "@/types/certificate";
-import { isValidEmailValue } from "@/utils/email-utils";
+import { isValidEmailValue } from "@/utils/email-validation";
 
 export interface UseTableDataReturn {
   tableData: TableData[];
