@@ -82,18 +82,35 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     // Get from address from env or use default
     const fromAddress = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
-    // Filter out emails without valid addresses
-    const validEmails = emails.filter((email: { to: string; [key: string]: unknown }) => email.to && email.to.trim() !== '');
-    
-    if (validEmails.length === 0) {
-      res.status(400).json({ 
-        error: 'No valid email addresses found. All entries are missing email addresses.' 
+    // Parse recipients and filter out emails with no valid addresses
+    type EmailInput = {
+      to: string;
+      senderName?: string;
+      subject: string;
+      html: string;
+      text?: string;
+      attachmentData?: { data: number[]; filename: string };
+      attachments?: { path?: string; filename: string; content?: Buffer | string }[];
+      certificateUrl?: string;
+    };
+    const emailsWithRecipients = (emails as EmailInput[])
+      .map(email => ({
+        ...email,
+        recipients: parseRecipients(email.to || '')
+      }))
+      .filter(email => email.recipients.length > 0);
+
+    const skippedCount = emails.length - emailsWithRecipients.length;
+
+    if (emailsWithRecipients.length === 0) {
+      res.status(400).json({
+        error: 'No valid email addresses found. All entries are missing or have invalid email addresses.'
       });
       return;
     }
 
     // Add emails to queue
-    const emailParams: EmailParams[] = await Promise.all(validEmails.map(async email => {
+    const emailParams = await Promise.all(emailsWithRecipients.map(async email => {
       // Build attachments from client-side data or server-side URLs
       const attachments = await buildPdfAttachments({
         attachmentData: email.attachmentData,
@@ -101,7 +118,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       });
 
       return {
-        to: parseRecipients(email.to),
+        to: email.recipients,
         from: email.senderName
           ? `${email.senderName} <${fromAddress}>`
           : `Bamboobot Certificates <${fromAddress}>`,
@@ -124,6 +141,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       success: true,
       queueLength: queueManager.getQueueLength(),
       status: queueManager.getStatus(),
+      skippedCount, // Number of emails skipped due to invalid addresses
     });
     return;
   } catch (error) {

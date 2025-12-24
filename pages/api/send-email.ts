@@ -53,6 +53,13 @@ async function sendEmailHandler(
       return;
     }
 
+    // Parse and validate recipients before proceeding
+    const recipients = parseRecipients(to);
+    if (recipients.length === 0) {
+      res.status(400).json({ error: 'No valid email addresses provided' });
+      return;
+    }
+
     // Get email provider (supports both Resend and SES)
     const emailProvider = getEmailProvider();
 
@@ -90,7 +97,7 @@ Important: This download link will expire in 90 days. Please save your certifica
 
     // Prepare email parameters using the standard EmailParams interface
     const emailParams = {
-      to: parseRecipients(to),
+      to: recipients,
       from: fromField,
       subject,
       html: htmlContent,

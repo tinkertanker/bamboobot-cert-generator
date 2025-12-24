@@ -3,7 +3,7 @@ import { getEmailProvider } from '@/lib/email/provider-factory';
 import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { isValidEmail, parseRecipients, buildPdfAttachments } from '@/utils/email-utils';
+import { parseRecipients, buildPdfAttachments } from '@/utils/email-utils';
 
 export const config = {
   api: {
@@ -39,8 +39,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
 
-    // Validate email using shared utility
-    if (!isValidEmail(testEmailAddress)) {
+    // Parse and validate recipients
+    const recipients = parseRecipients(testEmailAddress);
+    if (recipients.length === 0) {
       res.status(400).json({ error: 'Invalid email address format' });
       return;
     }
@@ -72,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Send the test email
     const emailParams: EmailParams = {
-      to: parseRecipients(testEmailAddress),
+      to: recipients,
       from: senderName
         ? `${senderName} <${fromAddress}>`
         : `Bamboobot Certificates <${fromAddress}>`,
