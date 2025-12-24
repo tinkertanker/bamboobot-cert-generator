@@ -6,6 +6,7 @@ import type {
   BulkEmailProgress,
   EmailProvider
 } from './types';
+import { formatRecipients } from '@/utils/email-utils';
 
 export class EmailQueueManager {
   private queue: EmailQueue;
@@ -164,8 +165,7 @@ export class EmailQueueManager {
     pendingItem.attempts++;
     
     // Update current email in status
-    const displayEmail = Array.isArray(pendingItem.to) ? pendingItem.to.join(', ') : pendingItem.to;
-    this.reportProgress(displayEmail, pendingItemIndex);
+    this.reportProgress(formatRecipients(pendingItem.to), pendingItemIndex);
     
     try {
       await this.sendEmail(pendingItem);
@@ -399,7 +399,7 @@ export class EmailQueueManager {
     const failedEmails = this.queue.items
       .filter(i => i.status === 'failed')
       .map(i => ({
-        email: Array.isArray(i.to) ? i.to.join(', ') : i.to,
+        email: formatRecipients(i.to),
         error: i.lastError || 'Unknown error'
       }));
 
@@ -415,7 +415,7 @@ export class EmailQueueManager {
         remaining: this.queue.rateLimit.remaining,
         resetIn
       },
-      currentEmail: sendingItem?.to ? (Array.isArray(sendingItem.to) ? sendingItem.to.join(', ') : sendingItem.to) : undefined,
+      currentEmail: sendingItem?.to ? formatRecipients(sendingItem.to) : undefined,
       currentIndex: sendingIndex,
       failedEmails: failedEmails.length > 0 ? failedEmails : undefined
     };
