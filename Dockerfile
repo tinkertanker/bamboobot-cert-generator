@@ -41,6 +41,8 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/next.config.js ./next.config.js
 # Copy Prisma schema and migrations
 COPY --from=builder /app/prisma ./prisma
+# Copy entrypoint script
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 # Create required directories for file uploads and generated PDFs
 RUN mkdir -p /app/public/temp_images /app/public/generated /app/public/template_images
@@ -57,9 +59,12 @@ RUN chmod -R 775 /app/public/temp_images /app/public/generated /app/public/templ
 RUN chmod -R 777 /app/tmp/uploads
 # Make prisma directory writable for database
 RUN chmod -R 777 /app/prisma
+# Make entrypoint script executable
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Switch to non-root user
 USER nextjs
 
-# The command to start the application
+# Use entrypoint to initialize database if needed
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["npm", "start"]
