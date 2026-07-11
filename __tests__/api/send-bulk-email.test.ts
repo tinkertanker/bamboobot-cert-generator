@@ -204,6 +204,29 @@ describe('/api/send-bulk-email', () => {
     expect(JSON.parse(get.res._getData())).toMatchObject({ status: 'idle', total: 0 });
   });
 
+  it('retains paused queues for up to 24 hours', async () => {
+    const post = createMocks({
+      method: 'POST',
+      body: {
+        emails: [{ to: 'paused@example.com', subject: 'Test', html: 'Test' }],
+        config: { senderName: 'Test', subject: 'Test', message: 'Test' },
+        sessionId: 'paused-session',
+        deferProcessing: true
+      }
+    });
+    await handler(post.req, post.res);
+
+    const queueModule = jest.requireMock('@/lib/email/email-queue');
+    const queue = queueModule.EmailQueueManager.mock.results.at(-1).value;
+    queue.getStatus.mockReturnValue({ status: 'paused' });
+    queue.getLastActivity.mockReturnValue(1);
+    await cleanupExpiredEmailQueues(2 * 3600000);
+
+    expect(queue.clear).not.toHaveBeenCalled();
+    await cleanupExpiredEmailQueues(25 * 3600000);
+    expect(queue.clear).toHaveBeenCalledTimes(1);
+  });
+
   it('does not expose or control another user queue with the same session id', async () => {
     const post = createMocks({
       method: 'POST',

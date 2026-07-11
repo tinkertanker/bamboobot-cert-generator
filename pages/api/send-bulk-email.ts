@@ -393,15 +393,24 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
 let cleanupInterval: NodeJS.Timeout | null = null;
 
 export async function cleanupExpiredEmailQueues(now = Date.now()): Promise<void> {
-  const expirationTime = now - 3600000;
+  const staleActiveTime = now - 3600000;
+  const stalePausedTime = now - 24 * 3600000;
   const expiredKeys = Array.from(queueManagers.entries())
-    .filter(([, manager]) => manager.getLastActivity() < expirationTime)
+    .filter(([, manager]) => {
+      const status = manager.getStatus().status;
+      const expirationTime = status === 'paused' ? stalePausedTime : staleActiveTime;
+      return manager.getLastActivity() < expirationTime;
+    })
     .map(([key]) => key);
 
   await Promise.all(expiredKeys.map((key) =>
     withQueueIngestionLock(key, async () => {
       const manager = queueManagers.get(key);
-      if (!manager || manager.getLastActivity() >= expirationTime) return;
+      if (!manager) return;
+      const expirationTime = manager.getStatus().status === 'paused'
+        ? stalePausedTime
+        : staleActiveTime;
+      if (manager.getLastActivity() >= expirationTime) return;
       await manager.clear();
       queueManagers.delete(key);
       queueAttachmentBytes.delete(key);

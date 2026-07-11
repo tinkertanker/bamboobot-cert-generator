@@ -51,6 +51,31 @@ describe('BulkEmailModal attachment ingestion', () => {
     expect(screen.queryByText('not-an-email')).not.toBeInTheDocument();
   });
 
+  it('keeps a certificate with at least one valid recipient', () => {
+    render(
+      <BulkEmailModal
+        open
+        onClose={jest.fn()}
+        totalEmails={1}
+        emailConfig={{
+          senderName: 'Sender',
+          subject: 'Certificate',
+          message: 'Attached',
+          deliveryMethod: 'download',
+          isConfigured: true
+        }}
+        certificates={[{
+          email: 'valid@example.com, not-an-email',
+          downloadUrl: '/generated/mixed.pdf',
+          fileName: 'mixed.pdf'
+        }]}
+      />
+    );
+
+    expect(screen.getByText('Ready to send 1 emails:')).toBeInTheDocument();
+    expect(screen.getByText('• valid@example.com, not-an-email')).toBeInTheDocument();
+  });
+
   it('does not post a batch when cancelled during Blob encoding', async () => {
     let finishEncoding!: (value: string) => void;
     mockedBlobToBase64.mockReturnValue(
