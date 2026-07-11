@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
 import type { SavedProject } from "@/lib/project-storage";
 import type { EmailConfig, TableData } from "@/types/certificate";
 import { ProjectStorage } from "@/lib/project-storage";
@@ -83,6 +84,9 @@ export function useProjectManagement({
   clearDragState,
   clearData
 }: UseProjectManagementProps): UseProjectManagementReturn {
+  const { status } = useSession();
+  // Ensure the one-shot startup restore reads localStorage only once.
+  const hasLoadedStartupRef = useRef(false);
   // Keep latest mutable references for frequently changing objects to avoid
   // recreating callbacks excessively while still reading fresh values.
   const latestPositionsRef = useRef(positions);
@@ -208,9 +212,17 @@ export function useProjectManagement({
       }
     };
 
-    // Only load on initial mount
+    // Wait until the authentication status is settled before touching
+    // localStorage. On the commit where the session resolves, the account
+    // guard in the page component (registered earlier) has already purged any
+    // data belonging to a different account, so a newly signed-in user never
+    // restores the previous account's session/project. Runs once.
+    if (status === "loading") return;
+    if (hasLoadedStartupRef.current) return;
+    hasLoadedStartupRef.current = true;
     loadStartupData();
   }, [
+    status,
     loadSessionData,
     setEmailConfig,
     loadProjectPositions,

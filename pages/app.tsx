@@ -59,6 +59,7 @@ import { UserAvatarDropdown } from "@/components/UserAvatarDropdown";
 import { HelpCircle } from "lucide-react";
 import { useSession } from 'next-auth/react';
 import { useProjectMigration } from "@/hooks/useProjectMigration";
+import { guardLocalStorageForUser } from "@/lib/storage/account-scope";
 import { useUserTier } from "@/hooks/useUserTier";
 import { mapProgressivePdfFiles } from "@/lib/pdf/progressive-results";
 
@@ -71,6 +72,13 @@ export default function HomePage() {
   const [forceMobileAccess, setForceMobileAccess] = useState(false);
   const { data: session } = useSession();
   const { isSuperAdmin } = useUserTier();
+  // Clear localStorage that belonged to a different account before any
+  // localStorage-backed feature (project migration, autosave, email queues)
+  // reads it. Runs before useProjectMigration so a new account never sees the
+  // previous account's projects.
+  useEffect(() => {
+    guardLocalStorageForUser((session?.user as { id?: string } | undefined)?.id ?? null);
+  }, [session?.user]);
   // Check for localStorage projects on first login and offer import
   useProjectMigration();
 
