@@ -21,10 +21,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { name, data } = req.body ?? {};
     try {
       const updated = await prisma.project.update({
-        where: { id },
+        where: { id, ownerId: userId },
         data: { name: name ? String(name).trim() : undefined, data: data ?? undefined },
       });
-      if (updated.ownerId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
       res.status(200).json({ project: updated });
       return;
     } catch (e: any) {
@@ -38,12 +37,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'DELETE') {
     try {
-      const existing = await prisma.project.findUnique({ where: { id } });
-      if (!existing || existing.ownerId !== userId) { res.status(404).json({ error: 'Not found' }); return; }
-      await prisma.project.delete({ where: { id } });
+      await prisma.project.delete({ where: { id, ownerId: userId } });
       res.status(204).end();
       return;
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.code === 'P2025') { res.status(404).json({ error: 'Not found' }); return; }
       console.error('Delete project error:', e);
       res.status(500).json({ error: 'Failed to delete project' });
       return;
