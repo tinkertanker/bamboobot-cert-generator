@@ -168,12 +168,14 @@ export function BulkEmailModal({
       for (const cert of validCertificates) {
         const isClientSidePdf =
           cert.blob && cert.downloadUrl.startsWith('blob:');
+        const useAttachmentDelivery =
+          emailConfig.deliveryMethod === 'attachment' || !!isClientSidePdf;
 
         // For client-side PDFs with attachment delivery, send the actual data
         let attachments;
         let attachmentData;
 
-        if (emailConfig.deliveryMethod === 'attachment') {
+        if (useAttachmentDelivery) {
           if (isClientSidePdf) {
             // Client-side PDF: send raw data as array
             const bytes = new Uint8Array(await cert.blob!.arrayBuffer());
@@ -191,9 +193,9 @@ export function BulkEmailModal({
           to: cert.email,
           senderName: emailConfig.senderName,
           subject: emailConfig.subject,
-          html: emailConfig.deliveryMethod === 'download'
-            ? buildLinkEmail(emailConfig.message, cert.downloadUrl)
-            : buildAttachmentEmail(emailConfig.message),
+          html: useAttachmentDelivery
+            ? buildAttachmentEmail(emailConfig.message)
+            : buildLinkEmail(emailConfig.message, cert.downloadUrl),
           text: emailConfig.message,
           attachments,
           attachmentData,
@@ -263,12 +265,14 @@ export function BulkEmailModal({
       const isClientSidePdf =
         firstCert.blob &&
         firstCert.downloadUrl.startsWith('blob:');
+      const useAttachmentDelivery =
+        emailConfig.deliveryMethod === 'attachment' || !!isClientSidePdf;
 
       // Prepare attachment data based on PDF source
       let attachment;
       let attachmentData;
 
-      if (emailConfig.deliveryMethod === 'attachment') {
+      if (useAttachmentDelivery) {
         if (isClientSidePdf) {
           // Client-side PDF: send raw data
           const bytes = new Uint8Array(await firstCert.blob!.arrayBuffer());
@@ -289,9 +293,9 @@ export function BulkEmailModal({
           testEmailAddress: testEmail.trim(),
           senderName: emailConfig.senderName,
           subject: emailConfig.subject,
-          html: emailConfig.deliveryMethod === 'download'
-            ? buildLinkEmail(emailConfig.message, firstCert.downloadUrl)
-            : buildAttachmentEmail(emailConfig.message),
+          html: useAttachmentDelivery
+            ? buildAttachmentEmail(emailConfig.message)
+            : buildLinkEmail(emailConfig.message, firstCert.downloadUrl),
           text: emailConfig.message,
           attachment,
           attachmentData,
