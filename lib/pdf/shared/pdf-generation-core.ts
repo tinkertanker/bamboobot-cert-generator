@@ -35,11 +35,6 @@ export interface Entry {
     font?: FontFamily;
     bold?: boolean;
     oblique?: boolean;
-    uiMeasurements?: {
-      width: number;
-      height: number;
-      actualHeight: number;
-    };
   };
 }
 
@@ -170,12 +165,11 @@ export function addTextToPage(
     const color = entryValue.color || [0, 0, 0];
     const rgbColor = rgb(color[0], color[1], color[2]);
 
-    // Calculate font size with UI measurements
+    // Scale the UI font size to the PDF page coordinate system.
     const baseFontSize = position.fontSize || 20;
     let fontSize = baseFontSize * FONT_SIZE_MULTIPLIER;
-    
-    // If we have UI measurements, scale accordingly
-    if (entryValue.uiMeasurements && uiContainerDimensions) {
+
+    if (uiContainerDimensions.width > 0) {
       const scaleFactor = width / uiContainerDimensions.width;
       fontSize = fontSize * scaleFactor;
     }

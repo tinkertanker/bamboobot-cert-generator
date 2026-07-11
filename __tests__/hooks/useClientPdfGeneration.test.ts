@@ -76,6 +76,57 @@ describe('useClientPdfGeneration streamed individual files', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:second');
   });
 
+  it('does not send redundant canvas measurements with each entry', async () => {
+    generate.mockResolvedValue({
+      success: true,
+      mode: 'single',
+      data: new Uint8Array([1])
+    });
+    const { result } = renderHook(() =>
+      useClientPdfGeneration({
+        tableData: [{ Name: 'Ada' }],
+        positions: {
+          Name: {
+            x: 50,
+            y: 50,
+            fontSize: 24,
+            fontFamily: 'Helvetica',
+            bold: true,
+            color: '#ff0000'
+          }
+        },
+        uploadedFile: new File(['template'], 'template.png', {
+          type: 'image/png'
+        }),
+        localBlobUrl: 'blob:template',
+        selectedNamingColumn: 'Name',
+        setSelectedNamingColumn: jest.fn()
+      })
+    );
+
+    await waitFor(() => expect(result.current.isClientSupported).toBe(true));
+    await act(() => result.current.generatePdf());
+
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entries: [
+          {
+            Name: {
+              text: 'Ada',
+              color: [1, 0, 0],
+              font: 'Helvetica',
+              bold: true,
+              oblique: undefined
+            }
+          }
+        ]
+      })
+    );
+    expect(generate.mock.calls[0][0].entries[0].Name).not.toHaveProperty(
+      'uiMeasurements'
+    );
+  });
+
   it('revokes partial URLs when streaming fails', async () => {
     generate.mockImplementation(async (options) => {
       options.onFile({

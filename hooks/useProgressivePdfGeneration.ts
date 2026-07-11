@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { DEFAULT_FONT_SIZE, PROGRESSIVE_PDF } from '@/utils/constants';
-import { measureText } from '@/utils/textMeasurement';
 import type { TableData, Positions } from '@/types/certificate';
 import type { PdfGenerationProgress, PdfGenerationResult } from '@/lib/pdf/types';
 
@@ -57,11 +56,6 @@ export function useProgressivePdfGeneration({
         [key: string]: {
           text: string;
           color?: [number, number, number];
-          uiMeasurements?: {
-            width: number;
-            height: number;
-            actualHeight: number;
-          };
         };
       } = {};
       Object.keys(row).forEach((key) => {
@@ -70,15 +64,12 @@ export function useProgressivePdfGeneration({
           return;
         }
 
-        const fontSize = DEFAULT_FONT_SIZE;
-        const measurements = measureText(row[key], fontSize, "500");
         const position = positions[key];
         entry[key] = {
           text: row[key],
           color: position?.color
             ? hexToRgb(position.color)
-            : hexToRgb("#000000"),
-          uiMeasurements: measurements
+            : hexToRgb("#000000")
         };
       });
       return entry;
