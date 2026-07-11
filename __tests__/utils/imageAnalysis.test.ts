@@ -4,8 +4,8 @@ import {
   getImageAverageLuminance,
   getReadableTextColorForLuminance,
   normalizeAutomaticTextColorProvenance
-} from '../../utils/imageAnalysis';
-import type { Positions } from '../../types/certificate';
+} from '@/utils/imageAnalysis';
+import type { Positions } from '@/types/certificate';
 
 const createPositions = (colors: Record<string, string | undefined>): Positions =>
   Object.fromEntries(
