@@ -7,6 +7,7 @@ import {
   HeadObjectCommand 
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { normalizeStoredMetadata, readFileMetadata } from '@/lib/storage/file-metadata';
 
 // Initialize S3 client
 export const s3Client = new S3Client({
@@ -224,13 +225,15 @@ export async function updateS3Metadata(key: string, metadata: Partial<FileMetada
   });
   
   const headResponse = await s3Client.send(headCommand);
-  const currentMetadata = headResponse.Metadata || {};
-  
-  // Merge metadata
+
+  // S3 stores custom metadata keys lowercased. Lowercase both the existing
+  // metadata and the incoming update before merging so an update to e.g.
+  // `emailSent` overwrites the stored `emailsent` instead of adding a second,
+  // colliding key that the service would silently drop.
   const newMetadata = {
-    ...currentMetadata,
-    ...metadata,
-  } as Record<string, string>;
+    ...normalizeStoredMetadata(headResponse.Metadata),
+    ...normalizeStoredMetadata(metadata as Record<string, string>),
+  };
   
   // Get the object content
   const getCommand = new GetObjectCommand({
@@ -280,7 +283,13 @@ export async function cleanupExpiredS3Files(dryRun: boolean = false): Promise<{
 
   for (const obj of objects) {
     try {
-      const metadata = obj.metadata || {};
+      // Providers return custom metadata keys lowercased, so parse
+      // case-insensitively; a camelCase read of emailSent would always miss.
+      const metadata = readFileMetadata(obj.metadata) || {
+        retention: 'permanent' as const,
+        created: '',
+        type: 'template' as const,
+      };
       const created = metadata.created ? new Date(metadata.created) : obj.lastModified;
       const retention = metadata.retention || 'permanent';
       const emailSent = metadata.emailSent === 'true';
