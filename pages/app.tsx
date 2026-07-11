@@ -420,6 +420,7 @@ export default function HomePage() {
     positions,
     emailConfig,
     tableData,
+    automaticTextColorResult,
     clearFile,
     clearPositions,
     clearDragState,

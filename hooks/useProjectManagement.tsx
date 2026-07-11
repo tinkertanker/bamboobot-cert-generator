@@ -3,7 +3,10 @@ import type { SavedProject } from "@/lib/project-storage";
 import type { EmailConfig, TableData } from "@/types/certificate";
 import { ProjectStorage } from "@/lib/project-storage";
 import { SessionStorage } from "@/lib/session-storage";
-import { normalizeAutomaticTextColorProvenance } from "@/utils/imageAnalysis";
+import {
+  applyAutomaticTextColor,
+  normalizeAutomaticTextColorProvenance
+} from "@/utils/imageAnalysis";
 
 interface UseProjectManagementProps {
   // State setters
@@ -30,6 +33,10 @@ interface UseProjectManagementProps {
   positions: any;
   emailConfig: EmailConfig;
   tableData: TableData[];
+  automaticTextColorResult: {
+    imageUrl: string;
+    color: '#ffffff' | '#000000';
+  } | null;
   
   // Clear functions
   clearFile: () => void;
@@ -69,6 +76,7 @@ export function useProjectManagement({
   positions,
   emailConfig,
   tableData,
+  automaticTextColorResult,
   clearFile,
   clearPositions,
   clearDragState,
@@ -79,6 +87,7 @@ export function useProjectManagement({
   const latestPositionsRef = useRef(positions);
   const latestTableDataRef = useRef(tableData);
   const latestEmailConfigRef = useRef(emailConfig);
+  const automaticTextColorResultRef = useRef(automaticTextColorResult);
 
   useEffect(() => {
     latestPositionsRef.current = positions;
@@ -91,6 +100,10 @@ export function useProjectManagement({
   useEffect(() => {
     latestEmailConfigRef.current = emailConfig;
   }, [emailConfig]);
+
+  useEffect(() => {
+    automaticTextColorResultRef.current = automaticTextColorResult;
+  }, [automaticTextColorResult]);
   const [currentProjectName, setCurrentProjectName] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [hasManuallySaved, setHasManuallySaved] = useState<boolean>(false);
@@ -103,7 +116,16 @@ export function useProjectManagement({
       project.positions,
       project.columns
     );
-    setPositions(normalizedPositions);
+    const cachedAutomaticTextColor = automaticTextColorResultRef.current;
+    const adjustedPositions =
+      cachedAutomaticTextColor?.imageUrl === project.certificateImage.url
+        ? applyAutomaticTextColor(
+            normalizedPositions,
+            project.columns,
+            cachedAutomaticTextColor.color
+          )
+        : normalizedPositions;
+    setPositions(adjustedPositions);
     // The normal autosave persists migrated provenance. Avoid a write-on-load
     // that could race with edits or change the project's modified timestamp.
   }, [setPositions]);
