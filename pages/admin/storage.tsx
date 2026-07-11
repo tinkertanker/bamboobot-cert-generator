@@ -131,23 +131,42 @@ export default function StoragePage() {
     return `/api/admin/storage/get?key=${encodeURIComponent(key)}`;
   }
 
-  async function executeDeletion() {
+  // Accepts an explicit selection so inline per-row Delete buttons can pass the
+  // just-clicked key directly. Relying on `selected` state here would read a
+  // stale value, because React has not yet applied the setSelected update that
+  // runs in the same click handler.
+  async function executeDeletion(selectionOverride?: Record<string, boolean>) {
     if (!data) return;
+    const sel = selectionOverride ?? selected;
     const items: Array<{ key: string; isPrefix?: boolean }> = [];
 
     if (view === 'files') {
-      for (const it of filteredFiles) if (selected[it.key]) items.push({ key: it.key });
+      for (const it of filteredFiles) if (sel[it.key]) items.push({ key: it.key });
     }
     if (view === 'largest') {
-      for (const it of data.aggregates.largest) if (selected[it.key]) items.push({ key: it.key });
+      for (const it of data.aggregates.largest) if (sel[it.key]) items.push({ key: it.key });
     }
     if (view === 'folders') {
-      for (const g of folderGroups) if (selected[`prefix:${g.prefix}`]) items.push({ key: g.prefix, isPrefix: true });
+      for (const g of folderGroups) {
+        if (!sel[`prefix:${g.prefix}`]) continue;
+        if (g.prefix === 'generated/' || g.prefix === 'temp_images/') {
+          // The root group only aggregates files sitting directly under the
+          // namespace root; the server refuses recursive root deletes, so
+          // send those files individually instead.
+          for (const it of data.items) {
+            if (!it.key.startsWith(g.prefix)) continue;
+            if (it.key.slice(g.prefix.length).includes('/')) continue;
+            items.push({ key: it.key });
+          }
+        } else {
+          items.push({ key: g.prefix, isPrefix: true });
+        }
+      }
     }
     if (view === 'date') {
       const keysToDelete: string[] = [];
       const dateSelected = new Set<string>();
-      for (const g of dateGroups) if (selected[`date:${g.date}`]) dateSelected.add(g.date);
+      for (const g of dateGroups) if (sel[`date:${g.date}`]) dateSelected.add(g.date);
       if (dateSelected.size > 0) {
         for (const it of data.items) {
           const d = (it.lastModified ? new Date(it.lastModified) : null);
@@ -255,7 +274,7 @@ export default function StoragePage() {
           <div className="flex items-center gap-2">
             <button className="px-3 py-1.5 text-sm border rounded" onClick={()=>toggleAllCurrentView(true)}>Select All in View</button>
             <button className="px-3 py-1.5 text-sm border rounded" onClick={()=>toggleAllCurrentView(false)}>Clear Selection</button>
-            <button className="px-3 py-1.5 text-sm rounded bg-red-600 text-white" onClick={executeDeletion}>Delete Selected</button>
+            <button className="px-3 py-1.5 text-sm rounded bg-red-600 text-white" onClick={()=>executeDeletion()}>Delete Selected</button>
           </div>
         </div>
 
@@ -315,7 +334,7 @@ export default function StoragePage() {
                     <td className="px-4 py-2 text-sm">{g.count}</td>
                     <td className="px-4 py-2 text-sm">{formatBytes(g.size)}</td>
                     <td className="px-4 py-2 text-right">
-                      <button className="px-3 py-1.5 text-sm rounded bg-red-600 text-white" onClick={()=>{ setSelected(s=>({ ...s, [`prefix:${g.prefix}`]: true })); executeDeletion(); }}>Delete</button>
+                      <button className="px-3 py-1.5 text-sm rounded bg-red-600 text-white" onClick={()=>executeDeletion({ [`prefix:${g.prefix}`]: true })}>Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -344,7 +363,7 @@ export default function StoragePage() {
                     <td className="px-4 py-2 text-sm">{g.count}</td>
                     <td className="px-4 py-2 text-sm">{formatBytes(g.size)}</td>
                     <td className="px-4 py-2 text-right">
-                      <button className="px-3 py-1.5 text-sm rounded bg-red-600 text-white" onClick={()=>{ setSelected(s=>({ ...s, [`date:${g.date}`]: true })); executeDeletion(); }}>Delete</button>
+                      <button className="px-3 py-1.5 text-sm rounded bg-red-600 text-white" onClick={()=>executeDeletion({ [`date:${g.date}`]: true })}>Delete</button>
                     </td>
                   </tr>
                 ))}

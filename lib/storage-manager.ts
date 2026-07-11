@@ -3,7 +3,7 @@ import path from 'path';
 import storageConfig from './storage-config';
 import { listFiles as listR2Files, deleteFromR2 } from './r2-client';
 import { listAllS3Objects, deleteFromS3 } from './s3-client';
-import { getGeneratedDir, getLocalStorageDir, getTempImagesDir } from './paths';
+import { getGeneratedDir, getLocalStorageDir, getTempImagesDir, resolvePathWithin } from './paths';
 
 export type StorageProvider = 'local' | 'cloudflare-r2' | 'amazon-s3';
 
@@ -20,9 +20,59 @@ export function getProvider(): StorageProvider {
   return 'local';
 }
 
-function ensureSafeKey(key: string): boolean {
-  // Only allow keys within our app namespaces
-  return key.startsWith('generated/') || key.startsWith('temp_images/');
+export function ensureSafeStorageKey(key: unknown): key is string {
+  if (typeof key !== 'string' || key.includes('\\') || key.includes('\0')) return false;
+  if (!key.startsWith('generated/') && !key.startsWith('temp_images/')) return false;
+  return path.posix.normalize(key) === key;
+}
+
+// The namespace roots themselves are never valid deletion targets: a prefix
+// delete on one would wipe the entire namespace, far more than any UI
+// selection represents. Only canonical descendants may be deleted.
+export function isProtectedStorageRoot(key: string): boolean {
+  return key === 'generated/' || key === 'temp_images/';
+}
+
+function isWithinRealStorage(candidate: string, allowBase = false): boolean {
+  const realBase = fs.realpathSync(getLocalStorageDir());
+  const realCandidate = fs.realpathSync(candidate);
+  const relative = path.relative(realBase, realCandidate);
+  return (allowBase || !!relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+// A canonical key can still resolve onto a namespace root when an in-storage
+// symlink is used as an intermediate path component (e.g.
+// `generated/<link-to-base>/temp_images`). The lexical isProtectedStorageRoot
+// guard cannot see that, so recursive deletes must also reject any path that
+// lands on the storage base or a namespace root. Identity is compared by
+// device + inode rather than by resolved path string: on case-insensitive
+// filesystems (macOS APFS) a case-variant final component such as
+// `Temp_Images` realpaths to a differently-cased string yet points at the
+// same directory, which a string comparison would miss.
+function resolvesToProtectedRoot(candidate: string): boolean {
+  let target: fs.Stats;
+  try {
+    target = fs.statSync(candidate);
+  } catch {
+    return false;
+  }
+  return [getLocalStorageDir(), getGeneratedDir(), getTempImagesDir()].some((root) => {
+    try {
+      const rootStat = fs.statSync(root);
+      return rootStat.dev === target.dev && rootStat.ino === target.ino;
+    } catch {
+      return false;
+    }
+  });
+}
+
+function lstatIfPresent(candidate: string): fs.Stats | null {
+  try {
+    return fs.lstatSync(candidate);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
 }
 
 // Local helpers
@@ -36,7 +86,8 @@ function walkLocal(dir: string, basePrefix: string): StorageItem[] {
     const entries = fs.readdirSync(current);
     for (const name of entries) {
       const full = path.join(current, name);
-      const stat = fs.statSync(full);
+      const stat = fs.lstatSync(full);
+      if (stat.isSymbolicLink()) continue;
       if (stat.isDirectory()) {
         stack.push(full);
         continue;
@@ -58,14 +109,14 @@ export async function listAllObjects(prefix?: string): Promise<StorageItem[]> {
   if (provider === 'cloudflare-r2' && storageConfig.isR2Enabled) {
     const files = await listR2Files(prefix);
     return files
-      .filter(f => f.key && ensureSafeKey(f.key))
+      .filter(f => f.key && ensureSafeStorageKey(f.key))
       .map(f => ({ key: f.key, size: f.size || 0, lastModified: f.lastModified?.toISOString() }));
   }
 
   if (provider === 'amazon-s3' && storageConfig.isS3Enabled) {
     const files = await listAllS3Objects(prefix);
     return files
-      .filter(f => f.key && ensureSafeKey(f.key))
+      .filter(f => f.key && ensureSafeStorageKey(f.key))
       .map(f => ({ key: f.key, size: f.size || 0, lastModified: f.lastModified?.toISOString() }));
   }
 
@@ -80,12 +131,21 @@ export async function listAllObjects(prefix?: string): Promise<StorageItem[]> {
   return prefix ? results.filter(i => i.key.startsWith(prefix)) : results;
 }
 
-export async function deleteObjects(actions: Array<{ key: string; isPrefix?: boolean }>): Promise<{ deleted: string[]; errors: string[] }>{
+export async function deleteObjects(actions: Array<{ key?: unknown; isPrefix?: unknown }>): Promise<{ deleted: string[]; errors: string[] }>{
   const provider = getProvider();
   const deleted: string[] = [];
   const errors: string[] = [];
 
-  const safeActions = actions.filter(a => ensureSafeKey(a.key));
+  const safeActions = actions.filter((a): a is { key: string; isPrefix?: boolean } => {
+    if (
+      a &&
+      ensureSafeStorageKey(a.key) &&
+      !isProtectedStorageRoot(a.key) &&
+      (a.isPrefix === undefined || typeof a.isPrefix === 'boolean')
+    ) return true;
+    errors.push(a && typeof a.key === 'string' ? a.key : '<invalid key>');
+    return false;
+  });
 
   if (provider === 'cloudflare-r2' && storageConfig.isR2Enabled) {
     for (const a of safeActions) {
@@ -93,6 +153,10 @@ export async function deleteObjects(actions: Array<{ key: string; isPrefix?: boo
         if (a.isPrefix) {
           const files = await listR2Files(a.key);
           for (const f of files) {
+            if (!ensureSafeStorageKey(f.key) || !f.key.startsWith(a.key)) {
+              errors.push(String(f.key));
+              continue;
+            }
             await deleteFromR2(f.key);
             deleted.push(f.key);
           }
@@ -113,6 +177,10 @@ export async function deleteObjects(actions: Array<{ key: string; isPrefix?: boo
         if (a.isPrefix) {
           const files = await listAllS3Objects(a.key);
           for (const f of files) {
+            if (!ensureSafeStorageKey(f.key) || !f.key.startsWith(a.key)) {
+              errors.push(String(f.key));
+              continue;
+            }
             await deleteFromS3(f.key);
             deleted.push(f.key);
           }
@@ -130,12 +198,35 @@ export async function deleteObjects(actions: Array<{ key: string; isPrefix?: boo
   // Local deletions
   for (const a of safeActions) {
     try {
-      const full = path.join(getLocalStorageDir(), a.key);
+      const full = resolvePathWithin(getLocalStorageDir(), a.key);
+      if (!full) {
+        errors.push(a.key);
+        continue;
+      }
       if (a.isPrefix) {
         // Delete everything under the directory
-        if (fs.existsSync(full)) {
-          const stat = fs.statSync(full);
+        const stat = lstatIfPresent(full);
+        if (stat) {
+          if (stat.isSymbolicLink()) {
+            if (!isWithinRealStorage(path.dirname(full), true)) {
+              errors.push(a.key);
+              continue;
+            }
+            fs.unlinkSync(full);
+            deleted.push(a.key);
+            continue;
+          }
+          if (!isWithinRealStorage(full)) {
+            errors.push(a.key);
+            continue;
+          }
           if (stat.isDirectory()) {
+            // Refuse to recurse into the storage base or a namespace root,
+            // even when a symlinked path component resolves onto one.
+            if (resolvesToProtectedRoot(full)) {
+              errors.push(a.key);
+              continue;
+            }
             // Recursively remove directory
             fs.rmSync(full, { recursive: true, force: true });
           } else {
@@ -143,17 +234,34 @@ export async function deleteObjects(actions: Array<{ key: string; isPrefix?: boo
             // Fallback: walk both roots and remove filtered
             const all = await listAllObjects(a.key);
             for (const f of all) {
-              const abs = path.join(getLocalStorageDir(), f.key);
-              if (fs.existsSync(abs)) fs.rmSync(abs, { force: true });
-              deleted.push(f.key);
+              const abs = resolvePathWithin(getLocalStorageDir(), f.key);
+              const listedStat = abs ? lstatIfPresent(abs) : null;
+              if (abs && listedStat && !listedStat.isSymbolicLink() && isWithinRealStorage(abs)) {
+                fs.rmSync(abs, { force: true });
+                deleted.push(f.key);
+              } else {
+                errors.push(f.key);
+              }
             }
             continue;
           }
           deleted.push(a.key);
         }
       } else {
-        if (fs.existsSync(full)) {
-          fs.rmSync(full, { force: true });
+        const stat = lstatIfPresent(full);
+        if (stat) {
+          const contained = stat.isSymbolicLink()
+            ? isWithinRealStorage(path.dirname(full), true)
+            : isWithinRealStorage(full);
+          if (!contained) {
+            errors.push(a.key);
+            continue;
+          }
+          if (stat.isSymbolicLink()) {
+            fs.unlinkSync(full);
+          } else {
+            fs.rmSync(full, { force: true });
+          }
           deleted.push(a.key);
         }
       }
