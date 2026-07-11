@@ -33,7 +33,7 @@ export {
  * Attachment building types (server-only)
  */
 export interface AttachmentDataInput {
-  data?: number[] | Uint8Array;
+  data?: number[] | Uint8Array | string;
   filename?: string;
 }
 
@@ -178,7 +178,9 @@ export async function buildPdfAttachments(
       buffer = bufferFromPdfBytes(attachmentData, maxTotalBytes);
     } else if (attachmentData.data) {
       // Object with data property
-      buffer = bufferFromPdfBytes(attachmentData.data, maxTotalBytes);
+      buffer = typeof attachmentData.data === 'string'
+        ? decodeBase64Pdf(attachmentData.data, maxTotalBytes)
+        : bufferFromPdfBytes(attachmentData.data, maxTotalBytes);
       if (attachmentData.filename) {
         filename = attachmentData.filename;
       }

@@ -26,12 +26,20 @@ jest.mock('@/lib/email/email-queue', () => ({
 jest.mock('@/lib/email/provider-factory');
 
 // Import handler after mocks
-jest.mock('@/pages/api/auth/[...nextauth]', () => ({ __esModule: true, authOptions: {}, default: jest.fn() }));
-jest.mock('@/lib/auth/requireAuth', () => ({ requireAuth: jest.fn(async () => ({ user: { id: 'u1' } })) }));
+jest.mock('@/pages/api/auth/[...nextauth]', () => ({
+  __esModule: true,
+  authOptions: {},
+  default: jest.fn()
+}));
+jest.mock('@/lib/auth/requireAuth', () => ({
+  requireAuth: jest.fn(async () => ({ user: { id: 'u1' } }))
+}));
 import handler from '../../pages/api/send-bulk-email';
 import { getEmailProvider } from '@/lib/email/provider-factory';
+import { requireAuth } from '@/lib/auth/requireAuth';
 
 const mockGetEmailProvider = getEmailProvider as jest.MockedFunction<typeof getEmailProvider>;
+const mockedRequireAuth = requireAuth as jest.MockedFunction<typeof requireAuth>;
 
 describe('/api/send-bulk-email', () => {
   beforeEach(() => {
@@ -76,6 +84,47 @@ describe('/api/send-bulk-email', () => {
     expect(data.status).toBeDefined();
   });
 
+  it('defers queue processing until the final attachment batch', async () => {
+    const first = createMocks({
+      method: 'POST',
+      body: {
+        emails: [{ to: 'first@example.com', subject: 'Test', html: 'Test' }],
+        config: { senderName: 'Test', subject: 'Test', message: 'Test' },
+        sessionId: 'deferred-batches',
+        deferProcessing: true
+      }
+    });
+    await handler(first.req, first.res);
+
+    const queueModule = jest.requireMock('@/lib/email/email-queue');
+    const queue = queueModule.EmailQueueManager.mock.results.at(-1).value;
+    expect(queue.processQueue).not.toHaveBeenCalled();
+
+    const final = createMocks({
+      method: 'POST',
+      body: {
+        emails: [{ to: 'second@example.com', subject: 'Test', html: 'Test' }],
+        config: { senderName: 'Test', subject: 'Test', message: 'Test' },
+        sessionId: 'deferred-batches',
+        deferProcessing: true
+      }
+    });
+    await handler(final.req, final.res);
+
+    expect(final.res._getStatusCode()).toBe(200);
+    expect(queue.addToQueue).toHaveBeenCalledTimes(2);
+    expect(queue.processQueue).not.toHaveBeenCalled();
+
+    const start = createMocks({
+      method: 'PUT',
+      body: { action: 'start', sessionId: 'deferred-batches' }
+    });
+    await handler(start.req, start.res);
+
+    expect(start.res._getStatusCode()).toBe(200);
+    expect(queue.processQueue).toHaveBeenCalledTimes(1);
+  });
+
   it('should handle GET requests for status', async () => {
     const { req, res } = createMocks({
       method: 'GET',
@@ -93,12 +142,57 @@ describe('/api/send-bulk-email', () => {
     expect(data.total).toBe(0);
   });
 
+  it('does not expose or control another user queue with the same session id', async () => {
+    const post = createMocks({
+      method: 'POST',
+      body: {
+        emails: [{ to: 'owner@example.com', subject: 'Test', html: 'Test' }],
+        config: { senderName: 'Test', subject: 'Test', message: 'Test' },
+        sessionId: 'shared-session',
+        deferProcessing: true
+      }
+    });
+    await handler(post.req, post.res);
+
+    mockedRequireAuth.mockResolvedValueOnce({
+      user: { id: 'u2' }
+    } as Awaited<ReturnType<typeof requireAuth>>);
+    const get = createMocks({
+      method: 'GET',
+      query: { sessionId: 'shared-session' }
+    });
+    await handler(get.req, get.res);
+
+    mockedRequireAuth.mockResolvedValueOnce({
+      user: { id: 'u2' }
+    } as Awaited<ReturnType<typeof requireAuth>>);
+    const put = createMocks({
+      method: 'PUT',
+      body: { action: 'cancel', sessionId: 'shared-session' }
+    });
+    await handler(put.req, put.res);
+
+    expect(JSON.parse(get.res._getData())).toMatchObject({
+      status: 'idle',
+      total: 0
+    });
+    expect(put.res._getStatusCode()).toBe(404);
+  });
+
   it('should handle PUT requests for pause/resume', async () => {
     // First, create a queue manager by making a POST request
     const { req: postReq, res: postRes } = createMocks({
       method: 'POST',
       body: {
-        emails: [{ to: 'test@example.com', senderName: 'Test', subject: 'Test', html: 'Test', text: 'Test' }],
+        emails: [
+          {
+            to: 'test@example.com',
+            senderName: 'Test',
+            subject: 'Test',
+            html: 'Test',
+            text: 'Test'
+          }
+        ],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
         sessionId: 'test-session'
       }

@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { COLORS } from '@/utils/styles';
 import { EmailPreviewModal } from './EmailPreviewModal';
 import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
+import {
+  blobToBase64,
+  partitionClientEmailCertificates
+} from '@/lib/email/client-attachment-batches';
 import { 
   saveEmailStatus, 
   loadEmailStatus, 
@@ -74,7 +78,9 @@ export function BulkEmailModal({
     provider: '',
     rateLimit: { limit: 0, remaining: 0, resetIn: 0 }
   });
-  const [sessionId] = useState(() => `email-session-${Date.now()}`);
+  const [sessionId] = useState(() =>
+    `email-session-${globalThis.crypto.randomUUID()}`
+  );
   const [isStarted, setIsStarted] = useState(false);
   const [startTime, setStartTime] = useState<number>(0);
   const [showPreview, setShowPreview] = useState(false);
@@ -84,6 +90,15 @@ export function BulkEmailModal({
   const [testEmail, setTestEmail] = useState('');
   const [isTestSending, setIsTestSending] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const cancelRequestedRef = useRef(false);
+
+  const cancelPendingQueue = async () => {
+    await fetch('/api/send-bulk-email', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'cancel', sessionId })
+    }).catch(() => undefined);
+  };
 
   // Restore state from localStorage when modal opens
   useEffect(() => {
@@ -158,62 +173,113 @@ export function BulkEmailModal({
   }, [isStarted, sessionId, status.status]);
 
   const startSending = async () => {
+    cancelRequestedRef.current = false;
     setIsStarted(true);
     setStartTime(Date.now());
     setStatus(prev => ({ ...prev, status: 'processing' }));
 
     try {
-      // Prepare email data (only valid certificates)
-      const emails = [];
-      for (const cert of validCertificates) {
-        const isClientSidePdf =
-          cert.blob && cert.downloadUrl.startsWith('blob:');
-        const useAttachmentDelivery =
-          emailConfig.deliveryMethod === 'attachment' || !!isClientSidePdf;
-
-        // For client-side PDFs with attachment delivery, send the actual data
-        let attachments;
-        let attachmentData;
-
-        if (useAttachmentDelivery) {
-          if (isClientSidePdf) {
-            // Client-side PDF: send raw data as array
-            const bytes = new Uint8Array(await cert.blob!.arrayBuffer());
-            attachmentData = {
-              filename: cert.fileName,
-              data: Array.from(bytes)
-            };
-          } else {
-            // Server-side PDF: send URL for server to fetch
-            attachments = [{ filename: cert.fileName, path: cert.downloadUrl }];
+      const batches = partitionClientEmailCertificates(validCertificates);
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+        if (cancelRequestedRef.current) {
+          await cancelPendingQueue();
+          return;
+        }
+        const emails = [];
+        for (const cert of batches[batchIndex]) {
+          if (cancelRequestedRef.current) {
+            await cancelPendingQueue();
+            return;
           }
+          const isClientSidePdf =
+            cert.blob && cert.downloadUrl.startsWith('blob:');
+          const useAttachmentDelivery =
+            emailConfig.deliveryMethod === 'attachment' || !!isClientSidePdf;
+
+          let attachments;
+          let attachmentData;
+
+          if (useAttachmentDelivery) {
+            if (isClientSidePdf) {
+              const data = await blobToBase64(cert.blob!);
+              if (cancelRequestedRef.current) {
+                await cancelPendingQueue();
+                return;
+              }
+              attachmentData = {
+                filename: cert.fileName,
+                data
+              };
+            } else {
+              attachments = [{ filename: cert.fileName, path: cert.downloadUrl }];
+            }
+          }
+
+          emails.push({
+            to: cert.email,
+            senderName: emailConfig.senderName,
+            subject: emailConfig.subject,
+            html: useAttachmentDelivery
+              ? buildAttachmentEmail(emailConfig.message)
+              : buildLinkEmail(emailConfig.message, cert.downloadUrl),
+            text: emailConfig.message,
+            attachments,
+            attachmentData,
+            certificateUrl: cert.downloadUrl
+          });
         }
 
-        emails.push({
-          to: cert.email,
-          senderName: emailConfig.senderName,
-          subject: emailConfig.subject,
-          html: useAttachmentDelivery
-            ? buildAttachmentEmail(emailConfig.message)
-            : buildLinkEmail(emailConfig.message, cert.downloadUrl),
-          text: emailConfig.message,
-          attachments,
-          attachmentData,
-          certificateUrl: cert.downloadUrl
+        if (cancelRequestedRef.current) {
+          await cancelPendingQueue();
+          return;
+        }
+
+        const response = await fetch('/api/send-bulk-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            emails,
+            config: emailConfig,
+            sessionId,
+            deferProcessing: true
+          })
         });
+
+        if (cancelRequestedRef.current) {
+          await cancelPendingQueue();
+          return;
+        }
+
+        if (!response.ok) {
+          let message = response.status === 413
+            ? 'The PDF batch is too large to email. Try fewer certificates.'
+            : response.statusText || 'Failed to start email sending';
+          try {
+            const error = await response.json();
+            message = error.error || message;
+          } catch {
+            // Body-parser and proxy errors may return plain text or HTML.
+          }
+          throw new Error(message);
+        }
       }
 
-      const response = await fetch('/api/send-bulk-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emails, config: emailConfig, sessionId })
-      });
+      if (cancelRequestedRef.current) {
+        await cancelPendingQueue();
+        return;
+      }
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to start email sending');
+      const startResponse = await fetch('/api/send-bulk-email', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start', sessionId })
+      });
+      if (!startResponse.ok) {
+        throw new Error('Failed to start email sending');
       }
     } catch (error) {
+      await cancelPendingQueue();
+      if (cancelRequestedRef.current) return;
       setStatus(prev => ({
         ...prev,
         status: 'error',
@@ -247,8 +313,19 @@ export function BulkEmailModal({
   };
 
   const handleClose = () => {
+    const shouldCancel =
+      isStarted && status.status !== 'completed' && status.status !== 'error';
+    if (shouldCancel) {
+      cancelRequestedRef.current = true;
+      void cancelPendingQueue();
+    }
     // Clear persisted status if email sending is completed or user cancels
-    if (status.status === 'completed' || status.status === 'error' || !isStarted) {
+    if (
+      status.status === 'completed' ||
+      status.status === 'error' ||
+      !isStarted ||
+      shouldCancel
+    ) {
       clearEmailStatus(sessionId);
     }
     onClose();
@@ -275,10 +352,9 @@ export function BulkEmailModal({
       if (useAttachmentDelivery) {
         if (isClientSidePdf) {
           // Client-side PDF: send raw data
-          const bytes = new Uint8Array(await firstCert.blob!.arrayBuffer());
           attachmentData = {
             filename: firstCert.fileName,
-            data: Array.from(bytes)
+            data: await blobToBase64(firstCert.blob!)
           };
         } else {
           // Server-side PDF: send URL

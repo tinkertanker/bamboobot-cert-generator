@@ -11,7 +11,8 @@ import { PdfSourceError } from '@/lib/security/trusted-pdf-source';
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '10mb' // Increase limit to handle PDF attachments
+      // 25 MiB decoded PDF + base64 expansion and request metadata.
+      sizeLimit: '40mb'
     }
   }
 };

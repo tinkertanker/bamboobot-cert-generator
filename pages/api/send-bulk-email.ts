@@ -5,10 +5,7 @@ import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
-import {
-  getMaxPdfSourceBytes,
-  PdfSourceError,
-} from '@/lib/security/trusted-pdf-source';
+import { getMaxPdfSourceBytes, PdfSourceError } from '@/lib/security/trusted-pdf-source';
 
 const MAX_BULK_EMAILS = 500;
 const BULK_ATTACHMENT_CONCURRENCY = 4;
@@ -16,10 +13,7 @@ const DEFAULT_MAX_BULK_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 const HARD_MAX_BULK_ATTACHMENT_BYTES = 250 * 1024 * 1024;
 
 function getMaxBulkAttachmentBytes(): number {
-  const configured = Number.parseInt(
-    process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES || '',
-    10
-  );
+  const configured = Number.parseInt(process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES || '', 10);
   if (!Number.isSafeInteger(configured) || configured <= 0) {
     return DEFAULT_MAX_BULK_ATTACHMENT_BYTES;
   }
@@ -36,13 +30,43 @@ export const config = {
 
 // Store queue managers in memory (in production, use Redis or database)
 const queueManagers = new Map<string, EmailQueueManager>();
+const queueAttachmentBytes = new Map<string, number>();
+const queueIngestionLocks = new Map<string, Promise<void>>();
+
+function queueKey(userId: string, sessionId: string): string {
+  return `${userId}:${sessionId}`;
+}
+
+async function withQueueIngestionLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = queueIngestionLocks.get(key) || Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const tail = previous.then(() => current);
+  queueIngestionLocks.set(key, tail);
+
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (queueIngestionLocks.get(key) === tail) {
+      queueIngestionLocks.delete(key);
+    }
+  }
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   // Require auth for all bulk email operations
   const session = await requireAuth(req, res);
   if (!session) return;
   const userId = (session.user as any).id as string;
-  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  const ip =
+    (req.headers['x-real-ip'] as string) ||
+    (req.headers['x-forwarded-for'] as string) ||
+    req.socket.remoteAddress ||
+    null;
   // Pass to subhandlers
   (req as any).__uid = userId;
   (req as any).__ip = ip;
@@ -64,7 +88,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
 async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   try {
-    const { emails, config, sessionId } = req.body;
+    const { emails, config, sessionId, deferProcessing = false } = req.body;
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
       res.status(400).json({ error: 'No emails provided' });
@@ -85,136 +109,155 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
 
     // Rate limit after validation
     const userId = (req as any).__uid as string | undefined;
-    const rl = enforceRateLimit(req, res, { userId, route: 'send-bulk-email:POST', category: 'email' });
+    const rl = enforceRateLimit(req, res, {
+      userId,
+      route: 'send-bulk-email:POST',
+      category: 'email'
+    });
     if (!rl.allowed) {
       res.status(429).json({ error: 'Email rate limit exceeded.' });
       return;
     }
 
-    // Get or create queue manager for this session
-    let queueManager = queueManagers.get(sessionId);
-    if (!queueManager) {
-      try {
-        const provider = getEmailProvider();
-        queueManager = new EmailQueueManager(provider);
-        queueManagers.set(sessionId, queueManager);
-      } catch {
-        res.status(500).json({
-          error: 'No email provider configured. Please set up Resend or AWS SES.'
-        });
-        return;
-      }
-    }
-
-    // Get from address from env or use default
-    const fromAddress = process.env.EMAIL_FROM || 'onboarding@resend.dev';
-
-    // Parse recipients and filter out emails with no valid addresses
-    type EmailInput = {
-      to: string;
-      senderName?: string;
-      subject: string;
-      html: string;
-      text?: string;
-      attachmentData?: { data: number[]; filename: string };
-      attachments?: { path?: string; filename: string; content?: Buffer | string }[];
-      certificateUrl?: string;
-    };
-    const rejectedEmails: string[] = [];
-    const emailsWithRecipients = (emails as EmailInput[])
-      .map(email => {
-        const { valid, rejected } = parseRecipientsDetailed(email.to || '');
-        rejectedEmails.push(...rejected);
-        return { ...email, recipients: valid };
-      })
-      .filter(email => email.recipients.length > 0);
-
-    if (rejectedEmails.length > 0) {
-      console.warn(`Bulk email - invalid addresses filtered: ${rejectedEmails.join(', ')}`);
-    }
-
-    const skippedCount = emails.length - emailsWithRecipients.length;
-
-    if (emailsWithRecipients.length === 0) {
-      res.status(400).json({
-        error: 'No valid email addresses found. All entries are missing or have invalid email addresses.'
-      });
+    if (!userId || typeof sessionId !== 'string' || !sessionId) {
+      res.status(400).json({ error: 'Session ID required' });
       return;
     }
 
-    // Build attachments with bounded concurrency and a request-wide byte
-    // budget. Per-email limits alone are insufficient because a single bulk
-    // request can otherwise fan out hundreds of simultaneous remote reads.
-    const emailParams: Array<EmailParams & { certificateUrl?: string }> = [];
-    const maxBulkAttachmentBytes = getMaxBulkAttachmentBytes();
-    let totalAttachmentBytes = 0;
-
-    for (let offset = 0; offset < emailsWithRecipients.length; offset += BULK_ATTACHMENT_CONCURRENCY) {
-      const batch = emailsWithRecipients.slice(offset, offset + BULK_ATTACHMENT_CONCURRENCY);
-      const emailsWithAttachments = batch.filter((email) =>
-        email.attachmentData !== undefined
-        || email.attachments?.some((attachment) => Boolean(attachment?.path || attachment?.content))
-      ).length;
-      const remainingBytes = maxBulkAttachmentBytes - totalAttachmentBytes;
-
-      if (emailsWithAttachments > 0 && remainingBytes < emailsWithAttachments) {
-        throw new PdfSourceError('PDF_TOO_LARGE', 'Bulk PDF attachments exceed the size limit', 413);
+    const key = queueKey(userId, sessionId);
+    await withQueueIngestionLock(key, async () => {
+      // Get or create queue manager for this session
+      let queueManager = queueManagers.get(key);
+      if (!queueManager) {
+        try {
+          const provider = getEmailProvider();
+          queueManager = new EmailQueueManager(provider);
+          queueManagers.set(key, queueManager);
+        } catch {
+          res.status(500).json({
+            error: 'No email provider configured. Please set up Resend or AWS SES.'
+          });
+          return;
+        }
       }
 
-      const perEmailBudget = emailsWithAttachments > 0
-        ? Math.min(
-            getMaxPdfSourceBytes(),
-            Math.floor(remainingBytes / emailsWithAttachments)
-          )
-        : getMaxPdfSourceBytes();
+      // Get from address from env or use default
+      const fromAddress = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
-      const builtBatch = await Promise.all(batch.map(async email => {
-        const attachments = await buildPdfAttachments({
-          attachmentData: email.attachmentData,
-          attachments: email.attachments,
-          maxTotalBytes: perEmailBudget,
+      // Parse recipients and filter out emails with no valid addresses
+      type EmailInput = {
+        to: string;
+        senderName?: string;
+        subject: string;
+        html: string;
+        text?: string;
+        attachmentData?: { data: number[] | string; filename: string };
+        attachments?: {
+          path?: string;
+          filename: string;
+          content?: Buffer | string;
+        }[];
+        certificateUrl?: string;
+      };
+      const rejectedEmails: string[] = [];
+      const emailsWithRecipients = (emails as EmailInput[])
+        .map((email) => {
+          const { valid, rejected } = parseRecipientsDetailed(email.to || '');
+          rejectedEmails.push(...rejected);
+          return { ...email, recipients: valid };
+        })
+        .filter((email) => email.recipients.length > 0);
+
+      if (rejectedEmails.length > 0) {
+        console.warn(`Bulk email - invalid addresses filtered: ${rejectedEmails.join(', ')}`);
+      }
+
+      const skippedCount = emails.length - emailsWithRecipients.length;
+
+      if (emailsWithRecipients.length === 0) {
+        res.status(400).json({
+          error: 'No valid email addresses found. All entries are missing or have invalid email addresses.'
         });
-
-        return {
-          to: email.recipients,
-          from: email.senderName
-            ? `${email.senderName} <${fromAddress}>`
-            : `Bamboobot Certificates <${fromAddress}>`,
-          subject: email.subject,
-          html: email.html,
-          text: email.text,
-          attachments,
-          certificateUrl: email.certificateUrl
-        };
-      }));
-
-      const batchAttachmentBytes = builtBatch.reduce((batchTotal, email) => {
-        return batchTotal + (email.attachments?.reduce(
-          (emailTotal, attachment) => emailTotal + (attachment.content?.length || 0),
-          0
-        ) || 0);
-      }, 0);
-      totalAttachmentBytes += batchAttachmentBytes;
-
-      if (totalAttachmentBytes > maxBulkAttachmentBytes) {
-        throw new PdfSourceError('PDF_TOO_LARGE', 'Bulk PDF attachments exceed the size limit', 413);
+        return;
       }
 
-      emailParams.push(...builtBatch);
-    }
+      // Build attachments with bounded concurrency and a request-wide byte
+      // budget. Per-email limits alone are insufficient because a single bulk
+      // request can otherwise fan out hundreds of simultaneous remote reads.
+      const emailParams: Array<EmailParams & { certificateUrl?: string }> = [];
+      const maxBulkAttachmentBytes = getMaxBulkAttachmentBytes();
+      let totalAttachmentBytes = queueAttachmentBytes.get(key) || 0;
 
-    await queueManager.addToQueue(emailParams);
+      for (let offset = 0; offset < emailsWithRecipients.length; offset += BULK_ATTACHMENT_CONCURRENCY) {
+        const batch = emailsWithRecipients.slice(offset, offset + BULK_ATTACHMENT_CONCURRENCY);
+        const emailsWithAttachments = batch.filter(
+          (email) =>
+            email.attachmentData !== undefined ||
+            email.attachments?.some((attachment) => Boolean(attachment?.path || attachment?.content))
+        ).length;
+        const remainingBytes = maxBulkAttachmentBytes - totalAttachmentBytes;
 
-    // Start processing if not already running
-    if (!queueManager.isProcessing()) {
-      queueManager.processQueue().catch(console.error);
-    }
+        if (emailsWithAttachments > 0 && remainingBytes < emailsWithAttachments) {
+          throw new PdfSourceError('PDF_TOO_LARGE', 'Bulk PDF attachments exceed the size limit', 413);
+        }
 
-    res.status(200).json({
-      success: true,
-      queueLength: queueManager.getQueueLength(),
-      status: queueManager.getStatus(),
-      skippedCount, // Number of emails skipped due to invalid addresses
+        const perEmailBudget =
+          emailsWithAttachments > 0
+            ? Math.min(getMaxPdfSourceBytes(), Math.floor(remainingBytes / emailsWithAttachments))
+            : getMaxPdfSourceBytes();
+
+        const builtBatch = await Promise.all(
+          batch.map(async (email) => {
+            const attachments = await buildPdfAttachments({
+              attachmentData: email.attachmentData,
+              attachments: email.attachments,
+              maxTotalBytes: perEmailBudget
+            });
+
+            return {
+              to: email.recipients,
+              from: email.senderName
+                ? `${email.senderName} <${fromAddress}>`
+                : `Bamboobot Certificates <${fromAddress}>`,
+              subject: email.subject,
+              html: email.html,
+              text: email.text,
+              attachments,
+              certificateUrl: email.certificateUrl
+            };
+          })
+        );
+
+        const batchAttachmentBytes = builtBatch.reduce((batchTotal, email) => {
+          return (
+            batchTotal +
+            (email.attachments?.reduce((emailTotal, attachment) => emailTotal + (attachment.content?.length || 0), 0) ||
+              0)
+          );
+        }, 0);
+        totalAttachmentBytes += batchAttachmentBytes;
+
+        if (totalAttachmentBytes > maxBulkAttachmentBytes) {
+          throw new PdfSourceError('PDF_TOO_LARGE', 'Bulk PDF attachments exceed the size limit', 413);
+        }
+
+        emailParams.push(...builtBatch);
+      }
+
+      await queueManager.addToQueue(emailParams);
+      queueAttachmentBytes.set(key, totalAttachmentBytes);
+
+      // Start processing if not already running
+      if (!deferProcessing && !queueManager.isProcessing()) {
+        queueManager.processQueue().catch(console.error);
+      }
+
+      res.status(200).json({
+        success: true,
+        queueLength: queueManager.getQueueLength(),
+        status: queueManager.getStatus(),
+        skippedCount // Number of emails skipped due to invalid addresses
+      });
     });
     return;
   } catch (error) {
@@ -241,20 +284,24 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
 
     // Light rate limit for status checks
     const userId = (req as any).__uid as string | undefined;
-    const rl = enforceRateLimit(req, res, { userId, route: 'send-bulk-email:GET', category: 'api' });
+    const rl = enforceRateLimit(req, res, {
+      userId,
+      route: 'send-bulk-email:GET',
+      category: 'api'
+    });
     if (!rl.allowed) {
       res.status(429).json({ error: 'Too many status checks.' });
       return;
     }
 
-    const queueManager = queueManagers.get(sessionId);
+    const queueManager = userId ? queueManagers.get(queueKey(userId, sessionId)) : undefined;
     if (!queueManager) {
       res.status(200).json({
         status: 'idle',
         processed: 0,
         failed: 0,
         total: 0,
-        remaining: 0,
+        remaining: 0
       });
       return;
     }
@@ -278,30 +325,50 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
       return;
     }
 
-    const queueManager = queueManagers.get(sessionId);
-    if (!queueManager) {
-      res.status(404).json({ error: 'No active queue found' });
-      return;
-    }
-
     // Rate limit control actions
     const userId = (req as any).__uid as string | undefined;
-    const rl = enforceRateLimit(req, res, { userId, route: 'send-bulk-email:PUT', category: 'api' });
+    const rl = enforceRateLimit(req, res, {
+      userId,
+      route: 'send-bulk-email:PUT',
+      category: 'api'
+    });
     if (!rl.allowed) {
       res.status(429).json({ error: 'Too many control requests.' });
       return;
     }
 
-    if (action === 'pause') {
-      await queueManager.pause();
-    } else if (action === 'resume') {
-      await queueManager.resume();
-    } else {
-      res.status(400).json({ error: 'Invalid action' });
+    if (!userId) {
+      res.status(401).json({ error: 'Authentication required' });
       return;
     }
 
-    res.status(200).json({ success: true });
+    const key = queueKey(userId, sessionId);
+    await withQueueIngestionLock(key, async () => {
+      const queueManager = queueManagers.get(key);
+      if (!queueManager) {
+        res.status(404).json({ error: 'No active queue found' });
+        return;
+      }
+
+      if (action === 'pause') {
+        await queueManager.pause();
+      } else if (action === 'resume') {
+        await queueManager.resume();
+      } else if (action === 'start') {
+        if (!queueManager.isProcessing()) {
+          queueManager.processQueue().catch(console.error);
+        }
+      } else if (action === 'cancel') {
+        await queueManager.clear();
+        queueManagers.delete(key);
+        queueAttachmentBytes.delete(key);
+      } else {
+        res.status(400).json({ error: 'Invalid action' });
+        return;
+      }
+
+      res.status(200).json({ success: true });
+    });
     return;
   } catch (error) {
     console.error('Queue control error:', error);
@@ -318,11 +385,11 @@ let cleanupInterval: NodeJS.Timeout | null = null;
 if (!cleanupInterval) {
   cleanupInterval = setInterval(() => {
     const now = Date.now();
-    for (const [sessionId, manager] of Array.from(queueManagers.entries())) {
+    for (const [key, manager] of Array.from(queueManagers.entries())) {
       // Remove idle queues older than 1 hour
-      if (manager.getStatus().status === 'idle' && 
-          manager.getLastActivity() < now - 3600000) {
-        queueManagers.delete(sessionId);
+      if (['idle', 'completed'].includes(manager.getStatus().status) && manager.getLastActivity() < now - 3600000) {
+        queueManagers.delete(key);
+        queueAttachmentBytes.delete(key);
       }
     }
   }, 600000); // Every 10 minutes

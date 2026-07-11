@@ -12,21 +12,21 @@ jest.mock('@/lib/email/email-queue', () => ({
     processQueue: jest.fn(),
     getQueueLength: jest.fn(() => 0),
     getStatus: jest.fn(() => ({ status: 'idle' })),
-    getLastActivity: jest.fn(() => Date.now()),
-  })),
+    getLastActivity: jest.fn(() => Date.now())
+  }))
 }));
 
 jest.mock('@/lib/email/provider-factory');
 jest.mock('@/pages/api/auth/[...nextauth]', () => ({
   __esModule: true,
   authOptions: {},
-  default: jest.fn(),
+  default: jest.fn()
 }));
 jest.mock('@/lib/auth/requireAuth', () => ({
-  requireAuth: jest.fn(async () => ({ user: { id: 'u1' } })),
+  requireAuth: jest.fn(async () => ({ user: { id: 'u1' } }))
 }));
 jest.mock('@/lib/rate-limit', () => ({
-  enforceRateLimit: jest.fn(() => ({ allowed: true })),
+  enforceRateLimit: jest.fn(() => ({ allowed: true }))
 }));
 jest.mock('../../utils/email-utils', () => {
   const actual = jest.requireActual('../../utils/email-utils');
@@ -43,10 +43,12 @@ function email(index: number) {
     senderName: 'Sender',
     subject: 'Certificate',
     html: '<p>Attached</p>',
-    attachments: [{
-      path: `https://certs.example.com/generated/${index}.pdf`,
-      filename: `${index}.pdf`,
-    }],
+    attachments: [
+      {
+        path: `https://certs.example.com/generated/${index}.pdf`,
+        filename: `${index}.pdf`
+      }
+    ]
   };
 }
 
@@ -55,9 +57,13 @@ function requestFor(emails: ReturnType<typeof email>[], sessionId: string) {
     method: 'POST',
     body: {
       emails,
-      config: { senderName: 'Sender', subject: 'Certificate', message: 'Attached' },
-      sessionId,
-    },
+      config: {
+        senderName: 'Sender',
+        subject: 'Certificate',
+        message: 'Attached'
+      },
+      sessionId
+    }
   });
 }
 
@@ -69,7 +75,7 @@ describe('/api/send-bulk-email attachment resource limits', () => {
       name: 'resend',
       sendEmail: jest.fn(),
       getRateLimit: jest.fn(),
-      isConfigured: jest.fn(() => true),
+      isConfigured: jest.fn(() => true)
     } as any);
     mockAddToQueue.mockResolvedValue(undefined);
   });
@@ -86,11 +92,13 @@ describe('/api/send-bulk-email attachment resource limits', () => {
       peak = Math.max(peak, active);
       await new Promise((resolve) => setTimeout(resolve, 5));
       active -= 1;
-      return [{
-        filename: 'certificate.pdf',
-        content: Buffer.from('%PDF-1.4\nsmall'),
-        contentType: 'application/pdf',
-      }];
+      return [
+        {
+          filename: 'certificate.pdf',
+          content: Buffer.from('%PDF-1.4\nsmall'),
+          contentType: 'application/pdf'
+        }
+      ];
     });
     const { req, res } = requestFor(
       Array.from({ length: 8 }, (_, index) => email(index)),
@@ -106,17 +114,63 @@ describe('/api/send-bulk-email attachment resource limits', () => {
 
   it('rejects a batch that exceeds the request-wide attachment budget', async () => {
     process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES = '20';
-    mockedBuildPdfAttachments.mockResolvedValue([{
-      filename: 'certificate.pdf',
-      content: Buffer.from('%PDF-123456789'),
-      contentType: 'application/pdf',
-    }]);
+    mockedBuildPdfAttachments.mockResolvedValue([
+      {
+        filename: 'certificate.pdf',
+        content: Buffer.from('%PDF-123456789'),
+        contentType: 'application/pdf'
+      }
+    ]);
     const { req, res } = requestFor([email(1), email(2)], 'aggregate-test');
 
     await handler(req, res);
 
     expect(res._getStatusCode()).toBe(413);
     expect(mockAddToQueue).not.toHaveBeenCalled();
+  });
+
+  it('enforces the attachment budget across deferred requests', async () => {
+    process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES = '20';
+    mockedBuildPdfAttachments.mockResolvedValue([
+      {
+        filename: 'certificate.pdf',
+        content: Buffer.from('%PDF-123456789'),
+        contentType: 'application/pdf'
+      }
+    ]);
+    const first = requestFor([email(1)], 'deferred-budget-test');
+    first.req.body.deferProcessing = true;
+    await handler(first.req, first.res);
+
+    const second = requestFor([email(2)], 'deferred-budget-test');
+    await handler(second.req, second.res);
+
+    expect(first.res._getStatusCode()).toBe(200);
+    expect(second.res._getStatusCode()).toBe(413);
+    expect(mockAddToQueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('serializes concurrent requests against the session attachment budget', async () => {
+    process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES = '20';
+    mockedBuildPdfAttachments.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return [
+        {
+          filename: 'certificate.pdf',
+          content: Buffer.from('%PDF-123456789'),
+          contentType: 'application/pdf'
+        }
+      ];
+    });
+    const first = requestFor([email(1)], 'concurrent-budget-test');
+    const second = requestFor([email(2)], 'concurrent-budget-test');
+    first.req.body.deferProcessing = true;
+    second.req.body.deferProcessing = true;
+
+    await Promise.all([handler(first.req, first.res), handler(second.req, second.res)]);
+
+    expect([first.res._getStatusCode(), second.res._getStatusCode()].sort()).toEqual([200, 413]);
+    expect(mockAddToQueue).toHaveBeenCalledTimes(1);
   });
 
   it('rejects more than 500 emails before loading attachments', async () => {

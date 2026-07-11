@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { TableData, EmailConfig, EmailSendingStatus, PdfFile } from "@/types/certificate";
+import { blobToBase64 } from "@/lib/email/client-attachment-batches";
 
 export interface UseEmailConfigProps {
   detectedEmailColumn: string | null;
@@ -123,8 +124,7 @@ export function useEmailConfig({
       // Handle client-side vs server-side PDFs
       if (file.blob && file.url.startsWith('blob:')) {
         // Client-side generated PDF - always use attachment mode
-        const bytes = new Uint8Array(await file.blob.arrayBuffer());
-        emailData.attachmentData = Array.from(bytes);
+        emailData.attachmentData = await blobToBase64(file.blob);
         // Override delivery method to attachment for client-side PDFs
         emailData.deliveryMethod = "attachment";
       } else {
