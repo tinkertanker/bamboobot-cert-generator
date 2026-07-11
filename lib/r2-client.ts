@@ -7,6 +7,7 @@ import {
   HeadObjectCommand 
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { readFileMetadata } from '@/lib/storage/file-metadata';
 
 // Initialize R2 client (S3-compatible)
 const r2Client = new S3Client({
@@ -141,7 +142,9 @@ export async function getFileMetadata(key: string): Promise<FileMetadata | null>
     });
     
     const response = await r2Client.send(command);
-    return response.Metadata as unknown as FileMetadata;
+    // Providers return custom metadata keys lowercased, so parse
+    // case-insensitively rather than casting the raw record.
+    return readFileMetadata(response.Metadata);
   } catch (error) {
     console.error('Error getting file metadata:', error);
     return null;
