@@ -16,8 +16,16 @@ const fontFamilyMap: Record<FontFamily, string> = {
 
 let canvas: HTMLCanvasElement | null = null;
 let context: CanvasRenderingContext2D | null = null;
+let isWatchingFontLoads = false;
+const measurementCache = new Map<string, number>();
+const MAX_MEASUREMENT_CACHE_ENTRIES = 2000;
 
 function getContext(): CanvasRenderingContext2D {
+  if (!isWatchingFontLoads && document.fonts?.addEventListener) {
+    document.fonts.addEventListener('loadingdone', clearTextMeasurementCache);
+    isWatchingFontLoads = true;
+  }
+
   if (!canvas || !context) {
     canvas = document.createElement('canvas');
     context = canvas.getContext('2d');
@@ -28,25 +36,9 @@ function getContext(): CanvasRenderingContext2D {
   return context;
 }
 
-// Text measurement utility for consistent sizing
-export const measureText = (
-  text: string,
-  fontSize: number,
-  fontWeight: string = "500",
-  fontFamily: string = "system-ui, sans-serif"
-) => {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d")!;
-  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-  const metrics = ctx.measureText(text);
-  return {
-    width: metrics.width,
-    height: fontSize, // Approximate height - could use actualBoundingBoxAscent + actualBoundingBoxDescent for precision
-    actualHeight:
-      (metrics.actualBoundingBoxAscent || fontSize * 0.8) +
-      (metrics.actualBoundingBoxDescent || fontSize * 0.2)
-  };
-};
+export function clearTextMeasurementCache(): void {
+  measurementCache.clear();
+}
 
 /**
  * Measure text width using Canvas API
@@ -62,9 +54,22 @@ export function measureTextWidth(
   const fontWeight = bold ? 'bold' : 'normal';
   const fontStyle = italic ? 'italic' : 'normal';
   const font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamilyMap[fontFamily]}`;
-  
+  const cacheKey = `${font}\u0000${text}`;
+  const cachedWidth = measurementCache.get(cacheKey);
+  if (cachedWidth !== undefined) {
+    measurementCache.delete(cacheKey);
+    measurementCache.set(cacheKey, cachedWidth);
+    return cachedWidth;
+  }
+
   ctx.font = font;
-  return ctx.measureText(text).width;
+  const width = ctx.measureText(text).width;
+  measurementCache.set(cacheKey, width);
+  if (measurementCache.size > MAX_MEASUREMENT_CACHE_ENTRIES) {
+    const oldestKey = measurementCache.keys().next().value;
+    if (oldestKey !== undefined) measurementCache.delete(oldestKey);
+  }
+  return width;
 }
 
 /**

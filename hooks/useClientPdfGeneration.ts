@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { ClientPdfGenerator } from '@/lib/pdf/client/pdf-generator-client';
 import { FeatureDetector } from '@/lib/pdf/client/feature-detection';
 import { DEFAULT_FONT_SIZE } from '@/utils/constants';
-import { measureText } from '@/utils/textMeasurement';
 import type { TableData, Positions, PdfFile } from '@/types/certificate';
 import {
   assessIndividualPdfCapacity,
@@ -132,11 +131,6 @@ export function useClientPdfGeneration({
           font?: string | any;
           bold?: boolean;
           oblique?: boolean;
-          uiMeasurements?: {
-            width: number;
-            height: number;
-            actualHeight: number;
-          };
         };
       } = {};
       
@@ -145,8 +139,6 @@ export function useClientPdfGeneration({
           return;
         }
 
-        const fontSize = positions[key]?.fontSize || DEFAULT_FONT_SIZE;
-        const measurements = measureText(row[key], fontSize, positions[key]?.bold ? "700" : "500");
         const position = positions[key];
         
         entry[key] = {
@@ -154,8 +146,7 @@ export function useClientPdfGeneration({
           color: position?.color ? hexToRgb(position.color) : hexToRgb("#000000"),
           font: position?.fontFamily,
           bold: position?.bold,
-          oblique: position?.italic,
-          uiMeasurements: measurements
+          oblique: position?.italic
         };
       });
       

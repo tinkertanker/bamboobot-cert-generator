@@ -93,19 +93,11 @@ export interface ContainerDimensions {
   height: number;
 }
 
-// Text measurements for PDF generation
-export interface TextMeasurements {
-  width: number;
-  height: number;
-  actualHeight: number;
-}
-
 // PDF generation entry data
 export interface PdfGenerationEntry {
   [key: string]: {
     text: string;
     color?: [number, number, number];
-    uiMeasurements?: TextMeasurements;
   };
 }
 

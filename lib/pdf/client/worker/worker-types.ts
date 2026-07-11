@@ -53,11 +53,6 @@ export interface Entry {
     font?: FontFamily;
     bold?: boolean;
     oblique?: boolean;
-    uiMeasurements?: {
-      width: number;
-      height: number;
-      actualHeight: number;
-    };
   };
 }
 

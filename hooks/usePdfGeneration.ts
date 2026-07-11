@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { DEFAULT_FONT_SIZE } from "@/utils/constants";
-import { measureText } from "@/utils/textMeasurement";
 import type { TableData, Positions, PdfFile } from "@/types/certificate";
 
 export interface UsePdfGenerationProps {
@@ -59,11 +58,6 @@ export function usePdfGeneration({
         [key: string]: {
           text: string;
           color?: [number, number, number];
-          uiMeasurements?: {
-            width: number;
-            height: number;
-            actualHeight: number;
-          };
         };
       } = {};
       Object.keys(row).forEach((key) => {
@@ -72,15 +66,12 @@ export function usePdfGeneration({
           return;
         }
 
-        const fontSize = DEFAULT_FONT_SIZE;
-        const measurements = measureText(row[key], fontSize, "500");
         const position = positions[key];
         entry[key] = {
           text: row[key],
           color: position?.color
             ? hexToRgb(position.color)
-            : hexToRgb("#000000"),
-          uiMeasurements: measurements
+            : hexToRgb("#000000")
         };
       });
       return entry;
