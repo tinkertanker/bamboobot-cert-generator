@@ -6,6 +6,7 @@ import { formatBytes } from '@/lib/format';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { detectUserTier } from '@/lib/server/tiers';
+import { isAuthenticationRequired } from '@/lib/auth/runtime-policy';
 
 interface CleanupResult {
   deletedFiles: number;
@@ -135,24 +136,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  // Allow in development mode OR for super admins in production
+  // This endpoint performs destructive, unfiltered deletion of stored files.
+  // Allow unauthenticated access ONLY in a local development setup that is not
+  // enforcing authentication (the app's open dev mode, where the in-app
+  // StorageMonitor tool runs without a session). In every other case — any
+  // deployment that enforces auth, and any non-development environment —
+  // require a valid session, and super admin outside development.
+  // getServerSession validates JWT token expiry and signature internally.
   const isDevelopment = process.env.NODE_ENV === 'development';
-
-  if (!isDevelopment) {
-    // Check if user is super admin
+  if (isAuthenticationRequired() || !isDevelopment) {
     const session = await getServerSession(req, res, authOptions);
-
-    // Validate session exists and has required user data
-    // getServerSession validates JWT token expiry and signature internally
     if (!session || !session.user || !session.user.email || !session.user.id) {
       res.status(401).json({ error: 'Unauthorized - valid session required' });
       return;
     }
-
-    const userTier = detectUserTier(session.user.email);
-    if (userTier !== 'super_admin') {
-      res.status(403).json({ error: 'Only available for super admins in production' });
-      return;
+    if (!isDevelopment) {
+      const userTier = detectUserTier(session.user.email);
+      if (userTier !== 'super_admin') {
+        res.status(403).json({ error: 'Only available for super admins in production' });
+        return;
+      }
     }
   }
 
