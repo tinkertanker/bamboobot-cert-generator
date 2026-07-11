@@ -3,6 +3,7 @@ import type { SavedProject } from "@/lib/project-storage";
 import type { EmailConfig, TableData } from "@/types/certificate";
 import { ProjectStorage } from "@/lib/project-storage";
 import { SessionStorage } from "@/lib/session-storage";
+import { normalizeAutomaticTextColorProvenance } from "@/utils/imageAnalysis";
 
 interface UseProjectManagementProps {
   // State setters
@@ -97,6 +98,16 @@ export function useProjectManagement({
   const [showLoadProjectModal, setShowLoadProjectModal] = useState<boolean>(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
 
+  const loadProjectPositions = useCallback((project: SavedProject) => {
+    const normalizedPositions = normalizeAutomaticTextColorProvenance(
+      project.positions,
+      project.columns
+    );
+    setPositions(normalizedPositions);
+    // The normal autosave persists migrated provenance. Avoid a write-on-load
+    // that could race with edits or change the project's modified timestamp.
+  }, [setPositions]);
+
   // Load most recent project and session data on startup
   useEffect(() => {
     const loadStartupData = async () => {
@@ -140,7 +151,7 @@ export function useProjectManagement({
           console.log("Loading most recent project:", project.name);
 
           // Load the positions
-          setPositions(project.positions);
+          loadProjectPositions(project);
 
           // Load email configuration if present
           if (project.emailConfig) {
@@ -175,7 +186,7 @@ export function useProjectManagement({
   }, [
     loadSessionData,
     setEmailConfig,
-    setPositions,
+    loadProjectPositions,
     setUploadedFile,
     setUploadedFileUrl,
     showToast
@@ -185,7 +196,7 @@ export function useProjectManagement({
   const handleLoadProject = useCallback(
     async (project: SavedProject) => {
       // Load the positions
-      setPositions(project.positions);
+      loadProjectPositions(project);
 
       // Load the table data
       if (project.tableData && project.tableData.length > 0) {
@@ -232,7 +243,7 @@ export function useProjectManagement({
       console.log("Project loaded successfully:", project.name);
     },
     [
-      setPositions,
+      loadProjectPositions,
       setEmailConfig,
       setUploadedFileUrl,
       setUploadedFile,

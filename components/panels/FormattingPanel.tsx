@@ -423,7 +423,8 @@ export function FormattingPanel({
                       ...prev,
                       [selectedField]: {
                         ...prev[selectedField],
-                        color: e.target.value
+                        color: e.target.value,
+                        isColorAutomatic: false
                       }
                     }));
                   }}
@@ -480,6 +481,8 @@ export function FormattingPanel({
                         bold: currentFormatting.bold,
                         italic: currentFormatting.italic,
                         color: currentFormatting.color,
+                        isColorAutomatic:
+                          currentFormatting.isColorAutomatic ?? false,
                         alignment: currentFormatting.alignment,
                         textMode: currentFormatting.textMode,
                         width: currentFormatting.width

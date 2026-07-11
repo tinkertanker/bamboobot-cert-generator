@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { useTable, Column } from "react-table";
 import { useTableData } from "@/hooks/useTableData";
-import type { TableData, Position } from "@/types/certificate";
+import type { TableData } from "@/types/certificate";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { usePreview } from "@/hooks/usePreview";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -40,7 +40,11 @@ import { ErrorModal } from "@/components/ui/error-alert";
 import { MobileWarningScreen } from "@/components/MobileWarningScreen";
 import { useMobileDetection } from "@/hooks/useMobileDetection";
 import { COLORS, GRADIENTS } from "@/utils/styles";
-import { getImageAverageLuminance, getReadableTextColorForLuminance } from "@/utils/imageAnalysis";
+import {
+  applyAutomaticTextColor,
+  getImageAverageLuminance,
+  getReadableTextColorForLuminance
+} from "@/utils/imageAnalysis";
 import { SplitButton } from "@/components/ui/split-button";
 import { useToast, ToastContainer } from "@/components/ui/toast";
 import { useProjectAutosave } from "@/hooks/useProjectAutosave";
@@ -201,49 +205,51 @@ export default function HomePage() {
     uploadToServer
   } = useFileUpload();
 
-  // Adapt default text color to background tone when a new image is loaded
+  const tableColumnsKey = JSON.stringify(Object.keys(tableData[0] || {}));
+  const [automaticTextColorResult, setAutomaticTextColorResult] = useState<{
+    imageUrl: string;
+    color: '#ffffff' | '#000000';
+  } | null>(null);
+  const automaticTextColor =
+    automaticTextColorResult?.imageUrl === uploadedFileUrl
+      ? automaticTextColorResult.color
+      : null;
+
+  // Adapt default text color when the background or set of fields changes.
   useEffect(() => {
-    (async () => {
-      if (!uploadedFileUrl || tableData.length === 0) return;
+    if (!uploadedFileUrl) return;
+
+    const tableColumns = JSON.parse(tableColumnsKey) as string[];
+    if (tableColumns.length === 0) return;
+
+    let cancelled = false;
+
+    const updateAutomaticTextColor = async () => {
       try {
-        // If positions already contain any non-default colors, do not auto-adjust
-        const hasCustomColors = Object.values(positions || {}).some((p: Position) => {
-          const c = (p?.color || '').toLowerCase();
-          return c && c !== '#000000' && c !== '#ffffff';
-        });
-        if (hasCustomColors) return;
-
         const lum = await getImageAverageLuminance(uploadedFileUrl);
+        if (cancelled) return;
+        if (lum === null) return;
+
         const autoColor = getReadableTextColorForLuminance(lum); // '#000000' or '#ffffff'
-
-        setPositions((prev) => {
-          const next = { ...prev };
-          let changed = false;
-          const defaultBlack = '#000000';
-          const defaultWhite = '#ffffff';
-
-          // Only set auto color for fields that are at default color
-          Object.keys(tableData[0] || {}).forEach((key) => {
-            const current = next[key];
-            if (!current) return;
-            const currentColor = (current.color || '').toLowerCase();
-            if (current.color === undefined || currentColor === defaultBlack || currentColor === '') {
-              // untouched or default black -> apply auto color
-              next[key] = { ...current, color: autoColor };
-              changed = true;
-            } else if ((currentColor === defaultWhite || currentColor === defaultBlack) && currentColor !== autoColor) {
-              // If a prior auto applied simple black/white exists, keep adapting
-              next[key] = { ...current, color: autoColor };
-              changed = true;
-            }
-          });
-          return changed ? next : prev;
-        });
+        setAutomaticTextColorResult((previous) =>
+          previous?.imageUrl === uploadedFileUrl && previous.color === autoColor
+            ? previous
+            : { imageUrl: uploadedFileUrl, color: autoColor }
+        );
+        setPositions((prev) =>
+          applyAutomaticTextColor(prev, tableColumns, autoColor)
+        );
       } catch {
         // Ignore analysis errors silently
       }
-    })();
-  }, [uploadedFileUrl, tableData, setPositions, positions]);
+    };
+
+    void updateAutomaticTextColor();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [uploadedFileUrl, tableColumnsKey, setPositions]);
 
 
   // PDF generation hook (must come after file upload hook)
@@ -1028,6 +1034,7 @@ export default function HomePage() {
         positions={positions}
         setPositions={setPositions}
         tableData={tableData}
+        automaticTextColor={automaticTextColor}
       />
 
       {/* Project Modals */}

@@ -44,6 +44,7 @@ export function usePositioning({ tableData, setSelectedField }: UsePositioningPr
               fontSize: DEFAULT_FONT_SIZE,
               fontFamily: "Helvetica",
               color: "#000000",
+              isColorAutomatic: true,
               alignment: "center",
               isVisible, // Hide email fields by default
               width: 90, // Default to 90% width
