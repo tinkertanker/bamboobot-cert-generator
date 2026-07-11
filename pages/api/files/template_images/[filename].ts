@@ -1,16 +1,29 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { getPublicDir } from '@/lib/paths';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+  const session = await requireAuth(req, res);
+  if (!session) return;
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
   const { filename } = req.query;
 
-  if (!filename || typeof filename !== 'string') {
+  if (!filename || typeof filename !== 'string' || path.basename(filename) !== filename || filename.includes('\0')) {
     res.status(400).json({ error: 'Invalid filename' });
     return;
   }
 
-  const filePath = path.join(process.cwd(), 'public', 'template_images', filename);
+  if (!/^dev-mode-template\.(?:pdf|jpe?g)$/i.test(filename)) {
+    res.status(404).json({ error: 'File not found' });
+    return;
+  }
+  const filePath = path.join(getPublicDir(), 'template_images', filename);
 
   try {
     // Check if file exists
@@ -42,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Set appropriate headers
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Length', fileBuffer.length.toString());
-    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year since templates are permanent
+    res.setHeader('Cache-Control', 'private, no-store');
     
     // Send file
     res.send(fileBuffer);

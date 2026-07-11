@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
 import { getMaxPdfSourceBytes, PdfSourceError } from '@/lib/security/trusted-pdf-source';
+import { markGeneratedFileAsEmailed } from '@/lib/storage/mark-generated';
 
 const MAX_BULK_EMAILS = 500;
 const BULK_ATTACHMENT_CONCURRENCY = 4;
@@ -54,6 +55,16 @@ async function withQueueIngestionLock<T>(key: string, operation: () => Promise<T
     if (queueIngestionLocks.get(key) === tail) {
       queueIngestionLocks.delete(key);
     }
+  }
+}
+
+export async function markGeneratedRetentionInBatches(urls: string[], userId: string): Promise<void> {
+  const uniqueUrls = [...new Set(urls)];
+  for (let offset = 0; offset < uniqueUrls.length; offset += BULK_ATTACHMENT_CONCURRENCY) {
+    const batch = uniqueUrls.slice(offset, offset + BULK_ATTACHMENT_CONCURRENCY);
+    await Promise.all(batch.map(url => markGeneratedFileAsEmailed(url, userId).catch(error => {
+      console.warn('Failed to extend generated file retention:', error);
+    })));
   }
 }
 
@@ -257,6 +268,10 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
 
       await queueManager.addToQueue(emailParams);
       queueAttachmentBytes.set(key, totalAttachmentBytes);
+
+      await markGeneratedRetentionInBatches(emailParams
+        .map(email => email.certificateUrl)
+        .filter((url): url is string => Boolean(url)), userId);
 
       // Start processing if not already running
       if (!deferProcessing && !queueManager.isProcessing()) {

@@ -18,13 +18,19 @@ import { generateSinglePdf, type Entry, type Position } from '@/lib/pdf-generato
 import type { PdfQueueItem } from '@/lib/pdf/types';
 import path from 'path';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
+import { uploadToS3 } from '@/lib/s3-client';
 import { debug, error } from '@/lib/log';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { getGeneratedDir } from '@/lib/paths';
+import { getAuthorizedTemplateCandidates, PrivateFileAccessError } from '@/lib/security/private-file-access';
 
 const sessionManager = PdfSessionManager.getInstance();
+const sessionOwners = new Map<string, string>();
+sessionManager.onSessionRemoved(sessionId => sessionOwners.delete(sessionId));
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   // Require auth for all methods (middleware also enforces when enabled)
@@ -38,21 +44,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         {
           const rl = enforceRateLimit(req, res, { userId, route: 'generate-progressive:POST', category: 'generate' });
           if (!rl.allowed) { res.status(429).json({ error: 'Rate limit exceeded for batch generation.' }); return; }
-          await handlePost(req, res);
+          await handlePost(req, res, userId);
         }
         return;
       case 'GET':
         {
           const rl = enforceRateLimit(req, res, { userId, route: 'generate-progressive:GET', category: 'api' });
           if (!rl.allowed) { res.status(429).json({ error: 'Too many status checks.' }); return; }
-          await handleGet(req, res);
+          await handleGet(req, res, userId);
         }
         return;
       case 'PUT':
         {
           const rl = enforceRateLimit(req, res, { userId, route: 'generate-progressive:PUT', category: 'api' });
           if (!rl.allowed) { res.status(429).json({ error: 'Too many control requests.' }); return; }
-          await handlePut(req, res);
+          await handlePut(req, res, userId);
         }
         return;
       default:
@@ -72,7 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 /**
  * Start a new progressive PDF generation session
  */
-async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: string): Promise<void> {
   const {
     templateFilename,
     data,
@@ -94,14 +100,24 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     return;
   }
 
+  try {
+    getAuthorizedTemplateCandidates(templateFilename, userId);
+  } catch (accessError) {
+    if (accessError instanceof PrivateFileAccessError) {
+      res.status(accessError.statusCode).json({ error: accessError.message });
+      return;
+    }
+    throw accessError;
+  }
+
   // Create session
   const sessionId = `pdf-${Date.now()}-${uuidv4().slice(0, 8)}`;
   
   try {
     // Create session directory
     const sessionDir = mode === 'individual' 
-      ? path.join(process.cwd(), 'public', 'generated', `progressive_${sessionId}`)
-      : path.join(process.cwd(), 'public', 'generated');
+      ? path.join(getGeneratedDir(), `u_${userId}`, `progressive_${sessionId}`)
+      : getGeneratedDir();
     
     if (mode === 'individual') {
       await fs.mkdir(sessionDir, { recursive: true });
@@ -116,6 +132,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       mode,
       { batchSize }
     );
+    sessionOwners.set(sessionId, userId);
 
     // Initialize queue with data
     await queueManager.initializeQueue(data, namingColumn);
@@ -136,6 +153,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     return;
   } catch (err) {
     sessionManager.removeSession(sessionId);
+    sessionOwners.delete(sessionId);
     throw err;
   }
 }
@@ -143,7 +161,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
 /**
  * Get progress of a PDF generation session
  */
-async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: string): Promise<void> {
   const { sessionId } = req.query;
 
   if (!sessionId || typeof sessionId !== 'string') {
@@ -152,7 +170,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
   }
 
   const queueManager = sessionManager.getSession(sessionId);
-  if (!queueManager) {
+  if (!queueManager || sessionOwners.get(sessionId) !== userId) {
     res.status(404).json({ error: 'Session not found' });
     return;
   }
@@ -176,7 +194,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
 /**
  * Control a PDF generation session (pause, resume, cancel)
  */
-async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: string): Promise<void> {
   const { sessionId } = req.query;
   const { action } = req.body;
 
@@ -191,7 +209,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
   }
 
   const queueManager = sessionManager.getSession(sessionId);
-  if (!queueManager) {
+  if (!queueManager || sessionOwners.get(sessionId) !== userId) {
     res.status(404).json({ error: 'Session not found' });
     return;
   }
@@ -206,13 +224,14 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
         // Continue processing
         const queue = queueManager.getQueue();
         const sessionDir = queue.mode === 'individual'
-          ? path.join(process.cwd(), 'public', 'generated', `progressive_${sessionId}`)
-          : path.join(process.cwd(), 'public', 'generated');
+          ? path.join(getGeneratedDir(), `u_${userId}`, `progressive_${sessionId}`)
+          : getGeneratedDir();
         processNextBatch(sessionId, sessionDir);
         break;
       case 'cancel':
         await queueManager.cancel();
         sessionManager.removeSession(sessionId);
+        sessionOwners.delete(sessionId);
         break;
     }
 
@@ -253,7 +272,11 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
     const { completed, failed } = await queueManager.processNextBatch(
       async (item: PdfQueueItem) => {
         // Generate PDF for this item
-        const templatePath = path.join(process.cwd(), 'public', 'temp_images', queue.templateFile);
+        const ownerId = sessionOwners.get(sessionId);
+        if (!ownerId) throw new Error('PDF session owner not found');
+        const templatePath = getAuthorizedTemplateCandidates(queue.templateFile, ownerId)
+          .find(candidate => fsSync.existsSync(candidate));
+        if (!templatePath) throw new Error('Template not found');
         
         const filename = queue.namingColumn && item.data[queue.namingColumn]
           ? `${String(item.data[queue.namingColumn]).replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`
@@ -280,14 +303,19 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
             // Read the generated file
             const pdfBuffer = await fs.readFile(outputPath);
             // Upload to R2
-            const r2Key = `generated/progressive_${sessionId}/${filename}`;
-            const uploadResult = await uploadToR2(pdfBuffer, r2Key, 'application/pdf', filename);
-            fileUrl = uploadResult.url;
+            const relativeDir = `u_${ownerId}/progressive_${sessionId}`;
+            await uploadToR2(pdfBuffer, `generated/${relativeDir}/${filename}`, 'application/pdf', filename);
+            fileUrl = storageConfig.getFileUrl(filename, relativeDir);
             // Delete local file after upload
             await fs.unlink(outputPath);
+          } else if (storageConfig.isS3Enabled) {
+            const pdfBuffer = await fs.readFile(outputPath);
+            const relativeDir = `u_${ownerId}/progressive_${sessionId}`;
+            await uploadToS3(pdfBuffer, `generated/${relativeDir}/${filename}`, 'application/pdf', filename);
+            fileUrl = storageConfig.getFileUrl(filename, relativeDir);
+            await fs.unlink(outputPath);
           } else {
-            // Return local URL
-            fileUrl = `/generated/progressive_${sessionId}/${filename}`;
+            fileUrl = storageConfig.getFileUrl(filename, `u_${ownerId}/progressive_${sessionId}`);
           }
           
           // Return URL

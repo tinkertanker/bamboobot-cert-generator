@@ -88,23 +88,14 @@ export async function uploadToR2(
   // Generate URL based on environment (DON'T force download - let frontend handle it)
   const url = await getPublicUrl(key, false);
   
-  return {
-    key,
-    url,
-    publicUrl: process.env.R2_PUBLIC_URL ? `${process.env.R2_PUBLIC_URL}/${key}` : url,
-  };
+  return { key, url };
 }
 
 /**
- * Get a public URL for a file (or signed URL if bucket is private)
+ * Get a time-limited signed URL. Persisted user files are never returned via
+ * an unsigned custom-domain URL, even when R2_PUBLIC_URL is configured.
  */
 export async function getPublicUrl(key: string, forceDownload: boolean = false): Promise<string> {
-  // If custom domain is configured, use it
-  if (process.env.R2_PUBLIC_URL) {
-    return `${process.env.R2_PUBLIC_URL}/${key}`;
-  }
-
-  // Otherwise, generate a signed URL (24 hour expiry)
   const command = new GetObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,

@@ -6,11 +6,13 @@ import storageConfig from '@/lib/storage-config';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
 import { getS3SignedUrl } from '@/lib/s3-client';
+import { getGeneratedDir, resolvePathWithin } from '@/lib/paths';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   // Require auth for local serving and signed URL issuance
   const session = await requireAuth(req, res);
   if (!session) return;
+  const userId = (session.user as { id: string }).id;
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
@@ -23,8 +25,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
+  if (filePath[0] !== `u_${userId}`) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
   // Join the path segments
   const relativePath = filePath.join('/');
+  if (path.posix.normalize(relativePath) !== relativePath || relativePath.includes('\\')) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
   
   try {
     // Check if we're using cloud storage
@@ -45,12 +56,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     
     // For local storage, serve from filesystem
-    const fullPath = path.join(process.cwd(), 'public', 'generated', relativePath);
-    
-    // Security check - ensure the file is within the generated directory
-    const normalizedPath = path.normalize(fullPath);
-    const generatedDir = path.join(process.cwd(), 'public', 'generated');
-    if (!normalizedPath.startsWith(generatedDir)) {
+    const generatedDir = getGeneratedDir();
+    const fullPath = resolvePathWithin(generatedDir, relativePath);
+    if (!fullPath) {
       res.status(403).json({ error: 'Access denied' });
       return;
     }
@@ -65,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const mimeType = lookup(filename) || 'application/octet-stream';
     
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    res.setHeader('Cache-Control', 'private, no-store');
     res.send(fileBuffer);
   } catch (error) {
     console.error('Error serving file:', error);

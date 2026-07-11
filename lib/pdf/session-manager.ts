@@ -9,6 +9,7 @@ export class PdfSessionManager {
   private static instance: PdfSessionManager;
   private sessions: Map<string, PdfQueueManager> = new Map();
   private cleanupInterval: NodeJS.Timeout | null = null;
+  private removalListeners = new Set<(sessionId: string) => void>();
 
   private constructor() {
     // Start cleanup interval
@@ -66,7 +67,14 @@ export class PdfSessionManager {
    * Remove a session
    */
   removeSession(sessionId: string): void {
-    this.sessions.delete(sessionId);
+    if (this.sessions.delete(sessionId)) {
+      for (const listener of this.removalListeners) listener(sessionId);
+    }
+  }
+
+  onSessionRemoved(listener: (sessionId: string) => void): () => void {
+    this.removalListeners.add(listener);
+    return () => this.removalListeners.delete(listener);
   }
 
   /**
@@ -85,7 +93,7 @@ export class PdfSessionManager {
 
     for (const [sessionId, manager] of this.sessions.entries()) {
       if (manager.isExpired()) {
-        this.sessions.delete(sessionId);
+        this.removeSession(sessionId);
         cleaned++;
       }
     }
@@ -103,6 +111,7 @@ export class PdfSessionManager {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
     }
-    this.sessions.clear();
+    for (const sessionId of this.sessions.keys()) this.removeSession(sessionId);
+    this.removalListeners.clear();
   }
 }

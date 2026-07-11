@@ -18,24 +18,48 @@ export function getPublicDir(): string {
 }
 
 /**
+ * Private local storage. Persisted user files must never be placed under
+ * Next.js' public directory, where they bypass API authorization entirely.
+ */
+export function getLocalStorageDir(): string {
+  const configuredDir = process.env.LOCAL_STORAGE_DIR;
+  if (configuredDir) {
+    return path.isAbsolute(configuredDir)
+      ? configuredDir
+      : path.resolve(process.cwd(), configuredDir);
+  }
+  return path.join(process.cwd(), 'storage');
+}
+
+/**
  * Get the temp images directory path
  */
 export function getTempImagesDir(): string {
-  return path.join(getPublicDir(), 'temp_images');
+  return path.join(getLocalStorageDir(), 'temp_images');
 }
 
 /**
  * Get the template images directory path
  */
 export function getTemplateImagesDir(): string {
-  return path.join(getPublicDir(), 'template_images');
+  return path.join(getLocalStorageDir(), 'template_images');
 }
 
 /**
  * Get the generated files directory path
  */
 export function getGeneratedDir(): string {
-  return path.join(getPublicDir(), 'generated');
+  return path.join(getLocalStorageDir(), 'generated');
+}
+
+export function resolvePathWithin(baseDir: string, relativePath: string): string | null {
+  const resolvedBase = path.resolve(baseDir);
+  const candidate = path.resolve(resolvedBase, relativePath);
+  const relative = path.relative(resolvedBase, candidate);
+  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    return null;
+  }
+  return candidate;
 }
 
 /**

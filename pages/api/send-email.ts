@@ -7,6 +7,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { withFeatureGate } from '@/lib/server/middleware/featureGate';
 import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
 import { PdfSourceError } from '@/lib/security/trusted-pdf-source';
+import { markGeneratedFileAsEmailed } from '@/lib/storage/mark-generated';
 
 export const config = {
   api: {
@@ -120,6 +121,12 @@ Important: This download link will expire in 90 days. Please save your certifica
         provider: result.provider 
       });
       return;
+    }
+
+    if (deliveryMethod === 'download' && typeof downloadUrl === 'string') {
+      await markGeneratedFileAsEmailed(downloadUrl, userId).catch(error => {
+        console.warn('Failed to extend generated file retention:', error);
+      });
     }
 
     // Return success with email ID and provider info

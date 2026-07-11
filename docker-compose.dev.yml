@@ -18,10 +18,10 @@ services:
       - .:/app
       - /app/node_modules  # Prevent overwriting node_modules
       - /app/.next         # Prevent overwriting .next build cache
-      # Persist uploaded templates and generated PDFs
-      - ./data/temp_images:/app/public/temp_images
-      - ./data/generated:/app/public/generated
-      - ./data/template_images:/app/public/template_images
+      # Persist user files outside Next.js' publicly served directory
+      - ./data/temp_images:/app/storage/temp_images
+      - ./data/generated:/app/storage/generated
+      - ./data/template_images:/app/storage/template_images
       # Optional: persist local SQLite database across restarts (uncomment if desired)
       # - ./data/dev/database.db:/app/prisma/database.db
     command: sh -c "npx prisma generate && npm run dev"

@@ -9,18 +9,23 @@ function removeFilesInDirectory(dirPath) {
     return 0;
   }
 
-  const files = fs.readdirSync(dirPath);
   let count = 0;
 
-  files.forEach(file => {
-    const filePath = path.join(dirPath, file);
-    const stat = fs.statSync(filePath);
-    
-    if (stat.isFile()) {
-      fs.unlinkSync(filePath);
-      count++;
-    }
-  });
+  const pendingDirectories = [dirPath];
+  while (pendingDirectories.length > 0) {
+    const currentDir = pendingDirectories.pop();
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    entries.forEach(entry => {
+      const filePath = path.join(currentDir, entry.name);
+      if (entry.isSymbolicLink()) return;
+      if (entry.isDirectory()) {
+        pendingDirectories.push(filePath);
+      } else if (entry.isFile()) {
+        fs.unlinkSync(filePath);
+        count++;
+      }
+    });
+  }
 
   return count;
 }
@@ -29,8 +34,11 @@ function main() {
   console.log('🧹 Cleaning up temporary and generated files...\n');
 
   // Local development directories
-  const localGenerated = path.join(__dirname, '..', 'public', 'generated');
-  const localTempImages = path.join(__dirname, '..', 'public', 'temp_images');
+  const storageRoot = process.env.LOCAL_STORAGE_DIR
+    ? path.resolve(process.env.LOCAL_STORAGE_DIR)
+    : path.join(__dirname, '..', 'storage');
+  const localGenerated = path.join(storageRoot, 'generated');
+  const localTempImages = path.join(storageRoot, 'temp_images');
 
   // Docker volume directories
   const dockerGenerated = path.join(__dirname, '..', 'data', 'generated');

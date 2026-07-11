@@ -4,12 +4,13 @@ import path from 'path';
 import { lookup } from 'mime-types';
 import type { AuthenticatedRequest } from '@/types/api';
 import { withAdminAccess } from '@/lib/server/middleware/featureGate';
+import { getLocalStorageDir, resolvePathWithin } from '@/lib/paths';
 
 function isSafe(rel: string): boolean {
   return rel.startsWith('generated/') || rel.startsWith('temp_images/');
 }
 
-async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
+export async function adminFilesHandler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
@@ -20,14 +21,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     return;
   }
   const rel = segments.join('/');
-  if (!isSafe(rel)) {
+  if (path.posix.normalize(rel) !== rel || rel.includes('\\') || !isSafe(rel)) {
     res.status(403).json({ error: 'Access denied' });
     return;
   }
-  const full = path.join(process.cwd(), 'public', rel);
-  const normalized = path.normalize(full);
-  const base = path.join(process.cwd(), 'public');
-  if (!normalized.startsWith(base)) {
+  const base = getLocalStorageDir();
+  const full = resolvePathWithin(base, rel);
+  if (!full) {
     res.status(403).json({ error: 'Access denied' });
     return;
   }
@@ -35,17 +35,43 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     res.status(404).json({ error: 'File not found' });
     return;
   }
-  const stat = fs.statSync(full);
-  if (stat.isDirectory()) {
-    res.status(400).json({ error: 'Path is a directory' });
-    return;
+  try {
+    const realBase = fs.realpathSync(base);
+    const realFile = fs.realpathSync(full);
+    const realRelative = path.relative(realBase, realFile);
+    if (
+      !realRelative ||
+      realRelative === '..' ||
+      realRelative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(realRelative)
+    ) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+    const stat = fs.statSync(realFile);
+    if (!stat.isFile()) {
+      res.status(400).json({ error: 'Path is not a file' });
+      return;
+    }
+    const mimeType = lookup(path.basename(realFile)) || 'application/octet-stream';
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Length', String(stat.size));
+    res.setHeader('Cache-Control', 'private, no-store');
+    const stream = fs.createReadStream(realFile);
+    stream.on('error', error => {
+      console.error('Error streaming admin file:', error);
+      if (!res.headersSent) res.status(500).end();
+      else res.destroy(error);
+    });
+    stream.pipe(res);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+    console.error('Error serving admin file:', error);
+    res.status(500).json({ error: 'Error serving file' });
   }
-  const buf = fs.readFileSync(full);
-  const mimeType = lookup(path.basename(full)) || 'application/octet-stream';
-  res.setHeader('Content-Type', mimeType);
-  res.setHeader('Cache-Control', 'public, max-age=31536000');
-  res.send(buf);
 }
 
-export default withAdminAccess(handler);
-
+export default withAdminAccess(adminFilesHandler);

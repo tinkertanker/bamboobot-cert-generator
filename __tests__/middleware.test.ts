@@ -39,7 +39,7 @@ describe('authentication middleware', () => {
     '/logo.png',
     '/pdf-worker.js',
     '/fonts/Rubik-Regular.ttf',
-    '/generated/progressive_session/certificate.pdf',
+    '/api/files/download?path=session%2Fcertificate.pdf&expires=1&signature=x',
   ])(
     'allows public path %s without reading a token',
     async pathname => {
@@ -83,8 +83,8 @@ describe('authentication middleware', () => {
     expect(response.status).toBe(401);
   });
 
-  it.each(['/private/certificate.pdf', '/generated.pdf'])(
-    'does not exempt PDF path %s outside the legacy generated download directory',
+  it.each(['/private/certificate.pdf', '/generated/session/certificate.pdf', '/generated.pdf'])(
+    'does not exempt unsigned PDF path %s',
     async pathname => {
       mockedGetToken.mockResolvedValue(null);
 

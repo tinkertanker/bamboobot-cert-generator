@@ -39,22 +39,24 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/next.config.js ./next.config.js
+# Copy the startup storage migration invoked by npm's prestart hook
+COPY --from=builder /app/scripts/migrate-private-storage.js ./scripts/migrate-private-storage.js
 # Copy Prisma schema and migrations
 COPY --from=builder /app/prisma ./prisma
 # Copy entrypoint script
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
-# Create required directories for file uploads and generated PDFs
-RUN mkdir -p /app/public/temp_images /app/public/generated /app/public/template_images
+# Create private persisted directories for uploads and generated PDFs
+RUN mkdir -p /app/storage/temp_images /app/storage/generated /app/storage/template_images
 # Create directory for SQLite database
 RUN mkdir -p /app/prisma
 # Create temp directory for formidable uploads with proper permissions
 RUN mkdir -p /app/tmp/uploads
 # Ensure proper permissions for the directories
 RUN chown -R nextjs:nodejs /app
-# Make sure the public directories are writable
+# Static public assets are read-only; persisted user files live under /app/storage
 RUN chmod -R 755 /app/public
-RUN chmod -R 775 /app/public/temp_images /app/public/generated /app/public/template_images
+RUN chmod -R 775 /app/storage
 # Make temp directory writable for formidable
 RUN chmod -R 777 /app/tmp/uploads
 # Make prisma directory writable for database

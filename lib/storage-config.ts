@@ -3,6 +3,7 @@
 
 import { uploadToR2, getPublicUrl, isR2Configured } from './r2-client';
 import { uploadToS3, getS3PublicUrl, isS3Configured } from './s3-client';
+import { createSignedGeneratedFileUrl } from './security/signed-generated-url';
 
 export const storageConfig = {
   // Check if R2 is configured
@@ -26,30 +27,19 @@ export const storageConfig = {
   // URL generation based on environment
   getFileUrl: (filename: string, subdirectory?: string, type: 'generated' | 'temp_images' = 'generated'): string => {
     const path = subdirectory ? `${subdirectory}/${filename}` : filename;
-    
-    if (process.env.NODE_ENV === 'development') {
-      // In development, serve directly from public folder
-      return `/${type}/${path}`;
+    if (type === 'generated') {
+      return createSignedGeneratedFileUrl(path);
     }
     
     // In production, check storage provider
     switch (process.env.STORAGE_PROVIDER) {
       case 'amazon-s3':
-        // Return S3 URL or CloudFront URL
-        if (process.env.S3_CLOUDFRONT_URL) {
-          return `${process.env.S3_CLOUDFRONT_URL}/${type}/${path}`;
-        }
-        // Fallback to API route for signed URLs
+        // API routes authenticate access and issue provider-signed redirects.
         return `/api/files/${type}/${path}`;
       case 'cloudflare-r2':
-        // Return R2 public URL if configured
-        if (process.env.R2_PUBLIC_URL) {
-          return `${process.env.R2_PUBLIC_URL}/${type}/${path}`;
-        }
-        // Fallback to API route for signed URLs
+        // Never expose persisted user objects through an unsigned custom domain.
         return `/api/files/${type}/${path}`;
       default:
-        // Fallback to API route (current behavior)
         return `/api/files/${type}/${path}`;
     }
   },

@@ -100,6 +100,12 @@ GOOGLE_CLIENT_SECRET=...
 ADMIN_EMAILS=you@example.com, teammate@example.com
 ```
 
+## Private file storage
+
+Persisted uploads and generated certificates live under `storage/` (or `LOCAL_STORAGE_DIR`), never under Next.js' `public/` directory. `npm start` and `npm run dev` automatically migrate legacy local files; `npm run migrate:storage` is also available for one-shot migrations. Docker keeps the existing `./data/*` host directories and remounts them at `/app/storage/*`, so no host-side copy is required.
+
+Generated download links are signed capabilities that expire after 90 days. Set `NEXTAUTH_URL` to the public application origin so emailed links are absolute, and set `FILE_URL_SIGNING_SECRET` (or a strong `NEXTAUTH_SECRET`) consistently across instances. Previously emailed unsigned `/generated/...` links are intentionally invalidated because their guessable paths cannot be converted into secure capabilities retroactively.
+
 ## Dev Mode Features
 
 In Dev Mode, you have access to additional monitoring and cleanup tools:
@@ -195,7 +201,7 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 ### Manual Cleanup
 ```bash
 # Local Development
-rm -rf public/temp_images/* public/generated/*
+rm -rf storage/temp_images/* storage/generated/*
 
 # Docker Production
 rm -rf ./data/temp_images/* ./data/generated/*
