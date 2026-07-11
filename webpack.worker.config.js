@@ -1,11 +1,15 @@
 const path = require('path');
+const isDevelopment = process.env.PDF_WORKER_BUILD_MODE === 'development';
 
 module.exports = {
-  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+  mode: isDevelopment ? 'development' : 'production',
+  devtool: isDevelopment ? 'source-map' : false,
   entry: './lib/pdf/client/worker/pdf-worker-with-fonts.ts',
   output: {
     filename: 'pdf-worker.js',
+    chunkFilename: '[name].pdf-worker.js',
     path: path.resolve(__dirname, 'public'),
+    publicPath: '',
   },
   target: 'webworker',
   resolve: {
