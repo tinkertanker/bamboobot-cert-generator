@@ -1,17 +1,23 @@
 /** @jest-environment node */
 
 jest.mock('@/lib/auth/requireAuth', () => ({
-  requireAuth: jest.fn(async () => ({ user: { id: 'u1', email: 'owner@example.com' } })),
+  requireAuth: jest.fn(async () => ({ user: { id: 'u1', email: 'owner@example.com' } }))
 }));
 jest.mock('@/lib/email/provider-factory', () => ({
-  getEmailProvider: jest.fn(),
+  getEmailProvider: jest.fn()
 }));
 jest.mock('@/lib/server/tiers', () => ({
   checkEmailUsageAvailability: jest.fn(async () => ({ allowed: true, limit: 100, current: 0 })),
-  reserveEmailUsage: jest.fn(async () => ({ allowed: true, limit: 100, current: 1 })),
+  reserveEmailUsage: jest.fn(async () => ({
+    allowed: true,
+    limit: 100,
+    current: 1,
+    reservationDay: new Date('2026-07-11T00:00:00Z')
+  })),
+  releaseEmailUsageReservation: jest.fn(async () => undefined)
 }));
 jest.mock('@/lib/rate-limit', () => ({
-  enforceRateLimit: jest.fn(() => ({ allowed: true })),
+  enforceRateLimit: jest.fn(() => ({ allowed: true }))
 }));
 
 import httpMocks from 'node-mocks-http';
@@ -19,8 +25,11 @@ import handler from '@/pages/api/send-test-email';
 import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
 import { reserveEmailUsage } from '@/lib/server/tiers';
 import { getEmailProvider } from '@/lib/email/provider-factory';
+import type { EmailParams, EmailResult } from '@/lib/email/types';
 
-const mockSendEmail = jest.fn(async () => ({ success: true, id: 'email-1', provider: 'resend' }));
+const mockSendEmail = jest.fn(
+  async (_params: EmailParams): Promise<EmailResult> => ({ success: true, id: 'email-1', provider: 'resend' })
+);
 const mockReserveEmailUsage = reserveEmailUsage as jest.MockedFunction<typeof reserveEmailUsage>;
 const mockGetEmailProvider = getEmailProvider as jest.MockedFunction<typeof getEmailProvider>;
 
@@ -41,8 +50,8 @@ describe('test email abuse controls', () => {
         subject: 'Certificate',
         customMessage: 'Hello',
         deliveryMethod: 'download',
-        certificateUrl: createSignedGeneratedFileUrl('u_u1/certificate.pdf'),
-      },
+        certificateUrl: createSignedGeneratedFileUrl('u_u1/certificate.pdf')
+      }
     });
     const res = httpMocks.createResponse();
 
@@ -63,8 +72,8 @@ describe('test email abuse controls', () => {
         customMessage: '<img src=x onerror=alert(1)>',
         deliveryMethod: 'download',
         certificateUrl: createSignedGeneratedFileUrl('u_u1/certificate.pdf'),
-        html: '<a href="https://evil.example">phish</a>',
-      },
+        html: '<a href="https://evil.example">phish</a>'
+      }
     });
     const res = httpMocks.createResponse();
 
@@ -85,8 +94,8 @@ describe('test email abuse controls', () => {
         senderName: 'Trainer',
         subject: 'Certificate',
         customMessage: 'Hello',
-        attachmentData: {},
-      },
+        attachmentData: {}
+      }
     });
     const res = httpMocks.createResponse();
 
@@ -95,5 +104,60 @@ describe('test email abuse controls', () => {
     expect(res.statusCode).toBe(400);
     expect(mockReserveEmailUsage).not.toHaveBeenCalled();
     expect(mockSendEmail).not.toHaveBeenCalled();
+  });
+
+  it('returns retryable backpressure without leaking provider sentinels', async () => {
+    mockSendEmail.mockResolvedValueOnce({
+      id: '',
+      success: false,
+      error: 'PROVIDER_CAPACITY: retry after 1500ms',
+      provider: 'resend'
+    });
+    const req = httpMocks.createRequest({
+      method: 'POST',
+      body: {
+        testEmailAddress: 'owner@example.com',
+        senderName: 'Trainer',
+        subject: 'Certificate',
+        customMessage: 'Hello',
+        deliveryMethod: 'download',
+        certificateUrl: createSignedGeneratedFileUrl('u_u1/certificate.pdf')
+      }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(429);
+    expect(res.getHeader('Retry-After')).toBe('2');
+    expect(res._getJSONData()).toMatchObject({
+      error: 'Email service is temporarily busy. Please retry shortly.',
+      code: 'PROVIDER_BUSY'
+    });
+  });
+
+  it('does not expose thrown provider diagnostics', async () => {
+    mockSendEmail.mockRejectedValueOnce(new Error('connect ECONNREFUSED 10.0.0.4:443'));
+    const req = httpMocks.createRequest({
+      method: 'POST',
+      body: {
+        testEmailAddress: 'owner@example.com',
+        senderName: 'Trainer',
+        subject: 'Certificate',
+        customMessage: 'Hello',
+        deliveryMethod: 'download',
+        certificateUrl: createSignedGeneratedFileUrl('u_u1/certificate.pdf')
+      }
+    });
+    const res = httpMocks.createResponse();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(500);
+    expect(res._getJSONData()).toEqual({
+      error: 'Email delivery could not be confirmed. It was not retried to avoid duplicate delivery.',
+      code: 'DELIVERY_UNCONFIRMED'
+    });
+    expect(res._getData()).not.toContain('10.0.0.4');
   });
 });

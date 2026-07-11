@@ -1,16 +1,14 @@
 import { SESProvider } from '@/lib/email/providers/ses';
-import {
-  loadTrustedPdf,
-  PdfSourceError,
-} from '@/lib/security/trusted-pdf-source';
+import { SESClient } from '@aws-sdk/client-ses';
+import { loadTrustedPdf, PdfSourceError } from '@/lib/security/trusted-pdf-source';
 
 const mockSesSend = jest.fn();
-const mockRawCommand = jest.fn((input) => ({ input }));
+const mockRawCommand = jest.fn(input => ({ input }));
 
 jest.mock('@aws-sdk/client-ses', () => ({
   SESClient: jest.fn(() => ({ send: mockSesSend })),
-  SendEmailCommand: jest.fn((input) => ({ input })),
-  SendRawEmailCommand: jest.fn((input) => mockRawCommand(input)),
+  SendEmailCommand: jest.fn(input => ({ input })),
+  SendRawEmailCommand: jest.fn(input => mockRawCommand(input))
 }));
 
 jest.mock('@/lib/security/trusted-pdf-source', () => {
@@ -28,13 +26,19 @@ describe('SES attachment source security', () => {
       ...originalEnv,
       AWS_ACCESS_KEY_ID: 'test-key',
       AWS_SECRET_ACCESS_KEY: 'test-secret',
-      AWS_SES_REGION: 'ap-southeast-1',
+      AWS_SES_REGION: 'ap-southeast-1'
     };
     mockSesSend.mockResolvedValue({ MessageId: 'message-1' });
   });
 
   afterEach(() => {
     process.env = originalEnv;
+  });
+
+  it('disables SDK retries because SES sends are not idempotent', () => {
+    new SESProvider();
+
+    expect(SESClient).toHaveBeenCalledWith(expect.objectContaining({ maxAttempts: 1 }));
   });
 
   it('routes a direct provider path through the trusted PDF loader', async () => {
@@ -47,16 +51,16 @@ describe('SES attachment source security', () => {
       from: 'sender@example.com',
       subject: 'Certificate',
       html: '<p>Attached</p>',
-      attachments: [{
-        path: 'https://certs.example.com/generated/a.pdf',
-        filename: '../../unsafe\r\n.pdf',
-        contentType: 'application/pdf',
-      }],
+      attachments: [
+        {
+          path: 'https://certs.example.com/generated/a.pdf',
+          filename: '../../unsafe\r\n.pdf',
+          contentType: 'application/pdf'
+        }
+      ]
     });
 
-    expect(mockedLoadTrustedPdf).toHaveBeenCalledWith(
-      'https://certs.example.com/generated/a.pdf'
-    );
+    expect(mockedLoadTrustedPdf).toHaveBeenCalledWith('https://certs.example.com/generated/a.pdf');
     expect(mockRawCommand).toHaveBeenCalledTimes(1);
     const rawData = mockRawCommand.mock.calls[0][0].RawMessage.Data as Buffer;
     expect(rawData.toString()).toContain('filename="unsafe__.pdf"');
@@ -64,9 +68,7 @@ describe('SES attachment source security', () => {
   });
 
   it('fails closed when the provider receives an unapproved path', async () => {
-    mockedLoadTrustedPdf.mockRejectedValue(
-      new PdfSourceError('INVALID_SOURCE', 'Unapproved source', 403)
-    );
+    mockedLoadTrustedPdf.mockRejectedValue(new PdfSourceError('INVALID_SOURCE', 'Unapproved source', 403));
     const provider = new SESProvider();
 
     const result = await provider.sendEmail({
@@ -74,13 +76,15 @@ describe('SES attachment source security', () => {
       from: 'sender@example.com',
       subject: 'Certificate',
       html: '<p>Attached</p>',
-      attachments: [{
-        path: 'https://attacker.example/internal.pdf',
-        filename: 'certificate.pdf',
-      }],
+      attachments: [
+        {
+          path: 'https://attacker.example/internal.pdf',
+          filename: 'certificate.pdf'
+        }
+      ]
     });
 
-    expect(result).toMatchObject({ success: false, error: 'Unapproved source' });
+    expect(result).toMatchObject({ success: false, error: 'PROVIDER_REJECTED: Unapproved source' });
     expect(mockSesSend).not.toHaveBeenCalled();
   });
 
@@ -92,15 +96,17 @@ describe('SES attachment source security', () => {
       from: 'sender@example.com',
       subject: 'Certificate\r\nBcc: attacker@example.com',
       html: '<p>Attached</p>',
-      attachments: [{
-        content: Buffer.from('%PDF-1.4\ntrusted'),
-        filename: 'certificate.pdf',
-      }],
+      attachments: [
+        {
+          content: Buffer.from('%PDF-1.4\ntrusted'),
+          filename: 'certificate.pdf'
+        }
+      ]
     });
 
     expect(result).toMatchObject({
       success: false,
-      error: 'Invalid Subject email header',
+      error: 'PROVIDER_REJECTED: Invalid Subject email header'
     });
     expect(mockSesSend).not.toHaveBeenCalled();
   });
@@ -113,18 +119,20 @@ describe('SES attachment source security', () => {
       from: 'sender@example.com',
       subject: 'Certificate',
       html: '<p>Attached</p>',
-      attachments: [{
-        content: {
-          type: 'Buffer',
-          data: Array.from({ length: 100 }, () => 65),
-        } as unknown as Buffer,
-        filename: 'certificate.pdf',
-      }],
+      attachments: [
+        {
+          content: {
+            type: 'Buffer',
+            data: Array.from({ length: 100 }, () => 65)
+          } as unknown as Buffer,
+          filename: 'certificate.pdf'
+        }
+      ]
     });
 
     expect(result).toMatchObject({
       success: false,
-      error: 'Invalid PDF attachment content',
+      error: 'PROVIDER_REJECTED: Invalid PDF attachment content'
     });
     expect(mockSesSend).not.toHaveBeenCalled();
   });

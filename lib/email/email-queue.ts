@@ -1,20 +1,17 @@
 import { v4 as uuidv4 } from 'uuid';
-import type {
-  EmailQueue,
-  EmailQueueItem,
-  EmailParams,
-  BulkEmailProgress,
-  EmailProvider
-} from './types';
+import type { EmailQueue, EmailQueueItem, EmailParams, BulkEmailProgress, EmailProvider } from './types';
 import { formatRecipients } from '@/utils/email-utils';
+import { isDefinitelyUnsentProviderError, publicProviderError } from './provider-errors';
 
 export class EmailQueueManager {
   private queue: EmailQueue;
   private provider: EmailProvider;
   private processInterval: NodeJS.Timeout | null = null;
+  private workerPromise: Promise<void> | null = null;
   private onProgress?: (progress: BulkEmailProgress) => void;
   private onItemComplete?: (item: EmailQueueItem) => void;
   private lastActivity: number = Date.now();
+  private consecutiveProviderCapacityDeferrals = 0;
 
   constructor(provider: EmailProvider) {
     this.provider = provider;
@@ -31,7 +28,7 @@ export class EmailQueueManager {
   /**
    * Add emails to the queue
    */
-  async addToQueue(emails: (EmailParams & { certificateUrl?: string })[]): Promise<void> {
+  async addToQueue(emails: (EmailParams & { certificateUrl?: string; quotaReservationDay?: Date })[]): Promise<void> {
     const newItems: EmailQueueItem[] = emails.map(email => ({
       id: uuidv4(),
       to: email.to,
@@ -41,12 +38,15 @@ export class EmailQueueManager {
       text: email.text,
       attachments: email.attachments,
       certificateUrl: email.certificateUrl,
+      quotaReservationDay: email.quotaReservationDay,
+      quotaRefundSafe: !!email.quotaReservationDay,
       status: 'pending',
       attempts: 0,
       createdAt: new Date()
     }));
 
     this.queue.items.push(...newItems);
+    if (this.queue.status === 'completed') this.queue.status = 'idle';
     this.lastActivity = Date.now();
   }
 
@@ -60,8 +60,9 @@ export class EmailQueueManager {
     }
 
     this.queue.status = 'processing';
+    this.consecutiveProviderCapacityDeferrals = 0;
     this.lastActivity = Date.now();
-    await this._processQueue();
+    await this.runWorker();
   }
 
   /**
@@ -84,8 +85,32 @@ export class EmailQueueManager {
       return;
     }
     this.queue.status = 'processing';
+    this.consecutiveProviderCapacityDeferrals = 0;
+    for (const item of this.queue.items) {
+      if (item.status === 'pending') item.backpressureDeferrals = 0;
+    }
     this.lastActivity = Date.now();
-    await this._processQueue();
+    await this.runWorker();
+  }
+
+  private runWorker(): Promise<void> {
+    if (this.workerPromise) return this.workerPromise;
+    const worker = this._processQueue().finally(() => {
+      if (this.workerPromise === worker) this.workerPromise = null;
+    });
+    this.workerPromise = worker;
+    return worker;
+  }
+
+  private scheduleWorker(delay: number): void {
+    if (this.processInterval) clearTimeout(this.processInterval);
+    this.processInterval = setTimeout(
+      () => {
+        this.processInterval = null;
+        void this.runWorker();
+      },
+      Math.max(0, delay)
+    );
   }
 
   /**
@@ -96,10 +121,33 @@ export class EmailQueueManager {
     const baseDelay = 1000; // 1 second
     const maxDelay = 30000; // 30 seconds
     const delay = Math.min(baseDelay * Math.pow(2, attempts - 1), maxDelay);
-    
+
     // Add jitter to prevent thundering herd (±20% randomization)
     const jitter = delay * 0.2 * (Math.random() - 0.5);
     return Math.round(delay + jitter);
+  }
+
+  private releaseItemPayload(item: EmailQueueItem): void {
+    item.from = undefined;
+    item.subject = undefined;
+    item.html = undefined;
+    item.text = undefined;
+    item.attachments = undefined;
+    item.certificateUrl = undefined;
+    item.certificatePath = undefined;
+  }
+
+  private completeItem(item: EmailQueueItem): void {
+    this.releaseItemPayload(item);
+    try {
+      this.onItemComplete?.(item);
+    } catch (error) {
+      // Accounting/telemetry callbacks must never resurrect a delivered item.
+      console.error('Email queue completion callback failed:', error);
+    } finally {
+      item.quotaReservationDay = undefined;
+      item.quotaRefundSafe = undefined;
+    }
   }
 
   /**
@@ -114,33 +162,28 @@ export class EmailQueueManager {
     this.queue.rateLimit = this.provider.getRateLimit();
 
     // Find next pending item that's ready for processing
-    const pendingItemIndex = this.queue.items.findIndex(item => 
-      item.status === 'pending' && 
-      (!item.nextRetryAt || item.nextRetryAt <= new Date())
+    const pendingItemIndex = this.queue.items.findIndex(
+      item => item.status === 'pending' && (!item.nextRetryAt || item.nextRetryAt <= new Date())
     );
     const pendingItem = pendingItemIndex >= 0 ? this.queue.items[pendingItemIndex] : null;
-    
+
     if (!pendingItem) {
       // Check if there are items waiting for retry
-      const waitingItems = this.queue.items.filter(item => 
-        item.status === 'pending' && item.nextRetryAt && item.nextRetryAt > new Date()
+      const waitingItems = this.queue.items.filter(
+        item => item.status === 'pending' && item.nextRetryAt && item.nextRetryAt > new Date()
       );
-      
+
       if (waitingItems.length > 0) {
         // Find the next retry time and schedule processing
-        const nextRetryTimes = waitingItems
-          .map(item => item.nextRetryAt!)
-          .sort((a, b) => a.getTime() - b.getTime());
+        const nextRetryTimes = waitingItems.map(item => item.nextRetryAt!).sort((a, b) => a.getTime() - b.getTime());
         const nextRetryTime = nextRetryTimes[0];
         const waitTime = nextRetryTime.getTime() - Date.now();
-        
+
         console.log(`All pending items are waiting for retry. Next retry in ${waitTime}ms`);
-        this.processInterval = setTimeout(() => {
-          this._processQueue();
-        }, waitTime);
+        this.scheduleWorker(waitTime);
         return;
       }
-      
+
       // No more items to process
       this.queue.status = this.queue.items.length > 0 ? 'completed' : 'idle';
       this.reportProgress();
@@ -153,9 +196,7 @@ export class EmailQueueManager {
       const waitTime = this.queue.rateLimit.reset.getTime() - Date.now();
       if (waitTime > 0) {
         console.log(`Rate limit reached. Waiting ${waitTime}ms`);
-        this.processInterval = setTimeout(() => {
-          this._processQueue();
-        }, waitTime);
+        this.scheduleWorker(waitTime);
         return;
       }
     }
@@ -163,20 +204,23 @@ export class EmailQueueManager {
     // Process the item
     pendingItem.status = 'sending';
     pendingItem.attempts++;
-    
+
     // Update current email in status
     this.reportProgress(formatRecipients(pendingItem.to), pendingItemIndex);
-    
+
     try {
       await this.sendEmail(pendingItem);
       pendingItem.status = 'sent';
       pendingItem.sentAt = new Date();
       this.queue.processed++;
-      
+      this.consecutiveProviderCapacityDeferrals = 0;
+
       // Mark as emailed in R2 if using cloud storage
-      if (pendingItem.certificateUrl && 
-          (pendingItem.certificateUrl.includes('r2.cloudflarestorage.com') ||
-           pendingItem.certificateUrl.includes('r2-public'))) {
+      if (
+        pendingItem.certificateUrl &&
+        (pendingItem.certificateUrl.includes('r2.cloudflarestorage.com') ||
+          pendingItem.certificateUrl.includes('r2-public'))
+      ) {
         try {
           await fetch('/api/mark-emailed', {
             method: 'POST',
@@ -187,36 +231,87 @@ export class EmailQueueManager {
           console.warn('Failed to mark file as emailed:', error);
         }
       }
-      
-      if (this.onItemComplete) {
-        this.onItemComplete(pendingItem);
-      }
+
+      this.completeItem(pendingItem);
     } catch (error) {
       console.error(`Failed to send email to ${pendingItem.to}:`, error);
       pendingItem.lastError = error instanceof Error ? error.message : 'Unknown error';
-      
-      // Check if it's a rate limit error
-      const isRateLimitError = pendingItem.lastError?.toLowerCase().includes('rate limit');
-      
-      // Retry logic with exponential backoff
-      if (pendingItem.attempts < 3 && !isRateLimitError) {
-        pendingItem.status = 'pending'; // Will retry
-        
-        // Set next retry time with exponential backoff
-        const retryDelay = this.calculateRetryDelay(pendingItem.attempts);
-        pendingItem.nextRetryAt = new Date(Date.now() + retryDelay);
-        
-        console.log(`Email to ${pendingItem.to} failed (attempt ${pendingItem.attempts}). Next retry in ${retryDelay}ms`);
-      } else {
+      const isDefinitelyUnsent = isDefinitelyUnsentProviderError(pendingItem.lastError);
+      if (!isDefinitelyUnsent) {
+        // Never clear this taint: a later rejection or cancellation cannot
+        // prove that an earlier ambiguous attempt was not delivered.
+        pendingItem.quotaRefundSafe = false;
+        // Retrying after a lost success response can duplicate a non-idempotent
+        // email send. Ambiguous post-dispatch outcomes are always terminal.
         pendingItem.status = 'failed';
         this.queue.failed++;
-        
-        console.log(`Email to ${pendingItem.to} permanently failed after ${pendingItem.attempts} attempts`);
-        
-        // If rate limit error, pause the queue
-        if (isRateLimitError) {
-          console.log('Rate limit hit, pausing queue');
-          await this.pause();
+        this.completeItem(pendingItem);
+        console.log(`Email to ${pendingItem.to} stopped after an ambiguous delivery outcome`);
+      } else {
+        const isProviderRejected = pendingItem.lastError?.startsWith('PROVIDER_REJECTED:');
+        const isProviderCapacity = pendingItem.lastError?.startsWith('PROVIDER_CAPACITY:');
+        const isProviderBusy = pendingItem.lastError?.startsWith('PROVIDER_BUSY:');
+        const isProviderBackpressure = isProviderCapacity || isProviderBusy;
+        if (isProviderRejected) {
+          this.consecutiveProviderCapacityDeferrals = 0;
+          pendingItem.status = 'failed';
+          this.queue.failed++;
+          this.completeItem(pendingItem);
+          console.log(`Email to ${pendingItem.to} was definitively rejected`);
+        } else if (isProviderBackpressure) {
+          this.consecutiveProviderCapacityDeferrals = isProviderCapacity
+            ? this.consecutiveProviderCapacityDeferrals + 1
+            : 0;
+          pendingItem.attempts = Math.max(0, pendingItem.attempts - 1);
+          pendingItem.backpressureDeferrals = (pendingItem.backpressureDeferrals || 0) + 1;
+        } else {
+          this.consecutiveProviderCapacityDeferrals = 0;
+          pendingItem.backpressureDeferrals = 0;
+        }
+        if (isProviderRejected) {
+          // Terminal and refund-safe; completion already handled above.
+        } else if (this.consecutiveProviderCapacityDeferrals > 60) {
+          for (const item of this.queue.items) {
+            if (item.status !== 'pending' && item.status !== 'sending') continue;
+            item.status = 'failed';
+            item.lastError = pendingItem.lastError;
+            this.queue.failed++;
+            this.completeItem(item);
+          }
+          this.queue.status = 'completed';
+          console.log('Email queue stopped after sustained provider backpressure');
+        } else if (isProviderBusy && (pendingItem.backpressureDeferrals || 0) > 60) {
+          // Local provider mutex contention says nothing about provider health.
+          // Preserve the queue for an explicit resume or bounded paused cleanup.
+          pendingItem.status = 'pending';
+          pendingItem.nextRetryAt = undefined;
+          this.queue.status = 'paused';
+          console.log('Email queue paused after sustained local provider contention');
+        } else {
+          const canDeferBackpressure = (pendingItem.backpressureDeferrals || 0) <= 60;
+
+          if (
+            (isProviderBackpressure && canDeferBackpressure) ||
+            (!isProviderBackpressure && pendingItem.attempts < 3)
+          ) {
+            pendingItem.status = 'pending';
+            const providerResetDelay = Math.max(0, this.provider.getRateLimit().reset.getTime() - Date.now());
+            const capacityJitter = Math.floor(Math.random() * 250);
+            const retryDelay = isProviderBusy
+              ? Math.min(1000 * Math.pow(2, Math.min((pendingItem.backpressureDeferrals || 1) - 1, 5)), 30_000)
+              : isProviderCapacity
+                ? Math.max(1000, providerResetDelay) + capacityJitter
+                : this.calculateRetryDelay(pendingItem.attempts);
+            pendingItem.nextRetryAt = new Date(Date.now() + retryDelay);
+            console.log(
+              `Email to ${pendingItem.to} failed (attempt ${pendingItem.attempts}). Next retry in ${retryDelay}ms`
+            );
+          } else {
+            pendingItem.status = 'failed';
+            this.queue.failed++;
+            this.completeItem(pendingItem);
+            console.log(`Email to ${pendingItem.to} permanently failed after ${pendingItem.attempts} attempts`);
+          }
         }
       }
     }
@@ -225,11 +320,10 @@ export class EmailQueueManager {
     this.reportProgress();
 
     // Schedule next item processing
-    const delay = this.getProcessingDelay();
-    this.processInterval = setTimeout(() => {
-      this._processQueue();
-    }, delay);
-    
+    if (this.queue.status === 'processing') {
+      this.scheduleWorker(this.getProcessingDelay());
+    }
+
     this.lastActivity = Date.now();
   }
 
@@ -247,7 +341,7 @@ export class EmailQueueManager {
     };
 
     const result = await this.provider.sendEmail(params);
-    
+
     if (!result.success) {
       throw new Error(result.error || 'Failed to send email');
     }
@@ -265,7 +359,7 @@ export class EmailQueueManager {
     // For now, using defaults
     const subject = 'Your Certificate is Ready';
     const downloadUrl = item.certificateUrl;
-    
+
     const html = `
       <div style="font-family: Arial, sans-serif;">
         <h2>Your Certificate is Ready!</h2>
@@ -282,9 +376,9 @@ export class EmailQueueManager {
         </p>
       </div>
     `;
-    
+
     const text = `Your Certificate is Ready!\n\nDownload your certificate here: ${downloadUrl}\n\nThis link will expire in 90 days.`;
-    
+
     return { subject, html, text };
   }
 
@@ -311,8 +405,8 @@ export class EmailQueueManager {
     const sent = this.queue.items.filter(i => i.status === 'sent').length;
     const failed = this.queue.items.filter(i => i.status === 'failed').length;
     const remaining = this.queue.items.filter(i => i.status === 'pending').length;
-    
-    const estimatedTimeRemaining = remaining * this.getProcessingDelay() / 1000; // in seconds
+
+    const estimatedTimeRemaining = (remaining * this.getProcessingDelay()) / 1000; // in seconds
 
     this.onProgress({
       total,
@@ -339,12 +433,22 @@ export class EmailQueueManager {
     this.onItemComplete = callback;
   }
 
-
   /**
    * Clear the queue
    */
-  async clear(): Promise<void> {
+  async clear(refundPending = false): Promise<void> {
     await this.pause();
+    if (this.workerPromise) await this.workerPromise;
+    if (refundPending) {
+      for (const item of this.queue.items) {
+        if (item.status !== 'pending') continue;
+        item.status = 'failed';
+        if (item.quotaRefundSafe !== false) {
+          item.lastError = 'PROVIDER_REJECTED: Queue cancelled before dispatch';
+        }
+        this.completeItem(item);
+      }
+    }
     this.queue.items = [];
     this.queue.processed = 0;
     this.queue.failed = 0;
@@ -362,6 +466,24 @@ export class EmailQueueManager {
    */
   getQueueLength(): number {
     return this.queue.items.length;
+  }
+
+  getRetainedAttachmentBytes(): number {
+    return this.queue.items.reduce(
+      (total, item) =>
+        total +
+        (item.attachments?.reduce(
+          (itemTotal, attachment) =>
+            itemTotal +
+            (Buffer.isBuffer(attachment.content)
+              ? attachment.content.length
+              : typeof attachment.content === 'string'
+                ? Buffer.byteLength(attachment.content)
+                : 0),
+          0
+        ) || 0),
+      0
+    );
   }
 
   /**
@@ -400,7 +522,7 @@ export class EmailQueueManager {
       .filter(i => i.status === 'failed')
       .map(i => ({
         email: formatRecipients(i.to),
-        error: i.lastError || 'Unknown error'
+        error: publicProviderError(i.lastError)
       }));
 
     return {

@@ -11,6 +11,8 @@ jest.mock('@/lib/email/email-queue', () => ({
     isProcessing: jest.fn(() => true),
     processQueue: jest.fn(),
     getQueueLength: jest.fn(() => 0),
+    getRetainedAttachmentBytes: jest.fn(() => 0),
+    onItemCompleted: jest.fn(),
     getStatus: jest.fn(() => ({ status: 'idle' })),
     getLastActivity: jest.fn(() => Date.now())
   }))
@@ -31,8 +33,12 @@ jest.mock('@/lib/rate-limit', () => ({
 jest.mock('@/lib/server/tiers', () => ({
   checkEmailUsageAvailability: jest.fn(async () => ({ allowed: true, limit: 100, current: 0 })),
   reserveEmailUsage: jest.fn(async (_userId: string, count: number) => ({
-    allowed: true, limit: 100, current: count
-  }))
+    allowed: true,
+    limit: 100,
+    current: count,
+    reservationDay: new Date('2026-07-11T00:00:00Z')
+  })),
+  releaseEmailUsageReservation: jest.fn(async () => undefined)
 }));
 jest.mock('../../utils/email-utils', () => {
   const actual = jest.requireActual('../../utils/email-utils');
@@ -96,7 +102,7 @@ describe('/api/send-bulk-email attachment resource limits', () => {
     mockedBuildPdfAttachments.mockImplementation(async () => {
       active += 1;
       peak = Math.max(peak, active);
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await new Promise(resolve => setTimeout(resolve, 5));
       active -= 1;
       return [
         {
@@ -159,7 +165,7 @@ describe('/api/send-bulk-email attachment resource limits', () => {
   it('serializes concurrent requests against the session attachment budget', async () => {
     process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES = '20';
     mockedBuildPdfAttachments.mockImplementation(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await new Promise(resolve => setTimeout(resolve, 5));
       return [
         {
           filename: 'certificate.pdf',

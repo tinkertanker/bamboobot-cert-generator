@@ -7,6 +7,8 @@ jest.mock('@/lib/email/email-queue', () => ({
     isProcessing: jest.fn().mockReturnValue(false),
     processQueue: jest.fn().mockResolvedValue(undefined),
     getQueueLength: jest.fn().mockReturnValue(0),
+    getRetainedAttachmentBytes: jest.fn().mockReturnValue(0),
+    onItemCompleted: jest.fn(),
     getStatus: jest.fn().mockReturnValue({
       status: 'idle',
       processed: 0,
@@ -38,8 +40,12 @@ jest.mock('@/lib/auth/requireAuth', () => ({
 jest.mock('@/lib/server/tiers', () => ({
   checkEmailUsageAvailability: jest.fn(async () => ({ allowed: true, limit: 100, current: 0 })),
   reserveEmailUsage: jest.fn(async (_userId: string, count: number) => ({
-    allowed: true, limit: 100, current: count
-  }))
+    allowed: true,
+    limit: 100,
+    current: count,
+    reservationDay: new Date('2026-07-11T00:00:00Z')
+  })),
+  releaseEmailUsageReservation: jest.fn(async () => undefined)
 }));
 import handler, { cleanupExpiredEmailQueues } from '../../pages/api/send-bulk-email';
 import { getEmailProvider } from '@/lib/email/provider-factory';
@@ -53,12 +59,19 @@ const certificateUrl = createSignedGeneratedFileUrl('u_u1/test/certificate.pdf')
 describe('/api/send-bulk-email', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.MAX_ACTIVE_EMAIL_QUEUES_PER_USER = '20';
     mockGetEmailProvider.mockReturnValue({
       name: 'test',
       sendEmail: jest.fn(),
       getRateLimit: jest.fn(),
       isConfigured: jest.fn().mockReturnValue(true)
     } as any);
+  });
+
+  afterAll(() => {
+    delete process.env.MAX_ACTIVE_EMAIL_QUEUES_PER_USER;
+    delete process.env.MAX_PAUSED_EMAIL_QUEUES_PER_USER;
+    delete process.env.MAX_PAUSED_EMAIL_ATTACHMENT_BYTES;
   });
 
   it('should handle POST requests successfully', async () => {
@@ -249,12 +262,14 @@ describe('/api/send-bulk-email', () => {
     const post = createMocks({
       method: 'POST',
       body: {
-        emails: [{
-          to: 'first@example.com, invalid, second@example.com',
-          subject: 'Test',
-          html: 'Test',
-          certificateUrl
-        }],
+        emails: [
+          {
+            to: 'first@example.com, invalid, second@example.com',
+            subject: 'Test',
+            html: 'Test',
+            certificateUrl
+          }
+        ],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
         sessionId: 'mixed-recipient-session',
         deferProcessing: true
@@ -329,12 +344,14 @@ describe('/api/send-bulk-email', () => {
       const post = createMocks({
         method: 'POST',
         body: {
-          emails: [{
-            to: `${sessionId}@example.com`,
-            subject: 'Test',
-            html: 'Test',
-            attachmentData: { data: inlinePdf, filename: `${sessionId}.pdf` }
-          }],
+          emails: [
+            {
+              to: `${sessionId}@example.com`,
+              subject: 'Test',
+              html: 'Test',
+              attachmentData: { data: inlinePdf, filename: `${sessionId}.pdf` }
+            }
+          ],
           config: { senderName: 'Test', subject: 'Test', message: 'Test' },
           sessionId,
           deferProcessing: true
@@ -355,10 +372,45 @@ describe('/api/send-bulk-email', () => {
       body: { action: 'pause', sessionId: 'paused-newest' }
     });
     await handler(pause.req, pause.res);
+    await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(oldest.clear).toHaveBeenCalledTimes(1);
     expect(newest.clear).not.toHaveBeenCalled();
     delete process.env.MAX_PAUSED_EMAIL_ATTACHMENT_BYTES;
+  });
+
+  it('bounds paused link-only queues by count', async () => {
+    process.env.MAX_PAUSED_EMAIL_QUEUES_PER_USER = '1';
+    const createPausedQueue = async (sessionId: string, lastActivity: number) => {
+      const post = createMocks({
+        method: 'POST',
+        body: {
+          emails: [{ to: `${sessionId}@example.com`, certificateUrl }],
+          config: { senderName: 'Test', subject: 'Test', message: 'Test' },
+          sessionId,
+          deferProcessing: true
+        }
+      });
+      await handler(post.req, post.res);
+      const queueModule = jest.requireMock('@/lib/email/email-queue');
+      const queue = queueModule.EmailQueueManager.mock.results.at(-1).value;
+      queue.getStatus.mockReturnValue({ status: 'paused' });
+      queue.getLastActivity.mockReturnValue(lastActivity);
+      return queue;
+    };
+
+    const oldest = await createPausedQueue('paused-link-oldest', 1);
+    const newest = await createPausedQueue('paused-link-newest', 2);
+    const pause = createMocks({
+      method: 'PUT',
+      body: { action: 'pause', sessionId: 'paused-link-newest' }
+    });
+    await handler(pause.req, pause.res);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(oldest.clear).toHaveBeenCalledTimes(1);
+    expect(newest.clear).not.toHaveBeenCalled();
+    delete process.env.MAX_PAUSED_EMAIL_QUEUES_PER_USER;
   });
 
   it('does not expose or control another user queue with the same session id', async () => {

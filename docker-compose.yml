@@ -11,6 +11,8 @@ services:
       VIRTUAL_HOST: ${PRODUCTION_HOST} # how to find your app from outside
       NODE_ENV: production  # Force production mode
       NEXT_TELEMETRY_DISABLED: 1
+      # nginx-proxy overwrites X-Real-IP with the direct client address.
+      TRUST_PROXY_HEADERS: "true"
       CLIENT_MAX_BODY_SIZE: 20M # nginx-proxy max upload size
     volumes:
       # Persist user files outside Next.js' publicly served directory
