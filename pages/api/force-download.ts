@@ -1,9 +1,21 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { isR2Configured } from '@/lib/r2-client';
-import fs from 'fs';
-import path from 'path';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import {
+  loadTrustedPdf,
+  PdfSourceError,
+  sanitizePdfFilename,
+} from '@/lib/security/trusted-pdf-source';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  const session = await requireAuth(req, res);
+  if (!session) return;
+
   const { url, filename } = req.query;
   
   if (!url || typeof url !== 'string') {
@@ -11,65 +23,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  const downloadFilename = (filename && typeof filename === 'string') ? filename : 'download.pdf';
+  const userId = (session.user as any).id as string;
+  const rateLimit = enforceRateLimit(req, res, {
+    userId,
+    route: 'force-download',
+    category: 'download',
+  });
+  if (!rateLimit.allowed) {
+    res.status(429).json({ error: 'Too many downloads. Please wait and try again.' });
+    return;
+  }
+
+  const downloadFilename = sanitizePdfFilename(filename);
 
   try {
-    // Set download headers
+    const { buffer } = await loadTrustedPdf(url);
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${downloadFilename}"`);
-
-    if (isR2Configured() && (url.includes('.r2.cloudflarestorage.com') || (process.env.R2_PUBLIC_URL && url.startsWith(process.env.R2_PUBLIC_URL)))) {
-      // Fetch from R2 (either direct endpoint or custom domain) and stream to response
-      console.log('Downloading from R2:', url);
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        console.error(`Failed to fetch from R2: ${response.status}`);
-        res.status(404).json({ error: 'File not found' });
-        return;
-      }
-
-      // Stream the response
-      const buffer = await response.arrayBuffer();
-      res.send(Buffer.from(buffer));
-    } else {
-      // Handle local files
-      const parsedUrl = new URL(url, `http://localhost:3000`);
-      let filePath: string;
-
-      if (parsedUrl.pathname.startsWith('/api/files/generated/')) {
-        const relativePath = parsedUrl.pathname.replace(/^\/api\/files\/generated\//, '');
-        filePath = path.join(process.cwd(), 'public', 'generated', relativePath);
-      } else if (parsedUrl.pathname.startsWith('/generated/')) {
-        const relativePath = parsedUrl.pathname.replace(/^\/generated\//, '');
-        filePath = path.join(process.cwd(), 'public', 'generated', relativePath);
-      } else {
-        res.status(400).json({ error: 'Invalid URL format' });
-        return;
-      }
-
-      // Security check
-      const normalizedPath = path.normalize(filePath);
-      const generatedDir = path.join(process.cwd(), 'public', 'generated');
-      if (!normalizedPath.startsWith(generatedDir)) {
-        res.status(400).json({ error: 'Invalid file path' });
-        return;
-      }
-
-      // Check if file exists and stream it
-      if (!fs.existsSync(filePath)) {
-        res.status(404).json({ error: 'File not found' });
-        return;
-      }
-
-      const fileBuffer = fs.readFileSync(filePath);
-      res.send(fileBuffer);
-    }
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(buffer);
   } catch (error) {
-    console.error('Download error:', error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to download file' });
+    if (error instanceof PdfSourceError) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
     }
+    console.error('Download failed:', error);
+    res.status(500).json({ error: 'Failed to download file' });
     return;
   }
 }

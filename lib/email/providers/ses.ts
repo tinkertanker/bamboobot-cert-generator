@@ -1,6 +1,18 @@
 import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
 import type { EmailParams, EmailResult, RateLimitInfo, EmailProvider } from '../types';
-import { promises as fs } from 'fs';
+import {
+  assertPdfBuffer,
+  getMaxPdfSourceBytes,
+  loadTrustedPdf,
+  PdfSourceError,
+  sanitizePdfFilename,
+} from '@/lib/security/trusted-pdf-source';
+
+function assertSafeMimeHeader(value: string, field: string): void {
+  if (/[\r\n]/.test(value)) {
+    throw new Error(`Invalid ${field} email header`);
+  }
+}
 
 export class SESProvider implements EmailProvider {
   name = 'ses' as const;
@@ -135,6 +147,10 @@ export class SESProvider implements EmailProvider {
    * Build raw MIME email message with attachments
    */
   private async buildRawEmailMessage(params: EmailParams): Promise<string> {
+    assertSafeMimeHeader(params.from, 'From');
+    assertSafeMimeHeader(params.subject, 'Subject');
+    params.to.forEach((recipient) => assertSafeMimeHeader(recipient, 'To'));
+
     const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
     const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).substring(2)}`;
 
@@ -173,35 +189,36 @@ export class SESProvider implements EmailProvider {
 
         // Get attachment content
         if (attachment.content) {
+          if (typeof attachment.content !== 'string' && !Buffer.isBuffer(attachment.content)) {
+            throw new PdfSourceError('INVALID_PDF', 'Invalid PDF attachment content', 400);
+          }
+          if (attachment.content.length > getMaxPdfSourceBytes()) {
+            throw new PdfSourceError('PDF_TOO_LARGE', 'PDF attachment exceeds the size limit', 413);
+          }
           attachmentData = Buffer.isBuffer(attachment.content) 
             ? attachment.content 
             : Buffer.from(attachment.content);
         } else if (attachment.path) {
-          // Handle file path - fetch content
-          try {
-            if (attachment.path.startsWith('http')) {
-              // URL - fetch from web
-              const response = await fetch(attachment.path);
-              const arrayBuffer = await response.arrayBuffer();
-              attachmentData = Buffer.from(arrayBuffer);
-            } else {
-              // Local file path
-              attachmentData = await fs.readFile(attachment.path);
-            }
-          } catch (error) {
-            console.error(`Failed to read attachment ${attachment.filename}:`, error);
-            continue; // Skip this attachment
-          }
+          // Keep the provider safe even if a future caller bypasses the API
+          // attachment builder and supplies a path directly.
+          const loaded = await loadTrustedPdf(attachment.path);
+          attachmentData = loaded.buffer;
         } else {
           console.warn(`Attachment ${attachment.filename} has no content or path`);
           continue;
         }
 
+        if (attachmentData.length > getMaxPdfSourceBytes()) {
+          throw new PdfSourceError('PDF_TOO_LARGE', 'PDF attachment exceeds the size limit', 413);
+        }
+        assertPdfBuffer(attachmentData);
+        const filename = sanitizePdfFilename(attachment.filename, 'certificate.pdf');
+
         // Add attachment to message
         message += `--${boundary}\r\n`;
-        message += `Content-Type: ${attachment.contentType || 'application/octet-stream'}; name="${attachment.filename}"\r\n`;
+        message += `Content-Type: application/pdf; name="${filename}"\r\n`;
         message += `Content-Transfer-Encoding: base64\r\n`;
-        message += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n\r\n`;
+        message += `Content-Disposition: attachment; filename="${filename}"\r\n\r\n`;
         
         // Encode attachment as base64 with line breaks
         const base64Data = attachmentData.toString('base64');
