@@ -9,6 +9,12 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
+  // jsdom defaults to the "browser" export condition, which resolves the AWS
+  // SDK's ESM-only browser build and trips Jest's CJS parser. Clearing the
+  // conditions makes packages resolve their default (CJS) entry point.
+  testEnvironmentOptions: {
+    customExportConditions: [''],
+  },
   testPathIgnorePatterns: [
     '<rootDir>/.next/',
     '<rootDir>/node_modules/',
