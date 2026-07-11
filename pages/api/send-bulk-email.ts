@@ -392,17 +392,27 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
 // Store the interval ID so it can be cleared if needed
 let cleanupInterval: NodeJS.Timeout | null = null;
 
+export async function cleanupExpiredEmailQueues(now = Date.now()): Promise<void> {
+  const expirationTime = now - 3600000;
+  const expiredKeys = Array.from(queueManagers.entries())
+    .filter(([, manager]) => manager.getLastActivity() < expirationTime)
+    .map(([key]) => key);
+
+  await Promise.all(expiredKeys.map((key) =>
+    withQueueIngestionLock(key, async () => {
+      const manager = queueManagers.get(key);
+      if (!manager || manager.getLastActivity() >= expirationTime) return;
+      await manager.clear();
+      queueManagers.delete(key);
+      queueAttachmentBytes.delete(key);
+    })
+  ));
+}
+
 // Only set up the interval if it hasn't been set up already
 if (!cleanupInterval) {
   cleanupInterval = setInterval(() => {
-    const now = Date.now();
-    for (const [key, manager] of Array.from(queueManagers.entries())) {
-      // Remove idle queues older than 1 hour
-      if (['idle', 'completed'].includes(manager.getStatus().status) && manager.getLastActivity() < now - 3600000) {
-        queueManagers.delete(key);
-        queueAttachmentBytes.delete(key);
-      }
-    }
+    cleanupExpiredEmailQueues().catch(console.error);
   }, 600000); // Every 10 minutes
 }
 

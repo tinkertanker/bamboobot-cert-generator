@@ -18,7 +18,8 @@ jest.mock('@/lib/email/email-queue', () => ({
     }),
     getLastActivity: jest.fn().mockReturnValue(Date.now()),
     pause: jest.fn().mockResolvedValue(undefined),
-    resume: jest.fn().mockResolvedValue(undefined)
+    resume: jest.fn().mockResolvedValue(undefined),
+    clear: jest.fn().mockResolvedValue(undefined)
   }))
 }));
 
@@ -34,7 +35,7 @@ jest.mock('@/pages/api/auth/[...nextauth]', () => ({
 jest.mock('@/lib/auth/requireAuth', () => ({
   requireAuth: jest.fn(async () => ({ user: { id: 'u1' } }))
 }));
-import handler from '../../pages/api/send-bulk-email';
+import handler, { cleanupExpiredEmailQueues } from '../../pages/api/send-bulk-email';
 import { getEmailProvider } from '@/lib/email/provider-factory';
 import { requireAuth } from '@/lib/auth/requireAuth';
 
@@ -174,6 +175,33 @@ describe('/api/send-bulk-email', () => {
     expect(data.status).toBe('idle');
     expect(data.processed).toBe(0);
     expect(data.total).toBe(0);
+  });
+
+  it('clears stale processing queues and their retained state', async () => {
+    const post = createMocks({
+      method: 'POST',
+      body: {
+        emails: [{ to: 'stale@example.com', subject: 'Test', html: 'Test' }],
+        config: { senderName: 'Test', subject: 'Test', message: 'Test' },
+        sessionId: 'stale-processing-session',
+        deferProcessing: true
+      }
+    });
+    await handler(post.req, post.res);
+
+    const queueModule = jest.requireMock('@/lib/email/email-queue');
+    const queue = queueModule.EmailQueueManager.mock.results.at(-1).value;
+    queue.getStatus.mockReturnValue({ status: 'processing' });
+    queue.getLastActivity.mockReturnValue(1);
+    await cleanupExpiredEmailQueues(3600002);
+
+    expect(queue.clear).toHaveBeenCalledTimes(1);
+    const get = createMocks({
+      method: 'GET',
+      query: { sessionId: 'stale-processing-session' }
+    });
+    await handler(get.req, get.res);
+    expect(JSON.parse(get.res._getData())).toMatchObject({ status: 'idle', total: 0 });
   });
 
   it('does not expose or control another user queue with the same session id', async () => {
