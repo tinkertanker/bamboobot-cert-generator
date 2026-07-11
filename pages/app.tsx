@@ -60,6 +60,7 @@ import { HelpCircle } from "lucide-react";
 import { useSession } from 'next-auth/react';
 import { useProjectMigration } from "@/hooks/useProjectMigration";
 import { useUserTier } from "@/hooks/useUserTier";
+import { mapProgressivePdfFiles } from "@/lib/pdf/progressive-results";
 
 export default function HomePage() {
   // ============================================================================
@@ -351,8 +352,7 @@ export default function HomePage() {
     hasEmailColumn
   } = useEmailConfig({
     detectedEmailColumn,
-    tableData,
-    individualPdfsData
+    tableData
   });
 
   // Dev mode hook (must come after file upload, PDF generation, and email config hooks)
@@ -1003,11 +1003,7 @@ export default function HomePage() {
         individualPdfsData={
           individualPdfsData || clientIndividualPdfsData ||
           (progressivePdfResults && progressivePdfResults.files.length > 0
-            ? progressivePdfResults.files.map((file) => ({
-                filename: file.filename,
-                url: file.path,
-                originalIndex: file.index
-              }))
+            ? mapProgressivePdfFiles(progressivePdfResults.files)
             : null)
         }
         tableData={tableData}

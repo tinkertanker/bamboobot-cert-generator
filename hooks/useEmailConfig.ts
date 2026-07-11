@@ -5,7 +5,6 @@ import { blobToBase64 } from "@/lib/email/client-attachment-batches";
 export interface UseEmailConfigProps {
   detectedEmailColumn: string | null;
   tableData: TableData[];
-  individualPdfsData: PdfFile[] | null;
 }
 
 export interface UseEmailConfigReturn {
@@ -22,8 +21,7 @@ export interface UseEmailConfigReturn {
 
 export function useEmailConfig({
   detectedEmailColumn,
-  tableData,
-  individualPdfsData
+  tableData
 }: UseEmailConfigProps): UseEmailConfigReturn {
   const [emailConfig, setEmailConfig] = useState<EmailConfig>({
     senderName: "",
@@ -74,13 +72,13 @@ export function useEmailConfig({
   ) => {
     if (
       !detectedEmailColumn ||
-      !individualPdfsData ||
       !emailConfig.isConfigured
     )
       return;
 
     const recipientData = tableData[file.originalIndex ?? index];
     const recipientEmail = recipientData[detectedEmailColumn];
+    const statusKey = file.originalIndex ?? index;
 
     if (!recipientEmail) {
       alert("No email address found for this recipient");
@@ -88,7 +86,7 @@ export function useEmailConfig({
     }
 
     // Update sending status
-    setEmailSendingStatus((prev) => ({ ...prev, [index]: "sending" }));
+    setEmailSendingStatus((prev) => ({ ...prev, [statusKey]: "sending" }));
 
     try {
       // Get recipient name (try common name columns)
@@ -147,7 +145,7 @@ export function useEmailConfig({
       const result = await response.json();
 
       if (response.ok) {
-        setEmailSendingStatus((prev) => ({ ...prev, [index]: "sent" }));
+        setEmailSendingStatus((prev) => ({ ...prev, [statusKey]: "sent" }));
 
         // Mark as emailed in R2 if using cloud storage
         if (
@@ -170,12 +168,12 @@ export function useEmailConfig({
       }
     } catch (error) {
       console.error("Email sending failed:", error);
-      setEmailSendingStatus((prev) => ({ ...prev, [index]: "error" }));
+      setEmailSendingStatus((prev) => ({ ...prev, [statusKey]: "error" }));
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       alert(`Failed to send email: ${errorMessage}`);
     }
-  }, [detectedEmailColumn, individualPdfsData, emailConfig, tableData]);
+  }, [detectedEmailColumn, emailConfig, tableData]);
 
   return {
     emailConfig,
