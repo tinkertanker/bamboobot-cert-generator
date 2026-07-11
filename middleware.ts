@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { isAuthenticationRequired } from '@/lib/auth/runtime-policy';
 
-const STATIC_ASSET_PATTERN = /\.(?:png|jpg|jpeg|gif|svg|ico|webp|avif|txt|xml|json|map)$/i;
+const STATIC_ASSET_PATTERN = /\.(?:png|jpg|jpeg|gif|svg|ico|webp|avif|txt|xml|json|map|js|css|woff|woff2|ttf|otf|eot)$/i;
 // Existing email links rely on this anonymous path. Keep the exception narrow;
 // private/signed certificate delivery will replace it in the storage hardening.
 const LEGACY_PUBLIC_GENERATED_PDF_PATTERN = /^\/generated\/.+\.pdf$/i;

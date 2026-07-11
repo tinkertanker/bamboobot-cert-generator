@@ -37,6 +37,8 @@ describe('authentication middleware', () => {
     '/api/auth/session',
     '/_next/static/app.js',
     '/logo.png',
+    '/pdf-worker.js',
+    '/fonts/Rubik-Regular.ttf',
     '/generated/progressive_session/certificate.pdf',
   ])(
     'allows public path %s without reading a token',
@@ -57,7 +59,11 @@ describe('authentication middleware', () => {
     expect(response.headers.get('location')).toBe('https://certificates.example/');
   });
 
-  it.each(['/api/projects', '/api/files/generated/certificate.pdf'])(
+  it.each([
+    '/api/projects',
+    '/api/files/generated/certificate.pdf',
+    '/api/export/report.js',
+  ])(
     'rejects unauthenticated API request %s',
     async pathname => {
       mockedGetToken.mockResolvedValue(null);
