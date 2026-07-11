@@ -11,6 +11,9 @@ const MAX_BULK_EMAILS = 500;
 const BULK_ATTACHMENT_CONCURRENCY = 4;
 const DEFAULT_MAX_BULK_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 const HARD_MAX_BULK_ATTACHMENT_BYTES = 250 * 1024 * 1024;
+const ACTIVE_QUEUE_TTL_MS = 3600000;
+const PAUSED_QUEUE_TTL_MS = 24 * ACTIVE_QUEUE_TTL_MS;
+const MAX_PAUSED_ATTACHMENT_BYTES = HARD_MAX_BULK_ATTACHMENT_BYTES;
 
 function getMaxBulkAttachmentBytes(): number {
   const configured = Number.parseInt(process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES || '', 10);
@@ -392,25 +395,42 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
 // Store the interval ID so it can be cleared if needed
 let cleanupInterval: NodeJS.Timeout | null = null;
 
-export async function cleanupExpiredEmailQueues(now = Date.now()): Promise<void> {
-  const staleActiveTime = now - 3600000;
-  const stalePausedTime = now - 24 * 3600000;
-  const expiredKeys = Array.from(queueManagers.entries())
-    .filter(([, manager]) => {
-      const status = manager.getStatus().status;
-      const expirationTime = status === 'paused' ? stalePausedTime : staleActiveTime;
-      return manager.getLastActivity() < expirationTime;
-    })
-    .map(([key]) => key);
+function isQueueExpired(manager: EmailQueueManager, now: number): boolean {
+  const ttl = manager.getStatus().status === 'paused'
+    ? PAUSED_QUEUE_TTL_MS
+    : ACTIVE_QUEUE_TTL_MS;
+  return manager.getLastActivity() < now - ttl;
+}
 
-  await Promise.all(expiredKeys.map((key) =>
+export async function cleanupExpiredEmailQueues(now = Date.now()): Promise<void> {
+  const entries = Array.from(queueManagers.entries());
+  const expiredKeys = new Set(
+    entries.filter(([, manager]) => isQueueExpired(manager, now)).map(([key]) => key)
+  );
+  const pausedEntries = entries
+    .filter(([, manager]) => manager.getStatus().status === 'paused')
+    .sort(([, first], [, second]) =>
+      first.getLastActivity() - second.getLastActivity()
+    );
+  const pressureKeys = new Set<string>();
+  let pausedBytes = pausedEntries.reduce(
+    (total, [key]) => total + (queueAttachmentBytes.get(key) || 0),
+    0
+  );
+  for (const [key] of pausedEntries) {
+    if (pausedBytes <= MAX_PAUSED_ATTACHMENT_BYTES) break;
+    pressureKeys.add(key);
+    pausedBytes -= queueAttachmentBytes.get(key) || 0;
+  }
+  const cleanupKeys = new Set([...expiredKeys, ...pressureKeys]);
+
+  await Promise.all(Array.from(cleanupKeys).map((key) =>
     withQueueIngestionLock(key, async () => {
       const manager = queueManagers.get(key);
       if (!manager) return;
-      const expirationTime = manager.getStatus().status === 'paused'
-        ? stalePausedTime
-        : staleActiveTime;
-      if (manager.getLastActivity() >= expirationTime) return;
+      const isUnderPressure =
+        pressureKeys.has(key) && manager.getStatus().status === 'paused';
+      if (!isUnderPressure && !isQueueExpired(manager, now)) return;
       await manager.clear();
       queueManagers.delete(key);
       queueAttachmentBytes.delete(key);

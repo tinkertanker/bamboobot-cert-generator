@@ -73,7 +73,9 @@ describe('BulkEmailModal attachment ingestion', () => {
     );
 
     expect(screen.getByText('Ready to send 1 emails:')).toBeInTheDocument();
-    expect(screen.getByText('• valid@example.com, not-an-email')).toBeInTheDocument();
+    expect(screen.getByText('• valid@example.com')).toBeInTheDocument();
+    expect(screen.getByText(/Ignoring invalid addresses in 1 mixed recipient cell/))
+      .toBeInTheDocument();
   });
 
   it('does not post a batch when cancelled during Blob encoding', async () => {
