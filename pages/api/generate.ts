@@ -33,6 +33,7 @@ import {
   embedStandardFonts,
   addTextToPage
 } from '@/lib/pdf/shared/pdf-generation-core';
+import { UniquePdfFilenameAllocator } from '@/utils/pdf-filenames';
 
 async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse): Promise<void> {
   if (req.method !== 'POST') {
@@ -229,7 +230,7 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
       }
       
       // Track used filenames to handle duplicates
-      const usedFilenames = new Set<string>();
+      const filenameAllocator = new UniquePdfFilenameAllocator();
       
       const files = await Promise.all(generatedPdfs.map(async (pdfBytes, index) => {
         // Generate filename based on naming column
@@ -246,13 +247,7 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
         }
         
         // Handle duplicates
-        let filename = `${baseFilename}.pdf`;
-        let counter = 1;
-        while (usedFilenames.has(filename)) {
-          filename = `${baseFilename}-${counter}.pdf`;
-          counter++;
-        }
-        usedFilenames.add(filename);
+        const filename = filenameAllocator.allocate(baseFilename);
         
         let fileUrl: string;
         

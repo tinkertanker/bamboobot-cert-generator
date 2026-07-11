@@ -11,6 +11,10 @@ import type {
   PdfGenerationConfig
 } from '../types';
 import { PROGRESSIVE_PDF } from '@/utils/constants';
+import {
+  getPdfBaseFilename,
+  UniquePdfFilenameAllocator
+} from '@/utils/pdf-filenames';
 
 export class ClientPdfQueueManager {
   private queue: PdfQueue;
@@ -125,14 +129,25 @@ export class ClientPdfQueueManager {
    * Initialize queue with certificate data
    */
   async initializeQueue(data: Record<string, unknown>[], namingColumn?: string): Promise<void> {
-    const items: PdfQueueItem[] = data.map((item, index) => ({
-      id: `${this.queue.sessionId}-${index}`,
-      index,
-      data: item,
-      status: 'pending',
-      attempts: 0,
-      createdAt: new Date()
-    }));
+    const filenameAllocator = new UniquePdfFilenameAllocator();
+    const items: PdfQueueItem[] = data.map((item, index) => {
+      const baseFilename =
+        this.queue.mode === 'bulk'
+          ? 'certificates'
+          : getPdfBaseFilename(
+              namingColumn ? item[namingColumn] : undefined,
+              `Certificate-${index + 1}`
+            );
+      return {
+        id: `${this.queue.sessionId}-${index}`,
+        index,
+        data: item,
+        filename: filenameAllocator.allocate(baseFilename),
+        status: 'pending',
+        attempts: 0,
+        createdAt: new Date()
+      };
+    });
 
     this.queue.items = items;
     this.queue.total = items.length;
@@ -484,16 +499,7 @@ export class ClientPdfQueueManager {
    * Get filename for an item
    */
   private getFilenameForItem(item: PdfQueueItem): string {
-    if (this.queue.mode === 'bulk') {
-      return 'certificates.pdf';
-    }
-
-    const baseFilename = this.queue.namingColumn && item.data[this.queue.namingColumn]
-      ? String(item.data[this.queue.namingColumn])
-      : `Certificate-${item.index + 1}`;
-
-    // Sanitize filename
-    return baseFilename.replace(/[^a-zA-Z0-9-_]/g, '_') + '.pdf';
+    return item.filename;
   }
 
   /**
