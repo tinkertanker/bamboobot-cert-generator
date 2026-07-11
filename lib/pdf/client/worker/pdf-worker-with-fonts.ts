@@ -376,9 +376,9 @@ async function generatePdf(payload: {
     const usedFilenames = new Set<string>();
     const totalEntries = entries.length;
     const templateDoc = await PDFDocument.load(templateData);
-    const neededFonts = identifyNeededFonts(positions, entries);
 
     for (let i = 0; i < totalEntries; i++) {
+      const neededFonts = identifyNeededFonts(positions, [entries[i]]);
       // Generate single certificate with all optimizations
       const pdfBytes = await generateSingleCertificate(
         templateDoc,
