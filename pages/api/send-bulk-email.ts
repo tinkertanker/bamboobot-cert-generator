@@ -11,11 +11,26 @@ const MAX_BULK_EMAILS = 500;
 const BULK_ATTACHMENT_CONCURRENCY = 4;
 const DEFAULT_MAX_BULK_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 const HARD_MAX_BULK_ATTACHMENT_BYTES = 250 * 1024 * 1024;
+const ACTIVE_QUEUE_TTL_MS = 3600000;
+const PAUSED_QUEUE_TTL_MS = 24 * ACTIVE_QUEUE_TTL_MS;
+const DEFAULT_MAX_PAUSED_ATTACHMENT_BYTES = HARD_MAX_BULK_ATTACHMENT_BYTES;
+const PAUSED_PRESSURE_LOCK = '__global_paused_queue_pressure__';
 
 function getMaxBulkAttachmentBytes(): number {
   const configured = Number.parseInt(process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES || '', 10);
   if (!Number.isSafeInteger(configured) || configured <= 0) {
     return DEFAULT_MAX_BULK_ATTACHMENT_BYTES;
+  }
+  return Math.min(configured, HARD_MAX_BULK_ATTACHMENT_BYTES);
+}
+
+function getMaxPausedAttachmentBytes(): number {
+  const configured = Number.parseInt(
+    process.env.MAX_PAUSED_EMAIL_ATTACHMENT_BYTES || '',
+    10
+  );
+  if (!Number.isSafeInteger(configured) || configured <= 0) {
+    return DEFAULT_MAX_PAUSED_ATTACHMENT_BYTES;
   }
   return Math.min(configured, HARD_MAX_BULK_ATTACHMENT_BYTES);
 }
@@ -125,6 +140,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     }
 
     const key = queueKey(userId, sessionId);
+    let successPayload: Record<string, unknown> | null = null;
     await withQueueIngestionLock(key, async () => {
       // Get or create queue manager for this session
       let queueManager = queueManagers.get(key);
@@ -263,13 +279,18 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
         queueManager.processQueue().catch(console.error);
       }
 
-      res.status(200).json({
+      successPayload = {
         success: true,
         queueLength: queueManager.getQueueLength(),
         status: queueManager.getStatus(),
         skippedCount // Number of emails skipped due to invalid addresses
-      });
+      };
     });
+    if (!successPayload) return;
+    await enforcePausedAttachmentLimit().catch((error) => {
+      console.error('Paused queue pressure cleanup failed:', error);
+    });
+    res.status(200).json(successPayload);
     return;
   } catch (error) {
     if (error instanceof PdfSourceError) {
@@ -354,6 +375,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
     }
 
     const key = queueKey(userId, sessionId);
+    let actionSucceeded = false;
     await withQueueIngestionLock(key, async () => {
       const queueManager = queueManagers.get(key);
       if (!queueManager) {
@@ -378,8 +400,15 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
         return;
       }
 
-      res.status(200).json({ success: true });
+      actionSucceeded = true;
     });
+    if (!actionSucceeded) return;
+    if (action === 'pause') {
+      await enforcePausedAttachmentLimit().catch((error) => {
+        console.error('Paused queue pressure cleanup failed:', error);
+      });
+    }
+    res.status(200).json({ success: true });
     return;
   } catch (error) {
     console.error('Queue control error:', error);
@@ -392,21 +421,56 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
 // Store the interval ID so it can be cleared if needed
 let cleanupInterval: NodeJS.Timeout | null = null;
 
-export async function cleanupExpiredEmailQueues(now = Date.now()): Promise<void> {
-  const expirationTime = now - 3600000;
-  const expiredKeys = Array.from(queueManagers.entries())
-    .filter(([, manager]) => manager.getLastActivity() < expirationTime)
-    .map(([key]) => key);
+function isQueueExpired(manager: EmailQueueManager, now: number): boolean {
+  const ttl = manager.getStatus().status === 'paused'
+    ? PAUSED_QUEUE_TTL_MS
+    : ACTIVE_QUEUE_TTL_MS;
+  return manager.getLastActivity() < now - ttl;
+}
 
-  await Promise.all(expiredKeys.map((key) =>
+async function enforcePausedAttachmentLimit(): Promise<void> {
+  await withQueueIngestionLock(PAUSED_PRESSURE_LOCK, async () => {
+    const pausedEntries = Array.from(queueManagers.entries())
+      .filter(([, manager]) => manager.getStatus().status === 'paused')
+      .sort(([, first], [, second]) =>
+        first.getLastActivity() - second.getLastActivity()
+      );
+    for (const [key] of pausedEntries) {
+      const pausedBytes = Array.from(queueManagers.entries()).reduce(
+        (total, [queueKey, manager]) =>
+          manager.getStatus().status === 'paused'
+            ? total + (queueAttachmentBytes.get(queueKey) || 0)
+            : total,
+        0
+      );
+      if (pausedBytes <= getMaxPausedAttachmentBytes()) break;
+      await withQueueIngestionLock(key, async () => {
+        const manager = queueManagers.get(key);
+        if (!manager || manager.getStatus().status !== 'paused') return;
+        await manager.clear();
+        queueManagers.delete(key);
+        queueAttachmentBytes.delete(key);
+      });
+    }
+  });
+}
+
+export async function cleanupExpiredEmailQueues(now = Date.now()): Promise<void> {
+  const entries = Array.from(queueManagers.entries());
+  const expiredKeys = new Set(
+    entries.filter(([, manager]) => isQueueExpired(manager, now)).map(([key]) => key)
+  );
+  await Promise.all(Array.from(expiredKeys).map((key) =>
     withQueueIngestionLock(key, async () => {
       const manager = queueManagers.get(key);
-      if (!manager || manager.getLastActivity() >= expirationTime) return;
+      if (!manager) return;
+      if (!isQueueExpired(manager, now)) return;
       await manager.clear();
       queueManagers.delete(key);
       queueAttachmentBytes.delete(key);
     })
   ));
+  await enforcePausedAttachmentLimit();
 }
 
 // Only set up the interval if it hasn't been set up already

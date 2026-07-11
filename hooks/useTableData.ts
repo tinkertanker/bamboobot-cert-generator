@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import type { TableData } from "@/types/certificate";
-import { isValidEmailValue } from "@/utils/email-validation";
+import { parseRecipientsDetailed } from "@/utils/email-validation";
 
 export interface UseTableDataReturn {
   tableData: TableData[];
@@ -152,8 +152,8 @@ const detectEmailColumn = (headers: string[], data: TableData[]): string | null 
         .filter((val) => val && val.trim() !== "");
 
       if (columnValues.length > 0) {
-        const emailCount = columnValues.filter((val) =>
-          isValidEmailValue(val)
+        const emailCount = columnValues.filter(
+          (val) => parseRecipientsDetailed(val).valid.length > 0
         ).length;
 
         if (emailCount / columnValues.length >= 0.5) {

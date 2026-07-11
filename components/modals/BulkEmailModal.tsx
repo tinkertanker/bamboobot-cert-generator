@@ -4,7 +4,7 @@ import { Progress } from '@/components/ui/progress';
 import { COLORS } from '@/utils/styles';
 import { EmailPreviewModal } from './EmailPreviewModal';
 import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
-import { isValidEmailValue } from '@/utils/email-validation';
+import { parseRecipientsDetailed } from '@/utils/email-validation';
 import {
   blobToBase64,
   createEmailSessionId,
@@ -69,9 +69,12 @@ export function BulkEmailModal({
 }: BulkEmailModalProps) {
   // Filter out certificates without email addresses
   const validCertificates = certificates.filter(
-    (cert) => cert.email && isValidEmailValue(cert.email)
+    (cert) => cert.email && parseRecipientsDetailed(cert.email).valid.length > 0
   );
   const skippedCount = certificates.length - validCertificates.length;
+  const partiallyInvalidCount = validCertificates.filter(
+    (cert) => parseRecipientsDetailed(cert.email).rejected.length > 0
+  ).length;
   
   const [status, setStatus] = useState<EmailStatus>({
     status: 'idle',
@@ -450,10 +453,17 @@ export function BulkEmailModal({
                   ⚠️ Skipping {skippedCount} certificate{skippedCount > 1 ? 's' : ''} without email addresses
                 </p>
               )}
+              {partiallyInvalidCount > 0 && (
+                <p className="text-xs text-amber-700 mb-2">
+                  ⚠️ Ignoring invalid addresses in {partiallyInvalidCount} mixed recipient {partiallyInvalidCount === 1 ? 'cell' : 'cells'}
+                </p>
+              )}
               <div className="max-h-32 overflow-y-auto">
                 <ul className="text-xs text-blue-700 space-y-1">
                   {validCertificates.slice(0, 5).map((cert, idx) => (
-                    <li key={idx}>• {cert.email}</li>
+                    <li key={idx}>
+                      • {parseRecipientsDetailed(cert.email).valid.join(', ')}
+                    </li>
                   ))}
                   {validCertificates.length > 5 && (
                     <li className="text-blue-600 italic">... and {validCertificates.length - 5} more</li>
@@ -669,7 +679,9 @@ export function BulkEmailModal({
           open={showPreview}
           onClose={() => setShowPreview(false)}
           emailConfig={emailConfig}
-          sampleEmail={validCertificates[0].email}
+          sampleEmail={parseRecipientsDetailed(
+            validCertificates[0].email
+          ).valid.join(', ')}
           sampleFileName={validCertificates[0].fileName}
           sampleDownloadUrl={validCertificates[0].downloadUrl}
         />
