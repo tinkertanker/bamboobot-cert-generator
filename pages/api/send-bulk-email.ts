@@ -287,7 +287,9 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       };
     });
     if (!successPayload) return;
-    await enforcePausedAttachmentLimit();
+    await enforcePausedAttachmentLimit().catch((error) => {
+      console.error('Paused queue pressure cleanup failed:', error);
+    });
     res.status(200).json(successPayload);
     return;
   } catch (error) {
@@ -402,7 +404,9 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
     });
     if (!actionSucceeded) return;
     if (action === 'pause') {
-      await enforcePausedAttachmentLimit();
+      await enforcePausedAttachmentLimit().catch((error) => {
+        console.error('Paused queue pressure cleanup failed:', error);
+      });
     }
     res.status(200).json({ success: true });
     return;
@@ -431,21 +435,21 @@ async function enforcePausedAttachmentLimit(): Promise<void> {
       .sort(([, first], [, second]) =>
         first.getLastActivity() - second.getLastActivity()
       );
-    let pausedBytes = pausedEntries.reduce(
-      (total, [key]) => total + (queueAttachmentBytes.get(key) || 0),
-      0
-    );
-
     for (const [key] of pausedEntries) {
+      const pausedBytes = Array.from(queueManagers.entries()).reduce(
+        (total, [queueKey, manager]) =>
+          manager.getStatus().status === 'paused'
+            ? total + (queueAttachmentBytes.get(queueKey) || 0)
+            : total,
+        0
+      );
       if (pausedBytes <= getMaxPausedAttachmentBytes()) break;
       await withQueueIngestionLock(key, async () => {
         const manager = queueManagers.get(key);
         if (!manager || manager.getStatus().status !== 'paused') return;
-        const retainedBytes = queueAttachmentBytes.get(key) || 0;
         await manager.clear();
         queueManagers.delete(key);
         queueAttachmentBytes.delete(key);
-        pausedBytes -= retainedBytes;
       });
     }
   });
