@@ -1,8 +1,3 @@
-import {
-  clearTextMeasurementCache,
-  measureTextWidth
-} from '@/utils/textMeasurement';
-
 describe('text measurement cache', () => {
   it('reuses widths for identical text and font settings', () => {
     const measureText = jest
@@ -23,14 +18,18 @@ describe('text measurement cache', () => {
     jest
       .spyOn(HTMLCanvasElement.prototype, 'getContext')
       .mockReturnValue({ measureText } as unknown as CanvasRenderingContext2D);
-    clearTextMeasurementCache();
 
-    expect(measureTextWidth('Certificate', 20, 'Helvetica')).toBe(123);
-    expect(measureTextWidth('Certificate', 20, 'Helvetica')).toBe(123);
-    expect(measureText).toHaveBeenCalledTimes(1);
+    jest.isolateModules(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { measureTextWidth } = require('../../utils/textMeasurement');
 
-    handleFontsLoaded?.();
-    expect(measureTextWidth('Certificate', 20, 'Helvetica')).toBe(456);
-    expect(measureText).toHaveBeenCalledTimes(2);
+      expect(measureTextWidth('Certificate', 20, 'Helvetica')).toBe(123);
+      expect(measureTextWidth('Certificate', 20, 'Helvetica')).toBe(123);
+      expect(measureText).toHaveBeenCalledTimes(1);
+
+      handleFontsLoaded?.();
+      expect(measureTextWidth('Certificate', 20, 'Helvetica')).toBe(456);
+      expect(measureText).toHaveBeenCalledTimes(2);
+    });
   });
 });
