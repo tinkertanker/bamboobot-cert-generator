@@ -1,24 +1,21 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { markAsEmailed, isR2Configured } from '../../lib/r2-client';
-import { markAsEmailedS3, isS3Configured } from '../../lib/s3-client';
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { SignedFileUrlError } from '@/lib/security/signed-generated-url';
+import { markGeneratedFileAsEmailed } from '@/lib/storage/mark-generated';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ): Promise<void> {
+  const session = await requireAuth(req, res);
+  if (!session) return;
+  const userId = (session.user as { id: string }).id;
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
 
-  // Check which storage provider is configured
   const storageProvider = process.env.STORAGE_PROVIDER || 'local';
-  
-  if (storageProvider === 'local') {
-    // Local storage, skip marking
-    res.status(200).json({ success: true, message: 'Local storage, skipping' });
-    return;
-  }
 
   try {
     const { fileUrl } = req.body;
@@ -28,34 +25,7 @@ export default async function handler(
       return;
     }
 
-    // Handle different storage providers
-    if (storageProvider === 'cloudflare-r2' && isR2Configured()) {
-      // Extract the key from the R2 URL
-      let fileKey: string;
-      
-      if (fileUrl.includes('.r2.cloudflarestorage.com')) {
-        // Direct R2 endpoint URL
-        const urlParts = fileUrl.split('.r2.cloudflarestorage.com/');
-        if (urlParts.length > 1) {
-          fileKey = urlParts[1];
-        } else {
-          throw new Error('Invalid R2 URL format');
-        }
-      } else if (process.env.R2_PUBLIC_URL && fileUrl.startsWith(process.env.R2_PUBLIC_URL)) {
-        // Custom domain URL
-        fileKey = fileUrl.replace(process.env.R2_PUBLIC_URL + '/', '');
-      } else {
-        throw new Error('URL is not an R2 URL');
-      }
-
-      // Mark the file as emailed in R2 metadata
-      await markAsEmailed(fileKey);
-    } else if (storageProvider === 'amazon-s3' && isS3Configured()) {
-      // Mark the file as emailed in S3 metadata
-      await markAsEmailedS3(fileUrl);
-    } else {
-      throw new Error(`Storage provider ${storageProvider} not properly configured`);
-    }
+    await markGeneratedFileAsEmailed(fileUrl, userId);
 
     res.status(200).json({ 
       success: true, 
@@ -65,6 +35,10 @@ export default async function handler(
     return;
 
   } catch (error) {
+    if (error instanceof SignedFileUrlError) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
     console.error('Error marking file as emailed:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ 

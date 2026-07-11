@@ -7,10 +7,13 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "predev": "node scripts/migrate-private-storage.js",
     "dev": "npm run build:worker && next dev",
     "build": "npm run build:worker && next build",
     "build:worker": "webpack --config webpack.worker.config.js",
+    "prestart": "node scripts/migrate-private-storage.js",
     "start": "next start",
+    "migrate:storage": "node scripts/migrate-private-storage.js",
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",

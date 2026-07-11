@@ -232,8 +232,9 @@ export function useClientPdfGeneration({
       if (uploadedFile.includes('dev-mode-template')) {
         return `/template_images/${uploadedFile}`;
       }
-      // For other strings, assume they're filenames that need local paths
-      return `/temp_images/${uploadedFile}`;
+      // Persisted uploads are served through authenticated API routes.
+      const encodedPath = uploadedFile.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      return `/api/files/temp_images/${encodedPath}`;
     }
     
     return null;

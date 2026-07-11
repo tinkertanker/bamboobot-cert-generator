@@ -100,12 +100,7 @@ export async function uploadToS3(
     Key: key,
   }), { expiresIn: 86400 }); // 24 hours
 
-  // Generate public URL if CloudFront is configured
-  const publicUrl = process.env.S3_CLOUDFRONT_URL 
-    ? `${process.env.S3_CLOUDFRONT_URL}/${key}`
-    : url;
-
-  return { key, url, publicUrl };
+  return { key, url };
 }
 
 /**
@@ -124,10 +119,6 @@ export async function getS3SignedUrl(key: string, expiresIn: number = 86400): Pr
  * Get public URL (if CloudFront is configured)
  */
 export async function getS3PublicUrl(key: string): Promise<string> {
-  if (process.env.S3_CLOUDFRONT_URL) {
-    return `${process.env.S3_CLOUDFRONT_URL}/${key}`;
-  }
-  // Fallback to signed URL
   return getS3SignedUrl(key);
 }
 
@@ -343,20 +334,7 @@ export async function cleanupExpiredS3Files(dryRun: boolean = false): Promise<{
 /**
  * Mark a file as emailed (extends retention)
  */
-export async function markAsEmailedS3(fileUrl: string): Promise<void> {
-  // Extract key from URL
-  let key = fileUrl;
-  
-  // Handle different URL formats
-  if (fileUrl.includes('.amazonaws.com/')) {
-    key = fileUrl.split('.amazonaws.com/')[1].split('?')[0];
-  } else if (fileUrl.includes(process.env.S3_CLOUDFRONT_URL || '')) {
-    key = fileUrl.replace(process.env.S3_CLOUDFRONT_URL + '/', '');
-  } else if (fileUrl.startsWith('/')) {
-    // Handle local URL format
-    key = fileUrl.substring(1);
-  }
-  
+export async function markAsEmailedS3(key: string): Promise<void> {
   // Update metadata
   await updateS3Metadata(key, {
     emailSent: 'true',

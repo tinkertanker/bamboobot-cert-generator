@@ -3,6 +3,7 @@ import type { SavedProject } from "@/lib/project-storage";
 import type { EmailConfig, TableData } from "@/types/certificate";
 import { ProjectStorage } from "@/lib/project-storage";
 import { SessionStorage } from "@/lib/session-storage";
+import { normalizeLegacyPrivateAssetReference } from "@/lib/storage-urls";
 import {
   applyAutomaticTextColor,
   normalizeAutomaticTextColorProvenance
@@ -182,8 +183,12 @@ export function useProjectManagement({
 
           // Load the certificate image
           if (project.certificateImage.url) {
-            setUploadedFileUrl(project.certificateImage.url);
-            setUploadedFile(project.certificateImage.filename);
+            const asset = normalizeLegacyPrivateAssetReference(
+              project.certificateImage.url,
+              project.certificateImage.filename,
+            );
+            setUploadedFileUrl(asset.url);
+            setUploadedFile(asset.filename);
           }
 
           showToast({
@@ -258,8 +263,12 @@ export function useProjectManagement({
 
       // Update the certificate image URL and file
       if (project.certificateImage.url) {
-        setUploadedFileUrl(project.certificateImage.url);
-        setUploadedFile(project.certificateImage.filename);
+        const asset = normalizeLegacyPrivateAssetReference(
+          project.certificateImage.url,
+          project.certificateImage.filename,
+        );
+        setUploadedFileUrl(asset.url);
+        setUploadedFile(asset.filename);
       }
 
       console.log("Project loaded successfully:", project.name);

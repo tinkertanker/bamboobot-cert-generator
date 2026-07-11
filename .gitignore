@@ -46,6 +46,7 @@ dev.log
 tmp/
 public/generated/
 public/temp_images/
+/storage/
 **/.claude/settings.local.json
 
 # Docker volume data

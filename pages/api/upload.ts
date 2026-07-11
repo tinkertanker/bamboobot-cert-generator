@@ -5,6 +5,7 @@ import path from 'path';
 import { IncomingForm, File, Fields, Files } from 'formidable';
 import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
+import { uploadToS3 } from '@/lib/s3-client';
 import { getTempImagesDir, ensureAllDirectoriesExist, ensureDirectoryExists } from '@/lib/paths';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { debug, error } from '@/lib/log';
@@ -159,19 +160,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       debug('Uploading to R2...');
       
       // Upload original image to R2 for display
-      const uploadResult = await uploadToR2(
+      await uploadToR2(
         Buffer.from(originalImageBytes),
         `temp_images/u_${userId}/${imageName}`,
         mimetype,
         imageName
       );
-      imageUrl = uploadResult.url;
+      imageUrl = storageConfig.getFileUrl(`u_${userId}/${imageName}`, undefined, 'temp_images');
       
       // Also save image locally as backup
       const imageFilepath = path.join(userTempDir, imageName);
       await fsPromises.copyFile(filepath, imageFilepath);
       
       debug('R2 upload successful:', imageUrl);
+    } else if (storageConfig.isS3Enabled) {
+      await uploadToS3(
+        Buffer.from(originalImageBytes),
+        `temp_images/u_${userId}/${imageName}`,
+        mimetype,
+        imageName,
+      );
+      imageUrl = storageConfig.getFileUrl(`u_${userId}/${imageName}`, undefined, 'temp_images');
+      const imageFilepath = path.join(userTempDir, imageName);
+      await fsPromises.copyFile(filepath, imageFilepath);
     } else {
       // Fallback to local storage - always use temp_images for user uploads
       const imageFilepath = path.join(userTempDir, imageName);
@@ -183,7 +194,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json({
       message: 'Template uploaded successfully',
-      filename: pdfFilename,
+      filename: `u_${userId}/${pdfFilename}`,
       image: imageUrl,
       storageType: storageConfig.isR2Enabled ? 'r2' : storageConfig.isS3Enabled ? 's3' : 'local'
     });

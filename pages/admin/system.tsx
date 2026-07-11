@@ -10,6 +10,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { getGeneratedDir, getTempImagesDir } from '@/lib/paths';
 
 interface SystemInfo {
   database: {
@@ -321,8 +322,8 @@ export const getServerSideProps: GetServerSideProps<SystemPageProps> = async (co
   ]);
   
   // Check local storage
-  const tempImagesDir = path.join(process.cwd(), 'public', 'temp_images');
-  const generatedDir = path.join(process.cwd(), 'public', 'generated');
+  const tempImagesDir = getTempImagesDir();
+  const generatedDir = getGeneratedDir();
   
   const getDirectorySize = (dir: string) => {
     let size = 0;

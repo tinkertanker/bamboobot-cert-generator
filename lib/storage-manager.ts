@@ -3,7 +3,7 @@ import path from 'path';
 import storageConfig from './storage-config';
 import { listFiles as listR2Files, deleteFromR2 } from './r2-client';
 import { listAllS3Objects, deleteFromS3 } from './s3-client';
-import { getGeneratedDir, getTempImagesDir } from './paths';
+import { getGeneratedDir, getLocalStorageDir, getTempImagesDir } from './paths';
 
 export type StorageProvider = 'local' | 'cloudflare-r2' | 'amazon-s3';
 
@@ -41,7 +41,7 @@ function walkLocal(dir: string, basePrefix: string): StorageItem[] {
         stack.push(full);
         continue;
       }
-      const rel = path.relative(path.join(process.cwd(), 'public'), full).replaceAll('\\', '/');
+      const rel = path.relative(getLocalStorageDir(), full).replaceAll('\\', '/');
       items.push({
         key: `${rel}`,
         size: stat.size,
@@ -130,7 +130,7 @@ export async function deleteObjects(actions: Array<{ key: string; isPrefix?: boo
   // Local deletions
   for (const a of safeActions) {
     try {
-      const full = path.join(process.cwd(), 'public', a.key);
+      const full = path.join(getLocalStorageDir(), a.key);
       if (a.isPrefix) {
         // Delete everything under the directory
         if (fs.existsSync(full)) {
@@ -143,7 +143,7 @@ export async function deleteObjects(actions: Array<{ key: string; isPrefix?: boo
             // Fallback: walk both roots and remove filtered
             const all = await listAllObjects(a.key);
             for (const f of all) {
-              const abs = path.join(process.cwd(), 'public', f.key);
+              const abs = path.join(getLocalStorageDir(), f.key);
               if (fs.existsSync(abs)) fs.rmSync(abs, { force: true });
               deleted.push(f.key);
             }
@@ -173,4 +173,3 @@ export function formatBytes(bytes: number): string {
   const value = bytes / Math.pow(k, i);
   return `${value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2)} ${sizes[i]}`;
 }
-

@@ -18,10 +18,13 @@ import path from 'path';
 import * as fontkit from '@pdf-lib/fontkit';
 import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
+import { uploadToS3 } from '@/lib/s3-client';
 import fs from 'fs';
 import { debug, error } from '@/lib/log';
 import { rateLimit, buildKey } from '@/lib/rate-limit';
 import { withFeatureGate } from '@/lib/server/middleware/featureGate';
+import { getGeneratedDir } from '@/lib/paths';
+import { getAuthorizedTemplateCandidates, PrivateFileAccessError } from '@/lib/security/private-file-access';
 import {
   Entry,
   Position,
@@ -86,61 +89,23 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
       return;
     }
     
-    // Handle R2 storage - download template if using R2
-    let templatePdfBytes: Buffer;
-    
     debug('Looking for template:', templateFilename);
-    
-    // Check if this is a template file (e.g., dev-mode-template.pdf)
-    // const isTemplate = templateFilename.startsWith('dev-mode-template');
-    
-    if (storageConfig.isR2Enabled) {
-      // For R2, we need to handle the template differently
-      // Check both directories as files might be in either location
-      const templateImagePath = path.join(process.cwd(), 'public', 'template_images', templateFilename);
-      const tempImagePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename);
-      
-      debug('R2 mode - checking for template in both directories');
-      
-      let localTemplatePath: string | null = null;
-      if (fs.existsSync(templateImagePath)) {
-        localTemplatePath = templateImagePath;
-        debug('Template found in template_images:', localTemplatePath);
-      } else if (fs.existsSync(tempImagePath)) {
-        localTemplatePath = tempImagePath;
-        debug('Template found in temp_images:', localTemplatePath);
-      }
-      
-      if (localTemplatePath) {
-        templatePdfBytes = await fsPromises.readFile(localTemplatePath);
-        debug('Template loaded successfully, size:', templatePdfBytes.length);
-      } else {
-        error('Template not found in either directory:', { templateImagePath, tempImagePath });
-        res.status(404).json({ error: 'Template not found' });
+    let templateCandidates: string[];
+    try {
+      templateCandidates = getAuthorizedTemplateCandidates(templateFilename, userId);
+    } catch (accessError) {
+      if (accessError instanceof PrivateFileAccessError) {
+        res.status(accessError.statusCode).json({ error: accessError.message });
         return;
       }
-    } else {
-      // Check both directories - template_images first, then temp_images
-      const templateImagePath = path.join(process.cwd(), 'public', 'template_images', templateFilename);
-      const tempImagePath = path.join(process.cwd(), 'public', 'temp_images', templateFilename);
-      
-      let templatePath: string | null = null;
-      
-      // Check both locations regardless of isTemplate flag
-      if (fs.existsSync(templateImagePath)) {
-        templatePath = templateImagePath;
-        debug('Local mode - reading template from template_images:', templatePath);
-      } else if (fs.existsSync(tempImagePath)) {
-        templatePath = tempImagePath;
-        debug('Local mode - reading from temp_images:', templatePath);
-      } else {
-        error('Template not found in either directory:', { templateImagePath, tempImagePath });
-        res.status(404).json({ error: 'Template not found in both template_images and temp_images' });
-        return;
-      }
-      
-      templatePdfBytes = await fsPromises.readFile(templatePath);
+      throw accessError;
     }
+    const templatePath = templateCandidates.find(candidate => fs.existsSync(candidate));
+    if (!templatePath) {
+      res.status(404).json({ error: 'Template not found' });
+      return;
+    }
+    const templatePdfBytes = await fsPromises.readFile(templatePath);
     
     const pdfDoc = await PDFDocument.load(templatePdfBytes);
 
@@ -244,19 +209,22 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
       generatedPdfs.push(pdfBytes);
     }
 
-    // Only create local directory if not using R2
-    const outputDir = path.join(process.cwd(), 'public', 'generated');
-    if (!storageConfig.isR2Enabled) {
+    const userGeneratedPrefix = `u_${userId}`;
+    // Only create local directories when no cloud provider is active.
+    const outputDir = getGeneratedDir();
+    if (!storageConfig.isR2Enabled && !storageConfig.isS3Enabled) {
       await fsPromises.mkdir(outputDir, { recursive: true });
     }
 
     if (mode === 'individual') {
       // Generate individual PDFs
       const timestamp = Date.now();
-      const sessionDir = path.join(outputDir, `individual_${timestamp}`);
+      const sessionName = `individual_${timestamp}`;
+      const relativeSessionDir = `${userGeneratedPrefix}/${sessionName}`;
+      const sessionDir = path.join(outputDir, relativeSessionDir);
       
       // Only create local directory if not using R2
-      if (!storageConfig.isR2Enabled) {
+      if (!storageConfig.isR2Enabled && !storageConfig.isS3Enabled) {
         await fsPromises.mkdir(sessionDir, { recursive: true });
       }
       
@@ -289,15 +257,26 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
         let fileUrl: string;
         
         if (storageConfig.isR2Enabled) {
-          // Upload to R2
-          const r2Key = `generated/individual_${timestamp}/${filename}`;
-          const uploadResult = await uploadToR2(Buffer.from(pdfBytes), r2Key, 'application/pdf', filename);
-          fileUrl = uploadResult.url;
+          await uploadToR2(
+            Buffer.from(pdfBytes),
+            `generated/${relativeSessionDir}/${filename}`,
+            'application/pdf',
+            filename,
+          );
+          fileUrl = storageConfig.getFileUrl(filename, relativeSessionDir);
+        } else if (storageConfig.isS3Enabled) {
+          await uploadToS3(
+            Buffer.from(pdfBytes),
+            `generated/${relativeSessionDir}/${filename}`,
+            'application/pdf',
+            filename,
+          );
+          fileUrl = storageConfig.getFileUrl(filename, relativeSessionDir);
         } else {
           // Save locally
           const filePath = path.join(sessionDir, filename);
           await fsPromises.writeFile(filePath, pdfBytes);
-          fileUrl = storageConfig.getFileUrl(filename, `individual_${timestamp}`);
+          fileUrl = storageConfig.getFileUrl(filename, relativeSessionDir);
         }
         
         return {
@@ -324,17 +303,22 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
 
       const pdfBytes = await mergedPdf.save();
       const outputFilename = `certificates_${Date.now()}.pdf`;
+      const relativeOutputPath = `${userGeneratedPrefix}/${outputFilename}`;
       let fileUrl: string;
       
       if (storageConfig.isR2Enabled) {
-        // Upload to R2
-        const uploadResult = await uploadToR2(Buffer.from(pdfBytes), `generated/${outputFilename}`, 'application/pdf', outputFilename);
-        fileUrl = uploadResult.url;
+        await uploadToR2(Buffer.from(pdfBytes), `generated/${relativeOutputPath}`, 'application/pdf', outputFilename);
+        fileUrl = storageConfig.getFileUrl(outputFilename, userGeneratedPrefix);
+      } else if (storageConfig.isS3Enabled) {
+        await uploadToS3(Buffer.from(pdfBytes), `generated/${relativeOutputPath}`, 'application/pdf', outputFilename);
+        fileUrl = storageConfig.getFileUrl(outputFilename, userGeneratedPrefix);
       } else {
         // Save locally
-        const outputPath = path.join(outputDir, outputFilename);
+        const userOutputDir = path.join(outputDir, userGeneratedPrefix);
+        await fsPromises.mkdir(userOutputDir, { recursive: true });
+        const outputPath = path.join(userOutputDir, outputFilename);
         await fsPromises.writeFile(outputPath, pdfBytes);
-        fileUrl = storageConfig.getFileUrl(outputFilename);
+        fileUrl = storageConfig.getFileUrl(outputFilename, userGeneratedPrefix);
       }
       
       res.status(200).json({

@@ -1,6 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { getGeneratedDir } from '@/lib/paths';
+import { verifySignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
+import storageConfig from '@/lib/storage-config';
+import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
+import { getS3SignedUrl } from '@/lib/s3-client';
 
 const DEFAULT_MAX_PDF_BYTES = 25 * 1024 * 1024;
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
@@ -137,20 +141,21 @@ export function resolveManagedLocalPdfPath(value: string): string {
     throw new PdfSourceError('INVALID_SOURCE', 'Invalid local PDF source', 400);
   }
 
-  let encodedRelativePath: string;
-  if (parsed.pathname.startsWith('/api/files/generated/')) {
-    encodedRelativePath = parsed.pathname.slice('/api/files/generated/'.length);
-  } else if (parsed.pathname.startsWith('/generated/')) {
-    encodedRelativePath = parsed.pathname.slice('/generated/'.length);
-  } else {
-    throw new PdfSourceError('INVALID_SOURCE', 'Local PDF source is outside generated storage', 400);
-  }
-
   let relativePath: string;
-  try {
-    relativePath = decodeURIComponent(encodedRelativePath);
-  } catch {
-    throw new PdfSourceError('INVALID_SOURCE', 'Invalid encoded PDF path', 400);
+  if (parsed.pathname === '/api/files/download') {
+    const signedPath = parsed.searchParams.get('path');
+    const expires = parsed.searchParams.get('expires');
+    const signature = parsed.searchParams.get('signature');
+    if (!signedPath || !expires || !signature) {
+      throw new PdfSourceError('INVALID_SOURCE', 'Incomplete signed PDF source', 400);
+    }
+    try {
+      relativePath = verifySignedGeneratedFileUrl(signedPath, expires, signature);
+    } catch {
+      throw new PdfSourceError('INVALID_SOURCE', 'Invalid signed PDF source', 403);
+    }
+  } else {
+    throw new PdfSourceError('INVALID_SOURCE', 'A signed generated PDF source is required', 403);
   }
 
   if (!relativePath || relativePath.includes('\0') || path.extname(relativePath).toLowerCase() !== '.pdf') {
@@ -306,6 +311,39 @@ export async function loadTrustedPdf(
   // Callers may request a smaller budget (for example, the remaining ZIP
   // budget), but may never raise the configured per-source ceiling.
   const effectiveMaxBytes = Math.min(maxBytes, getMaxPdfSourceBytes());
+
+  let parsedSource: URL | null = null;
+  try {
+    parsedSource = new URL(value, 'http://local.invalid');
+  } catch {
+    // The existing local/remote validation below will produce the public error.
+  }
+
+  if (parsedSource?.pathname === '/api/files/download') {
+    const signedPath = parsedSource.searchParams.get('path');
+    const expires = parsedSource.searchParams.get('expires');
+    const signature = parsedSource.searchParams.get('signature');
+    if (!signedPath || !expires || !signature) {
+      throw new PdfSourceError('INVALID_SOURCE', 'Incomplete signed PDF source', 400);
+    }
+
+    let verifiedPath: string;
+    try {
+      verifiedPath = verifySignedGeneratedFileUrl(signedPath, expires, signature);
+    } catch {
+      throw new PdfSourceError('INVALID_SOURCE', 'Invalid signed PDF source', 403);
+    }
+
+    if (storageConfig.isR2Enabled) {
+      const providerUrl = await getR2SignedUrl(`generated/${verifiedPath}`);
+      return { buffer: await fetchTrustedRemotePdf(providerUrl, effectiveMaxBytes, options.timeoutMs), source: 'remote' };
+    }
+    if (storageConfig.isS3Enabled) {
+      const providerUrl = await getS3SignedUrl(`generated/${verifiedPath}`);
+      return { buffer: await fetchTrustedRemotePdf(providerUrl, effectiveMaxBytes, options.timeoutMs), source: 'remote' };
+    }
+    return { buffer: readManagedLocalPdf(parsedSource.pathname + parsedSource.search, effectiveMaxBytes), source: 'local' };
+  }
 
   if (/^https?:\/\//i.test(value)) {
     return {

@@ -70,8 +70,8 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 - **Next.js Config**: Uses `next.config.js` (CommonJS format)
 - **Coordinate System**: PDF uses bottom-left origin (0,0), UI uses top-left - conversion in API
 - **File Storage**: 
-  - Development: `public/` directory
-  - Production: Docker volumes + cloud storage (R2/S3)
+  - Development: private `storage/` directory
+  - Production: private Docker volumes + cloud storage (R2/S3)
 - **Email**: Multi-provider (Resend/SES) with auto-detection
 - **Cloud Storage**: Multi-provider (Cloudflare R2/Amazon S3) with lifecycle management
 - **Table Virtualization**: Uses react-window for datasets > 100 rows
@@ -309,7 +309,7 @@ npm run cleanup:old:dry # Preview what would be deleted without actually deletin
 ### Manual Cleanup
 ```bash
 # Local Development
-rm -rf public/temp_images/* public/generated/*
+rm -rf storage/temp_images/* storage/generated/*
 
 # Docker Production
 rm -rf ./data/temp_images/* ./data/generated/*

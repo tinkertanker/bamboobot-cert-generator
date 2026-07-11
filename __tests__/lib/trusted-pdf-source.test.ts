@@ -8,6 +8,7 @@ import {
   validateTrustedRemotePdfUrl,
 } from '@/lib/security/trusted-pdf-source';
 import { getGeneratedDir } from '@/lib/paths';
+import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
 
 const originalEnv = process.env;
 const originalFetch = global.fetch;
@@ -51,6 +52,7 @@ describe('trusted PDF source loading', () => {
       R2_PUBLIC_URL: 'https://certs.example.com',
       S3_BUCKET_NAME: 'certificate-bucket',
       S3_REGION: 'ap-southeast-1',
+      NEXTAUTH_SECRET: 'test-signing-secret',
     };
     global.fetch = jest.fn();
   });
@@ -136,12 +138,23 @@ describe('trusted PDF source loading', () => {
   });
 
   it('confines local sources to generated PDF paths', () => {
-    expect(resolveManagedLocalPdfPath('/generated/session/cert.pdf'))
-      .toContain('public/generated/session/cert.pdf');
+    const signedUrl = createSignedGeneratedFileUrl('session/cert.pdf');
+    expect(resolveManagedLocalPdfPath(signedUrl)).toContain('storage/generated/session/cert.pdf');
+    expect(() => resolveManagedLocalPdfPath('/generated/session/cert.pdf'))
+      .toThrow(PdfSourceError);
     expect(() => resolveManagedLocalPdfPath('/generated/../../package.pdf'))
       .toThrow(PdfSourceError);
     expect(() => resolveManagedLocalPdfPath('/api/files/temp_images/u_1/cert.pdf'))
       .toThrow(PdfSourceError);
+  });
+
+  it('accepts only valid signed local download sources', () => {
+    const signedUrl = createSignedGeneratedFileUrl('session/cert.pdf');
+    expect(resolveManagedLocalPdfPath(signedUrl))
+      .toContain('storage/generated/session/cert.pdf');
+
+    const tamperedUrl = signedUrl.replace('session%2Fcert.pdf', 'session%2Fother.pdf');
+    expect(() => resolveManagedLocalPdfPath(tamperedUrl)).toThrow(PdfSourceError);
   });
 
   it('rejects local symlinks that resolve outside generated storage', async () => {
@@ -154,7 +167,7 @@ describe('trusted PDF source loading', () => {
         : '/private/outside.pdf';
     }) as typeof fs.realpathSync);
 
-    await expect(loadTrustedPdf('/generated/link.pdf'))
+    await expect(loadTrustedPdf(createSignedGeneratedFileUrl('link.pdf')))
       .rejects.toMatchObject({ code: 'INVALID_SOURCE', statusCode: 403 });
     expect(readFile).not.toHaveBeenCalled();
   });
@@ -173,7 +186,7 @@ describe('trusted PDF source loading', () => {
     } as fs.Stats);
     jest.spyOn(fs, 'readFileSync').mockReturnValue(pdf);
 
-    await expect(loadTrustedPdf('/generated/session/certificate.pdf'))
+    await expect(loadTrustedPdf(createSignedGeneratedFileUrl('session/certificate.pdf')))
       .resolves.toEqual({ buffer: pdf, source: 'local' });
   });
 

@@ -13,10 +13,10 @@ services:
       NEXT_TELEMETRY_DISABLED: 1
       CLIENT_MAX_BODY_SIZE: 20M # nginx-proxy max upload size
     volumes:
-      # Persist uploaded templates and generated PDFs
-      - ./data/temp_images:/app/public/temp_images
-      - ./data/generated:/app/public/generated
-      - ./data/template_images:/app/public/template_images
+      # Persist user files outside Next.js' publicly served directory
+      - ./data/temp_images:/app/storage/temp_images
+      - ./data/generated:/app/storage/generated
+      - ./data/template_images:/app/storage/template_images
       # Persist SQLite database file only (preserves schema.prisma from image)
       - ./data/database.db:/app/prisma/database.db
     networks:
