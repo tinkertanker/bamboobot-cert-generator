@@ -84,7 +84,7 @@ export interface PdfFile {
   filename: string;
   url: string;
   originalIndex: number;
-  data?: Uint8Array; // Optional raw PDF data for client-side generated PDFs
+  blob?: Blob; // Canonical client-side representation for streamed PDFs
 }
 
 // Container dimensions for PDF generation

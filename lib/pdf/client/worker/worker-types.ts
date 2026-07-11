@@ -13,9 +13,15 @@ export interface WorkerRequest {
 }
 
 export interface WorkerResponse {
-  type: 'progress' | 'complete' | 'error' | 'ready';
-  id: string;
+  type: 'progress' | 'file' | 'complete' | 'error' | 'ready';
+  id?: string;
   payload: unknown;
+}
+
+export interface WorkerFilePayload {
+  filename: string;
+  data: Uint8Array;
+  originalIndex: number;
 }
 
 export interface GeneratePayload {

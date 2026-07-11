@@ -202,6 +202,7 @@ export default function HomePage() {
     uploadError,
     clearError,
     localBlobUrl,
+    localPdfByteLength,
     uploadToServer
   } = useFileUpload();
 
@@ -301,13 +302,15 @@ export default function HomePage() {
     generatePdf: generateClientPdf,
     generateIndividualPdfs: generateClientIndividualPdfs,
     handleDownloadPdf: handleClientDownloadPdf,
-    clearPdfData: clearClientPdfData
+    clearPdfData: clearClientPdfData,
+    assessIndividualCapacity
   } = useClientPdfGeneration({
     tableData,
     positions,
     uploadedFile,
     uploadedFileUrl,
     localBlobUrl,
+    localPdfByteLength,
     selectedNamingColumn,
     setSelectedNamingColumn,
     enabled: true // Always enabled, client-side is default
@@ -333,6 +336,7 @@ export default function HomePage() {
     setIndividualPdfsData,
     generateClientPdf,
     generateClientIndividualPdfs,
+    assessClientIndividualCapacity: assessIndividualCapacity,
     clientGeneratedPdfUrl,
     clientIndividualPdfsData,
     uploadToServer

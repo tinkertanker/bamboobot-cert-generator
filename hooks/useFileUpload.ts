@@ -6,6 +6,7 @@ export interface UseFileUploadReturn {
   uploadedFile: File | string | null;
   uploadedFileUrl: string | null;
   localBlobUrl: string | null;  // New: blob URL for local file access
+  localPdfByteLength: number | null;
   isLoading: boolean;
   isDraggingFile: boolean;
   uploadError: { title: string; message: string; action: string } | null;
@@ -91,6 +92,7 @@ export function useFileUpload(): UseFileUploadReturn {
     setUploadedFile(file);
     setPendingFile(file);
     setPendingIsTemplate(isTemplate);
+    setPdfBlob(null);
     
     // Clean up previous blob URL
     if (localBlobUrl) {
@@ -195,6 +197,7 @@ export function useFileUpload(): UseFileUploadReturn {
     uploadedFile,
     uploadedFileUrl,
     localBlobUrl,
+    localPdfByteLength: pdfBlob?.size ?? null,
     isLoading,
     isDraggingFile,
     uploadError,

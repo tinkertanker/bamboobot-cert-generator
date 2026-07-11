@@ -11,7 +11,8 @@ import type {
   WorkerResponse, 
   GeneratePayload,
   Position,
-  Entry 
+  Entry,
+  WorkerFilePayload
 } from './worker/worker-types';
 import type { PdfGenerationProgress } from '../types';
 import { PROGRESSIVE_PDF } from '@/utils/constants';
@@ -31,13 +32,13 @@ export interface GenerateOptions {
   uiContainerDimensions: { width: number; height: number };
   mode?: 'single' | 'individual';
   namingColumn?: string;
+  onFile?: (file: WorkerFilePayload) => void;
 }
 
 export interface GenerateResult {
   success: boolean;
   mode: 'single' | 'individual';
   data?: Uint8Array; // For single mode
-  files?: Array<{ filename: string; data: Uint8Array; originalIndex: number }>; // For individual mode
   error?: Error;
 }
 
@@ -51,6 +52,7 @@ export class ClientPdfGenerator {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolve: (value: any) => void;
     reject: (error: Error) => void;
+    onFile?: (file: WorkerFilePayload) => void;
   }> = new Map();
   private isInitialized = false;
   private initPromise: Promise<void> | null = null;
@@ -130,6 +132,8 @@ export class ClientPdfGenerator {
    */
   private handleWorkerMessage(event: MessageEvent<WorkerResponse>) {
     const { type, id, payload } = event.data;
+    if (!id) return;
+
     const pending = this.pendingRequests.get(id);
 
     if (!pending) return;
@@ -142,6 +146,18 @@ export class ClientPdfGenerator {
       case 'error':
         pending.reject(new Error((payload as { message: string }).message));
         this.pendingRequests.delete(id);
+        break;
+      case 'file':
+        try {
+          pending.onFile?.(payload as WorkerFilePayload);
+        } catch (error) {
+          pending.reject(
+            error instanceof Error
+              ? error
+              : new Error('Failed to receive generated PDF')
+          );
+          this.pendingRequests.delete(id);
+        }
         break;
       case 'progress':
         // Progress is handled via callback, not promise
@@ -181,6 +197,10 @@ export class ClientPdfGenerator {
    */
   async generate(options: GenerateOptions): Promise<GenerateResult> {
     try {
+      if (options.mode === 'individual' && !options.onFile) {
+        throw new Error('Individual PDF generation requires an onFile callback');
+      }
+
       // Ensure initialized
       await this.initialize();
 
@@ -192,7 +212,11 @@ export class ClientPdfGenerator {
 
       // Create promise for result
       const resultPromise = new Promise<GenerateResult>((resolve, reject) => {
-        this.pendingRequests.set(requestId, { resolve, reject });
+        this.pendingRequests.set(requestId, {
+          resolve,
+          reject,
+          onFile: options.onFile
+        });
       });
 
       // Send to worker
@@ -219,8 +243,7 @@ export class ClientPdfGenerator {
       return {
         success: true,
         mode: result.mode,
-        data: resultAny.pdfData || resultAny.data,
-        files: resultAny.files
+        data: resultAny.pdfData || resultAny.data
       };
     } catch (error) {
       return {

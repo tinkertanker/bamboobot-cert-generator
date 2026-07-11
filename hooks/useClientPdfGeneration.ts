@@ -4,6 +4,11 @@ import { FeatureDetector } from '@/lib/pdf/client/feature-detection';
 import { DEFAULT_FONT_SIZE } from '@/utils/constants';
 import { measureText } from '@/utils/textMeasurement';
 import type { TableData, Positions, PdfFile } from '@/types/certificate';
+import {
+  assessIndividualPdfCapacity,
+  estimateTemplateBytes,
+  type CapacityDecision
+} from '@/lib/pdf/client/individual-capacity';
 
 export interface UseClientPdfGenerationProps {
   tableData: TableData[];
@@ -12,6 +17,7 @@ export interface UseClientPdfGenerationProps {
   uploadedFileUrl?: string | null;
   localFileBlob?: Blob | null;
   localBlobUrl?: string | null;
+  localPdfByteLength?: number | null;
   selectedNamingColumn: string;
   setSelectedNamingColumn: (column: string) => void;
   enabled?: boolean;
@@ -32,6 +38,7 @@ export interface UseClientPdfGenerationReturn {
   clearPdfData: () => void;
   getCapabilityReport: () => Promise<string>;
   canHandleDataSize: (rowCount: number) => Promise<boolean>;
+  assessIndividualCapacity: () => Promise<CapacityDecision>;
 }
 
 export function useClientPdfGeneration({
@@ -41,6 +48,7 @@ export function useClientPdfGeneration({
   uploadedFileUrl,
   localFileBlob,
   localBlobUrl,
+  localPdfByteLength,
   selectedNamingColumn,
   setSelectedNamingColumn,
   enabled = true
@@ -57,6 +65,7 @@ export function useClientPdfGeneration({
   const generatorRef = useRef<ClientPdfGenerator | null>(null);
   const featureDetectorRef = useRef<FeatureDetector | null>(null);
   const blobUrlsRef = useRef<string[]>([]);
+  const individualGenerationSequenceRef = useRef(0);
 
   // Initialize on mount
   useEffect(() => {
@@ -87,6 +96,7 @@ export function useClientPdfGeneration({
 
     // Cleanup on unmount
     return () => {
+      individualGenerationSequenceRef.current += 1;
       cleanupBlobUrls();
       if (generatorRef.current) {
         generatorRef.current.destroy();
@@ -239,6 +249,8 @@ export function useClientPdfGeneration({
     setIsGenerating(true);
     setProgress(0);
     setStage('Initializing');
+    individualGenerationSequenceRef.current += 1;
+    setIsGeneratingIndividual(false);
     cleanupBlobUrls();
 
     try {
@@ -313,7 +325,19 @@ export function useClientPdfGeneration({
     setIsGeneratingIndividual(true);
     setProgress(0);
     setStage('Initializing');
+    const generationSequence = ++individualGenerationSequenceRef.current;
     cleanupBlobUrls();
+    setIndividualPdfsData(null);
+
+    const receivedFiles: PdfFile[] = [];
+    const partialBlobUrls: string[] = [];
+    const revokePartialBlobUrls = () => {
+      const partialUrls = new Set(partialBlobUrls);
+      partialBlobUrls.forEach((url) => URL.revokeObjectURL(url));
+      blobUrlsRef.current = blobUrlsRef.current.filter(
+        (url) => !partialUrls.has(url)
+      );
+    };
 
     try {
       const containerElement = document.querySelector('.image-container img') as HTMLImageElement;
@@ -332,38 +356,66 @@ export function useClientPdfGeneration({
         positions: preparePositionsForClient(),
         uiContainerDimensions,
         mode: 'individual',
-        namingColumn: selectedNamingColumn
+        namingColumn: selectedNamingColumn,
+        onFile: (file) => {
+          if (individualGenerationSequenceRef.current !== generationSequence) {
+            return;
+          }
+
+          const dataBuffer =
+            file.data.byteOffset === 0 &&
+            file.data.byteLength === file.data.buffer.byteLength
+              ? (file.data.buffer as ArrayBuffer)
+              : file.data.slice().buffer;
+          const blob = new Blob([dataBuffer], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          partialBlobUrls.push(url);
+          blobUrlsRef.current.push(url);
+          receivedFiles.push({
+            filename: file.filename,
+            url,
+            originalIndex: file.originalIndex,
+            blob
+          });
+        }
       });
 
-      if (result.success && result.files) {
-        // Convert to blob URLs for display
-        const pdfFiles: PdfFile[] = result.files.map(file => {
-          const blobUrl = ClientPdfGenerator.createBlobUrl(file.data);
-          blobUrlsRef.current.push(blobUrl);
-          return {
-            filename: file.filename,
-            url: blobUrl,
-            originalIndex: file.originalIndex,
-            data: file.data // Keep the data for ZIP download
-          };
-        });
+      if (individualGenerationSequenceRef.current !== generationSequence) {
+        revokePartialBlobUrls();
+        return;
+      }
+
+      if (result.success) {
+        if (receivedFiles.length !== tableData.length) {
+          throw new Error(
+            `Expected ${tableData.length} PDFs but received ${receivedFiles.length}`
+          );
+        }
+
+        receivedFiles.sort((a, b) => a.originalIndex - b.originalIndex);
 
         // Set initial naming column if needed
         if (tableData.length > 0 && !selectedNamingColumn) {
           setSelectedNamingColumn(Object.keys(tableData[0])[0]);
         }
 
-        setIndividualPdfsData(pdfFiles);
+        setIndividualPdfsData(receivedFiles);
       } else {
         throw result.error || new Error('PDF generation failed');
       }
     } catch (error) {
+      revokePartialBlobUrls();
+      if (individualGenerationSequenceRef.current !== generationSequence) {
+        return;
+      }
       console.error('Error generating individual PDFs:', error);
       alert(error instanceof Error ? error.message : 'Error generating PDFs');
     } finally {
-      setIsGeneratingIndividual(false);
-      setProgress(0);
-      setStage('');
+      if (individualGenerationSequenceRef.current === generationSequence) {
+        setIsGeneratingIndividual(false);
+        setProgress(0);
+        setStage('');
+      }
     }
   }, [
     isClientSupported,
@@ -390,6 +442,7 @@ export function useClientPdfGeneration({
 
   // Clear PDF data
   const clearPdfData = useCallback(() => {
+    individualGenerationSequenceRef.current += 1;
     cleanupBlobUrls();
     setGeneratedPdfUrl(null);
     setPdfDownloadUrl(null);
@@ -416,6 +469,34 @@ export function useClientPdfGeneration({
     return featureDetectorRef.current.canHandleDataSize(rowCount);
   }, []);
 
+  const assessIndividualCapacity = useCallback(async () => {
+    const detector = featureDetectorRef.current || FeatureDetector.getInstance();
+    const memory = await detector.getMemoryInfo();
+    const visiblePositions = Object.values(positions).filter(
+      (position) => position.isVisible !== false
+    );
+    const standardFonts = new Set(['Helvetica', 'Times', 'Courier']);
+    const customFontCount = new Set(
+      visiblePositions
+        .map((position) => position.fontFamily)
+        .filter(
+          (fontFamily): fontFamily is NonNullable<typeof fontFamily> =>
+            !!fontFamily && !standardFonts.has(fontFamily)
+        )
+    ).size;
+
+    return assessIndividualPdfCapacity({
+      rowCount: tableData.length,
+      templateBytes: estimateTemplateBytes(
+        localPdfByteLength,
+        uploadedFile instanceof File ? uploadedFile : null
+      ),
+      visibleFieldCount: visiblePositions.length,
+      customFontCount,
+      memory
+    });
+  }, [localPdfByteLength, positions, tableData.length, uploadedFile]);
+
   return {
     isClientSupported,
     isGenerating,
@@ -430,6 +511,7 @@ export function useClientPdfGeneration({
     handleDownloadPdf,
     clearPdfData,
     getCapabilityReport,
-    canHandleDataSize
+    canHandleDataSize,
+    assessIndividualCapacity
   };
 }
