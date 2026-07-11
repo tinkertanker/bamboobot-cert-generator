@@ -2,12 +2,26 @@ import { NextApiResponse } from 'next';
 import type { AuthenticatedRequest } from '@/types/api';
 import { getEmailProvider } from '@/lib/email/provider-factory';
 import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
-import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { withFeatureGate } from '@/lib/server/middleware/featureGate';
 import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
 import { PdfSourceError } from '@/lib/security/trusted-pdf-source';
 import { markGeneratedFileAsEmailed } from '@/lib/storage/mark-generated';
+import { checkEmailUsageAvailability, reserveEmailUsage } from '@/lib/server/tiers';
+import {
+  assertRecipientCount,
+  EmailRequestError,
+  MAX_EMAIL_MESSAGE_LENGTH,
+  MAX_EMAIL_SENDER_NAME_LENGTH,
+  MAX_EMAIL_SUBJECT_LENGTH,
+  MAX_RECIPIENTS_PER_MESSAGE,
+  requireBoundedEmailText,
+  requireSafeEmailHeader,
+} from '@/lib/email/abuse-controls';
+import {
+  SignedFileUrlError,
+  verifySignedGeneratedFileCapabilityUrl,
+} from '@/lib/security/signed-generated-url';
 
 export const config = {
   api: {
@@ -65,6 +79,36 @@ async function sendEmailHandler(
       res.status(400).json({ error: 'No valid email addresses provided' });
       return;
     }
+    assertRecipientCount(recipients.length, MAX_RECIPIENTS_PER_MESSAGE);
+    const safeSubject = requireSafeEmailHeader(
+      requireBoundedEmailText(subject, 'subject', MAX_EMAIL_SUBJECT_LENGTH),
+      'subject',
+    );
+    const safeMessage = requireBoundedEmailText(customMessage, 'message', MAX_EMAIL_MESSAGE_LENGTH);
+    const safeSenderName = senderName === undefined || senderName === ''
+      ? 'Bamboobot Certificates'
+      : requireSafeEmailHeader(
+          requireBoundedEmailText(senderName, 'senderName', MAX_EMAIL_SENDER_NAME_LENGTH),
+          'senderName',
+        );
+    if (deliveryMethod !== 'download' && deliveryMethod !== 'attachment') {
+      throw new EmailRequestError('Invalid delivery method');
+    }
+    if (deliveryMethod === 'download') {
+      if (typeof downloadUrl !== 'string') throw new EmailRequestError('A certificate download URL is required');
+      verifySignedGeneratedFileCapabilityUrl(downloadUrl, userId);
+    }
+
+    const quotaAvailability = await checkEmailUsageAvailability(userId, recipients.length);
+    if (!quotaAvailability.allowed) {
+      res.status(403).json({
+        error: 'email limit reached',
+        code: 'LIMIT_REACHED',
+        limit: quotaAvailability.limit,
+        current: quotaAvailability.current,
+      });
+      return;
+    }
 
     // Get email provider (supports both Resend and SES)
     const emailProvider = getEmailProvider();
@@ -73,24 +117,22 @@ async function sendEmailHandler(
     const fromAddress = process.env.EMAIL_FROM || 'noreply@certificates.com';
 
     // Build proper from field with sender name
-    const fromField = senderName 
-      ? `${senderName} <${fromAddress}>`
-      : `Bamboobot Certificates <${fromAddress}>`;
+    const fromField = `${safeSenderName} <${fromAddress}>`;
 
     // Create HTML content using shared templates
     const htmlContent = deliveryMethod === 'download' 
-      ? buildLinkEmail(customMessage, downloadUrl)
-      : buildAttachmentEmail(customMessage);
+      ? buildLinkEmail(safeMessage, downloadUrl)
+      : buildAttachmentEmail(safeMessage);
 
     // Create text content
     const textContent = deliveryMethod === 'download' ? 
-      `${customMessage}
+      `${safeMessage}
 
 You can download your certificate using this secure link: ${downloadUrl}
 
 Important: This download link will expire in 90 days. Please save your certificate to your device.` 
     : 
-      customMessage;
+      safeMessage;
 
     // Build attachments if delivery method is attachment
     const attachments = deliveryMethod === 'attachment'
@@ -100,12 +142,26 @@ Important: This download link will expire in 90 days. Please save your certifica
           defaultFilename: attachmentName || 'certificate.pdf'
         })
       : undefined;
+    if (deliveryMethod === 'attachment' && (!attachments || attachments.length === 0)) {
+      throw new EmailRequestError('A certificate attachment is required');
+    }
+
+    const quota = await reserveEmailUsage(userId, recipients.length);
+    if (!quota.allowed) {
+      res.status(403).json({
+        error: 'email limit reached',
+        code: 'LIMIT_REACHED',
+        limit: quota.limit,
+        current: quota.current,
+      });
+      return;
+    }
 
     // Prepare email parameters using the standard EmailParams interface
     const emailParams = {
       to: recipients,
       from: fromField,
-      subject,
+      subject: safeSubject,
       html: htmlContent,
       text: textContent,
       attachments
@@ -139,7 +195,7 @@ Important: This download link will expire in 90 days. Please save your certifica
     return;
 
   } catch (error) {
-    if (error instanceof PdfSourceError) {
+    if (error instanceof PdfSourceError || error instanceof SignedFileUrlError || error instanceof EmailRequestError) {
       res.status(error.statusCode).json({ error: error.message });
       return;
     }
@@ -157,7 +213,7 @@ Important: This download link will expire in 90 days. Please save your certifica
 export default withFeatureGate(
   { 
     feature: 'email', 
-    increment: true,
+    increment: false,
     metadata: { endpoint: 'send-email' }
   },
   sendEmailHandler

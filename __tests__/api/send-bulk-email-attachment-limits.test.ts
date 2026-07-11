@@ -28,6 +28,12 @@ jest.mock('@/lib/auth/requireAuth', () => ({
 jest.mock('@/lib/rate-limit', () => ({
   enforceRateLimit: jest.fn(() => ({ allowed: true }))
 }));
+jest.mock('@/lib/server/tiers', () => ({
+  checkEmailUsageAvailability: jest.fn(async () => ({ allowed: true, limit: 100, current: 0 })),
+  reserveEmailUsage: jest.fn(async (_userId: string, count: number) => ({
+    allowed: true, limit: 100, current: count
+  }))
+}));
 jest.mock('../../utils/email-utils', () => {
   const actual = jest.requireActual('../../utils/email-utils');
   return { ...actual, buildPdfAttachments: jest.fn() };

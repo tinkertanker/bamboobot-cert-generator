@@ -20,12 +20,22 @@ jest.mock('@/lib/email/provider-factory', () => ({
     sendEmail: async () => ({ success: true, id: 'id123', provider: 'resend' })
   })
 }));
+jest.mock('@/lib/server/tiers', () => ({
+  checkEmailUsageAvailability: jest.fn(async () => ({ allowed: true, limit: 100, current: 0 })),
+  reserveEmailUsage: jest.fn(async () => ({ allowed: true, limit: 100, current: 1 }))
+}));
+jest.mock('@/lib/storage/mark-generated', () => ({
+  markGeneratedFileAsEmailed: jest.fn(async () => undefined)
+}));
+
+import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
 
 describe('send-email API rate limiting', () => {
   it('returns 429 after exceeding email limit', async () => {
     jest.resetModules();
     process.env.RATE_LIMIT_WINDOW_SECONDS = '1';
     process.env.RATE_LIMIT_EMAIL_PER_MIN = '2';
+    process.env.FILE_URL_SIGNING_SECRET = 'test-file-signing-secret';
 
     const { default: handler } = await import('@/pages/api/send-email');
 
@@ -38,7 +48,7 @@ describe('send-email API rate limiting', () => {
         senderName: 'T',
         customMessage: 'm',
         deliveryMethod: 'download',
-        downloadUrl: 'https://example.com/cert.pdf'
+        downloadUrl: createSignedGeneratedFileUrl('u_u1/cert.pdf')
       }
     });
 
@@ -55,6 +65,6 @@ describe('send-email API rate limiting', () => {
     ({ req, res } = makeReqRes());
     await handler(req, res);
     expect(res._getStatusCode()).toBe(429);
+    delete process.env.FILE_URL_SIGNING_SECRET;
   });
 });
-

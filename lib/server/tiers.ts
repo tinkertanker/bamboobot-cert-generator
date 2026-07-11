@@ -1,6 +1,6 @@
 // Server-side tier detection and management
 import { prisma } from './prisma';
-import type { UserTier } from '@/types/user';
+import { getTierLimits, type UserTier } from '@/types/user';
 import { isValidEmail, normaliseEmail } from '@/utils/email-utils';
 
 // Get admin configuration from environment variables
@@ -145,31 +145,103 @@ export async function updateUserTierIfNeeded(userId: string): Promise<DbUser> {
  * Check if usage counters need to be reset (daily reset)
  */
 export async function resetDailyUsageIfNeeded(userId: string): Promise<void> {
+  const now = new Date();
+  const utcDayStart = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  ));
+  await prisma.user.updateMany({
+    where: { id: userId, lastUsageReset: { lt: utcDayStart } },
+    data: {
+      dailyPdfCount: 0,
+      dailyEmailCount: 0,
+      lastUsageReset: now,
+    },
+  });
+}
+
+export interface EmailQuotaReservation {
+  allowed: boolean;
+  limit: number | null;
+  current: number;
+  tier?: UserTier;
+}
+
+export async function checkEmailUsageAvailability(
+  userId: string,
+  recipientCount: number,
+): Promise<EmailQuotaReservation> {
+  if (!Number.isSafeInteger(recipientCount) || recipientCount <= 0) {
+    throw new Error('Recipient count must be a positive integer');
+  }
+  await resetDailyUsageIfNeeded(userId);
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { lastUsageReset: true }
+    select: { tier: true, dailyEmailCount: true },
   });
-  
-  if (!user) return;
-  
-  const now = new Date();
-  const lastReset = new Date(user.lastUsageReset);
-  
-  // Check if it's a new day (UTC)
-  const isNewDay = now.getUTCDate() !== lastReset.getUTCDate() ||
-                   now.getUTCMonth() !== lastReset.getUTCMonth() ||
-                   now.getUTCFullYear() !== lastReset.getUTCFullYear();
-  
-  if (isNewDay) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        dailyPdfCount: 0,
-        dailyEmailCount: 0,
-        lastUsageReset: now
-      }
-    });
+  if (!user) return { allowed: false, limit: 0, current: 0 };
+  const tier = user.tier as UserTier;
+  const limit = getTierLimits(tier).dailyEmailLimit;
+  return {
+    allowed: limit === null || user.dailyEmailCount + recipientCount <= limit,
+    limit,
+    current: user.dailyEmailCount,
+    tier,
+  };
+}
+
+/** Atomically reserve quota for the number of actual recipients being sent. */
+export async function reserveEmailUsage(
+  userId: string,
+  recipientCount: number,
+): Promise<EmailQuotaReservation> {
+  if (!Number.isSafeInteger(recipientCount) || recipientCount <= 0) {
+    throw new Error('Recipient count must be a positive integer');
   }
+  await resetDailyUsageIfNeeded(userId);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tier: true, dailyEmailCount: true },
+  });
+  if (!user) return { allowed: false, limit: 0, current: 0 };
+
+  const tier = user.tier as UserTier;
+  const limit = getTierLimits(tier).dailyEmailLimit;
+  if (limit !== null && recipientCount > limit) {
+    return { allowed: false, limit, current: user.dailyEmailCount, tier };
+  }
+
+  const reservation = await prisma.user.updateMany({
+    where: {
+      id: userId,
+      ...(limit === null
+        ? {}
+        : { dailyEmailCount: { lte: limit - recipientCount } }),
+    },
+    data: {
+      dailyEmailCount: { increment: recipientCount },
+      lifetimeEmailCount: { increment: recipientCount },
+    },
+  });
+  if (reservation.count === 0) {
+    const current = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { dailyEmailCount: true },
+    });
+    return {
+      allowed: false,
+      limit,
+      current: current?.dailyEmailCount ?? user.dailyEmailCount,
+      tier,
+    };
+  }
+  return {
+    allowed: true,
+    limit,
+    current: user.dailyEmailCount + recipientCount,
+    tier,
+  };
 }
 
 /**
