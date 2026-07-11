@@ -33,6 +33,7 @@ export interface Position {
   bold?: boolean;
   italic?: boolean;
   color?: string;
+  isColorAutomatic?: boolean; // Whether background analysis may adjust the colour
   alignment?: TextAlignment;
   isVisible?: boolean;
   textMode?: TextMode;      // "shrink" or "multiline"
@@ -161,6 +162,7 @@ export interface ConfirmationModalsProps {
   positions: Positions;
   setPositions: React.Dispatch<React.SetStateAction<Positions>>;
   tableData: TableData[];
+  automaticTextColor: '#ffffff' | '#000000' | null;
 }
 
 // Panel props interfaces

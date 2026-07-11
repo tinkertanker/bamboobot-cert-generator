@@ -3,6 +3,10 @@ import type { SavedProject } from "@/lib/project-storage";
 import type { EmailConfig, TableData } from "@/types/certificate";
 import { ProjectStorage } from "@/lib/project-storage";
 import { SessionStorage } from "@/lib/session-storage";
+import {
+  applyAutomaticTextColor,
+  normalizeAutomaticTextColorProvenance
+} from "@/utils/imageAnalysis";
 
 interface UseProjectManagementProps {
   // State setters
@@ -29,6 +33,10 @@ interface UseProjectManagementProps {
   positions: any;
   emailConfig: EmailConfig;
   tableData: TableData[];
+  automaticTextColorResult: {
+    imageUrl: string;
+    color: '#ffffff' | '#000000';
+  } | null;
   
   // Clear functions
   clearFile: () => void;
@@ -68,6 +76,7 @@ export function useProjectManagement({
   positions,
   emailConfig,
   tableData,
+  automaticTextColorResult,
   clearFile,
   clearPositions,
   clearDragState,
@@ -78,6 +87,7 @@ export function useProjectManagement({
   const latestPositionsRef = useRef(positions);
   const latestTableDataRef = useRef(tableData);
   const latestEmailConfigRef = useRef(emailConfig);
+  const automaticTextColorResultRef = useRef(automaticTextColorResult);
 
   useEffect(() => {
     latestPositionsRef.current = positions;
@@ -90,12 +100,35 @@ export function useProjectManagement({
   useEffect(() => {
     latestEmailConfigRef.current = emailConfig;
   }, [emailConfig]);
+
+  useEffect(() => {
+    automaticTextColorResultRef.current = automaticTextColorResult;
+  }, [automaticTextColorResult]);
   const [currentProjectName, setCurrentProjectName] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [hasManuallySaved, setHasManuallySaved] = useState<boolean>(false);
   const [showSaveProjectModal, setShowSaveProjectModal] = useState<boolean>(false);
   const [showLoadProjectModal, setShowLoadProjectModal] = useState<boolean>(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
+
+  const loadProjectPositions = useCallback((project: SavedProject) => {
+    const normalizedPositions = normalizeAutomaticTextColorProvenance(
+      project.positions,
+      project.columns
+    );
+    const cachedAutomaticTextColor = automaticTextColorResultRef.current;
+    const adjustedPositions =
+      cachedAutomaticTextColor?.imageUrl === project.certificateImage.url
+        ? applyAutomaticTextColor(
+            normalizedPositions,
+            project.columns,
+            cachedAutomaticTextColor.color
+          )
+        : normalizedPositions;
+    setPositions(adjustedPositions);
+    // The normal autosave persists migrated provenance. Avoid a write-on-load
+    // that could race with edits or change the project's modified timestamp.
+  }, [setPositions]);
 
   // Load most recent project and session data on startup
   useEffect(() => {
@@ -140,7 +173,7 @@ export function useProjectManagement({
           console.log("Loading most recent project:", project.name);
 
           // Load the positions
-          setPositions(project.positions);
+          loadProjectPositions(project);
 
           // Load email configuration if present
           if (project.emailConfig) {
@@ -175,7 +208,7 @@ export function useProjectManagement({
   }, [
     loadSessionData,
     setEmailConfig,
-    setPositions,
+    loadProjectPositions,
     setUploadedFile,
     setUploadedFileUrl,
     showToast
@@ -185,7 +218,7 @@ export function useProjectManagement({
   const handleLoadProject = useCallback(
     async (project: SavedProject) => {
       // Load the positions
-      setPositions(project.positions);
+      loadProjectPositions(project);
 
       // Load the table data
       if (project.tableData && project.tableData.length > 0) {
@@ -232,7 +265,7 @@ export function useProjectManagement({
       console.log("Project loaded successfully:", project.name);
     },
     [
-      setPositions,
+      loadProjectPositions,
       setEmailConfig,
       setUploadedFileUrl,
       setUploadedFile,

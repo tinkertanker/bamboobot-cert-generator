@@ -12,8 +12,11 @@ export function ConfirmationModals({
   selectedField,
   positions,
   setPositions,
-  tableData
+  tableData,
+  automaticTextColor
 }: ConfirmationModalsProps) {
+  const resetTextColor = automaticTextColor || "#000000";
+
   return (
     <>
       {/* Reset Field Confirmation Modal */}
@@ -45,7 +48,8 @@ export function ConfirmationModals({
                     fontFamily: "Helvetica",
                     bold: false,
                     italic: false,
-                    color: "#000000",
+                    color: resetTextColor,
+                    isColorAutomatic: true,
                     alignment: "left"
                   }
                 }));
@@ -92,7 +96,8 @@ export function ConfirmationModals({
                       fontFamily: "Helvetica",
                       bold: false,
                       italic: false,
-                      color: "#000000",
+                      color: resetTextColor,
+                      isColorAutomatic: true,
                       alignment: "left"
                     };
                   }
