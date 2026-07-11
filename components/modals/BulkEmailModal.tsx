@@ -679,7 +679,9 @@ export function BulkEmailModal({
           open={showPreview}
           onClose={() => setShowPreview(false)}
           emailConfig={emailConfig}
-          sampleEmail={validCertificates[0].email}
+          sampleEmail={parseRecipientsDetailed(
+            validCertificates[0].email
+          ).valid.join(', ')}
           sampleFileName={validCertificates[0].fileName}
           sampleDownloadUrl={validCertificates[0].downloadUrl}
         />
