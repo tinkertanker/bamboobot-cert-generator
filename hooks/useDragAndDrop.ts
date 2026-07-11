@@ -19,6 +19,21 @@ export interface UseDragAndDropReturn {
   clearDragState: () => void;
 }
 
+export function updatePositionIfChanged(
+  positions: Positions,
+  key: string,
+  x: number,
+  y: number
+): Positions {
+  const current = positions[key];
+  if (current?.x === x && current.y === y) return positions;
+
+  return {
+    ...positions,
+    [key]: { ...current, x, y }
+  };
+}
+
 export function useDragAndDrop({
   positions,
   setPositions,
@@ -34,13 +49,19 @@ export function useDragAndDrop({
 
   // Throttled position update for 60fps (16ms)
   const updatePosition = useCallback((key: string, x: number, y: number) => {
-    setPositions((prev) => ({
-      ...prev,
-      [key]: { ...prev[key], x, y }
-    }));
+    setPositions((prev) => updatePositionIfChanged(prev, key, x, y));
   }, [setPositions]);
 
   const throttledUpdatePosition = useThrottle(updatePosition, 16);
+
+  const updateCenterGuide = useCallback((next: CenterGuideState) => {
+    setShowCenterGuide((current) =>
+      current.horizontal === next.horizontal &&
+      current.vertical === next.vertical
+        ? current
+        : next
+    );
+  }, []);
 
   // Global pointer event handlers for smooth dragging
   useEffect(() => {
@@ -70,11 +91,9 @@ export function useDragAndDrop({
           y < -threshold ||
           y > 100 + threshold
         ) {
-          // If dragged too far, reset to center but preserve other properties
-          setPositions((prev) => ({
-            ...prev,
-            [dragInfo.key]: { ...prev[dragInfo.key], x: 50, y: 50 }
-          }));
+          // If dragged too far, reset to center through the same frame throttle.
+          updateCenterGuide({ horizontal: false, vertical: false });
+          throttledUpdatePosition(dragInfo.key, 50, 50);
         } else {
           // Clamp the values between 0 and 100 but preserve other properties
           let clampedX = Math.max(0, Math.min(100, x));
@@ -98,7 +117,7 @@ export function useDragAndDrop({
           }
 
           // Show/hide center guides based on which axis is snapping
-          setShowCenterGuide({
+          updateCenterGuide({
             horizontal: isSnappingHorizontal,
             vertical: isSnappingVertical
           });
@@ -128,7 +147,7 @@ export function useDragAndDrop({
         document.removeEventListener("pointercancel", handleGlobalPointerUp);
       };
     }
-  }, [isDragging, dragInfo, throttledUpdatePosition]);
+  }, [isDragging, dragInfo, throttledUpdatePosition, updateCenterGuide]);
 
   // Cleanup drag state on unmount
   useEffect(() => {

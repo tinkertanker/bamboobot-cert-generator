@@ -980,15 +980,23 @@ export default function HomePage() {
       </main>
 
       {/* Modal Components */}
-      <PdfGenerationModal
-        isGenerating={isGenerating}
-        generatedPdfUrl={generatedPdfUrl}
-        handleDownloadPdf={handleDownloadPdf}
-        setGeneratedPdfUrl={setGeneratedPdfUrl}
-        onClose={() => setGeneratedPdfUrl(null)}
-      />
+      {(isGenerating || generatedPdfUrl) && (
+        <PdfGenerationModal
+          isGenerating={isGenerating}
+          generatedPdfUrl={generatedPdfUrl}
+          handleDownloadPdf={handleDownloadPdf}
+          setGeneratedPdfUrl={setGeneratedPdfUrl}
+          onClose={() => setGeneratedPdfUrl(null)}
+        />
+      )}
 
-      <IndividualPdfsModal
+      {(isGeneratingIndividual ||
+        isProgressiveGenerating ||
+        isClientGeneratingIndividual ||
+        !!individualPdfsData ||
+        !!clientIndividualPdfsData ||
+        !!progressivePdfProgress) && (
+        <IndividualPdfsModal
         isGeneratingIndividual={
           isGeneratingIndividual || isProgressiveGenerating || isClientGeneratingIndividual
         }
@@ -1028,22 +1036,26 @@ export default function HomePage() {
             clearClientPdfData();
           }
         }}
-      />
+        />
+      )}
 
-      <ConfirmationModals
-        showResetFieldModal={showResetFieldModal}
-        setShowResetFieldModal={setShowResetFieldModal}
-        showClearAllModal={showClearAllModal}
-        setShowClearAllModal={setShowClearAllModal}
-        selectedField={selectedField}
-        positions={positions}
-        setPositions={setPositions}
-        tableData={tableData}
-        automaticTextColor={automaticTextColor}
-      />
+      {(showResetFieldModal || showClearAllModal) && (
+        <ConfirmationModals
+          showResetFieldModal={showResetFieldModal}
+          setShowResetFieldModal={setShowResetFieldModal}
+          showClearAllModal={showClearAllModal}
+          setShowClearAllModal={setShowClearAllModal}
+          selectedField={selectedField}
+          positions={positions}
+          setPositions={setPositions}
+          tableData={tableData}
+          automaticTextColor={automaticTextColor}
+        />
+      )}
 
       {/* Project Modals */}
-      <SaveProjectModal
+      {showSaveProjectModal && (
+        <SaveProjectModal
         isOpen={showSaveProjectModal}
         onClose={() => setShowSaveProjectModal(false)}
         positions={positions}
@@ -1075,22 +1087,27 @@ export default function HomePage() {
           }
           return baseManualSave(projectName, finalUrl ?? undefined, finalFilename ?? undefined);
         }}
-      />
+        />
+      )}
 
-      <LoadProjectModal
-        isOpen={showLoadProjectModal}
-        onClose={() => setShowLoadProjectModal(false)}
-        onLoadProject={handleLoadProject}
-      />
+      {showLoadProjectModal && (
+        <LoadProjectModal
+          isOpen
+          onClose={() => setShowLoadProjectModal(false)}
+          onLoadProject={handleLoadProject}
+        />
+      )}
 
-      <NewProjectModal
-        isOpen={showNewProjectModal}
-        onClose={() => setShowNewProjectModal(false)}
-        onConfirm={confirmNewProject}
-        hasUnsavedWork={
-          uploadedFileUrl !== null && Object.keys(positions || {}).length > 0
-        }
-      />
+      {showNewProjectModal && (
+        <NewProjectModal
+          isOpen
+          onClose={() => setShowNewProjectModal(false)}
+          onConfirm={confirmNewProject}
+          hasUnsavedWork={
+            uploadedFileUrl !== null && Object.keys(positions || {}).length > 0
+          }
+        />
+      )}
 
       {/* Toast Container */}
       <ToastContainer toasts={toasts} onClose={hideToast} />
@@ -1113,21 +1130,23 @@ export default function HomePage() {
 
 
       {/* Onboarding Modal */}
-      <OnboardingModal
-        isOpen={showOnboarding}
-        onClose={() => setShowOnboarding(false)}
-        onStartTour={() => {
-          setShowOnboarding(false);
-          // Small delay to ensure modal is closed before starting tour
-          setTimeout(() => {
-            startTour();
-          }, 300);
-        }}
-        onSkip={() => {
-          setShowOnboarding(false);
-          skipOnboarding();
-        }}
-      />
+      {showOnboarding && (
+        <OnboardingModal
+          isOpen
+          onClose={() => setShowOnboarding(false)}
+          onStartTour={() => {
+            setShowOnboarding(false);
+            // Small delay to ensure modal is closed before starting tour
+            setTimeout(() => {
+              startTour();
+            }, 300);
+          }}
+          onSkip={() => {
+            setShowOnboarding(false);
+            skipOnboarding();
+          }}
+        />
+      )}
 
       {/* Dev Mode Footer - Visible in development OR for super admins */}
       <DevModeFooter
