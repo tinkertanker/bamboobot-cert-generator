@@ -77,4 +77,53 @@ describe('IndividualPdfsModal large result lists', () => {
       expect.objectContaining({ filename: 'Ada_Lovelace.pdf' })
     );
   });
+
+  it('keeps a successful progressive PDF paired with its original recipient after an earlier failure', () => {
+    const sendCertificateEmail = jest.fn();
+    render(
+      <IndividualPdfsModal
+        isGeneratingIndividual={false}
+        individualPdfsData={[
+          {
+            filename: 'second.pdf',
+            url: '/generated/second.pdf',
+            originalIndex: 1
+          }
+        ]}
+        tableData={[
+          { Name: 'First Recipient', Email: 'first@example.com' },
+          { Name: 'Second Recipient', Email: 'second@example.com' }
+        ]}
+        selectedNamingColumn="Name"
+        setSelectedNamingColumn={jest.fn()}
+        emailSendingStatus={{ 1: 'sent' }}
+        hasEmailColumn
+        emailConfig={{
+          senderName: 'Certificates',
+          subject: 'Your certificate',
+          message: 'Hello',
+          deliveryMethod: 'attachment',
+          isConfigured: true
+        }}
+        sendCertificateEmail={sendCertificateEmail}
+        setIndividualPdfsData={jest.fn()}
+        detectedEmailColumn="Email"
+        onClose={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('Second_Recipient.pdf')).toBeInTheDocument();
+    expect(screen.getByText(/second@example\.com/)).toBeInTheDocument();
+    expect(screen.queryByText(/first@example\.com/)).not.toBeInTheDocument();
+    expect(screen.getByTitle('Email sent!')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('Email sent!'));
+    expect(sendCertificateEmail).toHaveBeenCalledWith(
+      0,
+      expect.objectContaining({
+        originalIndex: 1,
+        filename: 'Second_Recipient.pdf'
+      })
+    );
+  });
 });

@@ -126,24 +126,24 @@ export function IndividualPdfsModal({
               <Button
                 size="sm"
                 variant={
-                  emailSendingStatus[index] === 'sent' ? 'default' : 'outline'
+                  emailSendingStatus[rowIndex] === 'sent' ? 'default' : 'outline'
                 }
                 title={
                   !emailAddress
                     ? 'No email address available'
                     : !emailConfig.isConfigured
                       ? 'Configure email settings in Email tab first'
-                      : emailSendingStatus[index] === 'sending'
+                      : emailSendingStatus[rowIndex] === 'sending'
                         ? 'Sending email...'
-                        : emailSendingStatus[index] === 'sent'
+                        : emailSendingStatus[rowIndex] === 'sent'
                           ? 'Email sent!'
-                          : emailSendingStatus[index] === 'error'
+                          : emailSendingStatus[rowIndex] === 'error'
                             ? 'Failed to send email'
                             : 'Send via email'
                 }
                 disabled={
                   !emailAddress ||
-                  emailSendingStatus[index] === 'sending' ||
+                  emailSendingStatus[rowIndex] === 'sending' ||
                   !emailConfig.isConfigured
                 }
                 onClick={() =>
@@ -153,27 +153,27 @@ export function IndividualPdfsModal({
                 style={{
                   backgroundColor: !emailAddress
                     ? 'transparent'
-                    : emailSendingStatus[index] === 'sent'
+                    : emailSendingStatus[rowIndex] === 'sent'
                       ? '#2D6A4F'
-                      : emailSendingStatus[index] === 'error'
+                      : emailSendingStatus[rowIndex] === 'error'
                         ? '#dc2626'
                         : 'transparent',
                   borderColor: !emailAddress
                     ? '#d1d5db'
-                    : emailSendingStatus[index] === 'sent'
+                    : emailSendingStatus[rowIndex] === 'sent'
                       ? '#2D6A4F'
-                      : emailSendingStatus[index] === 'error'
+                      : emailSendingStatus[rowIndex] === 'error'
                         ? '#dc2626'
                         : '#2D6A4F',
                   color: !emailAddress
                     ? '#9ca3af'
-                    : emailSendingStatus[index] === 'sent' ||
-                        emailSendingStatus[index] === 'error'
+                    : emailSendingStatus[rowIndex] === 'sent' ||
+                        emailSendingStatus[rowIndex] === 'error'
                       ? 'white'
                       : '#2D6A4F',
                   cursor: !emailAddress ? 'not-allowed' : 'pointer'
                 }}>
-                {emailSendingStatus[index] === 'sending' ? (
+                {emailSendingStatus[rowIndex] === 'sending' ? (
                   <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Mail className="h-4 w-4" />
