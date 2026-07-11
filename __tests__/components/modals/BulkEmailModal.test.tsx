@@ -12,7 +12,7 @@ jest.mock('@/lib/email/email-persistence', () => ({
   loadEmailStatus: jest.fn(() => null),
   clearEmailStatus: jest.fn(),
   cleanupExpiredSessions: jest.fn(),
-  formatSessionId: jest.fn((value) => value)
+  formatSessionId: jest.fn(value => value)
 }));
 
 const mockedBlobToBase64 = blobToBase64 as jest.MockedFunction<typeof blobToBase64>;
@@ -64,24 +64,55 @@ describe('BulkEmailModal attachment ingestion', () => {
           deliveryMethod: 'download',
           isConfigured: true
         }}
-        certificates={[{
-          email: 'valid@example.com, not-an-email',
-          downloadUrl: '/generated/mixed.pdf',
-          fileName: 'mixed.pdf'
-        }]}
+        certificates={[
+          {
+            email: 'valid@example.com, not-an-email',
+            downloadUrl: '/generated/mixed.pdf',
+            fileName: 'mixed.pdf'
+          }
+        ]}
       />
     );
 
     expect(screen.getByText('Ready to send 1 emails:')).toBeInTheDocument();
     expect(screen.getByText('• valid@example.com')).toBeInTheDocument();
-    expect(screen.getByText(/Ignoring invalid addresses in 1 mixed recipient cell/))
-      .toBeInTheDocument();
+    expect(screen.getByText(/Ignoring invalid addresses in 1 mixed recipient cell/)).toBeInTheDocument();
+  });
+
+  it('previews client-generated blob certificates using their effective attachment delivery', () => {
+    render(
+      <BulkEmailModal
+        open
+        onClose={jest.fn()}
+        totalEmails={1}
+        emailConfig={{
+          senderName: 'Sender',
+          subject: 'Certificate',
+          message: 'Your certificate',
+          deliveryMethod: 'download',
+          isConfigured: true
+        }}
+        certificates={[
+          {
+            email: 'valid@example.com',
+            downloadUrl: 'blob:certificate',
+            fileName: 'certificate.pdf',
+            blob: new Blob(['%PDF-1.4'])
+          }
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview Email' }));
+
+    expect(screen.getByText('Your certificate is attached to this email.')).toBeInTheDocument();
+    expect(screen.queryByText('Download Certificate (preview only)')).not.toBeInTheDocument();
   });
 
   it('does not post a batch when cancelled during Blob encoding', async () => {
     let finishEncoding!: (value: string) => void;
     mockedBlobToBase64.mockReturnValue(
-      new Promise((resolve) => {
+      new Promise(resolve => {
         finishEncoding = resolve;
       })
     );
@@ -106,12 +137,14 @@ describe('BulkEmailModal attachment ingestion', () => {
           deliveryMethod: 'attachment',
           isConfigured: true
         }}
-        certificates={[{
-          email: 'person@example.com',
-          downloadUrl: 'blob:certificate',
-          fileName: 'certificate.pdf',
-          blob: new Blob(['%PDF-1.4'])
-        }]}
+        certificates={[
+          {
+            email: 'person@example.com',
+            downloadUrl: 'blob:certificate',
+            fileName: 'certificate.pdf',
+            blob: new Blob(['%PDF-1.4'])
+          }
+        ]}
       />
     );
 
@@ -122,11 +155,9 @@ describe('BulkEmailModal attachment ingestion', () => {
     await act(async () => finishEncoding('JVBERi0xLjQ='));
     await waitFor(() => {
       const calls = fetchMock.mock.calls.map(([, init]) => init as RequestInit);
-      expect(calls.filter((init) => init.method === 'POST')).toHaveLength(0);
+      expect(calls.filter(init => init.method === 'POST')).toHaveLength(0);
       expect(
-        calls.filter((init) =>
-          typeof init.body === 'string' && init.body.includes('"action":"cancel"')
-        ).length
+        calls.filter(init => typeof init.body === 'string' && init.body.includes('"action":"cancel"')).length
       ).toBeGreaterThanOrEqual(2);
     });
     expect(onClose).toHaveBeenCalledTimes(1);

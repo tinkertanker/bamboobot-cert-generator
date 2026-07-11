@@ -8,11 +8,16 @@ export interface ClientEmailCertificate {
   blob?: Blob;
 }
 
+export function usesAttachmentDelivery(
+  certificate: ClientEmailCertificate,
+  deliveryMethod: 'download' | 'attachment'
+): boolean {
+  return deliveryMethod === 'attachment' || Boolean(certificate.blob && certificate.downloadUrl.startsWith('blob:'));
+}
+
 export function createEmailSessionId(): string {
   const randomId = globalThis.crypto?.randomUUID?.();
-  return `email-session-${
-    randomId || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  }`;
+  return `email-session-${randomId || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 }
 
 export function partitionClientEmailCertificates<T extends ClientEmailCertificate>(certificates: T[]): T[][] {

@@ -8,7 +8,8 @@ import { parseRecipientsDetailed } from '@/utils/email-validation';
 import {
   blobToBase64,
   createEmailSessionId,
-  partitionClientEmailCertificates
+  partitionClientEmailCertificates,
+  usesAttachmentDelivery
 } from '@/lib/email/client-attachment-batches';
 import { 
   saveEmailStatus, 
@@ -205,8 +206,7 @@ export function BulkEmailModal({
           }
           const isClientSidePdf =
             cert.blob && cert.downloadUrl.startsWith('blob:');
-          const useAttachmentDelivery =
-            emailConfig.deliveryMethod === 'attachment' || !!isClientSidePdf;
+          const useAttachmentDelivery = usesAttachmentDelivery(cert, emailConfig.deliveryMethod);
 
           let attachments;
           let attachmentData;
@@ -356,8 +356,7 @@ export function BulkEmailModal({
       const isClientSidePdf =
         firstCert.blob &&
         firstCert.downloadUrl.startsWith('blob:');
-      const useAttachmentDelivery =
-        emailConfig.deliveryMethod === 'attachment' || !!isClientSidePdf;
+      const useAttachmentDelivery = usesAttachmentDelivery(firstCert, emailConfig.deliveryMethod);
 
       // Prepare attachment data based on PDF source
       let attachment;
@@ -676,7 +675,12 @@ export function BulkEmailModal({
         <EmailPreviewModal
           open={showPreview}
           onClose={() => setShowPreview(false)}
-          emailConfig={emailConfig}
+          emailConfig={{
+            ...emailConfig,
+            deliveryMethod: usesAttachmentDelivery(validCertificates[0], emailConfig.deliveryMethod)
+              ? 'attachment'
+              : 'download'
+          }}
           sampleEmail={parseRecipientsDetailed(
             validCertificates[0].email
           ).valid.join(', ')}

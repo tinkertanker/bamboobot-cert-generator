@@ -1,7 +1,8 @@
 import {
   blobToBase64,
   createEmailSessionId,
-  partitionClientEmailCertificates
+  partitionClientEmailCertificates,
+  usesAttachmentDelivery
 } from '@/lib/email/client-attachment-batches';
 
 const certificate = (size: number, index: number) => ({
@@ -12,6 +13,19 @@ const certificate = (size: number, index: number) => ({
 });
 
 describe('client attachment batches', () => {
+  it('uses attachments for explicit attachment mode or client blob PDFs', () => {
+    const serverCertificate = { email: 'a@example.com', downloadUrl: '/generated/a.pdf', fileName: 'a.pdf' };
+    const clientCertificate = {
+      ...serverCertificate,
+      downloadUrl: 'blob:certificate',
+      blob: new Blob(['pdf'])
+    };
+
+    expect(usesAttachmentDelivery(serverCertificate, 'download')).toBe(false);
+    expect(usesAttachmentDelivery(serverCertificate, 'attachment')).toBe(true);
+    expect(usesAttachmentDelivery(clientCertificate, 'download')).toBe(true);
+  });
+
   it('falls back when randomUUID is unavailable', () => {
     const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
     Object.defineProperty(globalThis, 'crypto', {
@@ -45,7 +59,7 @@ describe('client attachment batches', () => {
       }))
     );
 
-    expect(batches.map((batch) => batch.length)).toEqual([100, 100, 1]);
+    expect(batches.map(batch => batch.length)).toEqual([100, 100, 1]);
   });
 
   it('encodes Blob data as base64 without a number array', async () => {
