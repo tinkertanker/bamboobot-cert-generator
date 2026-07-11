@@ -22,7 +22,12 @@ jest.mock('@/lib/email/provider-factory', () => ({
 }));
 jest.mock('@/lib/server/tiers', () => ({
   checkEmailUsageAvailability: jest.fn(async () => ({ allowed: true, limit: 100, current: 0 })),
-  reserveEmailUsage: jest.fn(async () => ({ allowed: true, limit: 100, current: 1 }))
+  reserveEmailUsage: jest.fn(async () => ({
+    allowed: true,
+    limit: 100,
+    current: 1,
+    reservationDay: new Date('2026-07-11T00:00:00Z')
+  }))
 }));
 jest.mock('@/lib/storage/mark-generated', () => ({
   markGeneratedFileAsEmailed: jest.fn(async () => undefined)
@@ -39,18 +44,19 @@ describe('send-email API rate limiting', () => {
 
     const { default: handler } = await import('@/pages/api/send-email');
 
-    const makeReqRes = () => createMocks({
-      method: 'POST',
-      headers: { 'x-real-ip': '127.0.0.1' },
-      body: {
-        to: 'x@y.com',
-        subject: 'Hi',
-        senderName: 'T',
-        customMessage: 'm',
-        deliveryMethod: 'download',
-        downloadUrl: createSignedGeneratedFileUrl('u_u1/cert.pdf')
-      }
-    });
+    const makeReqRes = () =>
+      createMocks({
+        method: 'POST',
+        headers: { 'x-real-ip': '127.0.0.1' },
+        body: {
+          to: 'x@y.com',
+          subject: 'Hi',
+          senderName: 'T',
+          customMessage: 'm',
+          deliveryMethod: 'download',
+          downloadUrl: createSignedGeneratedFileUrl('u_u1/cert.pdf')
+        }
+      });
 
     // First two allowed
     let { req, res } = makeReqRes();

@@ -8,7 +8,8 @@ import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-util
 import { getMaxPdfSourceBytes, PdfSourceError } from '@/lib/security/trusted-pdf-source';
 import { markGeneratedFileAsEmailed } from '@/lib/storage/mark-generated';
 import { buildAttachmentEmail, buildLinkEmail } from '@/lib/email-templates';
-import { checkEmailUsageAvailability, reserveEmailUsage } from '@/lib/server/tiers';
+import { checkEmailUsageAvailability, releaseEmailUsageReservation, reserveEmailUsage } from '@/lib/server/tiers';
+import { isDefinitelyUnsentProviderError } from '@/lib/email/provider-errors';
 import {
   assertRecipientCount,
   EmailRequestError,
@@ -18,12 +19,9 @@ import {
   MAX_EMAIL_SUBJECT_LENGTH,
   MAX_RECIPIENTS_PER_MESSAGE,
   requireBoundedEmailText,
-  requireSafeEmailHeader,
+  requireSafeEmailHeader
 } from '@/lib/email/abuse-controls';
-import {
-  SignedFileUrlError,
-  verifySignedGeneratedFileCapabilityUrl,
-} from '@/lib/security/signed-generated-url';
+import { SignedFileUrlError, verifySignedGeneratedFileCapabilityUrl } from '@/lib/security/signed-generated-url';
 
 const MAX_BULK_EMAILS = 500;
 const BULK_ATTACHMENT_CONCURRENCY = 4;
@@ -35,6 +33,78 @@ const TERMINAL_STATUS_TTL_MS = 10 * 60 * 1000;
 const MAX_TERMINAL_STATUSES = 200;
 const DEFAULT_MAX_PAUSED_ATTACHMENT_BYTES = HARD_MAX_BULK_ATTACHMENT_BYTES;
 const PAUSED_PRESSURE_LOCK = '__global_paused_queue_pressure__';
+const GLOBAL_INGESTION_LOCK = '__global_email_queue_ingestion__';
+const MAX_SESSION_ID_LENGTH = 128;
+const DEFAULT_MAX_ACTIVE_QUEUES_PER_USER = 5;
+const DEFAULT_MAX_ACTIVE_QUEUES_GLOBAL = 100;
+const DEFAULT_MAX_CONCURRENT_INGESTIONS_PER_USER = 2;
+const DEFAULT_MAX_CONCURRENT_INGESTIONS_GLOBAL = 8;
+const DEFAULT_MAX_PAUSED_QUEUES_PER_USER = 2;
+const DEFAULT_MAX_PAUSED_QUEUES_GLOBAL = 25;
+const DEFAULT_MAX_RETAINED_ATTACHMENT_BYTES_PER_USER = 250 * 1024 * 1024;
+const DEFAULT_MAX_RETAINED_ATTACHMENT_BYTES_GLOBAL = 512 * 1024 * 1024;
+
+function boundedPositiveInteger(name: string, fallback: number, hardMaximum: number): number {
+  const configured = Number.parseInt(process.env[name] || '', 10);
+  if (!Number.isSafeInteger(configured) || configured <= 0) return fallback;
+  return Math.min(configured, hardMaximum);
+}
+
+function requireSessionId(value: unknown): string {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.length > MAX_SESSION_ID_LENGTH ||
+    !/^[A-Za-z0-9_-]+$/.test(value)
+  ) {
+    throw new EmailRequestError('Invalid session ID');
+  }
+  return value;
+}
+
+function getMaxActiveQueuesPerUser(): number {
+  return boundedPositiveInteger('MAX_ACTIVE_EMAIL_QUEUES_PER_USER', DEFAULT_MAX_ACTIVE_QUEUES_PER_USER, 20);
+}
+
+function getMaxActiveQueuesGlobal(): number {
+  return boundedPositiveInteger('MAX_ACTIVE_EMAIL_QUEUES_GLOBAL', DEFAULT_MAX_ACTIVE_QUEUES_GLOBAL, 1000);
+}
+
+function getMaxConcurrentIngestionsPerUser(): number {
+  return boundedPositiveInteger(
+    'MAX_CONCURRENT_EMAIL_INGESTIONS_PER_USER',
+    DEFAULT_MAX_CONCURRENT_INGESTIONS_PER_USER,
+    10
+  );
+}
+
+function getMaxConcurrentIngestionsGlobal(): number {
+  return boundedPositiveInteger('MAX_CONCURRENT_EMAIL_INGESTIONS_GLOBAL', DEFAULT_MAX_CONCURRENT_INGESTIONS_GLOBAL, 50);
+}
+
+function getMaxPausedQueuesPerUser(): number {
+  return boundedPositiveInteger('MAX_PAUSED_EMAIL_QUEUES_PER_USER', DEFAULT_MAX_PAUSED_QUEUES_PER_USER, 10);
+}
+
+function getMaxPausedQueuesGlobal(): number {
+  return boundedPositiveInteger('MAX_PAUSED_EMAIL_QUEUES_GLOBAL', DEFAULT_MAX_PAUSED_QUEUES_GLOBAL, 100);
+}
+
+function getMaxRetainedAttachmentBytesPerUser(): number {
+  return boundedPositiveInteger(
+    'MAX_RETAINED_EMAIL_ATTACHMENT_BYTES_PER_USER',
+    DEFAULT_MAX_RETAINED_ATTACHMENT_BYTES_PER_USER,
+    512 * 1024 * 1024
+  );
+}
+
+function getMaxRetainedAttachmentBytesGlobal(): number {
+  return boundedPositiveInteger(
+    'MAX_RETAINED_EMAIL_ATTACHMENT_BYTES_GLOBAL',
+    DEFAULT_MAX_RETAINED_ATTACHMENT_BYTES_GLOBAL,
+    1024 * 1024 * 1024
+  );
+}
 
 function getMaxBulkAttachmentBytes(): number {
   const configured = Number.parseInt(process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES || '', 10);
@@ -45,10 +115,7 @@ function getMaxBulkAttachmentBytes(): number {
 }
 
 function getMaxPausedAttachmentBytes(): number {
-  const configured = Number.parseInt(
-    process.env.MAX_PAUSED_EMAIL_ATTACHMENT_BYTES || '',
-    10
-  );
+  const configured = Number.parseInt(process.env.MAX_PAUSED_EMAIL_ATTACHMENT_BYTES || '', 10);
   if (!Number.isSafeInteger(configured) || configured <= 0) {
     return DEFAULT_MAX_PAUSED_ATTACHMENT_BYTES;
   }
@@ -68,14 +135,55 @@ const queueManagers = new Map<string, EmailQueueManager>();
 const queueAttachmentBytes = new Map<string, number>();
 const queueRecipientCounts = new Map<string, number>();
 const queueIngestionLocks = new Map<string, Promise<void>>();
+const activeIngestionsByUser = new Map<string, number>();
+let activeIngestions = 0;
 type QueueStatus = ReturnType<EmailQueueManager['getStatus']>;
-const terminalQueueStatuses = new Map<
-  string,
-  { status: QueueStatus; expiresAt: number }
->();
+const terminalQueueStatuses = new Map<string, { status: QueueStatus; expiresAt: number }>();
 
 function queueKey(userId: string, sessionId: string): string {
   return `${userId}:${sessionId}`;
+}
+
+function retainedAttachmentBytesForUser(userId: string): number {
+  const prefix = `${userId}:`;
+  return Array.from(queueAttachmentBytes.entries()).reduce(
+    (total, [key, bytes]) => total + (key.startsWith(prefix) ? bytes : 0),
+    0
+  );
+}
+
+function activeQueueCountForUser(userId: string): number {
+  const prefix = `${userId}:`;
+  return Array.from(queueManagers.entries()).filter(
+    ([key, manager]) => key.startsWith(prefix) && manager.getStatus().status !== 'completed'
+  ).length;
+}
+
+function activeQueueCountGlobal(): number {
+  return Array.from(queueManagers.values()).filter(manager => manager.getStatus().status !== 'completed').length;
+}
+
+async function pruneCompletedQueueManagers(): Promise<void> {
+  const completedKeys = Array.from(queueManagers.entries())
+    .filter(([key, manager]) => !queueIngestionLocks.has(key) && manager.getStatus().status === 'completed')
+    .map(([key]) => key);
+  for (const key of completedKeys) {
+    // This check and withQueueIngestionLock's claim are synchronous, so an
+    // active append cannot slip between them on the same event loop turn.
+    if (queueIngestionLocks.has(key)) continue;
+    await withQueueIngestionLock(key, async () => {
+      const manager = queueManagers.get(key);
+      if (!manager) return;
+      const status = manager.getStatus();
+      if (status.status !== 'completed') return;
+      rememberTerminalStatus(key, status);
+      await manager.clear();
+      if (queueManagers.get(key) !== manager) return;
+      queueManagers.delete(key);
+      queueAttachmentBytes.delete(key);
+      queueRecipientCounts.delete(key);
+    });
+  }
 }
 
 function rememberTerminalStatus(key: string, status: QueueStatus): void {
@@ -104,7 +212,7 @@ function getTerminalStatus(key: string, now = Date.now()): QueueStatus | null {
 async function withQueueIngestionLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
   const previous = queueIngestionLocks.get(key) || Promise.resolve();
   let release!: () => void;
-  const current = new Promise<void>((resolve) => {
+  const current = new Promise<void>(resolve => {
     release = resolve;
   });
   const tail = previous.then(() => current);
@@ -121,13 +229,42 @@ async function withQueueIngestionLock<T>(key: string, operation: () => Promise<T
   }
 }
 
+async function withBulkIngestionSlot<T>(userId: string, operation: () => Promise<T>): Promise<T> {
+  const userIngestions = activeIngestionsByUser.get(userId) || 0;
+  if (userIngestions >= getMaxConcurrentIngestionsPerUser()) {
+    throw new EmailRequestError('Too many concurrent email uploads for this account', 429);
+  }
+  if (activeIngestions >= getMaxConcurrentIngestionsGlobal()) {
+    throw new EmailRequestError('Email upload capacity is temporarily full', 503);
+  }
+
+  activeIngestions += 1;
+  activeIngestionsByUser.set(userId, userIngestions + 1);
+  try {
+    return await operation();
+  } finally {
+    activeIngestions -= 1;
+    const remaining = (activeIngestionsByUser.get(userId) || 1) - 1;
+    if (remaining <= 0) activeIngestionsByUser.delete(userId);
+    else activeIngestionsByUser.set(userId, remaining);
+  }
+}
+
+async function withBulkQueueIngestion<T>(userId: string, key: string, operation: () => Promise<T>): Promise<T> {
+  return withBulkIngestionSlot(userId, () => withQueueIngestionLock(key, operation));
+}
+
 export async function markGeneratedRetentionInBatches(urls: string[], userId: string): Promise<void> {
   const uniqueUrls = [...new Set(urls)];
   for (let offset = 0; offset < uniqueUrls.length; offset += BULK_ATTACHMENT_CONCURRENCY) {
     const batch = uniqueUrls.slice(offset, offset + BULK_ATTACHMENT_CONCURRENCY);
-    await Promise.all(batch.map(url => markGeneratedFileAsEmailed(url, userId).catch(error => {
-      console.warn('Failed to extend generated file retention:', error);
-    })));
+    await Promise.all(
+      batch.map(url =>
+        markGeneratedFileAsEmailed(url, userId).catch(error => {
+          console.warn('Failed to extend generated file retention:', error);
+        })
+      )
+    );
   }
 }
 
@@ -136,14 +273,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const session = await requireAuth(req, res);
   if (!session) return;
   const userId = (session.user as any).id as string;
-  const ip =
-    (req.headers['x-real-ip'] as string) ||
-    (req.headers['x-forwarded-for'] as string) ||
-    req.socket.remoteAddress ||
-    null;
   // Pass to subhandlers
   (req as any).__uid = userId;
-  (req as any).__ip = ip;
 
   if (req.method === 'POST') {
     await handlePost(req, res);
@@ -181,26 +312,14 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       return;
     }
     const safeSenderName = requireSafeEmailHeader(
-      requireBoundedEmailText(
-        config.senderName,
-        'senderName',
-        MAX_EMAIL_SENDER_NAME_LENGTH,
-      ),
-      'senderName',
+      requireBoundedEmailText(config.senderName, 'senderName', MAX_EMAIL_SENDER_NAME_LENGTH),
+      'senderName'
     );
     const safeSubject = requireSafeEmailHeader(
-      requireBoundedEmailText(
-        config.subject,
-        'subject',
-        MAX_EMAIL_SUBJECT_LENGTH,
-      ),
-      'subject',
+      requireBoundedEmailText(config.subject, 'subject', MAX_EMAIL_SUBJECT_LENGTH),
+      'subject'
     );
-    const safeMessage = requireBoundedEmailText(
-      config.message,
-      'message',
-      MAX_EMAIL_MESSAGE_LENGTH,
-    );
+    const safeMessage = requireBoundedEmailText(config.message, 'message', MAX_EMAIL_MESSAGE_LENGTH);
 
     // Rate limit after validation
     const userId = (req as any).__uid as string | undefined;
@@ -214,20 +333,28 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       return;
     }
 
-    if (!userId || typeof sessionId !== 'string' || !sessionId) {
+    if (!userId) {
       res.status(400).json({ error: 'Session ID required' });
       return;
     }
+    const safeSessionId = requireSessionId(sessionId);
 
-    const key = queueKey(userId, sessionId);
+    const key = queueKey(userId, safeSessionId);
     let successPayload: Record<string, unknown> | null = null;
-    await withQueueIngestionLock(key, async () => {
+    await pruneCompletedQueueManagers();
+    await withBulkQueueIngestion(userId, key, async () => {
       terminalQueueStatuses.delete(key);
       // Resolve the provider early, but do not retain an empty queue if later
       // validation or attachment construction fails.
       let queueManager = queueManagers.get(key);
       let provider: ReturnType<typeof getEmailProvider> | undefined;
       if (!queueManager) {
+        if (activeQueueCountForUser(userId) >= getMaxActiveQueuesPerUser()) {
+          throw new EmailRequestError('Too many active email queues for this account', 429);
+        }
+        if (activeQueueCountGlobal() >= getMaxActiveQueuesGlobal()) {
+          throw new EmailRequestError('Email queue capacity is temporarily full', 503);
+        }
         try {
           provider = getEmailProvider();
         } catch {
@@ -254,13 +381,13 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       };
       const rejectedEmails: string[] = [];
       const emailsWithRecipients = (emails as EmailInput[])
-        .map((email) => {
+        .map(email => {
           const { valid, rejected } = parseRecipientsDetailed(email.to || '');
           assertRecipientCount(valid.length, MAX_RECIPIENTS_PER_MESSAGE);
           rejectedEmails.push(...rejected);
           return { ...email, recipients: valid };
         })
-        .filter((email) => email.recipients.length > 0);
+        .filter(email => email.recipients.length > 0);
 
       if (rejectedEmails.length > 0) {
         console.warn(`Bulk email - invalid addresses filtered: ${rejectedEmails.join(', ')}`);
@@ -274,22 +401,22 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
         });
         return;
       }
-      const recipientCount = emailsWithRecipients.reduce(
-        (total, email) => total + email.recipients.length,
-        0,
-      );
+      const activeProvider = provider ?? getEmailProvider();
+      if (activeProvider.name === 'ses') {
+        const recipientLimit = activeProvider.getRateLimit().limit;
+        if (emailsWithRecipients.some(email => email.recipients.length > recipientLimit)) {
+          throw new EmailRequestError(
+            `Amazon SES allows at most ${recipientLimit} recipients per message with the configured send rate`
+          );
+        }
+      }
+      const recipientCount = emailsWithRecipients.reduce((total, email) => total + email.recipients.length, 0);
       assertRecipientCount(recipientCount, MAX_BULK_RECIPIENTS);
       if ((queueRecipientCounts.get(key) || 0) + recipientCount > MAX_BULK_RECIPIENTS) {
-        throw new EmailRequestError(
-          `A bulk email session can contain at most ${MAX_BULK_RECIPIENTS} recipients`,
-          413,
-        );
+        throw new EmailRequestError(`A bulk email session can contain at most ${MAX_BULK_RECIPIENTS} recipients`, 413);
       }
 
-      if (
-        (queueManager?.getQueueLength() || 0) + emailsWithRecipients.length >
-        MAX_BULK_EMAILS
-      ) {
+      if ((queueManager?.getQueueLength() || 0) + emailsWithRecipients.length > MAX_BULK_EMAILS) {
         throw new PdfSourceError(
           'PDF_TOO_LARGE',
           `A bulk email session can contain at most ${MAX_BULK_EMAILS} emails`,
@@ -303,7 +430,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
           error: 'email limit reached',
           code: 'LIMIT_REACHED',
           limit: quotaAvailability.limit,
-          current: quotaAvailability.current,
+          current: quotaAvailability.current
         });
         return;
       }
@@ -313,14 +440,15 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       // request can otherwise fan out hundreds of simultaneous remote reads.
       const emailParams: Array<EmailParams & { certificateUrl?: string }> = [];
       const maxBulkAttachmentBytes = getMaxBulkAttachmentBytes();
-      let totalAttachmentBytes = queueAttachmentBytes.get(key) || 0;
+      const existingAttachmentBytes = queueAttachmentBytes.get(key) ?? queueManager?.getRetainedAttachmentBytes() ?? 0;
+      let totalAttachmentBytes = existingAttachmentBytes;
 
       for (let offset = 0; offset < emailsWithRecipients.length; offset += BULK_ATTACHMENT_CONCURRENCY) {
         const batch = emailsWithRecipients.slice(offset, offset + BULK_ATTACHMENT_CONCURRENCY);
         const emailsWithAttachments = batch.filter(
-          (email) =>
+          email =>
             email.attachmentData !== undefined ||
-            email.attachments?.some((attachment) => Boolean(attachment?.path || attachment?.content))
+            email.attachments?.some(attachment => Boolean(attachment?.path || attachment?.content))
         ).length;
         const remainingBytes = maxBulkAttachmentBytes - totalAttachmentBytes;
 
@@ -334,16 +462,16 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
             : getMaxPdfSourceBytes();
 
         const builtBatch = await Promise.all(
-          batch.map(async (email) => {
-            const requestedAttachment = email.attachmentData !== undefined
-              || Boolean(email.attachments?.some(attachment =>
-                Boolean(attachment?.path || attachment?.content)
-              ));
-            const attachments = await buildPdfAttachments({
-              attachmentData: email.attachmentData,
-              attachments: email.attachments,
-              maxTotalBytes: perEmailBudget
-            }) || [];
+          batch.map(async email => {
+            const requestedAttachment =
+              email.attachmentData !== undefined ||
+              Boolean(email.attachments?.some(attachment => Boolean(attachment?.path || attachment?.content)));
+            const attachments =
+              (await buildPdfAttachments({
+                attachmentData: email.attachmentData,
+                attachments: email.attachments,
+                maxTotalBytes: perEmailBudget
+              })) || [];
             if (requestedAttachment && attachments.length === 0) {
               throw new EmailRequestError('Invalid PDF attachment data');
             }
@@ -358,12 +486,14 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
               to: email.recipients,
               from: `${safeSenderName} <${fromAddress}>`,
               subject: safeSubject,
-              html: attachments.length > 0
-                ? buildAttachmentEmail(safeMessage)
-                : buildLinkEmail(safeMessage, email.certificateUrl as string),
-              text: attachments.length > 0
-                ? safeMessage
-                : `${safeMessage}\n\nDownload your certificate: ${email.certificateUrl}`,
+              html:
+                attachments.length > 0
+                  ? buildAttachmentEmail(safeMessage)
+                  : buildLinkEmail(safeMessage, email.certificateUrl as string),
+              text:
+                attachments.length > 0
+                  ? safeMessage
+                  : `${safeMessage}\n\nDownload your certificate: ${email.certificateUrl}`,
               attachments,
               certificateUrl: email.certificateUrl
             };
@@ -386,30 +516,111 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
         emailParams.push(...builtBatch);
       }
 
-      const quota = await reserveEmailUsage(userId, recipientCount);
-      if (!quota.allowed) {
-        res.status(403).json({
-          error: 'email limit reached',
-          code: 'LIMIT_REACHED',
-          limit: quota.limit,
-          current: quota.current,
-        });
-        return;
-      }
-
       const isNewQueue = !queueManager;
-      if (!queueManager) {
-        queueManager = new EmailQueueManager(provider as ReturnType<typeof getEmailProvider>);
-      }
+      let queueCommitted = false;
+      await withQueueIngestionLock(GLOBAL_INGESTION_LOCK, async () => {
+        if (isNewQueue) {
+          if (activeQueueCountForUser(userId) >= getMaxActiveQueuesPerUser()) {
+            throw new EmailRequestError('Too many active email queues for this account', 429);
+          }
+          if (activeQueueCountGlobal() >= getMaxActiveQueuesGlobal()) {
+            throw new EmailRequestError('Email queue capacity is temporarily full', 503);
+          }
+        }
 
-      await queueManager.addToQueue(emailParams);
-      if (isNewQueue) queueManagers.set(key, queueManager);
-      queueAttachmentBytes.set(key, totalAttachmentBytes);
-      queueRecipientCounts.set(key, (queueRecipientCounts.get(key) || 0) + recipientCount);
+        const additionalAttachmentBytes = totalAttachmentBytes - existingAttachmentBytes;
+        const currentQueueAttachmentBytes =
+          queueAttachmentBytes.get(key) ?? queueManager?.getRetainedAttachmentBytes() ?? 0;
+        const globalRetainedBytes = Array.from(queueAttachmentBytes.values()).reduce(
+          (total, bytes) => total + bytes,
+          0
+        );
+        if (
+          retainedAttachmentBytesForUser(userId) + additionalAttachmentBytes >
+          getMaxRetainedAttachmentBytesPerUser()
+        ) {
+          throw new PdfSourceError('PDF_TOO_LARGE', 'Account email attachments exceed the retained size limit', 413);
+        }
+        if (globalRetainedBytes + additionalAttachmentBytes > getMaxRetainedAttachmentBytesGlobal()) {
+          throw new PdfSourceError('PDF_TOO_LARGE', 'Email attachment capacity is temporarily full', 503);
+        }
 
-      await markGeneratedRetentionInBatches(emailParams
-        .map(email => email.certificateUrl)
-        .filter((url): url is string => Boolean(url)), userId);
+        const quota = await reserveEmailUsage(userId, recipientCount);
+        if (!quota.allowed) {
+          res.status(403).json({
+            error: 'email limit reached',
+            code: 'LIMIT_REACHED',
+            limit: quota.limit,
+            current: quota.current
+          });
+          return;
+        }
+        if (!quota.reservationDay) throw new Error('Email quota reservation is missing its accounting epoch');
+
+        if (!queueManager) {
+          queueManager = new EmailQueueManager(provider as ReturnType<typeof getEmailProvider>);
+          const managerForCallback = queueManager;
+          const refundsByDay = new Map<number, { reservationDay: Date; recipientCount: number }>();
+          let callbackFlushScheduled = false;
+          managerForCallback.onItemCompleted(item => {
+            const reservationDay = item.quotaReservationDay;
+            if (
+              item.status === 'failed' &&
+              item.quotaRefundSafe !== false &&
+              reservationDay &&
+              isDefinitelyUnsentProviderError(item.lastError)
+            ) {
+              const dayKey = reservationDay.getTime();
+              const pendingRefund = refundsByDay.get(dayKey);
+              refundsByDay.set(dayKey, {
+                reservationDay,
+                recipientCount: (pendingRefund?.recipientCount || 0) + item.to.length
+              });
+            }
+            if (callbackFlushScheduled) return;
+            callbackFlushScheduled = true;
+            queueMicrotask(() => {
+              callbackFlushScheduled = false;
+              if (queueManagers.get(key) === managerForCallback) {
+                queueAttachmentBytes.set(key, managerForCallback.getRetainedAttachmentBytes());
+              }
+              const refunds = Array.from(refundsByDay.values());
+              refundsByDay.clear();
+              for (const refund of refunds) {
+                void releaseEmailUsageReservation(userId, refund.recipientCount, refund.reservationDay).catch(
+                  refundError => {
+                    console.error('Failed to release bulk email quota reservation:', refundError);
+                  }
+                );
+              }
+            });
+          });
+        }
+
+        try {
+          await queueManager.addToQueue(
+            emailParams.map(email => ({ ...email, quotaReservationDay: quota.reservationDay }))
+          );
+        } catch (error) {
+          await releaseEmailUsageReservation(userId, recipientCount, quota.reservationDay).catch(refundError => {
+            console.error('Failed to release rejected bulk queue reservation:', refundError);
+          });
+          throw error;
+        }
+        if (isNewQueue) queueManagers.set(key, queueManager);
+        queueAttachmentBytes.set(
+          key,
+          queueManager.getRetainedAttachmentBytes() || currentQueueAttachmentBytes + additionalAttachmentBytes
+        );
+        queueRecipientCounts.set(key, (queueRecipientCounts.get(key) || 0) + recipientCount);
+        queueCommitted = true;
+      });
+      if (!queueCommitted || !queueManager) return;
+
+      await markGeneratedRetentionInBatches(
+        emailParams.map(email => email.certificateUrl).filter((url): url is string => Boolean(url)),
+        userId
+      );
 
       // Start processing if not already running
       if (!deferProcessing && !queueManager.isProcessing()) {
@@ -424,7 +635,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       };
     });
     if (!successPayload) return;
-    await enforcePausedAttachmentLimit().catch((error) => {
+    void enforcePausedQueueLimits().catch(error => {
       console.error('Paused queue pressure cleanup failed:', error);
     });
     res.status(200).json(successPayload);
@@ -436,7 +647,8 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     }
     console.error('Bulk email error:', error);
     res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to send emails'
+      error: 'Failed to queue emails',
+      code: 'EMAIL_QUEUE_ERROR'
     });
     return;
   }
@@ -445,11 +657,6 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
 async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   try {
     const { sessionId } = req.query;
-
-    if (!sessionId || typeof sessionId !== 'string') {
-      res.status(400).json({ error: 'Session ID required' });
-      return;
-    }
 
     // Light rate limit for status checks
     const userId = (req as any).__uid as string | undefined;
@@ -462,8 +669,9 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
       res.status(429).json({ error: 'Too many status checks.' });
       return;
     }
+    const safeSessionId = requireSessionId(sessionId);
 
-    const key = userId ? queueKey(userId, sessionId) : '';
+    const key = userId ? queueKey(userId, safeSessionId) : '';
     let status: QueueStatus | null = null;
     if (key) {
       await withQueueIngestionLock(key, async () => {
@@ -498,6 +706,10 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
     res.status(200).json(status);
     return;
   } catch (error) {
+    if (error instanceof EmailRequestError) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
     console.error('Status check error:', error);
     res.status(500).json({ error: 'Failed to get status' });
     return;
@@ -507,11 +719,6 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
 async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   try {
     const { action, sessionId } = req.body;
-
-    if (!sessionId) {
-      res.status(400).json({ error: 'Session ID required' });
-      return;
-    }
 
     // Rate limit control actions
     const userId = (req as any).__uid as string | undefined;
@@ -529,8 +736,9 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
+    const safeSessionId = requireSessionId(sessionId);
 
-    const key = queueKey(userId, sessionId);
+    const key = queueKey(userId, safeSessionId);
     let actionSucceeded = false;
     await withQueueIngestionLock(key, async () => {
       const queueManager = queueManagers.get(key);
@@ -552,7 +760,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
           queueManager.processQueue().catch(console.error);
         }
       } else if (action === 'cancel') {
-        await queueManager.clear();
+        await queueManager.clear(true);
         queueManagers.delete(key);
         queueAttachmentBytes.delete(key);
         terminalQueueStatuses.delete(key);
@@ -566,13 +774,17 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
     });
     if (!actionSucceeded) return;
     if (action === 'pause') {
-      await enforcePausedAttachmentLimit().catch((error) => {
+      void enforcePausedQueueLimits().catch(error => {
         console.error('Paused queue pressure cleanup failed:', error);
       });
     }
     res.status(200).json({ success: true });
     return;
   } catch (error) {
+    if (error instanceof EmailRequestError) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
     console.error('Queue control error:', error);
     res.status(500).json({ error: 'Failed to control queue' });
     return;
@@ -584,32 +796,41 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
 let cleanupInterval: NodeJS.Timeout | null = null;
 
 function isQueueExpired(manager: EmailQueueManager, now: number): boolean {
-  const ttl = manager.getStatus().status === 'paused'
-    ? PAUSED_QUEUE_TTL_MS
-    : ACTIVE_QUEUE_TTL_MS;
+  const ttl = manager.getStatus().status === 'paused' ? PAUSED_QUEUE_TTL_MS : ACTIVE_QUEUE_TTL_MS;
   return manager.getLastActivity() < now - ttl;
 }
 
-async function enforcePausedAttachmentLimit(): Promise<void> {
+async function enforcePausedQueueLimits(): Promise<void> {
   await withQueueIngestionLock(PAUSED_PRESSURE_LOCK, async () => {
-    const pausedEntries = Array.from(queueManagers.entries())
-      .filter(([, manager]) => manager.getStatus().status === 'paused')
-      .sort(([, first], [, second]) =>
-        first.getLastActivity() - second.getLastActivity()
+    while (true) {
+      const pausedEntries = Array.from(queueManagers.entries())
+        .filter(([, manager]) => manager.getStatus().status === 'paused')
+        .sort(([, first], [, second]) => first.getLastActivity() - second.getLastActivity());
+      const pausedBytes = pausedEntries.reduce((total, [key]) => total + (queueAttachmentBytes.get(key) || 0), 0);
+      const pausedCountsByUser = new Map<string, number>();
+      for (const [key] of pausedEntries) {
+        const ownerId = key.slice(0, key.lastIndexOf(':'));
+        pausedCountsByUser.set(ownerId, (pausedCountsByUser.get(ownerId) || 0) + 1);
+      }
+      const usersOverLimit = new Set(
+        Array.from(pausedCountsByUser.entries())
+          .filter(([, count]) => count > getMaxPausedQueuesPerUser())
+          .map(([userId]) => userId)
       );
-    for (const [key] of pausedEntries) {
-      const pausedBytes = Array.from(queueManagers.entries()).reduce(
-        (total, [queueKey, manager]) =>
-          manager.getStatus().status === 'paused'
-            ? total + (queueAttachmentBytes.get(queueKey) || 0)
-            : total,
-        0
-      );
-      if (pausedBytes <= getMaxPausedAttachmentBytes()) break;
-      await withQueueIngestionLock(key, async () => {
+      const overGlobalCount = pausedEntries.length > getMaxPausedQueuesGlobal();
+      const overBytes = pausedBytes > getMaxPausedAttachmentBytes();
+      if (!overBytes && !overGlobalCount && usersOverLimit.size === 0) break;
+
+      const victim = pausedEntries.find(([key]) => {
+        if (usersOverLimit.size === 0) return true;
+        return usersOverLimit.has(key.slice(0, key.lastIndexOf(':')));
+      });
+      if (!victim) break;
+      await withQueueIngestionLock(victim[0], async () => {
+        const key = victim[0];
         const manager = queueManagers.get(key);
         if (!manager || manager.getStatus().status !== 'paused') return;
-        await manager.clear();
+        await manager.clear(true);
         queueManagers.delete(key);
         queueAttachmentBytes.delete(key);
         queueRecipientCounts.delete(key);
@@ -620,24 +841,24 @@ async function enforcePausedAttachmentLimit(): Promise<void> {
 
 export async function cleanupExpiredEmailQueues(now = Date.now()): Promise<void> {
   const entries = Array.from(queueManagers.entries());
-  const expiredKeys = new Set(
-    entries.filter(([, manager]) => isQueueExpired(manager, now)).map(([key]) => key)
+  const expiredKeys = new Set(entries.filter(([, manager]) => isQueueExpired(manager, now)).map(([key]) => key));
+  await Promise.all(
+    Array.from(expiredKeys).map(key =>
+      withQueueIngestionLock(key, async () => {
+        const manager = queueManagers.get(key);
+        if (!manager) return;
+        if (!isQueueExpired(manager, now)) return;
+        await manager.clear(true);
+        queueManagers.delete(key);
+        queueAttachmentBytes.delete(key);
+        queueRecipientCounts.delete(key);
+      })
+    )
   );
-  await Promise.all(Array.from(expiredKeys).map((key) =>
-    withQueueIngestionLock(key, async () => {
-      const manager = queueManagers.get(key);
-      if (!manager) return;
-      if (!isQueueExpired(manager, now)) return;
-      await manager.clear();
-      queueManagers.delete(key);
-      queueAttachmentBytes.delete(key);
-      queueRecipientCounts.delete(key);
-    })
-  ));
   for (const [key, terminal] of terminalQueueStatuses) {
     if (terminal.expiresAt <= now) terminalQueueStatuses.delete(key);
   }
-  await enforcePausedAttachmentLimit();
+  await enforcePausedQueueLimits();
 }
 
 // Only set up the interval if it hasn't been set up already

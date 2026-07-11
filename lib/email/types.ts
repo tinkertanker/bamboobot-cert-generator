@@ -55,6 +55,10 @@ export interface EmailQueueItem {
   createdAt: Date;
   sentAt?: Date;
   nextRetryAt?: Date;
+  backpressureDeferrals?: number;
+  quotaReservationDay?: Date;
+  /** Monotonic: once false, a prior attempt may have delivered and quota must not be refunded. */
+  quotaRefundSafe?: boolean;
   provider?: 'resend' | 'ses';
 }
 

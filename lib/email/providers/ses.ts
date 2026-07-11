@@ -1,11 +1,12 @@
 import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
 import type { EmailParams, EmailResult, RateLimitInfo, EmailProvider } from '../types';
+import { providerRejectedError } from '../provider-errors';
 import {
   assertPdfBuffer,
   getMaxPdfSourceBytes,
   loadTrustedPdf,
   PdfSourceError,
-  sanitizePdfFilename,
+  sanitizePdfFilename
 } from '@/lib/security/trusted-pdf-source';
 
 function assertSafeMimeHeader(value: string, field: string): void {
@@ -14,9 +15,23 @@ function assertSafeMimeHeader(value: string, field: string): void {
   }
 }
 
+function getSendTimeoutMs(): number {
+  const configured = Number.parseInt(process.env.EMAIL_PROVIDER_SEND_TIMEOUT_MS || '', 10);
+  if (!Number.isSafeInteger(configured) || configured <= 0) return 30_000;
+  return Math.min(configured, 120_000);
+}
+
+function getMaxPendingSends(): number {
+  const configured = Number.parseInt(process.env.MAX_PENDING_EMAIL_PROVIDER_SENDS || '', 10);
+  if (!Number.isSafeInteger(configured) || configured <= 0) return 8;
+  return Math.min(configured, 100);
+}
+
 export class SESProvider implements EmailProvider {
   name = 'ses' as const;
   private client: SESClient | null = null;
+  private sendTail: Promise<void> = Promise.resolve();
+  private pendingSends = 0;
   private rateLimit: RateLimitInfo = {
     limit: 14, // Default SES sandbox limit per second
     remaining: 14,
@@ -25,13 +40,12 @@ export class SESProvider implements EmailProvider {
   };
 
   constructor() {
-    if (
-      process.env.AWS_ACCESS_KEY_ID &&
-      process.env.AWS_SECRET_ACCESS_KEY &&
-      process.env.AWS_SES_REGION
-    ) {
+    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_SES_REGION) {
       this.client = new SESClient({
         region: process.env.AWS_SES_REGION,
+        // The queue owns retries. SendEmail is not idempotent, so an SDK retry
+        // after a lost success response can create duplicate delivery.
+        maxAttempts: 1,
         credentials: {
           accessKeyId: process.env.AWS_ACCESS_KEY_ID,
           secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
@@ -41,8 +55,11 @@ export class SESProvider implements EmailProvider {
       // Adjust rate limit based on environment
       // Production accounts typically have higher limits
       if (process.env.AWS_SES_RATE_LIMIT) {
-        this.rateLimit.limit = parseInt(process.env.AWS_SES_RATE_LIMIT, 10);
-        this.rateLimit.remaining = this.rateLimit.limit;
+        const configuredRate = Number.parseInt(process.env.AWS_SES_RATE_LIMIT, 10);
+        if (Number.isSafeInteger(configuredRate) && configuredRate > 0) {
+          this.rateLimit.limit = Math.min(configuredRate, 1000);
+          this.rateLimit.remaining = this.rateLimit.limit;
+        }
       }
     }
   }
@@ -52,32 +69,88 @@ export class SESProvider implements EmailProvider {
   }
 
   async sendEmail(params: EmailParams): Promise<EmailResult> {
+    if (this.pendingSends >= getMaxPendingSends()) {
+      return {
+        id: '',
+        success: false,
+        error: 'PROVIDER_BUSY: retry shortly',
+        provider: 'ses'
+      };
+    }
+    this.pendingSends += 1;
+    const previous = this.sendTail;
+    let release!: () => void;
+    const current = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    this.sendTail = previous.then(
+      () => current,
+      () => current
+    );
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), getSendTimeoutMs());
+    timeout.unref?.();
+    try {
+      const acquired = await Promise.race([
+        previous.then(
+          () => true,
+          () => true
+        ),
+        new Promise<boolean>(resolve => {
+          controller.signal.addEventListener('abort', () => resolve(false), { once: true });
+        })
+      ]);
+      if (!acquired) {
+        return {
+          id: '',
+          success: false,
+          error: 'PROVIDER_BUSY: timed out waiting to send',
+          provider: 'ses'
+        };
+      }
+      return await this.sendEmailLocked(params, controller.signal);
+    } finally {
+      clearTimeout(timeout);
+      release();
+      this.pendingSends -= 1;
+    }
+  }
+
+  private async sendEmailLocked(params: EmailParams, signal: AbortSignal): Promise<EmailResult> {
     if (!this.client) {
       return {
         id: '',
         success: false,
-        error: 'AWS SES not configured',
+        error: providerRejectedError('AWS SES not configured'),
         provider: 'ses'
       };
     }
 
+    let dispatched = false;
     try {
+      const requiredCapacity = params.to.length;
+      if (requiredCapacity <= 0 || requiredCapacity > this.rateLimit.limit) {
+        return {
+          id: '',
+          success: false,
+          error: providerRejectedError('Recipient count exceeds the configured SES send rate'),
+          provider: 'ses'
+        };
+      }
       // Update rate limit tracking
-      if (this.rateLimit.remaining <= 0) {
+      if (this.rateLimit.remaining < requiredCapacity) {
         const now = new Date();
         if (now < this.rateLimit.reset) {
-          const waitTime = this.rateLimit.reset.getTime() - now.getTime();
           return {
             id: '',
             success: false,
-            error: `Rate limit exceeded. Wait ${waitTime}ms`,
+            error: `PROVIDER_BUSY: retry after ${this.rateLimit.reset.getTime() - now.getTime()}ms`,
             provider: 'ses'
           };
-        } else {
-          // Reset rate limit
-          this.rateLimit.remaining = this.rateLimit.limit;
-          this.rateLimit.reset = new Date(now.getTime() + 1000);
         }
+        const resetAt = new Date();
+        this.rateLimit.remaining = this.rateLimit.limit;
+        this.rateLimit.reset = new Date(resetAt.getTime() + 1000);
       }
 
       let response;
@@ -92,7 +165,11 @@ export class SESProvider implements EmailProvider {
             Data: Buffer.from(rawMessage)
           }
         });
-        response = await this.client.send(command);
+        if (signal.aborted) {
+          return { id: '', success: false, error: 'PROVIDER_BUSY: timed out before dispatch', provider: 'ses' };
+        }
+        dispatched = true;
+        response = await this.client.send(command, { abortSignal: signal });
       } else {
         // Use simple SendEmailCommand for text/html only emails
         const emailParams = {
@@ -121,11 +198,15 @@ export class SESProvider implements EmailProvider {
         };
 
         const command = new SendEmailCommand(emailParams);
-        response = await this.client.send(command);
+        if (signal.aborted) {
+          return { id: '', success: false, error: 'PROVIDER_BUSY: timed out before dispatch', provider: 'ses' };
+        }
+        dispatched = true;
+        response = await this.client.send(command, { abortSignal: signal });
       }
 
       // Decrement rate limit
-      this.rateLimit.remaining--;
+      this.rateLimit.remaining -= requiredCapacity;
 
       return {
         id: response.MessageId || '',
@@ -134,10 +215,40 @@ export class SESProvider implements EmailProvider {
       };
     } catch (error) {
       console.error('SES email error:', error);
+      const errorName = typeof error === 'object' && error && 'name' in error ? String(error.name) : '';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const isExplicitRejection =
+        /^(MessageRejected|MailFromDomainNotVerified(?:Exception)?|AccountSendingPausedException|ConfigurationSetSendingPausedException|ConfigurationSetDoesNotExistException)$/i.test(
+          errorName
+        );
+      const errorMetadata =
+        typeof error === 'object' && error && '$metadata' in error && typeof error.$metadata === 'object'
+          ? error.$metadata
+          : null;
+      const errorRetryable =
+        typeof error === 'object' && error && '$retryable' in error && typeof error.$retryable === 'object'
+          ? error.$retryable
+          : null;
+      // AWS messages can echo user-controlled identities. Classify only from
+      // structured SDK fields so text such as "throttled.user@example.com"
+      // cannot poison the shared provider's capacity state.
+      const isThrottled =
+        !isExplicitRejection &&
+        (/throttl|too.?many.?requests|limit.?exceeded/i.test(errorName) ||
+          (errorMetadata && 'httpStatusCode' in errorMetadata && errorMetadata.httpStatusCode === 429) ||
+          (errorRetryable && 'throttling' in errorRetryable && errorRetryable.throttling === true));
+      if (isThrottled) {
+        this.rateLimit.remaining = 0;
+        this.rateLimit.reset = new Date(Date.now() + 1000);
+      }
       return {
         id: '',
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: isThrottled
+          ? 'PROVIDER_CAPACITY: retry after 1000ms'
+          : !dispatched || isExplicitRejection
+            ? providerRejectedError(errorMessage)
+            : errorMessage,
         provider: 'ses'
       };
     }
@@ -149,7 +260,7 @@ export class SESProvider implements EmailProvider {
   private async buildRawEmailMessage(params: EmailParams): Promise<string> {
     assertSafeMimeHeader(params.from, 'From');
     assertSafeMimeHeader(params.subject, 'Subject');
-    params.to.forEach((recipient) => assertSafeMimeHeader(recipient, 'To'));
+    params.to.forEach(recipient => assertSafeMimeHeader(recipient, 'To'));
 
     const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
     const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).substring(2)}`;
@@ -195,9 +306,7 @@ export class SESProvider implements EmailProvider {
           if (attachment.content.length > getMaxPdfSourceBytes()) {
             throw new PdfSourceError('PDF_TOO_LARGE', 'PDF attachment exceeds the size limit', 413);
           }
-          attachmentData = Buffer.isBuffer(attachment.content) 
-            ? attachment.content 
-            : Buffer.from(attachment.content);
+          attachmentData = Buffer.isBuffer(attachment.content) ? attachment.content : Buffer.from(attachment.content);
         } else if (attachment.path) {
           // Keep the provider safe even if a future caller bypasses the API
           // attachment builder and supplies a path directly.
@@ -219,7 +328,7 @@ export class SESProvider implements EmailProvider {
         message += `Content-Type: application/pdf; name="${filename}"\r\n`;
         message += `Content-Transfer-Encoding: base64\r\n`;
         message += `Content-Disposition: attachment; filename="${filename}"\r\n\r\n`;
-        
+
         // Encode attachment as base64 with line breaks
         const base64Data = attachmentData.toString('base64');
         for (let i = 0; i < base64Data.length; i += 76) {
@@ -242,7 +351,7 @@ export class SESProvider implements EmailProvider {
       this.rateLimit.remaining = this.rateLimit.limit;
       this.rateLimit.reset = new Date(now.getTime() + 1000);
     }
-    
+
     return { ...this.rateLimit };
   }
 }

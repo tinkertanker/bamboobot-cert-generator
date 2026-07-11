@@ -6,19 +6,22 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
 import { PdfSourceError } from '@/lib/security/trusted-pdf-source';
 import { buildAttachmentEmail, buildLinkEmail } from '@/lib/email-templates';
-import { checkEmailUsageAvailability, reserveEmailUsage } from '@/lib/server/tiers';
+import { checkEmailUsageAvailability, releaseEmailUsageReservation, reserveEmailUsage } from '@/lib/server/tiers';
+import {
+  isDefinitelyUnsentProviderError,
+  isProviderBackpressureError,
+  providerRetryAfterSeconds,
+  publicProviderError
+} from '@/lib/email/provider-errors';
 import {
   EmailRequestError,
   MAX_EMAIL_MESSAGE_LENGTH,
   MAX_EMAIL_SENDER_NAME_LENGTH,
   MAX_EMAIL_SUBJECT_LENGTH,
   requireBoundedEmailText,
-  requireSafeEmailHeader,
+  requireSafeEmailHeader
 } from '@/lib/email/abuse-controls';
-import {
-  SignedFileUrlError,
-  verifySignedGeneratedFileCapabilityUrl,
-} from '@/lib/security/signed-generated-url';
+import { SignedFileUrlError, verifySignedGeneratedFileCapabilityUrl } from '@/lib/security/signed-generated-url';
 
 export const config = {
   api: {
@@ -57,7 +60,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       deliveryMethod,
       certificateUrl,
       attachment,
-      attachmentData,
+      attachmentData
     } = req.body;
 
     if (!testEmailAddress || !testEmailAddress.trim()) {
@@ -82,15 +85,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const safeSubject = requireSafeEmailHeader(
       requireBoundedEmailText(subject, 'subject', MAX_EMAIL_SUBJECT_LENGTH),
-      'subject',
+      'subject'
     );
     const safeMessage = requireBoundedEmailText(customMessage, 'message', MAX_EMAIL_MESSAGE_LENGTH);
-    const safeSenderName = senderName === undefined || senderName === ''
-      ? 'Bamboobot Certificates'
-      : requireSafeEmailHeader(
-          requireBoundedEmailText(senderName, 'senderName', MAX_EMAIL_SENDER_NAME_LENGTH),
-          'senderName',
-        );
+    const safeSenderName =
+      senderName === undefined || senderName === ''
+        ? 'Bamboobot Certificates'
+        : requireSafeEmailHeader(
+            requireBoundedEmailText(senderName, 'senderName', MAX_EMAIL_SENDER_NAME_LENGTH),
+            'senderName'
+          );
     const hasAttachment = Boolean(attachmentData || attachment);
     if (!hasAttachment) {
       if (deliveryMethod !== 'download' || typeof certificateUrl !== 'string') {
@@ -105,7 +109,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         error: 'email limit reached',
         code: 'LIMIT_REACHED',
         limit: quotaAvailability.limit,
-        current: quotaAvailability.current,
+        current: quotaAvailability.current
       });
       return;
     }
@@ -139,29 +143,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         error: 'email limit reached',
         code: 'LIMIT_REACHED',
         limit: quota.limit,
-        current: quota.current,
+        current: quota.current
       });
       return;
     }
+    if (!quota.reservationDay) throw new Error('Email quota reservation is missing its accounting epoch');
 
     // Send the test email
     const emailParams: EmailParams = {
       to: recipients,
       from: `${safeSenderName} <${fromAddress}>`,
       subject: `[TEST] ${safeSubject}`,
-      html: hasAttachment
-        ? buildAttachmentEmail(safeMessage)
-        : buildLinkEmail(safeMessage, certificateUrl),
-      text: hasAttachment
-        ? safeMessage
-        : `${safeMessage}\n\nDownload your certificate: ${certificateUrl}`,
+      html: hasAttachment ? buildAttachmentEmail(safeMessage) : buildLinkEmail(safeMessage, certificateUrl),
+      text: hasAttachment ? safeMessage : `${safeMessage}\n\nDownload your certificate: ${certificateUrl}`,
       attachments
     };
 
-    const result = await provider.sendEmail(emailParams);
+    let result;
+    try {
+      result = await provider.sendEmail(emailParams);
+    } catch (error) {
+      // Retain quota for ambiguous transport failures that may have delivered.
+      throw error;
+    }
 
     if (!result.success) {
-      res.status(500).json({ error: result.error || 'Failed to send test email' });
+      if (isDefinitelyUnsentProviderError(result.error)) {
+        await releaseEmailUsageReservation(userId, 1, quota.reservationDay).catch(refundError => {
+          console.error('Failed to release email quota reservation:', refundError);
+        });
+      }
+      const isBackpressure = isProviderBackpressureError(result.error);
+      const isRejected = result.error?.startsWith('PROVIDER_REJECTED:') || false;
+      if (isBackpressure) res.setHeader('Retry-After', String(providerRetryAfterSeconds(result.error)));
+      res.status(isBackpressure ? 429 : isRejected ? 400 : 500).json({
+        error: publicProviderError(result.error),
+        code: isBackpressure ? 'PROVIDER_BUSY' : isRejected ? 'PROVIDER_REJECTED' : 'DELIVERY_UNCONFIRMED'
+      });
       return;
     }
 
@@ -177,7 +195,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     console.error('Test email error:', error);
     res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to send test email'
+      error: 'Email delivery could not be confirmed. It was not retried to avoid duplicate delivery.',
+      code: 'DELIVERY_UNCONFIRMED'
     });
   }
 }
