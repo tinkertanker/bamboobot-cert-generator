@@ -33,8 +33,13 @@ NEXTAUTH_SECRET=your_generated_secret  # Generate with: openssl rand -base64 32
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 
+# Authentication (server-only and evaluated at runtime)
+# Production defaults to enabled when this is omitted or invalid.
+# Keep enabled in production. False removes the global wall, including from APIs;
+# only endpoints with their own checks remain protected.
+REQUIRE_AUTH=true
+
 # Feature Flags
-NEXT_PUBLIC_REQUIRE_AUTH=false  # Set to true when ready
 NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=false  # Enable server storage when ready
 
 # Admin Configuration (if using auth)

@@ -3,6 +3,7 @@ import { GetServerSideProps } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/lib/server/prisma';
+import { isAuthenticationRequired } from '@/lib/auth/runtime-policy';
 import { getTierLimits } from '@/types/user';
 import type { UserTier } from '@/types/user';
 import AdminLayout from '@/components/admin/AdminLayout';
@@ -397,7 +398,7 @@ export const getServerSideProps: GetServerSideProps<SystemPageProps> = async (co
       googleOAuthConfigured: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET
     },
     configuration: {
-      requireAuth: process.env.NEXT_PUBLIC_REQUIRE_AUTH === 'true',
+      requireAuth: isAuthenticationRequired(),
       projectPersistence: process.env.NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE === 'true',
       superAdminConfigured: !!(process.env.SUPER_ADMIN_EMAILS || process.env.SUPER_ADMIN_EMAIL),
       adminDomainConfigured: !!(process.env.ADMIN_DOMAINS || process.env.ADMIN_DOMAIN)

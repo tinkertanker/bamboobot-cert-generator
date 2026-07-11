@@ -27,7 +27,7 @@ Generate beautiful, personalised certificates from an image background with drag
 
 ### Authentication & Access Control
 - **Google Sign‑in (NextAuth)** with JWT sessions
-- **Route Gating** via `NEXT_PUBLIC_REQUIRE_AUTH=true` (everything except `/` + static assets)
+- **Route Gating** via the server-only runtime setting `REQUIRE_AUTH=true` (everything except `/` + static assets)
 - **Marketing Landing** at `/`; signed‑in users redirect to `/app`
 
 ### Persistence & Migration
@@ -84,14 +84,14 @@ docker-compose -f docker-compose.dev.yml up -d
 
 ## Authentication
 
-- Set `NEXT_PUBLIC_REQUIRE_AUTH=true` to gate the app behind login. Public landing remains available at `/`.
+- Set `REQUIRE_AUTH=true` to gate app pages and APIs behind login while keeping the public landing page available at `/`. This server-only setting is evaluated at runtime; production defaults to authentication enabled when it is omitted or invalid. Setting it to `false` removes the global middleware login wall, including from APIs; use it only in a trusted local environment. Only endpoints with their own authorization checks remain protected.
 - Configure Google provider in `.env` and set `NEXTAUTH_SECRET`.
 - Admin dashboard at `/dashboard` is gated by `ADMIN_EMAILS` (comma‑separated emails).
 
 Example env snippet:
 
 ```bash
-NEXT_PUBLIC_REQUIRE_AUTH=true
+REQUIRE_AUTH=true
 NEXTAUTH_SECRET=replace-with-random-string
 GOOGLE_CLIENT_ID=...apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=...
