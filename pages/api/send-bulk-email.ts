@@ -140,6 +140,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     }
 
     const key = queueKey(userId, sessionId);
+    let successPayload: Record<string, unknown> | null = null;
     await withQueueIngestionLock(key, async () => {
       // Get or create queue manager for this session
       let queueManager = queueManagers.get(key);
@@ -278,14 +279,16 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
         queueManager.processQueue().catch(console.error);
       }
 
-      res.status(200).json({
+      successPayload = {
         success: true,
         queueLength: queueManager.getQueueLength(),
         status: queueManager.getStatus(),
         skippedCount // Number of emails skipped due to invalid addresses
-      });
+      };
     });
+    if (!successPayload) return;
     await enforcePausedAttachmentLimit();
+    res.status(200).json(successPayload);
     return;
   } catch (error) {
     if (error instanceof PdfSourceError) {
@@ -370,6 +373,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
     }
 
     const key = queueKey(userId, sessionId);
+    let actionSucceeded = false;
     await withQueueIngestionLock(key, async () => {
       const queueManager = queueManagers.get(key);
       if (!queueManager) {
@@ -394,11 +398,13 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
         return;
       }
 
-      res.status(200).json({ success: true });
+      actionSucceeded = true;
     });
+    if (!actionSucceeded) return;
     if (action === 'pause') {
       await enforcePausedAttachmentLimit();
     }
+    res.status(200).json({ success: true });
     return;
   } catch (error) {
     console.error('Queue control error:', error);
