@@ -33,7 +33,12 @@ describe('authentication middleware', () => {
     expect(mockedGetToken).not.toHaveBeenCalled();
   });
 
-  it.each(['/api/auth/session', '/_next/static/app.js', '/logo.png'])(
+  it.each([
+    '/api/auth/session',
+    '/_next/static/app.js',
+    '/logo.png',
+    '/generated/progressive_session/certificate.pdf',
+  ])(
     'allows public path %s without reading a token',
     async pathname => {
       const response = await middleware(request(pathname));
@@ -71,6 +76,17 @@ describe('authentication middleware', () => {
 
     expect(response.status).toBe(401);
   });
+
+  it.each(['/private/certificate.pdf', '/generated.pdf'])(
+    'does not exempt PDF path %s outside the legacy generated download directory',
+    async pathname => {
+      mockedGetToken.mockResolvedValue(null);
+
+      const response = await middleware(request(pathname));
+
+      expect(response.status).toBe(307);
+    },
+  );
 
   it('allows an authenticated request', async () => {
     mockedGetToken.mockResolvedValue({ sub: 'user-1' });

@@ -4,6 +4,9 @@ import { getToken } from 'next-auth/jwt';
 import { isAuthenticationRequired } from '@/lib/auth/runtime-policy';
 
 const STATIC_ASSET_PATTERN = /\.(?:png|jpg|jpeg|gif|svg|ico|webp|avif|txt|xml|json|map)$/i;
+// Existing email links rely on this anonymous path. Keep the exception narrow;
+// private/signed certificate delivery will replace it in the storage hardening.
+const LEGACY_PUBLIC_GENERATED_PDF_PATTERN = /^\/generated\/.+\.pdf$/i;
 
 function isPathOrDescendant(pathname: string, path: string): boolean {
   return pathname === path || pathname.startsWith(`${path}/`);
@@ -21,6 +24,7 @@ export async function middleware(req: NextRequest) {
     pathname === '/' ||
     isPathOrDescendant(pathname, '/api/auth') ||
     isPathOrDescendant(pathname, '/_next') ||
+    LEGACY_PUBLIC_GENERATED_PDF_PATTERN.test(pathname) ||
     (!isPathOrDescendant(pathname, '/api') && STATIC_ASSET_PATTERN.test(pathname))
   ) {
     return NextResponse.next();
