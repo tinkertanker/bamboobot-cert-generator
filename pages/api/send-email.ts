@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { withFeatureGate } from '@/lib/server/middleware/featureGate';
 import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
+import { PdfSourceError } from '@/lib/security/trusted-pdf-source';
 
 export const config = {
   api: {
@@ -130,6 +131,10 @@ Important: This download link will expire in 90 days. Please save your certifica
     return;
 
   } catch (error) {
+    if (error instanceof PdfSourceError) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
     console.error('Error sending email:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ 

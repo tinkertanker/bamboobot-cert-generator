@@ -37,6 +37,7 @@ export type LimitCategory =
   | 'api'
   | 'upload'
   | 'generate'
+  | 'download'
   | 'zip'
   | 'email';
 
@@ -44,6 +45,7 @@ const DEFAULTS: Record<LimitCategory, number> = {
   api: parseInt(process.env.RATE_LIMIT_API_PER_MIN || '120', 10),
   upload: parseInt(process.env.RATE_LIMIT_UPLOAD_PER_MIN || '6', 10),
   generate: parseInt(process.env.RATE_LIMIT_GENERATE_PER_MIN || '10', 10),
+  download: parseInt(process.env.RATE_LIMIT_DOWNLOAD_PER_MIN || '30', 10),
   zip: parseInt(process.env.RATE_LIMIT_ZIP_PER_MIN || '5', 10),
   email: parseInt(process.env.RATE_LIMIT_EMAIL_PER_MIN || '60', 10),
 };
@@ -117,4 +119,3 @@ export function enforceRateLimit(
     remaining: rl.remaining
   };
 }
-

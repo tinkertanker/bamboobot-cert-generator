@@ -4,6 +4,7 @@ import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
+import { PdfSourceError } from '@/lib/security/trusted-pdf-source';
 
 export const config = {
   api: {
@@ -99,6 +100,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       provider: result.provider
     });
   } catch (error) {
+    if (error instanceof PdfSourceError) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
     console.error('Test email error:', error);
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to send test email'

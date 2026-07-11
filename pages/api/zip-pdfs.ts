@@ -1,16 +1,32 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import archiver from 'archiver';
-import { parse } from 'url';
-import path from 'path';
-import fs from 'fs';
-import { isR2Configured } from '@/lib/r2-client';
 import { debug, error } from '@/lib/log';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { rateLimit, buildKey } from '@/lib/rate-limit';
+import {
+  getMaxPdfSourceBytes,
+  loadTrustedPdf,
+  PdfSourceError,
+  sanitizePdfFilename,
+} from '@/lib/security/trusted-pdf-source';
 
 interface FileInfo {
   url: string;
   filename: string;
+}
+
+const MAX_ZIP_FILES = 500;
+const MAX_ZIP_BYTES = 250 * 1024 * 1024;
+const MAX_SOURCE_FAILURES = 5;
+const DEFAULT_MAX_ZIP_DURATION_MS = 60_000;
+const HARD_MAX_ZIP_DURATION_MS = 120_000;
+
+function getMaxZipDurationMs(): number {
+  const configured = Number.parseInt(process.env.MAX_ZIP_DURATION_MS || '', 10);
+  if (!Number.isSafeInteger(configured) || configured <= 0) {
+    return DEFAULT_MAX_ZIP_DURATION_MS;
+  }
+  return Math.min(configured, HARD_MAX_ZIP_DURATION_MS);
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
@@ -24,6 +40,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!files || !Array.isArray(files) || files.length === 0) {
     res.status(400).json({ error: 'No files provided' });
+    return;
+  }
+
+  if (files.length > MAX_ZIP_FILES) {
+    res.status(413).json({ error: `A ZIP can contain at most ${MAX_ZIP_FILES} files` });
+    return;
+  }
+
+  if (files.some((file) => !file || typeof file.url !== 'string' || typeof file.filename !== 'string')) {
+    res.status(400).json({ error: 'Each file must include a URL and filename' });
     return;
   }
 
@@ -43,20 +69,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
+  let archiveTimeout: NodeJS.Timeout | undefined;
+
   try {
     // Set headers for ZIP download
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', 'attachment; filename="certificates.zip"');
+    res.setHeader('Cache-Control', 'private, no-store');
 
     // Create archive
     const archive = archiver('zip', {
       zlib: { level: 9 } // Maximum compression
     });
 
-    // Handle archive errors
+    let archiveFailure: Error | null = null;
+    let resolveArchiveError!: (reason: Error) => void;
+    const archiveError = new Promise<Error>((resolve) => {
+      resolveArchiveError = resolve;
+    });
+
+    const failArchive = (reason: unknown) => {
+      if (archiveFailure) return;
+      archiveFailure = reason instanceof Error ? reason : new Error('ZIP archive failed');
+      resolveArchiveError(archiveFailure);
+    };
+
+    // Resolve (rather than reject) immediately on archive errors so an event
+    // emitted during an awaited source load cannot become an unhandled
+    // rejection before finalization attaches its race handler.
     archive.on('error', (err) => {
       error('Archive error:', err);
-      throw err;
+      failArchive(err);
     });
 
     // Log when archive is finalized
@@ -67,77 +110,89 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Pipe the archive to the response
     archive.pipe(res);
 
-    // Add each PDF to the archive
-    for (const file of files) {
+    let totalBytes = 0;
+    let sourceFailures = 0;
+    const maxZipDurationMs = getMaxZipDurationMs();
+    const deadlineAt = Date.now() + maxZipDurationMs;
+
+    archiveTimeout = setTimeout(() => {
+      const timeoutError = new Error('ZIP generation timed out');
+      failArchive(timeoutError);
       try {
-        debug(`Processing file: ${file.url} -> ${file.filename}`);
-        
-        // Check if this is an R2 URL (either direct endpoint or custom domain)
-        if (isR2Configured() && (file.url.includes('.r2.cloudflarestorage.com') || (process.env.R2_PUBLIC_URL && file.url.startsWith(process.env.R2_PUBLIC_URL)))) {
-          // Fetch the file from R2
-          debug('Fetching from R2:', file.url);
-          const response = await fetch(file.url);
-          if (!response.ok) {
-            error(`Failed to fetch from R2: ${response.status}`);
-            continue;
-          }
-          const buffer = await response.arrayBuffer();
-          
-          // Add the buffer to archive
-          archive.append(Buffer.from(buffer), { name: file.filename });
-        } else {
-          // Handle local files
-          const parsedUrl = parse(file.url);
-          const urlPath = parsedUrl.pathname || '';
-          debug(`URL path: ${urlPath}`);
-          
-          // Convert URL path to file system path
-          // Handle both direct URLs (/generated/) and API URLs (/api/files/generated/)
-          let relativePath: string;
-          if (urlPath.startsWith('/api/files/generated/')) {
-            relativePath = urlPath.replace(/^\/api\/files\/generated\//, '');
-          } else if (urlPath.startsWith('/generated/')) {
-            relativePath = urlPath.replace(/^\/generated\//, '');
-          } else {
-            console.error(`Unexpected URL format: ${urlPath}`);
-            continue;
-          }
-          
-          const filePath = path.join(process.cwd(), 'public', 'generated', relativePath);
-          debug(`File path: ${filePath}`);
-          
-          // Security check - ensure the file is within the generated directory
-          const normalizedPath = path.normalize(filePath);
-          const generatedDir = path.join(process.cwd(), 'public', 'generated');
-          if (!normalizedPath.startsWith(generatedDir)) {
-            error(`Security error: Invalid file path ${filePath}`);
-            continue;
-          }
+        archive.abort();
+      } catch {
+        // The failure is already recorded and will be surfaced below.
+      }
+    }, maxZipDurationMs);
 
-          // Check if file exists
-          if (!fs.existsSync(filePath)) {
-            error(`File not found: ${filePath}`);
-            continue;
-          }
+    // Add each validated PDF to the archive. Each source and the aggregate
+    // archive input are bounded to avoid turning this endpoint into a memory
+    // or bandwidth amplifier.
+    for (const file of files) {
+      if (archiveFailure) throw archiveFailure;
 
-          // Add the file to the archive
-          archive.file(filePath, { name: file.filename });
+      const remainingDurationMs = deadlineAt - Date.now();
+      if (remainingDurationMs <= 0) {
+        const timeoutError = new Error('ZIP generation timed out');
+        failArchive(timeoutError);
+        throw timeoutError;
+      }
+
+      try {
+        const remainingBytes = MAX_ZIP_BYTES - totalBytes;
+        if (remainingBytes <= 0) {
+          error('ZIP input limit reached; remaining files were skipped');
+          break;
         }
-        
+
+        const { buffer } = await loadTrustedPdf(
+          file.url,
+          Math.min(getMaxPdfSourceBytes(), remainingBytes),
+          { timeoutMs: remainingDurationMs }
+        );
+        if (archiveFailure) throw archiveFailure;
+
+        totalBytes += buffer.length;
+        archive.append(buffer, { name: sanitizePdfFilename(file.filename, 'certificate.pdf') });
       } catch (fileError) {
-        error(`Error processing file ${file.filename}:`, fileError);
+        if (archiveFailure) throw archiveFailure;
+
+        if (fileError instanceof PdfSourceError) {
+          error(`Skipped unsafe or unavailable PDF source (${fileError.code})`);
+          sourceFailures += 1;
+
+          // A too-large source can consume the entire per-file read budget
+          // before being rejected. Stop rather than allowing a request to
+          // repeat that expensive read hundreds of times.
+          if (fileError.code === 'PDF_TOO_LARGE' || sourceFailures >= MAX_SOURCE_FAILURES) {
+            break;
+          }
+        } else {
+          error('Error processing PDF for ZIP:', fileError);
+          sourceFailures += 1;
+          if (sourceFailures >= MAX_SOURCE_FAILURES) break;
+        }
         // Continue with other files
       }
     }
 
     // Finalize the archive
-    await archive.finalize();
+    if (archiveFailure) throw archiveFailure;
+    const finalization = await Promise.race([
+      archiveError.then((failure) => ({ failure })),
+      archive.finalize().then(() => ({ failure: null as Error | null })),
+    ]);
+    if (finalization.failure) throw finalization.failure;
 
   } catch (err) {
     error('ZIP creation error:', err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to create ZIP file' });
+    } else if (!res.writableEnded && typeof res.destroy === 'function') {
+      res.destroy(err instanceof Error ? err : undefined);
     }
     return;
+  } finally {
+    if (archiveTimeout) clearTimeout(archiveTimeout);
   }
 }

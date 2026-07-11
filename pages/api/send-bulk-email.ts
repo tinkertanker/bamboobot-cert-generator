@@ -5,6 +5,26 @@ import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
+import {
+  getMaxPdfSourceBytes,
+  PdfSourceError,
+} from '@/lib/security/trusted-pdf-source';
+
+const MAX_BULK_EMAILS = 500;
+const BULK_ATTACHMENT_CONCURRENCY = 4;
+const DEFAULT_MAX_BULK_ATTACHMENT_BYTES = 100 * 1024 * 1024;
+const HARD_MAX_BULK_ATTACHMENT_BYTES = 250 * 1024 * 1024;
+
+function getMaxBulkAttachmentBytes(): number {
+  const configured = Number.parseInt(
+    process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES || '',
+    10
+  );
+  if (!Number.isSafeInteger(configured) || configured <= 0) {
+    return DEFAULT_MAX_BULK_ATTACHMENT_BYTES;
+  }
+  return Math.min(configured, HARD_MAX_BULK_ATTACHMENT_BYTES);
+}
 
 export const config = {
   api: {
@@ -48,6 +68,13 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
       res.status(400).json({ error: 'No emails provided' });
+      return;
+    }
+
+    if (emails.length > MAX_BULK_EMAILS) {
+      res.status(413).json({
+        error: `A bulk request can contain at most ${MAX_BULK_EMAILS} emails`
+      });
       return;
     }
 
@@ -115,26 +142,66 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       return;
     }
 
-    // Add emails to queue
-    const emailParams = await Promise.all(emailsWithRecipients.map(async email => {
-      // Build attachments from client-side data or server-side URLs
-      const attachments = await buildPdfAttachments({
-        attachmentData: email.attachmentData,
-        attachments: email.attachments
-      });
+    // Build attachments with bounded concurrency and a request-wide byte
+    // budget. Per-email limits alone are insufficient because a single bulk
+    // request can otherwise fan out hundreds of simultaneous remote reads.
+    const emailParams: Array<EmailParams & { certificateUrl?: string }> = [];
+    const maxBulkAttachmentBytes = getMaxBulkAttachmentBytes();
+    let totalAttachmentBytes = 0;
 
-      return {
-        to: email.recipients,
-        from: email.senderName
-          ? `${email.senderName} <${fromAddress}>`
-          : `Bamboobot Certificates <${fromAddress}>`,
-        subject: email.subject,
-        html: email.html,
-        text: email.text,
-        attachments,
-        certificateUrl: email.certificateUrl
-      };
-    }));
+    for (let offset = 0; offset < emailsWithRecipients.length; offset += BULK_ATTACHMENT_CONCURRENCY) {
+      const batch = emailsWithRecipients.slice(offset, offset + BULK_ATTACHMENT_CONCURRENCY);
+      const emailsWithAttachments = batch.filter((email) =>
+        email.attachmentData !== undefined
+        || email.attachments?.some((attachment) => Boolean(attachment?.path || attachment?.content))
+      ).length;
+      const remainingBytes = maxBulkAttachmentBytes - totalAttachmentBytes;
+
+      if (emailsWithAttachments > 0 && remainingBytes < emailsWithAttachments) {
+        throw new PdfSourceError('PDF_TOO_LARGE', 'Bulk PDF attachments exceed the size limit', 413);
+      }
+
+      const perEmailBudget = emailsWithAttachments > 0
+        ? Math.min(
+            getMaxPdfSourceBytes(),
+            Math.floor(remainingBytes / emailsWithAttachments)
+          )
+        : getMaxPdfSourceBytes();
+
+      const builtBatch = await Promise.all(batch.map(async email => {
+        const attachments = await buildPdfAttachments({
+          attachmentData: email.attachmentData,
+          attachments: email.attachments,
+          maxTotalBytes: perEmailBudget,
+        });
+
+        return {
+          to: email.recipients,
+          from: email.senderName
+            ? `${email.senderName} <${fromAddress}>`
+            : `Bamboobot Certificates <${fromAddress}>`,
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
+          attachments,
+          certificateUrl: email.certificateUrl
+        };
+      }));
+
+      const batchAttachmentBytes = builtBatch.reduce((batchTotal, email) => {
+        return batchTotal + (email.attachments?.reduce(
+          (emailTotal, attachment) => emailTotal + (attachment.content?.length || 0),
+          0
+        ) || 0);
+      }, 0);
+      totalAttachmentBytes += batchAttachmentBytes;
+
+      if (totalAttachmentBytes > maxBulkAttachmentBytes) {
+        throw new PdfSourceError('PDF_TOO_LARGE', 'Bulk PDF attachments exceed the size limit', 413);
+      }
+
+      emailParams.push(...builtBatch);
+    }
 
     await queueManager.addToQueue(emailParams);
 
@@ -151,6 +218,10 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     });
     return;
   } catch (error) {
+    if (error instanceof PdfSourceError) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
     console.error('Bulk email error:', error);
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to send emails'

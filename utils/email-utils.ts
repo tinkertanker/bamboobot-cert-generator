@@ -8,6 +8,16 @@
  * to avoid bundling Buffer polyfills.
  */
 
+import {
+  assertPdfBuffer,
+  getMaxPdfSourceBytes,
+  loadTrustedPdf,
+  PdfSourceError,
+  sanitizePdfFilename,
+} from '@/lib/security/trusted-pdf-source';
+
+const DEFAULT_MAX_EMAIL_ATTACHMENTS = 10;
+
 // Re-export browser-safe functions for server-side convenience
 export {
   isValidEmail,
@@ -44,6 +54,10 @@ export interface BuildAttachmentsOptions {
   attachmentUrl?: string;
   /** Default filename if not provided elsewhere */
   defaultFilename?: string;
+  /** Maximum combined attachment bytes for this email */
+  maxTotalBytes?: number;
+  /** Maximum number of attachments for this email */
+  maxAttachments?: number;
 }
 
 export interface BuiltAttachment {
@@ -55,19 +69,59 @@ export interface BuiltAttachment {
 /**
  * Fetch a PDF from URL and return as Buffer
  */
-async function fetchPdfBuffer(url: string): Promise<Buffer | null> {
+async function fetchPdfBuffer(url: string, maxBytes: number): Promise<Buffer> {
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error(`Failed to fetch attachment from ${url}: ${response.status}`);
-      return null;
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
+    const { buffer } = await loadTrustedPdf(url, maxBytes);
+    return buffer;
   } catch (error) {
-    console.error('Error fetching attachment:', error);
-    return null;
+    if (error instanceof PdfSourceError) {
+      console.warn(`Rejected or unavailable PDF attachment source (${error.code})`);
+      throw error;
+    }
+    console.error('Error loading PDF attachment:', error);
+    throw new PdfSourceError('FETCH_FAILED', 'Unable to load PDF attachment', 502);
   }
+}
+
+function positiveLimit(value: number | undefined, fallback: number): number {
+  return Number.isSafeInteger(value) && (value as number) > 0 ? value as number : fallback;
+}
+
+function validateInlinePdf(buffer: Buffer, remainingBytes: number): void {
+  if (buffer.length > remainingBytes) {
+    throw new PdfSourceError('PDF_TOO_LARGE', 'PDF attachments exceed the size limit', 413);
+  }
+  assertPdfBuffer(buffer);
+}
+
+function decodeBase64Pdf(value: string, maxBytes: number): Buffer {
+  // Base64 expands binary data by roughly 4/3. Reject from the encoded length
+  // before allocating the decoded Buffer, then enforce the exact byte count.
+  const maxEncodedLength = Math.ceil(maxBytes / 3) * 4 + 4;
+  if (value.length > maxEncodedLength) {
+    throw new PdfSourceError('PDF_TOO_LARGE', 'PDF attachment exceeds the size limit', 413);
+  }
+
+  const buffer = Buffer.from(value, 'base64');
+  if (buffer.length > maxBytes) {
+    throw new PdfSourceError('PDF_TOO_LARGE', 'PDF attachment exceeds the size limit', 413);
+  }
+  return buffer;
+}
+
+function bufferFromPdfBytes(value: unknown, maxBytes: number): Buffer {
+  if (!Array.isArray(value) && !(value instanceof Uint8Array)) {
+    throw new PdfSourceError('INVALID_PDF', 'Invalid PDF attachment byte data', 400);
+  }
+  if (value.length > maxBytes) {
+    throw new PdfSourceError('PDF_TOO_LARGE', 'PDF attachment exceeds the size limit', 413);
+  }
+  if (Array.isArray(value) && value.some((byte) =>
+    !Number.isInteger(byte) || byte < 0 || byte > 255
+  )) {
+    throw new PdfSourceError('INVALID_PDF', 'Invalid PDF attachment byte data', 400);
+  }
+  return Buffer.from(value);
 }
 
 /**
@@ -86,8 +140,30 @@ async function fetchPdfBuffer(url: string): Promise<Buffer | null> {
 export async function buildPdfAttachments(
   options: BuildAttachmentsOptions
 ): Promise<BuiltAttachment[] | undefined> {
-  const { attachmentData, attachment, attachments, attachmentUrl, defaultFilename = 'certificate.pdf' } = options;
+  const {
+    attachmentData,
+    attachment,
+    attachments,
+    attachmentUrl,
+    defaultFilename = 'certificate.pdf',
+  } = options;
+  const configuredMaxBytes = getMaxPdfSourceBytes();
+  const maxTotalBytes = Math.min(
+    positiveLimit(options.maxTotalBytes, configuredMaxBytes),
+    configuredMaxBytes
+  );
+  const maxAttachments = positiveLimit(options.maxAttachments, DEFAULT_MAX_EMAIL_ATTACHMENTS);
   const result: BuiltAttachment[] = [];
+
+  const appendAttachment = (buffer: Buffer, filename: string) => {
+    const usedBytes = result.reduce((total, item) => total + item.content.length, 0);
+    validateInlinePdf(buffer, maxTotalBytes - usedBytes);
+    result.push({
+      filename: sanitizePdfFilename(filename, defaultFilename),
+      content: buffer,
+      contentType: 'application/pdf'
+    });
+  };
 
   // Handle client-side PDF data (various formats)
   if (attachmentData) {
@@ -96,85 +172,62 @@ export async function buildPdfAttachments(
 
     if (typeof attachmentData === 'string') {
       // Base64 string
-      buffer = Buffer.from(attachmentData, 'base64');
+      buffer = decodeBase64Pdf(attachmentData, maxTotalBytes);
     } else if (Array.isArray(attachmentData)) {
       // Raw number array (Uint8Array serialised)
-      buffer = Buffer.from(attachmentData);
+      buffer = bufferFromPdfBytes(attachmentData, maxTotalBytes);
     } else if (attachmentData.data) {
       // Object with data property
-      buffer = Buffer.from(attachmentData.data);
+      buffer = bufferFromPdfBytes(attachmentData.data, maxTotalBytes);
       if (attachmentData.filename) {
         filename = attachmentData.filename;
       }
     }
 
     if (buffer) {
-      result.push({
-        filename,
-        content: buffer,
-        contentType: 'application/pdf'
-      });
+      appendAttachment(buffer, filename);
       return result;
     }
   }
 
   // Handle single server-side attachment with path
   if (attachment?.path) {
-    const buffer = await fetchPdfBuffer(attachment.path);
-    if (buffer) {
-      result.push({
-        filename: attachment.filename || defaultFilename,
-        content: buffer,
-        contentType: 'application/pdf'
-      });
-      return result;
-    }
+    const buffer = await fetchPdfBuffer(attachment.path, maxTotalBytes);
+    appendAttachment(buffer, attachment.filename || defaultFilename);
+    return result;
   }
 
   // Handle array of server-side attachments
   if (attachments && attachments.length > 0) {
-    const fetched = await Promise.all(
-      attachments.map(async (att) => {
-        if (att.path) {
-          const buffer = await fetchPdfBuffer(att.path);
-          if (buffer) {
-            return {
-              filename: att.filename || defaultFilename,
-              content: buffer,
-              contentType: 'application/pdf'
-            };
-          }
-        } else if (att.content) {
-          // Already has content
-          return {
-            filename: att.filename || defaultFilename,
-            content: typeof att.content === 'string'
-              ? Buffer.from(att.content, 'base64')
-              : att.content as Buffer,
-            contentType: 'application/pdf'
-          };
-        }
-        return null;
-      })
-    );
+    if (attachments.length > maxAttachments) {
+      throw new PdfSourceError('PDF_TOO_LARGE', 'Too many PDF attachments', 413);
+    }
 
-    const valid = fetched.filter((a): a is BuiltAttachment => a !== null);
-    if (valid.length > 0) {
-      return valid;
+    for (const att of attachments) {
+      const usedBytes = result.reduce((total, item) => total + item.content.length, 0);
+      const remainingBytes = maxTotalBytes - usedBytes;
+
+      if (att.path) {
+        const buffer = await fetchPdfBuffer(att.path, remainingBytes);
+        appendAttachment(buffer, att.filename || defaultFilename);
+      } else if (att.content) {
+        const buffer = typeof att.content === 'string'
+          ? decodeBase64Pdf(att.content, remainingBytes)
+          : bufferFromPdfBytes(att.content as Buffer, remainingBytes);
+        appendAttachment(buffer, att.filename || defaultFilename);
+      }
+    }
+
+    if (result.length > 0) {
+      return result;
     }
   }
 
   // Handle direct attachment URL
   if (attachmentUrl) {
-    const buffer = await fetchPdfBuffer(attachmentUrl);
-    if (buffer) {
-      result.push({
-        filename: defaultFilename,
-        content: buffer,
-        contentType: 'application/pdf'
-      });
-      return result;
-    }
+    const buffer = await fetchPdfBuffer(attachmentUrl, maxTotalBytes);
+    appendAttachment(buffer, defaultFilename);
+    return result;
   }
 
   return undefined;
