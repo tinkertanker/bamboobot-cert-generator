@@ -177,6 +177,91 @@ describe('/api/send-bulk-email', () => {
     expect(data.total).toBe(0);
   });
 
+  it('releases completed queue items after returning their terminal status', async () => {
+    const post = createMocks({
+      method: 'POST',
+      body: {
+        emails: [{ to: 'done@example.com', subject: 'Test', html: 'Test' }],
+        config: { senderName: 'Test', subject: 'Test', message: 'Test' },
+        sessionId: 'completed-session',
+        deferProcessing: true
+      }
+    });
+    await handler(post.req, post.res);
+
+    const queueModule = jest.requireMock('@/lib/email/email-queue');
+    const queue = queueModule.EmailQueueManager.mock.results.at(-1).value;
+    queue.getStatus.mockReturnValue({
+      status: 'completed',
+      processed: 1,
+      failed: 0,
+      total: 1,
+      remaining: 0
+    });
+
+    const firstTerminal = createMocks({
+      method: 'GET',
+      query: { sessionId: 'completed-session' }
+    });
+    const overlappingTerminal = createMocks({
+      method: 'GET',
+      query: { sessionId: 'completed-session' }
+    });
+    await Promise.all([
+      handler(firstTerminal.req, firstTerminal.res),
+      handler(overlappingTerminal.req, overlappingTerminal.res)
+    ]);
+
+    expect(JSON.parse(firstTerminal.res._getData())).toMatchObject({
+      status: 'completed',
+      processed: 1,
+      total: 1
+    });
+    expect(JSON.parse(overlappingTerminal.res._getData())).toMatchObject({
+      status: 'completed',
+      processed: 1,
+      total: 1
+    });
+    expect(queue.clear).toHaveBeenCalledTimes(1);
+
+    const afterCleanup = createMocks({
+      method: 'GET',
+      query: { sessionId: 'completed-session' }
+    });
+    await handler(afterCleanup.req, afterCleanup.res);
+    expect(JSON.parse(afterCleanup.res._getData())).toMatchObject({
+      status: 'completed',
+      processed: 1,
+      total: 1
+    });
+  });
+
+  it('preserves all valid recipients from a mixed recipient cell', async () => {
+    const post = createMocks({
+      method: 'POST',
+      body: {
+        emails: [{
+          to: 'first@example.com, invalid, second@example.com',
+          subject: 'Test',
+          html: 'Test'
+        }],
+        config: { senderName: 'Test', subject: 'Test', message: 'Test' },
+        sessionId: 'mixed-recipient-session',
+        deferProcessing: true
+      }
+    });
+
+    await handler(post.req, post.res);
+
+    const queueModule = jest.requireMock('@/lib/email/email-queue');
+    const queue = queueModule.EmailQueueManager.mock.results.at(-1).value;
+    expect(queue.addToQueue).toHaveBeenCalledWith([
+      expect.objectContaining({
+        to: ['first@example.com', 'second@example.com']
+      })
+    ]);
+  });
+
   it('clears stale processing queues and their retained state', async () => {
     const post = createMocks({
       method: 'POST',
