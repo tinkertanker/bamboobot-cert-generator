@@ -35,12 +35,20 @@ jest.mock('@/pages/api/auth/[...nextauth]', () => ({
 jest.mock('@/lib/auth/requireAuth', () => ({
   requireAuth: jest.fn(async () => ({ user: { id: 'u1' } }))
 }));
+jest.mock('@/lib/server/tiers', () => ({
+  checkEmailUsageAvailability: jest.fn(async () => ({ allowed: true, limit: 100, current: 0 })),
+  reserveEmailUsage: jest.fn(async (_userId: string, count: number) => ({
+    allowed: true, limit: 100, current: count
+  }))
+}));
 import handler, { cleanupExpiredEmailQueues } from '../../pages/api/send-bulk-email';
 import { getEmailProvider } from '@/lib/email/provider-factory';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
 
 const mockGetEmailProvider = getEmailProvider as jest.MockedFunction<typeof getEmailProvider>;
 const mockedRequireAuth = requireAuth as jest.MockedFunction<typeof requireAuth>;
+const certificateUrl = createSignedGeneratedFileUrl('u_u1/test/certificate.pdf');
 
 describe('/api/send-bulk-email', () => {
   beforeEach(() => {
@@ -64,7 +72,8 @@ describe('/api/send-bulk-email', () => {
             subject: 'Test Subject',
             html: '<p>Test HTML</p>',
             text: 'Test text',
-            attachments: []
+            attachments: [],
+            certificateUrl
           }
         ],
         config: {
@@ -89,7 +98,7 @@ describe('/api/send-bulk-email', () => {
     const first = createMocks({
       method: 'POST',
       body: {
-        emails: [{ to: 'first@example.com', subject: 'Test', html: 'Test' }],
+        emails: [{ to: 'first@example.com', subject: 'Test', html: 'Test', certificateUrl }],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
         sessionId: 'deferred-batches',
         deferProcessing: true
@@ -104,7 +113,7 @@ describe('/api/send-bulk-email', () => {
     const final = createMocks({
       method: 'POST',
       body: {
-        emails: [{ to: 'second@example.com', subject: 'Test', html: 'Test' }],
+        emails: [{ to: 'second@example.com', subject: 'Test', html: 'Test', certificateUrl }],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
         sessionId: 'deferred-batches',
         deferProcessing: true
@@ -130,7 +139,7 @@ describe('/api/send-bulk-email', () => {
     const first = createMocks({
       method: 'POST',
       body: {
-        emails: [{ to: 'first@example.com', subject: 'Test', html: 'Test' }],
+        emails: [{ to: 'first@example.com', subject: 'Test', html: 'Test', certificateUrl }],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
         sessionId: 'session-email-cap',
         deferProcessing: true
@@ -146,8 +155,8 @@ describe('/api/send-bulk-email', () => {
       method: 'POST',
       body: {
         emails: [
-          { to: 'second@example.com', subject: 'Test', html: 'Test' },
-          { to: 'third@example.com', subject: 'Test', html: 'Test' }
+          { to: 'second@example.com', subject: 'Test', html: 'Test', certificateUrl },
+          { to: 'third@example.com', subject: 'Test', html: 'Test', certificateUrl }
         ],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
         sessionId: 'session-email-cap',
@@ -181,7 +190,7 @@ describe('/api/send-bulk-email', () => {
     const post = createMocks({
       method: 'POST',
       body: {
-        emails: [{ to: 'done@example.com', subject: 'Test', html: 'Test' }],
+        emails: [{ to: 'done@example.com', subject: 'Test', html: 'Test', certificateUrl }],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
         sessionId: 'completed-session',
         deferProcessing: true
@@ -243,7 +252,8 @@ describe('/api/send-bulk-email', () => {
         emails: [{
           to: 'first@example.com, invalid, second@example.com',
           subject: 'Test',
-          html: 'Test'
+          html: 'Test',
+          certificateUrl
         }],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
         sessionId: 'mixed-recipient-session',
@@ -266,7 +276,7 @@ describe('/api/send-bulk-email', () => {
     const post = createMocks({
       method: 'POST',
       body: {
-        emails: [{ to: 'stale@example.com', subject: 'Test', html: 'Test' }],
+        emails: [{ to: 'stale@example.com', subject: 'Test', html: 'Test', certificateUrl }],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
         sessionId: 'stale-processing-session',
         deferProcessing: true
@@ -293,7 +303,7 @@ describe('/api/send-bulk-email', () => {
     const post = createMocks({
       method: 'POST',
       body: {
-        emails: [{ to: 'paused@example.com', subject: 'Test', html: 'Test' }],
+        emails: [{ to: 'paused@example.com', subject: 'Test', html: 'Test', certificateUrl }],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
         sessionId: 'paused-session',
         deferProcessing: true
@@ -355,7 +365,7 @@ describe('/api/send-bulk-email', () => {
     const post = createMocks({
       method: 'POST',
       body: {
-        emails: [{ to: 'owner@example.com', subject: 'Test', html: 'Test' }],
+        emails: [{ to: 'owner@example.com', subject: 'Test', html: 'Test', certificateUrl }],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
         sessionId: 'shared-session',
         deferProcessing: true
@@ -399,7 +409,8 @@ describe('/api/send-bulk-email', () => {
             senderName: 'Test',
             subject: 'Test',
             html: 'Test',
-            text: 'Test'
+            text: 'Test',
+            certificateUrl
           }
         ],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },

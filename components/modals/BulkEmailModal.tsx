@@ -383,13 +383,11 @@ export function BulkEmailModal({
           testEmailAddress: testEmail.trim(),
           senderName: emailConfig.senderName,
           subject: emailConfig.subject,
-          html: useAttachmentDelivery
-            ? buildAttachmentEmail(emailConfig.message)
-            : buildLinkEmail(emailConfig.message, firstCert.downloadUrl),
-          text: emailConfig.message,
+          customMessage: emailConfig.message,
+          deliveryMethod: useAttachmentDelivery ? 'attachment' : 'download',
+          certificateUrl: firstCert.downloadUrl,
           attachment,
-          attachmentData,
-          certificateUrl: firstCert.downloadUrl
+          attachmentData
         })
       });
 

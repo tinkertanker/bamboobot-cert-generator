@@ -2,6 +2,7 @@ import {
   createSignedGeneratedFileUrl,
   normalizeGeneratedPdfPath,
   SignedFileUrlError,
+  verifySignedGeneratedFileCapabilityUrl,
   verifySignedGeneratedFileUrl,
 } from '@/lib/security/signed-generated-url';
 
@@ -34,6 +35,30 @@ describe('signed generated file URLs', () => {
       url.searchParams.get('signature')!,
       1_030_000,
     )).toBe('individual_1/Alice Smith.pdf');
+  });
+
+  it('binds absolute capability URLs to the configured application origin and owner', () => {
+    process.env.NEXTAUTH_URL = 'https://certificates.example';
+    const url = createSignedGeneratedFileUrl('u_user/session/certificate.pdf');
+    expect(verifySignedGeneratedFileCapabilityUrl(url, 'user'))
+      .toBe('u_user/session/certificate.pdf');
+    expect(() => verifySignedGeneratedFileCapabilityUrl(
+      url.replace('https://certificates.example', 'https://evil.example'),
+      'user',
+    )).toThrow(SignedFileUrlError);
+    expect(() => verifySignedGeneratedFileCapabilityUrl(url, 'other'))
+      .toThrow(SignedFileUrlError);
+    const relativeUrl = new URL(url).pathname + new URL(url).search;
+    expect(() => verifySignedGeneratedFileCapabilityUrl(`//evil.example${relativeUrl}`, 'user'))
+      .toThrow(SignedFileUrlError);
+    expect(() => verifySignedGeneratedFileCapabilityUrl(` ${relativeUrl}`, 'user'))
+      .toThrow(SignedFileUrlError);
+    expect(() => verifySignedGeneratedFileCapabilityUrl('\\\\evil.example\\api\\files\\download', 'user'))
+      .toThrow(SignedFileUrlError);
+    expect(() => verifySignedGeneratedFileCapabilityUrl(`/\\evil.example${relativeUrl}`, 'user'))
+      .toThrow(SignedFileUrlError);
+    expect(() => verifySignedGeneratedFileCapabilityUrl(`/\\/evil.example${relativeUrl}`, 'user'))
+      .toThrow(SignedFileUrlError);
   });
 
   it('rejects tampering, expiry, traversal, and non-PDF paths', () => {

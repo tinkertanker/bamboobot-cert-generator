@@ -5,6 +5,20 @@ import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
 import { PdfSourceError } from '@/lib/security/trusted-pdf-source';
+import { buildAttachmentEmail, buildLinkEmail } from '@/lib/email-templates';
+import { checkEmailUsageAvailability, reserveEmailUsage } from '@/lib/server/tiers';
+import {
+  EmailRequestError,
+  MAX_EMAIL_MESSAGE_LENGTH,
+  MAX_EMAIL_SENDER_NAME_LENGTH,
+  MAX_EMAIL_SUBJECT_LENGTH,
+  requireBoundedEmailText,
+  requireSafeEmailHeader,
+} from '@/lib/email/abuse-controls';
+import {
+  SignedFileUrlError,
+  verifySignedGeneratedFileCapabilityUrl,
+} from '@/lib/security/signed-generated-url';
 
 export const config = {
   api: {
@@ -24,7 +38,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Require auth
   const session = await requireAuth(req, res);
   if (!session) return;
-  const userId = (session.user as any).id as string;
+  const sessionUser = session.user as { id: string; email?: string | null };
+  const userId = sessionUser.id;
 
   // Rate limit test emails
   const rl = enforceRateLimit(req, res, { userId, route: 'send-test-email', category: 'email' });
@@ -34,7 +49,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { testEmailAddress, senderName, subject, html, text, attachment, attachmentData } = req.body;
+    const {
+      testEmailAddress,
+      senderName,
+      subject,
+      customMessage,
+      deliveryMethod,
+      certificateUrl,
+      attachment,
+      attachmentData,
+    } = req.body;
 
     if (!testEmailAddress || !testEmailAddress.trim()) {
       res.status(400).json({ error: 'Test email address is required' });
@@ -50,9 +74,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(400).json({ error: 'Invalid email address format' });
       return;
     }
+    const accountEmail = sessionUser.email?.trim().toLowerCase();
+    if (!accountEmail || recipients.length !== 1 || recipients[0] !== accountEmail) {
+      res.status(403).json({ error: 'Test emails can only be sent to your account email address' });
+      return;
+    }
 
-    if (!subject || !html) {
-      res.status(400).json({ error: 'Email subject and content are required' });
+    const safeSubject = requireSafeEmailHeader(
+      requireBoundedEmailText(subject, 'subject', MAX_EMAIL_SUBJECT_LENGTH),
+      'subject',
+    );
+    const safeMessage = requireBoundedEmailText(customMessage, 'message', MAX_EMAIL_MESSAGE_LENGTH);
+    const safeSenderName = senderName === undefined || senderName === ''
+      ? 'Bamboobot Certificates'
+      : requireSafeEmailHeader(
+          requireBoundedEmailText(senderName, 'senderName', MAX_EMAIL_SENDER_NAME_LENGTH),
+          'senderName',
+        );
+    const hasAttachment = Boolean(attachmentData || attachment);
+    if (!hasAttachment) {
+      if (deliveryMethod !== 'download' || typeof certificateUrl !== 'string') {
+        throw new EmailRequestError('A certificate download URL is required');
+      }
+      verifySignedGeneratedFileCapabilityUrl(certificateUrl, userId);
+    }
+
+    const quotaAvailability = await checkEmailUsageAvailability(userId, 1);
+    if (!quotaAvailability.allowed) {
+      res.status(403).json({
+        error: 'email limit reached',
+        code: 'LIMIT_REACHED',
+        limit: quotaAvailability.limit,
+        current: quotaAvailability.current,
+      });
       return;
     }
 
@@ -75,16 +129,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       attachmentData,
       attachment
     });
+    if (hasAttachment && (!attachments || attachments.length === 0)) {
+      throw new EmailRequestError('Invalid PDF attachment data');
+    }
+
+    const quota = await reserveEmailUsage(userId, 1);
+    if (!quota.allowed) {
+      res.status(403).json({
+        error: 'email limit reached',
+        code: 'LIMIT_REACHED',
+        limit: quota.limit,
+        current: quota.current,
+      });
+      return;
+    }
 
     // Send the test email
     const emailParams: EmailParams = {
       to: recipients,
-      from: senderName
-        ? `${senderName} <${fromAddress}>`
-        : `Bamboobot Certificates <${fromAddress}>`,
-      subject: `[TEST] ${subject}`,
-      html,
-      text,
+      from: `${safeSenderName} <${fromAddress}>`,
+      subject: `[TEST] ${safeSubject}`,
+      html: hasAttachment
+        ? buildAttachmentEmail(safeMessage)
+        : buildLinkEmail(safeMessage, certificateUrl),
+      text: hasAttachment
+        ? safeMessage
+        : `${safeMessage}\n\nDownload your certificate: ${certificateUrl}`,
       attachments
     };
 
@@ -101,7 +171,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       provider: result.provider
     });
   } catch (error) {
-    if (error instanceof PdfSourceError) {
+    if (error instanceof PdfSourceError || error instanceof SignedFileUrlError || error instanceof EmailRequestError) {
       res.status(error.statusCode).json({ error: error.message });
       return;
     }

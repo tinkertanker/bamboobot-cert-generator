@@ -7,6 +7,23 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
 import { getMaxPdfSourceBytes, PdfSourceError } from '@/lib/security/trusted-pdf-source';
 import { markGeneratedFileAsEmailed } from '@/lib/storage/mark-generated';
+import { buildAttachmentEmail, buildLinkEmail } from '@/lib/email-templates';
+import { checkEmailUsageAvailability, reserveEmailUsage } from '@/lib/server/tiers';
+import {
+  assertRecipientCount,
+  EmailRequestError,
+  MAX_BULK_RECIPIENTS,
+  MAX_EMAIL_MESSAGE_LENGTH,
+  MAX_EMAIL_SENDER_NAME_LENGTH,
+  MAX_EMAIL_SUBJECT_LENGTH,
+  MAX_RECIPIENTS_PER_MESSAGE,
+  requireBoundedEmailText,
+  requireSafeEmailHeader,
+} from '@/lib/email/abuse-controls';
+import {
+  SignedFileUrlError,
+  verifySignedGeneratedFileCapabilityUrl,
+} from '@/lib/security/signed-generated-url';
 
 const MAX_BULK_EMAILS = 500;
 const BULK_ATTACHMENT_CONCURRENCY = 4;
@@ -49,6 +66,7 @@ export const config = {
 // Store queue managers in memory (in production, use Redis or database)
 const queueManagers = new Map<string, EmailQueueManager>();
 const queueAttachmentBytes = new Map<string, number>();
+const queueRecipientCounts = new Map<string, number>();
 const queueIngestionLocks = new Map<string, Promise<void>>();
 type QueueStatus = ReturnType<EmailQueueManager['getStatus']>;
 const terminalQueueStatuses = new Map<
@@ -162,6 +180,27 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       res.status(400).json({ error: 'Email configuration incomplete' });
       return;
     }
+    const safeSenderName = requireSafeEmailHeader(
+      requireBoundedEmailText(
+        config.senderName,
+        'senderName',
+        MAX_EMAIL_SENDER_NAME_LENGTH,
+      ),
+      'senderName',
+    );
+    const safeSubject = requireSafeEmailHeader(
+      requireBoundedEmailText(
+        config.subject,
+        'subject',
+        MAX_EMAIL_SUBJECT_LENGTH,
+      ),
+      'subject',
+    );
+    const safeMessage = requireBoundedEmailText(
+      config.message,
+      'message',
+      MAX_EMAIL_MESSAGE_LENGTH,
+    );
 
     // Rate limit after validation
     const userId = (req as any).__uid as string | undefined;
@@ -184,13 +223,13 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     let successPayload: Record<string, unknown> | null = null;
     await withQueueIngestionLock(key, async () => {
       terminalQueueStatuses.delete(key);
-      // Get or create queue manager for this session
+      // Resolve the provider early, but do not retain an empty queue if later
+      // validation or attachment construction fails.
       let queueManager = queueManagers.get(key);
+      let provider: ReturnType<typeof getEmailProvider> | undefined;
       if (!queueManager) {
         try {
-          const provider = getEmailProvider();
-          queueManager = new EmailQueueManager(provider);
-          queueManagers.set(key, queueManager);
+          provider = getEmailProvider();
         } catch {
           res.status(500).json({
             error: 'No email provider configured. Please set up Resend or AWS SES.'
@@ -205,10 +244,6 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       // Parse recipients and filter out emails with no valid addresses
       type EmailInput = {
         to: string;
-        senderName?: string;
-        subject: string;
-        html: string;
-        text?: string;
         attachmentData?: { data: number[] | string; filename: string };
         attachments?: {
           path?: string;
@@ -221,6 +256,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       const emailsWithRecipients = (emails as EmailInput[])
         .map((email) => {
           const { valid, rejected } = parseRecipientsDetailed(email.to || '');
+          assertRecipientCount(valid.length, MAX_RECIPIENTS_PER_MESSAGE);
           rejectedEmails.push(...rejected);
           return { ...email, recipients: valid };
         })
@@ -238,9 +274,20 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
         });
         return;
       }
+      const recipientCount = emailsWithRecipients.reduce(
+        (total, email) => total + email.recipients.length,
+        0,
+      );
+      assertRecipientCount(recipientCount, MAX_BULK_RECIPIENTS);
+      if ((queueRecipientCounts.get(key) || 0) + recipientCount > MAX_BULK_RECIPIENTS) {
+        throw new EmailRequestError(
+          `A bulk email session can contain at most ${MAX_BULK_RECIPIENTS} recipients`,
+          413,
+        );
+      }
 
       if (
-        queueManager.getQueueLength() + emailsWithRecipients.length >
+        (queueManager?.getQueueLength() || 0) + emailsWithRecipients.length >
         MAX_BULK_EMAILS
       ) {
         throw new PdfSourceError(
@@ -248,6 +295,17 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
           `A bulk email session can contain at most ${MAX_BULK_EMAILS} emails`,
           413
         );
+      }
+
+      const quotaAvailability = await checkEmailUsageAvailability(userId, recipientCount);
+      if (!quotaAvailability.allowed) {
+        res.status(403).json({
+          error: 'email limit reached',
+          code: 'LIMIT_REACHED',
+          limit: quotaAvailability.limit,
+          current: quotaAvailability.current,
+        });
+        return;
       }
 
       // Build attachments with bounded concurrency and a request-wide byte
@@ -277,20 +335,35 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
 
         const builtBatch = await Promise.all(
           batch.map(async (email) => {
+            const requestedAttachment = email.attachmentData !== undefined
+              || Boolean(email.attachments?.some(attachment =>
+                Boolean(attachment?.path || attachment?.content)
+              ));
             const attachments = await buildPdfAttachments({
               attachmentData: email.attachmentData,
               attachments: email.attachments,
               maxTotalBytes: perEmailBudget
-            });
+            }) || [];
+            if (requestedAttachment && attachments.length === 0) {
+              throw new EmailRequestError('Invalid PDF attachment data');
+            }
+            if (attachments.length === 0) {
+              if (typeof email.certificateUrl !== 'string') {
+                throw new EmailRequestError('A certificate download URL is required');
+              }
+              verifySignedGeneratedFileCapabilityUrl(email.certificateUrl, userId);
+            }
 
             return {
               to: email.recipients,
-              from: email.senderName
-                ? `${email.senderName} <${fromAddress}>`
-                : `Bamboobot Certificates <${fromAddress}>`,
-              subject: email.subject,
-              html: email.html,
-              text: email.text,
+              from: `${safeSenderName} <${fromAddress}>`,
+              subject: safeSubject,
+              html: attachments.length > 0
+                ? buildAttachmentEmail(safeMessage)
+                : buildLinkEmail(safeMessage, email.certificateUrl as string),
+              text: attachments.length > 0
+                ? safeMessage
+                : `${safeMessage}\n\nDownload your certificate: ${email.certificateUrl}`,
               attachments,
               certificateUrl: email.certificateUrl
             };
@@ -313,8 +386,26 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
         emailParams.push(...builtBatch);
       }
 
+      const quota = await reserveEmailUsage(userId, recipientCount);
+      if (!quota.allowed) {
+        res.status(403).json({
+          error: 'email limit reached',
+          code: 'LIMIT_REACHED',
+          limit: quota.limit,
+          current: quota.current,
+        });
+        return;
+      }
+
+      const isNewQueue = !queueManager;
+      if (!queueManager) {
+        queueManager = new EmailQueueManager(provider as ReturnType<typeof getEmailProvider>);
+      }
+
       await queueManager.addToQueue(emailParams);
+      if (isNewQueue) queueManagers.set(key, queueManager);
       queueAttachmentBytes.set(key, totalAttachmentBytes);
+      queueRecipientCounts.set(key, (queueRecipientCounts.get(key) || 0) + recipientCount);
 
       await markGeneratedRetentionInBatches(emailParams
         .map(email => email.certificateUrl)
@@ -339,7 +430,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     res.status(200).json(successPayload);
     return;
   } catch (error) {
-    if (error instanceof PdfSourceError) {
+    if (error instanceof PdfSourceError || error instanceof SignedFileUrlError || error instanceof EmailRequestError) {
       res.status(error.statusCode).json({ error: error.message });
       return;
     }
@@ -388,6 +479,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
           await queueManager.clear();
           queueManagers.delete(key);
           queueAttachmentBytes.delete(key);
+          queueRecipientCounts.delete(key);
         }
       });
     }
@@ -464,6 +556,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
         queueManagers.delete(key);
         queueAttachmentBytes.delete(key);
         terminalQueueStatuses.delete(key);
+        queueRecipientCounts.delete(key);
       } else {
         res.status(400).json({ error: 'Invalid action' });
         return;
@@ -519,6 +612,7 @@ async function enforcePausedAttachmentLimit(): Promise<void> {
         await manager.clear();
         queueManagers.delete(key);
         queueAttachmentBytes.delete(key);
+        queueRecipientCounts.delete(key);
       });
     }
   });
@@ -537,6 +631,7 @@ export async function cleanupExpiredEmailQueues(now = Date.now()): Promise<void>
       await manager.clear();
       queueManagers.delete(key);
       queueAttachmentBytes.delete(key);
+      queueRecipientCounts.delete(key);
     })
   ));
   for (const [key, terminal] of terminalQueueStatuses) {

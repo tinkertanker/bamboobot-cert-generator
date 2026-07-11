@@ -24,7 +24,13 @@ export async function requireAuth(req: NextApiRequest, res: NextApiResponse) {
   if (token) {
     const uid = (token as any).uid ?? token.sub;
     if (uid) touchUser(String(uid));
-    return { user: { id: uid } } as any;
+    return {
+      user: {
+        id: uid,
+        email: typeof token.email === 'string' ? token.email : null,
+        name: typeof token.name === 'string' ? token.name : null,
+      },
+    } as any;
   }
 
   // Fallback: server session (may be undefined in tests without NextAuth wiring)

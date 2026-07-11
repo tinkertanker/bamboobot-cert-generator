@@ -5,33 +5,13 @@ import { isS3Configured, markAsEmailedS3 } from '@/lib/s3-client';
 import { getGeneratedDir, resolvePathWithin } from '@/lib/paths';
 import {
   SignedFileUrlError,
-  verifySignedGeneratedFileUrl,
+  verifySignedGeneratedFileCapabilityUrl,
 } from '@/lib/security/signed-generated-url';
 
 export async function markGeneratedFileAsEmailed(fileUrl: string, userId: string): Promise<void> {
   const provider = process.env.STORAGE_PROVIDER || 'local';
 
-  let parsed: URL;
-  try {
-    parsed = new URL(fileUrl, 'http://local.invalid');
-  } catch {
-    throw new SignedFileUrlError('Invalid generated file URL', 400);
-  }
-  if (parsed.pathname !== '/api/files/download') {
-    throw new SignedFileUrlError('Invalid generated file URL', 400);
-  }
-
-  const signedPath = parsed.searchParams.get('path');
-  const expires = parsed.searchParams.get('expires');
-  const signature = parsed.searchParams.get('signature');
-  if (!signedPath || !expires || !signature) {
-    throw new SignedFileUrlError('Invalid generated file URL', 400);
-  }
-
-  const verifiedPath = verifySignedGeneratedFileUrl(signedPath, expires, signature);
-  if (!verifiedPath.startsWith(`u_${userId}/`)) {
-    throw new SignedFileUrlError('Generated file does not belong to the current user', 403);
-  }
+  const verifiedPath = verifySignedGeneratedFileCapabilityUrl(fileUrl, userId);
   const key = `generated/${verifiedPath}`;
 
   if (provider === 'local') {

@@ -109,3 +109,52 @@ export function verifySignedGeneratedFileUrl(
   }
   return normalizedPath;
 }
+
+export function verifySignedGeneratedFileCapabilityUrl(
+  fileUrl: string,
+  userId: string,
+  nowMs: number = Date.now(),
+): string {
+  if (typeof fileUrl !== 'string' || fileUrl !== fileUrl.trim() || fileUrl.includes('\\')) {
+    throw new SignedFileUrlError('Invalid generated file URL', 400);
+  }
+  const isRelativeUrl = fileUrl.startsWith('/') && !fileUrl.startsWith('//');
+  const isAbsoluteHttpUrl = /^https?:\/\//i.test(fileUrl);
+  if (!isRelativeUrl && !isAbsoluteHttpUrl) {
+    throw new SignedFileUrlError('Invalid generated file URL', 400);
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(fileUrl, 'http://local.invalid');
+  } catch {
+    throw new SignedFileUrlError('Invalid generated file URL', 400);
+  }
+  if (isAbsoluteHttpUrl) {
+    const configuredOrigin = process.env.NEXTAUTH_URL;
+    let appOrigin: string;
+    try {
+      appOrigin = configuredOrigin ? new URL(configuredOrigin).origin : '';
+    } catch {
+      appOrigin = '';
+    }
+    if (!appOrigin || parsed.origin !== appOrigin) {
+      throw new SignedFileUrlError('Generated file URL has an invalid origin', 403);
+    }
+  } else if (parsed.origin !== 'http://local.invalid') {
+    throw new SignedFileUrlError('Generated file URL has an invalid origin', 403);
+  }
+  if (parsed.pathname !== '/api/files/download') {
+    throw new SignedFileUrlError('Invalid generated file URL', 400);
+  }
+  const signedPath = parsed.searchParams.get('path');
+  const expires = parsed.searchParams.get('expires');
+  const signature = parsed.searchParams.get('signature');
+  if (!signedPath || !expires || !signature) {
+    throw new SignedFileUrlError('Invalid generated file URL', 400);
+  }
+  const verifiedPath = verifySignedGeneratedFileUrl(signedPath, expires, signature, nowMs);
+  if (!verifiedPath.startsWith(`u_${userId}/`)) {
+    throw new SignedFileUrlError('Generated file does not belong to the current user', 403);
+  }
+  return verifiedPath;
+}
