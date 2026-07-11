@@ -1,6 +1,12 @@
 // Learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
 
+// jsdom does not provide TextEncoder/TextDecoder, which the AWS SDK's smithy
+// CBOR submodule instantiates at module load. Polyfill from Node's util.
+import { TextEncoder, TextDecoder } from 'util';
+if (typeof global.TextEncoder === 'undefined') global.TextEncoder = TextEncoder;
+if (typeof global.TextDecoder === 'undefined') global.TextDecoder = TextDecoder;
+
 // Mock next/image
 jest.mock('next/image', () => ({
   __esModule: true,
