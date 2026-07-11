@@ -14,6 +14,8 @@ const DEFAULT_MAX_BULK_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 const HARD_MAX_BULK_ATTACHMENT_BYTES = 250 * 1024 * 1024;
 const ACTIVE_QUEUE_TTL_MS = 3600000;
 const PAUSED_QUEUE_TTL_MS = 24 * ACTIVE_QUEUE_TTL_MS;
+const TERMINAL_STATUS_TTL_MS = 10 * 60 * 1000;
+const MAX_TERMINAL_STATUSES = 200;
 const DEFAULT_MAX_PAUSED_ATTACHMENT_BYTES = HARD_MAX_BULK_ATTACHMENT_BYTES;
 const PAUSED_PRESSURE_LOCK = '__global_paused_queue_pressure__';
 
@@ -48,9 +50,37 @@ export const config = {
 const queueManagers = new Map<string, EmailQueueManager>();
 const queueAttachmentBytes = new Map<string, number>();
 const queueIngestionLocks = new Map<string, Promise<void>>();
+type QueueStatus = ReturnType<EmailQueueManager['getStatus']>;
+const terminalQueueStatuses = new Map<
+  string,
+  { status: QueueStatus; expiresAt: number }
+>();
 
 function queueKey(userId: string, sessionId: string): string {
   return `${userId}:${sessionId}`;
+}
+
+function rememberTerminalStatus(key: string, status: QueueStatus): void {
+  terminalQueueStatuses.delete(key);
+  while (terminalQueueStatuses.size >= MAX_TERMINAL_STATUSES) {
+    const oldestKey = terminalQueueStatuses.keys().next().value;
+    if (oldestKey === undefined) break;
+    terminalQueueStatuses.delete(oldestKey);
+  }
+  terminalQueueStatuses.set(key, {
+    status,
+    expiresAt: Date.now() + TERMINAL_STATUS_TTL_MS
+  });
+}
+
+function getTerminalStatus(key: string, now = Date.now()): QueueStatus | null {
+  const terminal = terminalQueueStatuses.get(key);
+  if (!terminal) return null;
+  if (terminal.expiresAt <= now) {
+    terminalQueueStatuses.delete(key);
+    return null;
+  }
+  return terminal.status;
 }
 
 async function withQueueIngestionLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
@@ -153,6 +183,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     const key = queueKey(userId, sessionId);
     let successPayload: Record<string, unknown> | null = null;
     await withQueueIngestionLock(key, async () => {
+      terminalQueueStatuses.delete(key);
       // Get or create queue manager for this session
       let queueManager = queueManagers.get(key);
       if (!queueManager) {
@@ -341,8 +372,27 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
       return;
     }
 
-    const queueManager = userId ? queueManagers.get(queueKey(userId, sessionId)) : undefined;
-    if (!queueManager) {
+    const key = userId ? queueKey(userId, sessionId) : '';
+    let status: QueueStatus | null = null;
+    if (key) {
+      await withQueueIngestionLock(key, async () => {
+        const queueManager = queueManagers.get(key);
+        if (!queueManager) {
+          status = getTerminalStatus(key);
+          return;
+        }
+
+        status = queueManager.getStatus();
+        if (status.status === 'completed') {
+          rememberTerminalStatus(key, status);
+          await queueManager.clear();
+          queueManagers.delete(key);
+          queueAttachmentBytes.delete(key);
+        }
+      });
+    }
+
+    if (!status) {
       res.status(200).json({
         status: 'idle',
         processed: 0,
@@ -353,7 +403,6 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
       return;
     }
 
-    const status = queueManager.getStatus();
     res.status(200).json(status);
     return;
   } catch (error) {
@@ -394,6 +443,10 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
     await withQueueIngestionLock(key, async () => {
       const queueManager = queueManagers.get(key);
       if (!queueManager) {
+        if (action === 'cancel' && terminalQueueStatuses.delete(key)) {
+          actionSucceeded = true;
+          return;
+        }
         res.status(404).json({ error: 'No active queue found' });
         return;
       }
@@ -410,6 +463,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
         await queueManager.clear();
         queueManagers.delete(key);
         queueAttachmentBytes.delete(key);
+        terminalQueueStatuses.delete(key);
       } else {
         res.status(400).json({ error: 'Invalid action' });
         return;
@@ -485,6 +539,9 @@ export async function cleanupExpiredEmailQueues(now = Date.now()): Promise<void>
       queueAttachmentBytes.delete(key);
     })
   ));
+  for (const [key, terminal] of terminalQueueStatuses) {
+    if (terminal.expiresAt <= now) terminalQueueStatuses.delete(key);
+  }
   await enforcePausedAttachmentLimit();
 }
 
