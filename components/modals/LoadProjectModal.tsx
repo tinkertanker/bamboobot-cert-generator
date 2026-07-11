@@ -3,7 +3,6 @@ import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { ProjectStorage, type ProjectListItem, type SavedProject } from '@/lib/project-storage';
 import { FileText, Trash2, Download, Upload, AlertCircle, Mail, Edit2 } from 'lucide-react';
-import { escapeHtml } from '@/utils/sanitization';
 
 interface LoadProjectModalProps {
   isOpen: boolean;
@@ -12,12 +11,7 @@ interface LoadProjectModalProps {
   onProjectDeleted?: () => void;
 }
 
-export function LoadProjectModal({
-  isOpen,
-  onClose,
-  onLoadProject,
-  onProjectDeleted
-}: LoadProjectModalProps) {
+export function LoadProjectModal({ isOpen, onClose, onLoadProject, onProjectDeleted }: LoadProjectModalProps) {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,14 +22,14 @@ export function LoadProjectModal({
   const [deleteAllConfirmText, setDeleteAllConfirmText] = useState('');
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  
+
   // Load projects when modal opens
   useEffect(() => {
     if (isOpen) {
       loadProjectList();
     }
   }, [isOpen]);
-  
+
   const loadProjectList = async () => {
     setIsLoading(true);
     try {
@@ -51,7 +45,7 @@ export function LoadProjectModal({
       setIsLoading(false);
     }
   };
-  
+
   const handleLoadProject = async () => {
     if (!selectedProjectId) return;
 
@@ -74,7 +68,7 @@ export function LoadProjectModal({
       setError('Failed to load project');
     }
   };
-  
+
   const handleDeleteProject = async (id: string) => {
     setIsDeleting(id);
     try {
@@ -96,13 +90,13 @@ export function LoadProjectModal({
       setShowDeleteConfirm(null);
     }
   };
-  
+
   const handleDeleteAllProjects = async () => {
     if (deleteAllConfirmText !== 'DELETE ALL') {
       setError('Please type "DELETE ALL" to confirm');
       return;
     }
-    
+
     try {
       ProjectStorage.clearAllProjects();
       await loadProjectList();
@@ -115,24 +109,24 @@ export function LoadProjectModal({
       setError('Failed to delete all projects');
     }
   };
-  
+
   const handleRenameProject = async (id: string, newName: string) => {
     if (!newName.trim()) {
       setError('Project name cannot be empty');
       return;
     }
-    
+
     try {
       const project = ProjectStorage.loadProject(id);
       if (!project) {
         setError('Project not found');
         return;
       }
-      
+
       const result = await ProjectStorage.updateProject(id, {
         name: newName.trim()
       });
-      
+
       if (result.success) {
         await loadProjectList();
         setRenamingProjectId(null);
@@ -145,7 +139,7 @@ export function LoadProjectModal({
       setError('Failed to rename project');
     }
   };
-  
+
   const handleExportProject = async (id: string) => {
     try {
       const result = await ProjectStorage.exportProject(id, true);
@@ -168,15 +162,15 @@ export function LoadProjectModal({
       setError('Failed to export project');
     }
   };
-  
+
   const handleImportProject = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    
+
     try {
       const text = await file.text();
       const result = await ProjectStorage.importProject(text);
-      
+
       if (result.success) {
         await loadProjectList();
         setError(null);
@@ -187,11 +181,11 @@ export function LoadProjectModal({
       console.error('Error importing project:', err);
       setError('Invalid project file');
     }
-    
+
     // Reset input
     event.target.value = '';
   };
-  
+
   const handleClose = () => {
     setSelectedProjectId(null);
     setError(null);
@@ -202,7 +196,7 @@ export function LoadProjectModal({
     setRenameValue('');
     onClose();
   };
-  
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -210,7 +204,7 @@ export function LoadProjectModal({
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-    
+
     if (diffMins < 1) {
       return 'Just now';
     } else if (diffMins < 60) {
@@ -229,7 +223,7 @@ export function LoadProjectModal({
       });
     }
   };
-  
+
   return (
     <Modal open={isOpen} onClose={handleClose} width="w-[600px]">
       <div className="space-y-4">
@@ -237,9 +231,9 @@ export function LoadProjectModal({
           <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
           <div className="flex items-center gap-2">
             {projects.length > 0 && !showDeleteAllConfirm && (
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="inline-flex items-center gap-2 text-red-600 hover:text-red-700 hover:border-red-300"
                 onClick={() => setShowDeleteAllConfirm(true)}
               >
@@ -248,12 +242,7 @@ export function LoadProjectModal({
               </Button>
             )}
             <label className="cursor-pointer">
-              <input
-                type="file"
-                accept=".json"
-                onChange={handleImportProject}
-                className="hidden"
-              />
+              <input type="file" accept=".json" onChange={handleImportProject} className="hidden" />
               <Button variant="outline" size="sm" className="inline-flex items-center gap-2">
                 <Upload className="h-4 w-4" />
                 Import
@@ -261,16 +250,14 @@ export function LoadProjectModal({
             </label>
           </div>
         </div>
-        
+
         {showDeleteAllConfirm && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="space-y-3">
               <div className="flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-red-800">
-                    Delete All Projects?
-                  </p>
+                  <p className="text-sm font-semibold text-red-800">Delete All Projects?</p>
                   <p className="text-sm text-red-700 mt-1">
                     This will permanently delete all {projects.length} saved projects. This action cannot be undone.
                   </p>
@@ -283,12 +270,12 @@ export function LoadProjectModal({
                 <input
                   type="text"
                   value={deleteAllConfirmText}
-                  onChange={(e) => setDeleteAllConfirmText(e.target.value)}
+                  onChange={e => setDeleteAllConfirmText(e.target.value)}
                   placeholder="Type DELETE ALL"
                   aria-label="Confirmation text for deleting all projects"
                   aria-describedby="delete-all-instruction"
                   className="flex-1 px-3 py-2 border border-red-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                  onKeyDown={(e) => {
+                  onKeyDown={e => {
                     if (e.key === 'Enter') {
                       handleDeleteAllProjects();
                     }
@@ -315,13 +302,11 @@ export function LoadProjectModal({
                   Delete All
                 </Button>
               </div>
-              {error && showDeleteAllConfirm && (
-                <p className="text-xs text-red-600 mt-2">{error}</p>
-              )}
+              {error && showDeleteAllConfirm && <p className="text-xs text-red-600 mt-2">{error}</p>}
             </div>
           </div>
         )}
-        
+
         {error && !isLoading && projects.length === 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
             <div className="flex items-start gap-3">
@@ -335,7 +320,7 @@ export function LoadProjectModal({
             </div>
           </div>
         )}
-        
+
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin h-8 w-8 border-2 border-gray-300 border-t-gray-600 rounded-full" />
@@ -343,7 +328,7 @@ export function LoadProjectModal({
         ) : projects.length > 0 ? (
           <>
             <div className="max-h-96 overflow-y-auto space-y-2">
-              {projects.map((project) => (
+              {projects.map(project => (
                 <div
                   key={project.id}
                   className={`border rounded-lg p-4 cursor-pointer transition-all ${
@@ -360,8 +345,8 @@ export function LoadProjectModal({
                           <input
                             type="text"
                             value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onKeyDown={(e) => {
+                            onChange={e => setRenameValue(e.target.value)}
+                            onKeyDown={e => {
                               if (e.key === 'Enter') {
                                 handleRenameProject(project.id, renameValue);
                               } else if (e.key === 'Escape') {
@@ -371,10 +356,10 @@ export function LoadProjectModal({
                             }}
                             className="flex-1 px-2 py-1 text-sm font-semibold border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                             autoFocus
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={e => e.stopPropagation()}
                           />
                           <button
-                            onClick={(e) => {
+                            onClick={e => {
                               e.stopPropagation();
                               handleRenameProject(project.id, renameValue);
                             }}
@@ -383,7 +368,7 @@ export function LoadProjectModal({
                             Save
                           </button>
                           <button
-                            onClick={(e) => {
+                            onClick={e => {
                               e.stopPropagation();
                               setRenamingProjectId(null);
                               setRenameValue('');
@@ -394,15 +379,10 @@ export function LoadProjectModal({
                           </button>
                         </div>
                       ) : (
-                        <h3 
-                          className="font-semibold text-gray-900 text-lg"
-                          dangerouslySetInnerHTML={{ __html: escapeHtml(project.name) }}
-                        />
+                        <h3 className="font-semibold text-gray-900 text-lg">{project.name}</h3>
                       )}
                       <div className="mt-2 space-y-1">
-                        <p className="text-xs text-gray-500">
-                          Created: {formatDate(project.created)}
-                        </p>
+                        <p className="text-xs text-gray-500">Created: {formatDate(project.created)}</p>
                         {project.created !== project.lastModified && (
                           <p className="text-sm text-gray-700 font-medium">
                             Last modified: {formatDate(project.lastModified)}
@@ -441,7 +421,7 @@ export function LoadProjectModal({
                     <div className="flex items-center gap-2 ml-4">
                       {!renamingProjectId && (
                         <button
-                          onClick={(e) => {
+                          onClick={e => {
                             e.stopPropagation();
                             setRenamingProjectId(project.id);
                             setRenameValue(project.name);
@@ -453,7 +433,7 @@ export function LoadProjectModal({
                         </button>
                       )}
                       <button
-                        onClick={(e) => {
+                        onClick={e => {
                           e.stopPropagation();
                           handleExportProject(project.id);
                         }}
@@ -465,7 +445,7 @@ export function LoadProjectModal({
                       {showDeleteConfirm === project.id ? (
                         <>
                           <button
-                            onClick={(e) => {
+                            onClick={e => {
                               e.stopPropagation();
                               setShowDeleteConfirm(null);
                             }}
@@ -474,7 +454,7 @@ export function LoadProjectModal({
                             Cancel
                           </button>
                           <button
-                            onClick={(e) => {
+                            onClick={e => {
                               e.stopPropagation();
                               handleDeleteProject(project.id);
                             }}
@@ -486,7 +466,7 @@ export function LoadProjectModal({
                         </>
                       ) : (
                         <button
-                          onClick={(e) => {
+                          onClick={e => {
                             e.stopPropagation();
                             setShowDeleteConfirm(project.id);
                           }}
@@ -501,7 +481,7 @@ export function LoadProjectModal({
                 </div>
               ))}
             </div>
-            
+
             {error && !showDeleteAllConfirm && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                 <p className="text-sm text-red-600">{error}</p>
@@ -509,15 +489,12 @@ export function LoadProjectModal({
             )}
           </>
         ) : null}
-        
+
         <div className="flex justify-end gap-3">
           <Button onClick={handleClose} variant="outline">
             Cancel
           </Button>
-          <Button
-            onClick={handleLoadProject}
-            disabled={!selectedProjectId}
-          >
+          <Button onClick={handleLoadProject} disabled={!selectedProjectId}>
             Load Project
           </Button>
         </div>
