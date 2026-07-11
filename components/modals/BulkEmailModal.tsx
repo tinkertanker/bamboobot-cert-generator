@@ -4,6 +4,7 @@ import { Progress } from '@/components/ui/progress';
 import { COLORS } from '@/utils/styles';
 import { EmailPreviewModal } from './EmailPreviewModal';
 import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
+import { isValidEmailValue } from '@/utils/email-validation';
 import {
   blobToBase64,
   partitionClientEmailCertificates
@@ -66,7 +67,9 @@ export function BulkEmailModal({
   certificates 
 }: BulkEmailModalProps) {
   // Filter out certificates without email addresses
-  const validCertificates = certificates.filter(cert => cert.email && cert.email.trim() !== '');
+  const validCertificates = certificates.filter(
+    (cert) => cert.email && isValidEmailValue(cert.email)
+  );
   const skippedCount = certificates.length - validCertificates.length;
   
   const [status, setStatus] = useState<EmailStatus>({

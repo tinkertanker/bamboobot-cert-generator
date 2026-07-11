@@ -18,6 +18,39 @@ jest.mock('@/lib/email/email-persistence', () => ({
 const mockedBlobToBase64 = blobToBase64 as jest.MockedFunction<typeof blobToBase64>;
 
 describe('BulkEmailModal attachment ingestion', () => {
+  it('filters invalid recipients before creating upload batches', () => {
+    render(
+      <BulkEmailModal
+        open
+        onClose={jest.fn()}
+        totalEmails={2}
+        emailConfig={{
+          senderName: 'Sender',
+          subject: 'Certificate',
+          message: 'Attached',
+          deliveryMethod: 'download',
+          isConfigured: true
+        }}
+        certificates={[
+          {
+            email: 'valid@example.com',
+            downloadUrl: '/generated/valid.pdf',
+            fileName: 'valid.pdf'
+          },
+          {
+            email: 'not-an-email',
+            downloadUrl: '/generated/invalid.pdf',
+            fileName: 'invalid.pdf'
+          }
+        ]}
+      />
+    );
+
+    expect(screen.getByText('Ready to send 1 emails:')).toBeInTheDocument();
+    expect(screen.getByText(/Skipping 1 certificate/)).toBeInTheDocument();
+    expect(screen.queryByText('not-an-email')).not.toBeInTheDocument();
+  });
+
   it('does not post a batch when cancelled during Blob encoding', async () => {
     let finishEncoding!: (value: string) => void;
     mockedBlobToBase64.mockReturnValue(

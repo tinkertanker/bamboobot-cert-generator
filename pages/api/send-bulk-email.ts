@@ -244,6 +244,14 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
         emailParams.push(...builtBatch);
       }
 
+      if (queueManager.getQueueLength() + emailParams.length > MAX_BULK_EMAILS) {
+        throw new PdfSourceError(
+          'PDF_TOO_LARGE',
+          `A bulk email session can contain at most ${MAX_BULK_EMAILS} emails`,
+          413
+        );
+      }
+
       await queueManager.addToQueue(emailParams);
       queueAttachmentBytes.set(key, totalAttachmentBytes);
 

@@ -125,6 +125,40 @@ describe('/api/send-bulk-email', () => {
     expect(queue.processQueue).toHaveBeenCalledTimes(1);
   });
 
+  it('enforces the 500-email cap across deferred batches', async () => {
+    const first = createMocks({
+      method: 'POST',
+      body: {
+        emails: [{ to: 'first@example.com', subject: 'Test', html: 'Test' }],
+        config: { senderName: 'Test', subject: 'Test', message: 'Test' },
+        sessionId: 'session-email-cap',
+        deferProcessing: true
+      }
+    });
+    await handler(first.req, first.res);
+
+    const queueModule = jest.requireMock('@/lib/email/email-queue');
+    const queue = queueModule.EmailQueueManager.mock.results.at(-1).value;
+    queue.getQueueLength.mockReturnValue(499);
+
+    const overflow = createMocks({
+      method: 'POST',
+      body: {
+        emails: [
+          { to: 'second@example.com', subject: 'Test', html: 'Test' },
+          { to: 'third@example.com', subject: 'Test', html: 'Test' }
+        ],
+        config: { senderName: 'Test', subject: 'Test', message: 'Test' },
+        sessionId: 'session-email-cap',
+        deferProcessing: true
+      }
+    });
+    await handler(overflow.req, overflow.res);
+
+    expect(overflow.res._getStatusCode()).toBe(413);
+    expect(queue.addToQueue).toHaveBeenCalledTimes(1);
+  });
+
   it('should handle GET requests for status', async () => {
     const { req, res } = createMocks({
       method: 'GET',
