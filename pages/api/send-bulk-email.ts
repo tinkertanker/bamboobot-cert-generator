@@ -13,12 +13,24 @@ const DEFAULT_MAX_BULK_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 const HARD_MAX_BULK_ATTACHMENT_BYTES = 250 * 1024 * 1024;
 const ACTIVE_QUEUE_TTL_MS = 3600000;
 const PAUSED_QUEUE_TTL_MS = 24 * ACTIVE_QUEUE_TTL_MS;
-const MAX_PAUSED_ATTACHMENT_BYTES = HARD_MAX_BULK_ATTACHMENT_BYTES;
+const DEFAULT_MAX_PAUSED_ATTACHMENT_BYTES = HARD_MAX_BULK_ATTACHMENT_BYTES;
+const PAUSED_PRESSURE_LOCK = '__global_paused_queue_pressure__';
 
 function getMaxBulkAttachmentBytes(): number {
   const configured = Number.parseInt(process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES || '', 10);
   if (!Number.isSafeInteger(configured) || configured <= 0) {
     return DEFAULT_MAX_BULK_ATTACHMENT_BYTES;
+  }
+  return Math.min(configured, HARD_MAX_BULK_ATTACHMENT_BYTES);
+}
+
+function getMaxPausedAttachmentBytes(): number {
+  const configured = Number.parseInt(
+    process.env.MAX_PAUSED_EMAIL_ATTACHMENT_BYTES || '',
+    10
+  );
+  if (!Number.isSafeInteger(configured) || configured <= 0) {
+    return DEFAULT_MAX_PAUSED_ATTACHMENT_BYTES;
   }
   return Math.min(configured, HARD_MAX_BULK_ATTACHMENT_BYTES);
 }
@@ -273,6 +285,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
         skippedCount // Number of emails skipped due to invalid addresses
       });
     });
+    await enforcePausedAttachmentLimit();
     return;
   } catch (error) {
     if (error instanceof PdfSourceError) {
@@ -383,6 +396,9 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<voi
 
       res.status(200).json({ success: true });
     });
+    if (action === 'pause') {
+      await enforcePausedAttachmentLimit();
+    }
     return;
   } catch (error) {
     console.error('Queue control error:', error);
@@ -402,40 +418,49 @@ function isQueueExpired(manager: EmailQueueManager, now: number): boolean {
   return manager.getLastActivity() < now - ttl;
 }
 
+async function enforcePausedAttachmentLimit(): Promise<void> {
+  await withQueueIngestionLock(PAUSED_PRESSURE_LOCK, async () => {
+    const pausedEntries = Array.from(queueManagers.entries())
+      .filter(([, manager]) => manager.getStatus().status === 'paused')
+      .sort(([, first], [, second]) =>
+        first.getLastActivity() - second.getLastActivity()
+      );
+    let pausedBytes = pausedEntries.reduce(
+      (total, [key]) => total + (queueAttachmentBytes.get(key) || 0),
+      0
+    );
+
+    for (const [key] of pausedEntries) {
+      if (pausedBytes <= getMaxPausedAttachmentBytes()) break;
+      await withQueueIngestionLock(key, async () => {
+        const manager = queueManagers.get(key);
+        if (!manager || manager.getStatus().status !== 'paused') return;
+        const retainedBytes = queueAttachmentBytes.get(key) || 0;
+        await manager.clear();
+        queueManagers.delete(key);
+        queueAttachmentBytes.delete(key);
+        pausedBytes -= retainedBytes;
+      });
+    }
+  });
+}
+
 export async function cleanupExpiredEmailQueues(now = Date.now()): Promise<void> {
   const entries = Array.from(queueManagers.entries());
   const expiredKeys = new Set(
     entries.filter(([, manager]) => isQueueExpired(manager, now)).map(([key]) => key)
   );
-  const pausedEntries = entries
-    .filter(([, manager]) => manager.getStatus().status === 'paused')
-    .sort(([, first], [, second]) =>
-      first.getLastActivity() - second.getLastActivity()
-    );
-  const pressureKeys = new Set<string>();
-  let pausedBytes = pausedEntries.reduce(
-    (total, [key]) => total + (queueAttachmentBytes.get(key) || 0),
-    0
-  );
-  for (const [key] of pausedEntries) {
-    if (pausedBytes <= MAX_PAUSED_ATTACHMENT_BYTES) break;
-    pressureKeys.add(key);
-    pausedBytes -= queueAttachmentBytes.get(key) || 0;
-  }
-  const cleanupKeys = new Set([...expiredKeys, ...pressureKeys]);
-
-  await Promise.all(Array.from(cleanupKeys).map((key) =>
+  await Promise.all(Array.from(expiredKeys).map((key) =>
     withQueueIngestionLock(key, async () => {
       const manager = queueManagers.get(key);
       if (!manager) return;
-      const isUnderPressure =
-        pressureKeys.has(key) && manager.getStatus().status === 'paused';
-      if (!isUnderPressure && !isQueueExpired(manager, now)) return;
+      if (!isQueueExpired(manager, now)) return;
       await manager.clear();
       queueManagers.delete(key);
       queueAttachmentBytes.delete(key);
     })
   ));
+  await enforcePausedAttachmentLimit();
 }
 
 // Only set up the interval if it hasn't been set up already

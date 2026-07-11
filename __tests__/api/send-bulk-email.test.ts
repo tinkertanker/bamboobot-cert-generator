@@ -227,6 +227,45 @@ describe('/api/send-bulk-email', () => {
     expect(queue.clear).toHaveBeenCalledTimes(1);
   });
 
+  it('immediately evicts the oldest paused queue above the global byte cap', async () => {
+    process.env.MAX_PAUSED_EMAIL_ATTACHMENT_BYTES = '20';
+    const inlinePdf = Buffer.from('%PDF-123456789').toString('base64');
+    const createPausedQueue = async (sessionId: string, lastActivity: number) => {
+      const post = createMocks({
+        method: 'POST',
+        body: {
+          emails: [{
+            to: `${sessionId}@example.com`,
+            subject: 'Test',
+            html: 'Test',
+            attachmentData: { data: inlinePdf, filename: `${sessionId}.pdf` }
+          }],
+          config: { senderName: 'Test', subject: 'Test', message: 'Test' },
+          sessionId,
+          deferProcessing: true
+        }
+      });
+      await handler(post.req, post.res);
+      const queueModule = jest.requireMock('@/lib/email/email-queue');
+      const queue = queueModule.EmailQueueManager.mock.results.at(-1).value;
+      queue.getStatus.mockReturnValue({ status: 'paused' });
+      queue.getLastActivity.mockReturnValue(lastActivity);
+      return queue;
+    };
+
+    const oldest = await createPausedQueue('paused-oldest', 1);
+    const newest = await createPausedQueue('paused-newest', 2);
+    const pause = createMocks({
+      method: 'PUT',
+      body: { action: 'pause', sessionId: 'paused-newest' }
+    });
+    await handler(pause.req, pause.res);
+
+    expect(oldest.clear).toHaveBeenCalledTimes(1);
+    expect(newest.clear).not.toHaveBeenCalled();
+    delete process.env.MAX_PAUSED_EMAIL_ATTACHMENT_BYTES;
+  });
+
   it('does not expose or control another user queue with the same session id', async () => {
     const post = createMocks({
       method: 'POST',
