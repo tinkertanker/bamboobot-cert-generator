@@ -53,12 +53,43 @@ describe('projects API', () => {
     expect(json.projects[1]).toMatchObject({ columnsCount: 1, rowsCount: 0 });
   });
 
-  it('prevents updating a project not owned by user', async () => {
+  it('does not mutate a project not owned by the user', async () => {
     requireAuth.mockResolvedValue({ user: { id: 'u1' } });
-    prisma.project.update.mockResolvedValue({ id: 'p1', ownerId: 'other', name: 'N', data: {} });
+    prisma.project.update.mockRejectedValue({ code: 'P2025' });
     const req = httpMocks.createRequest({ method: 'PUT', query: { id: 'p1' }, body: { name: 'New', data: {} } });
     const res = httpMocks.createResponse();
     await handlerItem(req as any, res as any);
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBe(404);
+    expect(prisma.project.update).toHaveBeenCalledWith({
+      where: { id: 'p1', ownerId: 'u1' },
+      data: { name: 'New', data: {} },
+    });
+  });
+
+  it('returns the updated project after an owner-scoped update', async () => {
+    requireAuth.mockResolvedValue({ user: { id: 'u1' } });
+    prisma.project.update.mockResolvedValue({ id: 'p1', ownerId: 'u1', name: 'New', data: {} });
+    const req = httpMocks.createRequest({ method: 'PUT', query: { id: 'p1' }, body: { name: 'New', data: {} } });
+    const res = httpMocks.createResponse();
+
+    await handlerItem(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(res._getJSONData().project).toMatchObject({ id: 'p1', ownerId: 'u1', name: 'New' });
+  });
+
+  it('does not delete a project not owned by the user', async () => {
+    requireAuth.mockResolvedValue({ user: { id: 'u1' } });
+    prisma.project.delete.mockRejectedValue({ code: 'P2025' });
+    const req = httpMocks.createRequest({ method: 'DELETE', query: { id: 'p1' } });
+    const res = httpMocks.createResponse();
+
+    await handlerItem(req as any, res as any);
+
+    expect(res.statusCode).toBe(404);
+    expect(prisma.project.delete).toHaveBeenCalledWith({
+      where: { id: 'p1', ownerId: 'u1' },
+    });
+    expect(prisma.project.findUnique).not.toHaveBeenCalled();
   });
 });
