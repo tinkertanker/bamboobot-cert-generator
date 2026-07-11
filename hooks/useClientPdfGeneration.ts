@@ -6,6 +6,7 @@ import { measureText } from '@/utils/textMeasurement';
 import type { TableData, Positions, PdfFile } from '@/types/certificate';
 import {
   assessIndividualPdfCapacity,
+  estimateTemplateBytes,
   type CapacityDecision
 } from '@/lib/pdf/client/individual-capacity';
 
@@ -486,9 +487,10 @@ export function useClientPdfGeneration({
 
     return assessIndividualPdfCapacity({
       rowCount: tableData.length,
-      templateBytes:
-        localPdfByteLength ||
-        (uploadedFile instanceof File ? uploadedFile.size : null),
+      templateBytes: estimateTemplateBytes(
+        localPdfByteLength,
+        uploadedFile instanceof File ? uploadedFile : null
+      ),
       visibleFieldCount: visiblePositions.length,
       customFontCount,
       memory

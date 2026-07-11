@@ -31,6 +31,17 @@ export interface CapacityDecision {
   reason: CapacityReason;
 }
 
+export function estimateTemplateBytes(
+  localPdfBytes: number | null | undefined,
+  source?: { size: number; type: string } | null
+): number | null {
+  if (localPdfBytes) return localPdfBytes;
+  if (!source) return null;
+  return source.type === 'application/pdf'
+    ? source.size
+    : Math.ceil(source.size * 1.5);
+}
+
 export function assessIndividualPdfCapacity({
   rowCount,
   templateBytes,

@@ -7,6 +7,7 @@ import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
 import { isValidEmailValue } from '@/utils/email-validation';
 import {
   blobToBase64,
+  createEmailSessionId,
   partitionClientEmailCertificates
 } from '@/lib/email/client-attachment-batches';
 import { 
@@ -81,10 +82,9 @@ export function BulkEmailModal({
     provider: '',
     rateLimit: { limit: 0, remaining: 0, resetIn: 0 }
   });
-  const [sessionId] = useState(() =>
-    `email-session-${globalThis.crypto.randomUUID()}`
-  );
+  const [sessionId] = useState(createEmailSessionId);
   const [isStarted, setIsStarted] = useState(false);
+  const [isUploadingBatches, setIsUploadingBatches] = useState(false);
   const [startTime, setStartTime] = useState<number>(0);
   const [showPreview, setShowPreview] = useState(false);
   const [restoredFromStorage, setRestoredFromStorage] = useState(false);
@@ -154,7 +154,12 @@ export function BulkEmailModal({
 
   // Poll for status updates
   useEffect(() => {
-    if (!isStarted || status.status === 'completed' || status.status === 'error') return;
+    if (
+      !isStarted ||
+      isUploadingBatches ||
+      status.status === 'completed' ||
+      status.status === 'error'
+    ) return;
 
     const interval = setInterval(async () => {
       try {
@@ -173,10 +178,11 @@ export function BulkEmailModal({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isStarted, sessionId, status.status]);
+  }, [isStarted, isUploadingBatches, sessionId, status.status]);
 
   const startSending = async () => {
     cancelRequestedRef.current = false;
+    setIsUploadingBatches(true);
     setIsStarted(true);
     setStartTime(Date.now());
     setStatus(prev => ({ ...prev, status: 'processing' }));
@@ -280,9 +286,11 @@ export function BulkEmailModal({
       if (!startResponse.ok) {
         throw new Error('Failed to start email sending');
       }
+      setIsUploadingBatches(false);
     } catch (error) {
       await cancelPendingQueue();
       if (cancelRequestedRef.current) return;
+      setIsUploadingBatches(false);
       setStatus(prev => ({
         ...prev,
         status: 'error',

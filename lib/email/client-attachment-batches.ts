@@ -8,6 +8,13 @@ export interface ClientEmailCertificate {
   blob?: Blob;
 }
 
+export function createEmailSessionId(): string {
+  const randomId = globalThis.crypto?.randomUUID?.();
+  return `email-session-${
+    randomId || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  }`;
+}
+
 export function partitionClientEmailCertificates<T extends ClientEmailCertificate>(certificates: T[]): T[][] {
   const batches: T[][] = [];
   let batch: T[] = [];

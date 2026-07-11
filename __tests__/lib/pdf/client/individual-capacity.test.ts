@@ -1,8 +1,18 @@
-import { assessIndividualPdfCapacity } from '@/lib/pdf/client/individual-capacity';
+import {
+  assessIndividualPdfCapacity,
+  estimateTemplateBytes
+} from '@/lib/pdf/client/individual-capacity';
 
 const MIB = 1024 * 1024;
 
 describe('assessIndividualPdfCapacity', () => {
+  it('uses converted PDF size and conservatively estimates pending images', () => {
+    expect(estimateTemplateBytes(900, { size: 100, type: 'image/png' })).toBe(900);
+    expect(estimateTemplateBytes(null, { size: 100, type: 'image/png' })).toBe(150);
+    expect(
+      estimateTemplateBytes(null, { size: 100, type: 'application/pdf' })
+    ).toBe(100);
+  });
   it('allows a small job within the available heap budget', () => {
     const result = assessIndividualPdfCapacity({
       rowCount: 10,

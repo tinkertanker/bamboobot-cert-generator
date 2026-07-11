@@ -1,4 +1,8 @@
-import { blobToBase64, partitionClientEmailCertificates } from '@/lib/email/client-attachment-batches';
+import {
+  blobToBase64,
+  createEmailSessionId,
+  partitionClientEmailCertificates
+} from '@/lib/email/client-attachment-batches';
 
 const certificate = (size: number, index: number) => ({
   email: `person${index}@example.com`,
@@ -8,6 +12,21 @@ const certificate = (size: number, index: number) => ({
 });
 
 describe('client attachment batches', () => {
+  it('falls back when randomUUID is unavailable', () => {
+    const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: {}
+    });
+
+    expect(createEmailSessionId()).toMatch(/^email-session-\d+-[a-z0-9]+$/);
+
+    if (cryptoDescriptor) {
+      Object.defineProperty(globalThis, 'crypto', cryptoDescriptor);
+    } else {
+      delete (globalThis as { crypto?: Crypto }).crypto;
+    }
+  });
   it('keeps the encoded request source below the batch byte budget', () => {
     const batches = partitionClientEmailCertificates([
       certificate(16 * 1024 * 1024, 1),

@@ -181,6 +181,17 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
         return;
       }
 
+      if (
+        queueManager.getQueueLength() + emailsWithRecipients.length >
+        MAX_BULK_EMAILS
+      ) {
+        throw new PdfSourceError(
+          'PDF_TOO_LARGE',
+          `A bulk email session can contain at most ${MAX_BULK_EMAILS} emails`,
+          413
+        );
+      }
+
       // Build attachments with bounded concurrency and a request-wide byte
       // budget. Per-email limits alone are insufficient because a single bulk
       // request can otherwise fan out hundreds of simultaneous remote reads.
@@ -242,14 +253,6 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
         }
 
         emailParams.push(...builtBatch);
-      }
-
-      if (queueManager.getQueueLength() + emailParams.length > MAX_BULK_EMAILS) {
-        throw new PdfSourceError(
-          'PDF_TOO_LARGE',
-          `A bulk email session can contain at most ${MAX_BULK_EMAILS} emails`,
-          413
-        );
       }
 
       await queueManager.addToQueue(emailParams);
