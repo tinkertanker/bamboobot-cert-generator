@@ -79,7 +79,7 @@ export function useEmailConfig({
     )
       return;
 
-    const recipientData = tableData[file.originalIndex || index];
+    const recipientData = tableData[file.originalIndex ?? index];
     const recipientEmail = recipientData[detectedEmailColumn];
 
     if (!recipientEmail) {

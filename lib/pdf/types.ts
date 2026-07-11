@@ -6,6 +6,7 @@ export interface PdfQueueItem {
   id: string;
   index: number;
   data: Record<string, unknown>; // Certificate data
+  filename: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   attempts: number;
   error?: string;

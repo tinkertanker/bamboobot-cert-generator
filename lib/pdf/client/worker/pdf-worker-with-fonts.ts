@@ -12,6 +12,7 @@ import {
   embedStandardFonts,
   addTextToPage
 } from '../../shared/pdf-generation-core';
+import { UniquePdfFilenameAllocator } from '@/utils/pdf-filenames';
 
 // Dynamic import of fontkit to handle bundling issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -373,7 +374,7 @@ async function generatePdf(payload: {
     
   } else {
     // Generate individual PDFs
-    const usedFilenames = new Set<string>();
+    const filenameAllocator = new UniquePdfFilenameAllocator();
     const totalEntries = entries.length;
     const templateDoc = await PDFDocument.load(templateData);
 
@@ -398,13 +399,7 @@ async function generatePdf(payload: {
       }
 
       // Handle duplicates
-      let filename = `${baseFilename}.pdf`;
-      let counter = 1;
-      while (usedFilenames.has(filename)) {
-        filename = `${baseFilename}-${counter}.pdf`;
-        counter++;
-      }
-      usedFilenames.add(filename);
+      const filename = filenameAllocator.allocate(baseFilename);
 
       (self as unknown as {
         postMessage(message: unknown, transfer: Transferable[]): void;

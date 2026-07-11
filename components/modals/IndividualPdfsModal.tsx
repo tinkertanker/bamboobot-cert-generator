@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { FixedSizeList as List } from 'react-window';
 import { Button } from "@/components/ui/button";
 import { ActionButton } from "@/components/ui/action-button";
 import { Modal } from "@/components/ui/modal";
@@ -8,6 +9,7 @@ import SpinnerInline from "@/components/SpinnerInline";
 import { BulkEmailModal } from "./BulkEmailModal";
 import { saveAs } from "file-saver";
 import type { IndividualPdfsModalProps } from "@/types/certificate";
+import { UniquePdfFilenameAllocator } from '@/utils/pdf-filenames';
 import {
   ExternalLink,
   Download,
@@ -48,6 +50,141 @@ export function IndividualPdfsModal({
 }: IndividualPdfsModalProps & { progress?: number; total?: number }) {
   const [showBulkEmailModal, setShowBulkEmailModal] = useState(false);
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
+  const displayFilenames = useMemo(() => {
+    if (!individualPdfsData) return [];
+    const allocator = new UniquePdfFilenameAllocator();
+    return individualPdfsData.map((file, index) => {
+      const rowIndex = file.originalIndex ?? index;
+      const baseFilename =
+        tableData[rowIndex] && selectedNamingColumn
+          ? tableData[rowIndex][selectedNamingColumn] ||
+            `Certificate-${rowIndex + 1}`
+          : `Certificate-${rowIndex + 1}`;
+      return allocator.allocate(baseFilename);
+    });
+  }, [individualPdfsData, selectedNamingColumn, tableData]);
+
+  const renderFileRow = ({
+    index,
+    style
+  }: {
+    index: number;
+    style?: React.CSSProperties;
+  }) => {
+    if (!individualPdfsData) return null;
+    const file = individualPdfsData[index];
+    const filename = displayFilenames[index];
+    const rowIndex = file.originalIndex ?? index;
+    const emailAddress =
+      detectedEmailColumn && tableData[rowIndex]
+        ? tableData[rowIndex][detectedEmailColumn] || ''
+        : '';
+
+    return (
+      <div key={index} style={style} className={style ? 'pb-2' : undefined}>
+        <div className="flex h-full items-center justify-between p-2 bg-white rounded border border-gray-200">
+          <span className="flex items-center gap-2 flex-1 min-w-0">
+            <Check className="h-4 w-4 text-green-600 shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="font-mono text-sm truncate">{filename}</span>
+              {hasEmailColumn && emailAddress && (
+                <span className="text-xs text-gray-500 truncate">
+                  → {emailAddress}
+                </span>
+              )}
+            </div>
+          </span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              title="Open PDF"
+              onClick={() => window.open(file.url, '_blank')}
+              className="h-8 w-8 p-0">
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              title="Download PDF"
+              onClick={() => {
+                if (file.url.startsWith('blob:')) {
+                  const anchor = document.createElement('a');
+                  anchor.href = file.url;
+                  anchor.download = filename;
+                  document.body.appendChild(anchor);
+                  anchor.click();
+                  document.body.removeChild(anchor);
+                } else {
+                  window.location.href = `/api/force-download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(filename)}`;
+                }
+              }}
+              className="h-8 w-8 p-0">
+              <Download className="h-4 w-4" />
+            </Button>
+            {hasEmailColumn && (
+              <Button
+                size="sm"
+                variant={
+                  emailSendingStatus[index] === 'sent' ? 'default' : 'outline'
+                }
+                title={
+                  !emailAddress
+                    ? 'No email address available'
+                    : !emailConfig.isConfigured
+                      ? 'Configure email settings in Email tab first'
+                      : emailSendingStatus[index] === 'sending'
+                        ? 'Sending email...'
+                        : emailSendingStatus[index] === 'sent'
+                          ? 'Email sent!'
+                          : emailSendingStatus[index] === 'error'
+                            ? 'Failed to send email'
+                            : 'Send via email'
+                }
+                disabled={
+                  !emailAddress ||
+                  emailSendingStatus[index] === 'sending' ||
+                  !emailConfig.isConfigured
+                }
+                onClick={() =>
+                  sendCertificateEmail(index, { ...file, filename })
+                }
+                className="h-8 w-8 p-0"
+                style={{
+                  backgroundColor: !emailAddress
+                    ? 'transparent'
+                    : emailSendingStatus[index] === 'sent'
+                      ? '#2D6A4F'
+                      : emailSendingStatus[index] === 'error'
+                        ? '#dc2626'
+                        : 'transparent',
+                  borderColor: !emailAddress
+                    ? '#d1d5db'
+                    : emailSendingStatus[index] === 'sent'
+                      ? '#2D6A4F'
+                      : emailSendingStatus[index] === 'error'
+                        ? '#dc2626'
+                        : '#2D6A4F',
+                  color: !emailAddress
+                    ? '#9ca3af'
+                    : emailSendingStatus[index] === 'sent' ||
+                        emailSendingStatus[index] === 'error'
+                      ? 'white'
+                      : '#2D6A4F',
+                  cursor: !emailAddress ? 'not-allowed' : 'pointer'
+                }}>
+                {emailSendingStatus[index] === 'sending' ? (
+                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Mail className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
   
   // Reset bulk email modal state when the modal opens
   useEffect(() => {
@@ -229,174 +366,31 @@ export function IndividualPdfsModal({
           </div>
 
           {/* Files List */}
-          <div className="bg-gray-100 p-4 rounded-lg mb-4 max-h-96 overflow-y-auto">
+          <div
+            className={`bg-gray-100 p-4 rounded-lg mb-4 ${
+              individualPdfsData.length > 100
+                ? ''
+                : 'max-h-96 overflow-y-auto'
+            }`}>
             <div className="flex items-center gap-2 mb-2">
               <FileText className="h-4 w-4" />
               <h3 className="font-medium">Files Ready:</h3>
             </div>
-            <div className="space-y-2">
-              {individualPdfsData.map((file, index) => {
-                // Generate filename based on selected column
-                const baseFilename =
-                  tableData[index] && selectedNamingColumn
-                    ? tableData[index][selectedNamingColumn] ||
-                      `Certificate-${index + 1}`
-                    : `Certificate-${index + 1}`;
-
-                // Sanitize filename
-                const sanitizedFilename = baseFilename.replace(
-                  /[^a-zA-Z0-9-_]/g,
-                  "_"
-                );
-
-                // Handle duplicates
-                const duplicateCount = individualPdfsData
-                  .slice(0, index)
-                  .filter((_, i) => {
-                    const prevBase =
-                      tableData[i] && selectedNamingColumn
-                        ? tableData[i][selectedNamingColumn] ||
-                          `Certificate-${i + 1}`
-                        : `Certificate-${i + 1}`;
-                    return prevBase === baseFilename;
-                  }).length;
-
-                const filename =
-                  duplicateCount > 0
-                    ? `${sanitizedFilename}-${duplicateCount}.pdf`
-                    : `${sanitizedFilename}.pdf`;
-                
-                // Get email from the detected email column
-                const emailAddress = detectedEmailColumn && tableData[index] 
-                  ? tableData[index][detectedEmailColumn] || ''
-                  : '';
-
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-2 bg-white rounded border border-gray-200">
-                    <span className="flex items-center gap-2 flex-1">
-                      <Check className="h-4 w-4 text-green-600" />
-                      <div className="flex flex-col">
-                        <span className="font-mono text-sm">
-                          {filename}
-                        </span>
-                        {hasEmailColumn && emailAddress && (
-                          <span className="text-xs text-gray-500">
-                            → {emailAddress}
-                          </span>
-                        )}
-                      </div>
-                    </span>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        title="Open PDF"
-                        onClick={() => {
-                          // For blob URLs, open directly in new tab
-                          if (file.url.startsWith('blob:')) {
-                            window.open(file.url, "_blank");
-                          } else {
-                            // For server URLs, use the original logic
-                            window.open(file.url, "_blank");
-                          }
-                        }}
-                        className="h-8 w-8 p-0">
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        title="Download PDF"
-                        onClick={() => {
-                          // Check if it's a blob URL (client-side generated)
-                          if (file.url.startsWith('blob:')) {
-                            // For blob URLs, create a download link directly
-                            const a = document.createElement('a');
-                            a.href = file.url;
-                            a.download = filename;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                          } else {
-                            // For server URLs, use the force-download API
-                            const downloadUrl = `/api/force-download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(filename)}`;
-                            window.location.href = downloadUrl;
-                          }
-                        }}
-                        className="h-8 w-8 p-0">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      {hasEmailColumn && (
-                        <Button
-                          size="sm"
-                          variant={
-                            emailSendingStatus[index] === "sent"
-                              ? "default"
-                              : "outline"
-                          }
-                          title={
-                            !emailAddress
-                              ? "No email address available"
-                              : !emailConfig.isConfigured
-                                ? "Configure email settings in Email tab first"
-                                : emailSendingStatus[index] === "sending"
-                                  ? "Sending email..."
-                                  : emailSendingStatus[index] === "sent"
-                                    ? "Email sent!"
-                                    : emailSendingStatus[index] === "error"
-                                      ? "Failed to send email"
-                                      : "Send via email"
-                          }
-                          disabled={
-                            !emailAddress ||
-                            emailSendingStatus[index] === "sending" ||
-                            !emailConfig.isConfigured
-                          }
-                          onClick={() =>
-                            sendCertificateEmail(index, file)
-                          }
-                          className="h-8 w-8 p-0"
-                          style={{
-                            backgroundColor:
-                              !emailAddress
-                                ? "transparent"
-                                : emailSendingStatus[index] === "sent"
-                                  ? "#2D6A4F"
-                                  : emailSendingStatus[index] === "error"
-                                    ? "#dc2626"
-                                    : "transparent",
-                            borderColor:
-                              !emailAddress
-                                ? "#d1d5db"
-                                : emailSendingStatus[index] === "sent"
-                                  ? "#2D6A4F"
-                                  : emailSendingStatus[index] === "error"
-                                    ? "#dc2626"
-                                    : "#2D6A4F",
-                            color:
-                              !emailAddress
-                                ? "#9ca3af"
-                                : emailSendingStatus[index] === "sent"
-                                  ? "white"
-                                  : emailSendingStatus[index] === "error"
-                                    ? "white"
-                                    : "#2D6A4F",
-                            cursor: !emailAddress ? "not-allowed" : "pointer"
-                          }}>
-                          {emailSendingStatus[index] === "sending" ? (
-                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <Mail className="h-4 w-4" />
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            {individualPdfsData.length > 100 ? (
+              <List
+                height={Math.min(384, individualPdfsData.length * 64)}
+                itemCount={individualPdfsData.length}
+                itemSize={64}
+                width="100%">
+                {renderFileRow}
+              </List>
+            ) : (
+              <div className="space-y-2">
+                {individualPdfsData.map((_, index) =>
+                  renderFileRow({ index })
+                )}
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
@@ -417,35 +411,8 @@ export function IndividualPdfsModal({
                       const zip = new JSZip();
                       
                       individualPdfsData.forEach((file, index) => {
-                        const baseFilename =
-                          tableData[index] && selectedNamingColumn
-                            ? tableData[index][selectedNamingColumn] ||
-                              `Certificate-${index + 1}`
-                            : `Certificate-${index + 1}`;
-                        const sanitizedFilename = baseFilename.replace(
-                          /[^a-zA-Z0-9-_]/g,
-                          "_"
-                        );
-
-                        // Handle duplicates
-                        const duplicateCount = individualPdfsData
-                          .slice(0, index)
-                          .filter((_, i) => {
-                            const prevBase =
-                              tableData[i] && selectedNamingColumn
-                                ? tableData[i][selectedNamingColumn] ||
-                                  `Certificate-${i + 1}`
-                                : `Certificate-${i + 1}`;
-                            return prevBase === baseFilename;
-                          }).length;
-
-                        const filename =
-                          duplicateCount > 0
-                            ? `${sanitizedFilename}-${duplicateCount}.pdf`
-                            : `${sanitizedFilename}.pdf`;
-
                         // Add the canonical Blob without retaining a byte-array copy.
-                        zip.file(filename, file.blob!);
+                        zip.file(displayFilenames[index], file.blob!);
                       });
                       
                       // Generate and download ZIP
@@ -460,36 +427,9 @@ export function IndividualPdfsModal({
                       // Server-side ZIP creation (fallback for server-generated PDFs)
                       const fileList = individualPdfsData.map(
                         (file, index) => {
-                          const baseFilename =
-                            tableData[index] && selectedNamingColumn
-                              ? tableData[index][selectedNamingColumn] ||
-                                `Certificate-${index + 1}`
-                              : `Certificate-${index + 1}`;
-                          const sanitizedFilename = baseFilename.replace(
-                            /[^a-zA-Z0-9-_]/g,
-                            "_"
-                          );
-
-                          // Handle duplicates
-                          const duplicateCount = individualPdfsData
-                            .slice(0, index)
-                            .filter((_, i) => {
-                              const prevBase =
-                                tableData[i] && selectedNamingColumn
-                                  ? tableData[i][selectedNamingColumn] ||
-                                    `Certificate-${i + 1}`
-                                  : `Certificate-${i + 1}`;
-                              return prevBase === baseFilename;
-                            }).length;
-
-                          const filename =
-                            duplicateCount > 0
-                              ? `${sanitizedFilename}-${duplicateCount}.pdf`
-                              : `${sanitizedFilename}.pdf`;
-
                           return {
                             url: file.url,
-                            filename: filename
+                            filename: displayFilenames[index]
                           };
                         }
                       );
@@ -590,35 +530,15 @@ export function IndividualPdfsModal({
               totalEmails={individualPdfsData.length}
               emailConfig={emailConfig}
               certificates={individualPdfsData.map((file, index) => {
-                const email = detectedEmailColumn && tableData[index] 
-                  ? tableData[index][detectedEmailColumn] || ''
+                const rowIndex = file.originalIndex ?? index;
+                const email = detectedEmailColumn && tableData[rowIndex]
+                  ? tableData[rowIndex][detectedEmailColumn] || ''
                   : '';
-                const baseFilename =
-                  tableData[index] && selectedNamingColumn
-                    ? tableData[index][selectedNamingColumn] || `Certificate-${index + 1}`
-                    : `Certificate-${index + 1}`;
-                const sanitizedFilename = baseFilename.replace(/[^a-zA-Z0-9-_]/g, "_");
-                
-                // Handle duplicates
-                const duplicateCount = individualPdfsData
-                  .slice(0, index)
-                  .filter((_, i) => {
-                    const prevBase =
-                      tableData[i] && selectedNamingColumn
-                        ? tableData[i][selectedNamingColumn] || `Certificate-${i + 1}`
-                        : `Certificate-${i + 1}`;
-                    return prevBase === baseFilename;
-                  }).length;
-
-                const filename =
-                  duplicateCount > 0
-                    ? `${sanitizedFilename}-${duplicateCount}.pdf`
-                    : `${sanitizedFilename}.pdf`;
 
                 return {
                   email,
                   downloadUrl: file.url,
-                  fileName: filename,
+                  fileName: displayFilenames[index],
                   blob: file.blob
                 };
               })}

@@ -278,9 +278,7 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
           .find(candidate => fsSync.existsSync(candidate));
         if (!templatePath) throw new Error('Template not found');
         
-        const filename = queue.namingColumn && item.data[queue.namingColumn]
-          ? `${String(item.data[queue.namingColumn]).replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`
-          : `Certificate-${item.index + 1}.pdf`;
+        const filename = item.filename;
 
         let outputPath: string;
         let fileUrl: string;
