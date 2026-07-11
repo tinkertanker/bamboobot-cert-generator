@@ -80,8 +80,12 @@ self.addEventListener('message', async (event) => {
     switch (type) {
       case 'generate':
         console.log('Worker: Starting PDF generation', { mode: payload.mode, entries: payload.entries?.length });
-        const result = await generatePdf(payload);
-        console.log('Worker: PDF generation complete', { mode: result.mode, hasData: !!result.pdfData, hasFiles: !!result.files });
+        const result = await generatePdf(payload, id);
+        console.log('Worker: PDF generation complete', {
+          mode: result.mode,
+          hasData: !!result.pdfData,
+          fileCount: result.fileCount
+        });
         self.postMessage({
           type: 'complete',
           id,
@@ -332,7 +336,7 @@ async function generatePdf(payload: {
   uiContainerDimensions: { width: number; height: number };
   mode: 'single' | 'individual';
   namingColumn?: string;
-}) {
+}, requestId: string) {
   const { templateData, entries, positions, uiContainerDimensions, mode } = payload;
 
   if (mode === 'single') {
@@ -372,6 +376,7 @@ async function generatePdf(payload: {
       // Report progress
       self.postMessage({
         type: 'progress',
+        id: requestId,
         payload: {
           current: i + 1,
           total: totalEntries,
@@ -385,7 +390,6 @@ async function generatePdf(payload: {
     
   } else {
     // Generate individual PDFs
-    const files: Array<{ filename: string; data: Uint8Array; originalIndex: number }> = [];
     const usedFilenames = new Set<string>();
     const totalEntries = entries.length;
 
@@ -416,15 +420,25 @@ async function generatePdf(payload: {
       }
       usedFilenames.add(filename);
 
-      files.push({
-        filename,
-        data: pdfBytes,
-        originalIndex: i
-      });
+      (self as unknown as {
+        postMessage(message: unknown, transfer: Transferable[]): void;
+      }).postMessage(
+        {
+          type: 'file',
+          id: requestId,
+          payload: {
+            filename,
+            data: pdfBytes,
+            originalIndex: i
+          }
+        },
+        [pdfBytes.buffer as ArrayBuffer]
+      );
       
       // Report progress
       self.postMessage({
         type: 'progress',
+        id: requestId,
         payload: {
           current: i + 1,
           total: totalEntries,
@@ -433,6 +447,6 @@ async function generatePdf(payload: {
       });
     }
 
-    return { files, mode: 'individual' };
+    return { fileCount: totalEntries, mode: 'individual' };
   }
 }

@@ -28,7 +28,7 @@ interface BulkEmailModalProps {
     email: string;
     downloadUrl: string;
     fileName: string;
-    data?: Uint8Array;  // PDF bytes for client-side generated PDFs
+    blob?: Blob;
   }>;
 }
 
@@ -164,19 +164,22 @@ export function BulkEmailModal({
 
     try {
       // Prepare email data (only valid certificates)
-      const emails = validCertificates.map(cert => {
-        const isClientSidePdf = cert.data && cert.downloadUrl.startsWith('blob:');
+      const emails = [];
+      for (const cert of validCertificates) {
+        const isClientSidePdf =
+          cert.blob && cert.downloadUrl.startsWith('blob:');
 
         // For client-side PDFs with attachment delivery, send the actual data
         let attachments;
         let attachmentData;
 
         if (emailConfig.deliveryMethod === 'attachment') {
-          if (isClientSidePdf && cert.data) {
+          if (isClientSidePdf) {
             // Client-side PDF: send raw data as array
+            const bytes = new Uint8Array(await cert.blob!.arrayBuffer());
             attachmentData = {
               filename: cert.fileName,
-              data: Array.from(cert.data)
+              data: Array.from(bytes)
             };
           } else {
             // Server-side PDF: send URL for server to fetch
@@ -184,7 +187,7 @@ export function BulkEmailModal({
           }
         }
 
-        return {
+        emails.push({
           to: cert.email,
           senderName: emailConfig.senderName,
           subject: emailConfig.subject,
@@ -195,8 +198,8 @@ export function BulkEmailModal({
           attachments,
           attachmentData,
           certificateUrl: cert.downloadUrl
-        };
-      });
+        });
+      }
 
       const response = await fetch('/api/send-bulk-email', {
         method: 'POST',
@@ -257,18 +260,21 @@ export function BulkEmailModal({
 
     try {
       const firstCert = validCertificates[0];
-      const isClientSidePdf = firstCert.data && firstCert.downloadUrl.startsWith('blob:');
+      const isClientSidePdf =
+        firstCert.blob &&
+        firstCert.downloadUrl.startsWith('blob:');
 
       // Prepare attachment data based on PDF source
       let attachment;
       let attachmentData;
 
       if (emailConfig.deliveryMethod === 'attachment') {
-        if (isClientSidePdf && firstCert.data) {
+        if (isClientSidePdf) {
           // Client-side PDF: send raw data
+          const bytes = new Uint8Array(await firstCert.blob!.arrayBuffer());
           attachmentData = {
             filename: firstCert.fileName,
-            data: Array.from(firstCert.data)
+            data: Array.from(bytes)
           };
         } else {
           // Server-side PDF: send URL

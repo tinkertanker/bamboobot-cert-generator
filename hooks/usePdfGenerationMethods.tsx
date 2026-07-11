@@ -16,6 +16,7 @@
 import { useCallback, useEffect } from "react";
 import { PROGRESSIVE_PDF } from "@/utils/constants";
 import type { TableData } from "@/types/certificate";
+import type { CapacityDecision } from "@/lib/pdf/client/individual-capacity";
 
 interface UsePdfGenerationMethodsProps {
   // Feature flags
@@ -39,6 +40,7 @@ interface UsePdfGenerationMethodsProps {
   // Client-side generation functions
   generateClientPdf: () => Promise<void>;
   generateClientIndividualPdfs: () => Promise<void>;
+  assessClientIndividualCapacity: () => Promise<CapacityDecision>;
   clientGeneratedPdfUrl: string | null;
   clientIndividualPdfsData: any;
   
@@ -66,6 +68,7 @@ export function usePdfGenerationMethods({
   setIndividualPdfsData,
   generateClientPdf,
   generateClientIndividualPdfs,
+  assessClientIndividualCapacity,
   clientGeneratedPdfUrl,
   clientIndividualPdfsData,
   uploadToServer
@@ -163,8 +166,21 @@ export function usePdfGenerationMethods({
   ]);
 
   const handleGenerateIndividualPdfs = useCallback(async (useServer = false) => {
-    const method = getPdfGenerationMethod({ useServer, forceServer: false });
+    let method = getPdfGenerationMethod({ useServer, forceServer: false });
     const isProgressive = tableData.length > PROGRESSIVE_PDF.AUTO_PROGRESSIVE_THRESHOLD;
+
+    if (method === "client") {
+      try {
+        const capacity = await assessClientIndividualCapacity();
+        if (!capacity.allowed) {
+          console.log("Client individual generation capacity exceeded", capacity);
+          method = "server";
+        }
+      } catch (error) {
+        console.warn("Could not assess client PDF capacity; using server fallback", error);
+        method = "server";
+      }
+    }
     
     if (method === "server") {
       const reason = !isClientSupported ? "(Client not supported)" : 
@@ -202,7 +218,8 @@ export function usePdfGenerationMethods({
     handleUploadFailure,
     startProgressiveGeneration,
     generateIndividualPdfs,
-    generateClientIndividualPdfs
+    generateClientIndividualPdfs,
+    assessClientIndividualCapacity
   ]);
 
   return {

@@ -407,8 +407,9 @@ export function IndividualPdfsModal({
                   if (isDownloadingZip) return; // Prevent double-click
                   setIsDownloadingZip(true);
                   try {
-                    // Check if we have client-side data (all files have data property)
-                    const hasClientData = individualPdfsData.every(file => file.data);
+                    const hasClientData = individualPdfsData.every(
+                      (file) => file.blob
+                    );
                     
                     if (hasClientData) {
                       // Client-side ZIP creation using JSZip
@@ -443,10 +444,8 @@ export function IndividualPdfsModal({
                             ? `${sanitizedFilename}-${duplicateCount}.pdf`
                             : `${sanitizedFilename}.pdf`;
 
-                        // Add file to ZIP using the raw data
-                        if (file.data) {
-                          zip.file(filename, file.data);
-                        }
+                        // Add the canonical Blob without retaining a byte-array copy.
+                        zip.file(filename, file.blob!);
                       });
                       
                       // Generate and download ZIP
@@ -620,7 +619,7 @@ export function IndividualPdfsModal({
                   email,
                   downloadUrl: file.url,
                   fileName: filename,
-                  data: file.data  // Include PDF bytes for client-side PDFs
+                  blob: file.blob
                 };
               })}
             />

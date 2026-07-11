@@ -69,7 +69,7 @@ export function useEmailConfig({
   // Send individual certificate via email
   const sendCertificateEmail = useCallback(async (
     index: number,
-    file: { filename: string; url: string; originalIndex: number; data?: Uint8Array }
+    file: PdfFile
   ) => {
     if (
       !detectedEmailColumn ||
@@ -121,10 +121,10 @@ export function useEmailConfig({
       };
 
       // Handle client-side vs server-side PDFs
-      if (file.data && file.url.startsWith('blob:')) {
+      if (file.blob && file.url.startsWith('blob:')) {
         // Client-side generated PDF - always use attachment mode
-        // Convert Uint8Array to regular array for JSON serialization
-        emailData.attachmentData = Array.from(file.data);
+        const bytes = new Uint8Array(await file.blob.arrayBuffer());
+        emailData.attachmentData = Array.from(bytes);
         // Override delivery method to attachment for client-side PDFs
         emailData.deliveryMethod = "attachment";
       } else {
