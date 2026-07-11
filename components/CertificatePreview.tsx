@@ -465,7 +465,15 @@ function CertificatePreviewComponent({
 }
 
 // Memoize the component to prevent unnecessary re-renders
-export const CertificatePreview = React.memo(CertificatePreviewComponent, (prevProps, nextProps) => {
+export const areCertificatePreviewPropsEqual = (
+  prevProps: CertificatePreviewProps,
+  nextProps: CertificatePreviewProps
+) => {
+  const previousRow =
+    prevProps.tableData[prevProps.currentPreviewIndex] || prevProps.tableData[0];
+  const nextRow =
+    nextProps.tableData[nextProps.currentPreviewIndex] || nextProps.tableData[0];
+
   // Only re-render if these specific props change
   return (
     prevProps.uploadedFileUrl === nextProps.uploadedFileUrl &&
@@ -473,12 +481,23 @@ export const CertificatePreview = React.memo(CertificatePreviewComponent, (prevP
     prevProps.currentPreviewIndex === nextProps.currentPreviewIndex &&
     prevProps.selectedField === nextProps.selectedField &&
     prevProps.isDragging === nextProps.isDragging &&
+    prevProps.dragInfo === nextProps.dragInfo &&
     prevProps.isDraggingFile === nextProps.isDraggingFile &&
     prevProps.showCenterGuide === nextProps.showCenterGuide &&
-    // Deep comparison for positions (only for the current preview)
-    JSON.stringify(prevProps.positions) === JSON.stringify(nextProps.positions) &&
-    // Deep comparison for current table data only
-    JSON.stringify(prevProps.tableData[prevProps.currentPreviewIndex]) === 
-    JSON.stringify(nextProps.tableData[nextProps.currentPreviewIndex])
+    prevProps.positions === nextProps.positions &&
+    previousRow === nextRow &&
+    prevProps.setSelectedField === nextProps.setSelectedField &&
+    prevProps.handlePointerDown === nextProps.handlePointerDown &&
+    prevProps.handlePointerUp === nextProps.handlePointerUp &&
+    prevProps.setShowCenterGuide === nextProps.setShowCenterGuide &&
+    prevProps.handleDragOver === nextProps.handleDragOver &&
+    prevProps.handleDragLeave === nextProps.handleDragLeave &&
+    prevProps.handleFileDrop === nextProps.handleFileDrop &&
+    prevProps.handleFileUpload === nextProps.handleFileUpload
   );
-});
+};
+
+export const CertificatePreview = React.memo(
+  CertificatePreviewComponent,
+  areCertificatePreviewPropsEqual
+);
