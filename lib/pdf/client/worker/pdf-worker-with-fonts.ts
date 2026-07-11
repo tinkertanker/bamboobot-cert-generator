@@ -297,12 +297,12 @@ function identifyNeededFonts(
  * Generate a single certificate with all optimizations
  */
 async function generateSingleCertificate(
-  templateData: ArrayBuffer,
+  templateDoc: PDFDocument,
   entryData: Entry,
   positions: Record<string, Position>,
-  uiContainerDimensions: { width: number; height: number }
+  uiContainerDimensions: { width: number; height: number },
+  neededFonts: Set<FontFamily>
 ): Promise<Uint8Array> {
-  const templateDoc = await PDFDocument.load(templateData);
   const pdf = await PDFDocument.create();
   
   const [templatePage] = await pdf.copyPages(templateDoc, [0]);
@@ -312,8 +312,6 @@ async function generateSingleCertificate(
   const standardFonts = await embedStandardFonts(pdf);
   
   // Check if custom fonts are needed for this entry
-  const neededFonts = identifyNeededFonts(positions, [entryData]);
-  
   // Embed custom fonts if needed
   const customFonts = await embedCustomFonts(pdf, neededFonts);
   
@@ -346,32 +344,17 @@ async function generatePdf(payload: {
     
     // Identify all needed custom fonts across all entries
     const neededFonts = identifyNeededFonts(positions, entries);
+    const standardFonts = await embedStandardFonts(mergedPdf);
+    const customFonts = await embedCustomFonts(mergedPdf, neededFonts);
+    const fonts = { ...standardFonts, ...customFonts };
     
     // Report progress
     const totalEntries = entries.length;
     
     for (let i = 0; i < totalEntries; i++) {
-      // Create a new PDF for this entry
-      const entryPdf = await PDFDocument.create();
-      
-      // Copy template page
-      const [templatePage] = await entryPdf.copyPages(templateDoc, [0]);
-      entryPdf.addPage(templatePage);
-      
-      // Embed fonts for this PDF
-      const standardFonts = await embedStandardFonts(entryPdf);
-      const customFonts = await embedCustomFonts(entryPdf, neededFonts);
-      const fonts = { ...standardFonts, ...customFonts };
-      
-      // Add text
-      const page = entryPdf.getPages()[0];
+      const [page] = await mergedPdf.copyPages(templateDoc, [0]);
+      mergedPdf.addPage(page);
       addTextToPage(page, entries[i], positions, fonts as FontSet, uiContainerDimensions);
-      
-      // Save and copy to merged PDF
-      const entryPdfBytes = await entryPdf.save();
-      const tempPdf = await PDFDocument.load(entryPdfBytes);
-      const [finalPage] = await mergedPdf.copyPages(tempPdf, [0]);
-      mergedPdf.addPage(finalPage);
       
       // Report progress
       self.postMessage({
@@ -392,14 +375,17 @@ async function generatePdf(payload: {
     // Generate individual PDFs
     const usedFilenames = new Set<string>();
     const totalEntries = entries.length;
+    const templateDoc = await PDFDocument.load(templateData);
 
     for (let i = 0; i < totalEntries; i++) {
+      const neededFonts = identifyNeededFonts(positions, [entries[i]]);
       // Generate single certificate with all optimizations
       const pdfBytes = await generateSingleCertificate(
-        templateData,
+        templateDoc,
         entries[i],
         positions,
-        uiContainerDimensions
+        uiContainerDimensions,
+        neededFonts
       );
 
       // Generate filename
