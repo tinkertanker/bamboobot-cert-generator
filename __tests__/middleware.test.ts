@@ -94,6 +94,46 @@ describe('authentication middleware', () => {
     },
   );
 
+  it('treats /api lookalike page paths as pages, not API routes', async () => {
+    // Regression: startsWith('/api') used to send /apiary a 401 instead of
+    // the page redirect every other gated page receives.
+    mockedGetToken.mockResolvedValue(null);
+
+    for (const pathname of ['/apiary', '/api-docs']) {
+      const response = await middleware(request(pathname));
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toBe('https://certificates.example/');
+    }
+
+    const apiRoot = await middleware(request('/api'));
+    expect(apiRoot.status).toBe(401);
+  });
+
+  it('only exempts the exact signed download endpoint, not descendants or lookalikes', async () => {
+    mockedGetToken.mockResolvedValue(null);
+
+    for (const pathname of ['/api/files/download/extra', '/api/files/downloadx']) {
+      const response = await middleware(request(pathname));
+      expect(response.status).toBe(401);
+    }
+  });
+
+  it('gates a /_next lookalike path outside the framework prefix', async () => {
+    mockedGetToken.mockResolvedValue(null);
+
+    const response = await middleware(request('/_nextfoo'));
+
+    expect(response.status).toBe(307);
+  });
+
+  it('allows an authenticated API request through', async () => {
+    mockedGetToken.mockResolvedValue({ sub: 'user-1' });
+
+    const response = await middleware(request('/api/projects'));
+
+    expect(response.status).toBe(200);
+  });
+
   it('allows an authenticated request', async () => {
     mockedGetToken.mockResolvedValue({ sub: 'user-1' });
 

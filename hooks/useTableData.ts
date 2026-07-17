@@ -28,7 +28,13 @@ const parseCSVRow = (row: string): string[] => {
     const char = row[i];
 
     if (char === '"') {
-      inQuotes = !inQuotes;
+      if (inQuotes && row[i + 1] === '"') {
+        // RFC-4180: an escaped quote ("") inside a quoted field is a literal quote
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
     } else if (char === "," && !inQuotes) {
       result.push(current.trim());
       current = "";

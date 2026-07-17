@@ -35,7 +35,13 @@ export function estimateTemplateBytes(
   localPdfBytes: number | null | undefined,
   source?: { size: number; type: string } | null
 ): number | null {
-  if (localPdfBytes) return localPdfBytes;
+  if (
+    typeof localPdfBytes === 'number' &&
+    Number.isFinite(localPdfBytes) &&
+    localPdfBytes > 0
+  ) {
+    return localPdfBytes;
+  }
   if (!source) return null;
   return source.type === 'application/pdf'
     ? source.size
@@ -50,10 +56,12 @@ export function assessIndividualPdfCapacity({
   memory
 }: IndividualCapacityInput): CapacityDecision {
   const normalizedRows = Math.max(0, rowCount);
-  const normalizedTemplateBytes = Math.max(
-    1,
-    templateBytes || DEFAULT_TEMPLATE_BYTES
-  );
+  const normalizedTemplateBytes =
+    typeof templateBytes === 'number' &&
+    Number.isFinite(templateBytes) &&
+    templateBytes > 0
+      ? templateBytes
+      : DEFAULT_TEMPLATE_BYTES;
   const fontBytes = Math.min(Math.max(0, customFontCount) * MIB, 3 * MIB);
   const fieldBytes = Math.max(0, visibleFieldCount) * 4 * 1024;
   const estimatedPerFileBytes =

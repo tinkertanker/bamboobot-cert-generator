@@ -125,6 +125,99 @@ describe('email PDF attachment security', () => {
     ).rejects.toMatchObject({ code: 'INVALID_PDF', statusCode: 400 });
   });
 
+  it('returns undefined instead of sending when attachment inputs carry no usable data', async () => {
+    // Pin the silent no-attachment contract: these shapes produce an
+    // attachment-free email rather than an error.
+    await expect(
+      buildPdfAttachments({ attachmentData: { filename: 'x' } })
+    ).resolves.toBeUndefined();
+    await expect(
+      buildPdfAttachments({ attachmentData: { data: '', filename: 'x' } })
+    ).resolves.toBeUndefined();
+    await expect(buildPdfAttachments({ attachmentData: '' })).resolves.toBeUndefined();
+    await expect(
+      buildPdfAttachments({ attachments: [{ filename: 'x' }] })
+    ).resolves.toBeUndefined();
+    expect(mockedLoadTrustedPdf).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty byte-array attachment as an invalid PDF rather than skipping it', async () => {
+    // Unlike the no-data shapes above, data: [] decodes to an empty buffer,
+    // which fails the %PDF- header check instead of silently vanishing.
+    await expect(
+      buildPdfAttachments({ attachmentData: { data: [], filename: 'x' } })
+    ).rejects.toMatchObject({ code: 'INVALID_PDF', statusCode: 415 });
+  });
+
+  it('loads a single attachment.path through the trusted loader and sanitizes its filename', async () => {
+    const pdf = Buffer.from('%PDF-1.4\nsingle');
+    mockedLoadTrustedPdf.mockResolvedValue({ buffer: pdf, source: 'remote' });
+
+    await expect(
+      buildPdfAttachments({
+        attachment: {
+          path: 'https://certs.example.com/generated/single.pdf',
+          filename: '../evil\r\n.pdf'
+        },
+        maxTotalBytes: 1024
+      })
+    ).resolves.toEqual([
+      {
+        filename: 'evil__.pdf',
+        content: pdf,
+        contentType: 'application/pdf'
+      }
+    ]);
+    expect(mockedLoadTrustedPdf).toHaveBeenCalledWith(
+      'https://certs.example.com/generated/single.pdf',
+      1024
+    );
+  });
+
+  it('allows exactly the maximum of 10 attachments', async () => {
+    const attachments = Array.from({ length: 10 }, (_, index) => ({
+      content: Buffer.from(`%PDF-1.4\n${index}`).toString('base64'),
+      filename: `${index}.pdf`
+    }));
+
+    const built = await buildPdfAttachments({ attachments });
+    expect(built).toHaveLength(10);
+    expect(built?.map((item) => item.filename)).toEqual(
+      attachments.map((item) => item.filename)
+    );
+  });
+
+  it('sanitizes hostile filenames in the attachments[] branch', async () => {
+    const pdf = Buffer.from('%PDF-1.4\narray');
+
+    await expect(
+      buildPdfAttachments({
+        attachments: [
+          {
+            content: pdf.toString('base64'),
+            filename: '../../etc/passwd<script>.pdf'
+          },
+          {
+            content: pdf.toString('base64')
+            // No filename: falls back to the sanitized default
+          }
+        ],
+        defaultFilename: 'cert:ificate.pdf'
+      })
+    ).resolves.toEqual([
+      {
+        filename: 'passwd_script_.pdf',
+        content: pdf,
+        contentType: 'application/pdf'
+      },
+      {
+        filename: 'cert_ificate.pdf',
+        content: pdf,
+        contentType: 'application/pdf'
+      }
+    ]);
+  });
+
   it('rejects Buffer-shaped JSON objects before allocating their data', async () => {
     await expect(
       buildPdfAttachments({

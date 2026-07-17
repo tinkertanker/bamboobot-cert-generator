@@ -54,13 +54,21 @@ export class SessionStorage {
       if (!data) return null;
       
       const session = JSON.parse(data) as SessionData;
-      
-      // Validate session structure
-      if (!session.tableData || !Array.isArray(session.tableData)) {
+
+      // Validate the full session shape; saveSession always writes every field.
+      if (
+        !session ||
+        typeof session !== 'object' ||
+        !Array.isArray(session.tableData) ||
+        typeof session.tableInput !== 'string' ||
+        typeof session.isFirstRowHeader !== 'boolean' ||
+        typeof session.useCSVMode !== 'boolean' ||
+        typeof session.lastModified !== 'string'
+      ) {
         console.error('Invalid session data structure');
         return null;
       }
-      
+
       return session;
     } catch (error) {
       console.error('Error loading session:', error);
@@ -87,8 +95,9 @@ export class SessionStorage {
       const session = this.loadSession();
       if (!session) return null;
       
-      const lastModified = new Date(session.lastModified);
-      return Date.now() - lastModified.getTime();
+      const lastModified = new Date(session.lastModified).getTime();
+      if (!Number.isFinite(lastModified)) return null;
+      return Date.now() - lastModified;
     } catch (error) {
       console.error('Error getting session age:', error);
       return null;

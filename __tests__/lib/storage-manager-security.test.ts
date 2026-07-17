@@ -3,7 +3,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { deleteObjects, ensureSafeStorageKey, isProtectedStorageRoot, listAllObjects } from '@/lib/storage-manager';
+import { deleteObjects, ensureSafeStorageKey, formatBytes, isProtectedStorageRoot, listAllObjects } from '@/lib/storage-manager';
 
 describe('storage manager deletion boundaries', () => {
   let storageDir: string;
@@ -32,6 +32,44 @@ describe('storage manager deletion boundaries', () => {
     expect(ensureSafeStorageKey('generated/u_1/../secret')).toBe(false);
     expect(ensureSafeStorageKey('generated\\..\\secret')).toBe(false);
     expect(ensureSafeStorageKey('/generated/file.pdf')).toBe(false);
+    expect(ensureSafeStorageKey('generated/u_1/fi\0le.pdf')).toBe(false);
+    expect(ensureSafeStorageKey('generated//u_1/file.pdf')).toBe(false);
+    expect(ensureSafeStorageKey(undefined)).toBe(false);
+    expect(ensureSafeStorageKey(['generated/u_1/file.pdf'])).toBe(false);
+    // A bare namespace root is a canonical key, so the protected-root guard
+    // must be the layer that refuses it.
+    expect(ensureSafeStorageKey('generated/')).toBe(true);
+    expect(isProtectedStorageRoot('generated/')).toBe(true);
+    expect(isProtectedStorageRoot('temp_images/')).toBe(true);
+  });
+
+  it('reports malformed actions as errors and treats missing keys as idempotent no-ops', async () => {
+    const result = await deleteObjects([
+      null as unknown as { key?: unknown },
+      {},
+      { key: 'generated/valid-but-bad-flag.pdf', isPrefix: 'yes' as unknown as boolean },
+      { key: 'generated/does-not-exist.pdf' },
+      { key: 'generated/', isPrefix: true },
+    ]);
+
+    expect(result.deleted).toEqual([]);
+    expect(result.errors).toEqual([
+      '<invalid key>',
+      '<invalid key>',
+      'generated/valid-but-bad-flag.pdf',
+      'generated/',
+    ]);
+  });
+
+  it('formats byte counts defensively', () => {
+    // Regression: NaN/negative/Infinity used to render as "NaN undefined".
+    expect(formatBytes(Number.NaN)).toBe('0 B');
+    expect(formatBytes(-5)).toBe('0 B');
+    expect(formatBytes(Number.POSITIVE_INFINITY)).toBe('0 B');
+    expect(formatBytes(0)).toBe('0 B');
+    expect(formatBytes(0.5)).toBe('0.50 B');
+    expect(formatBytes(1024)).toBe('1.00 KB');
+    expect(formatBytes(1024 ** 5)).toBe('1024 TB');
   });
 
   it('does not delete outside storage through traversal or a symlinked ancestor', async () => {
