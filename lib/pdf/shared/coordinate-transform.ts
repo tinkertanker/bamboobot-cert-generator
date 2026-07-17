@@ -142,6 +142,9 @@ export function scaleFontSize(
   uiContainerWidth: number,
   pdfWidth: number
 ): number {
+  if (!Number.isFinite(uiContainerWidth) || uiContainerWidth <= 0) {
+    return baseFontSize;
+  }
   const scaleFactor = pdfWidth / uiContainerWidth;
   return baseFontSize * scaleFactor;
 }

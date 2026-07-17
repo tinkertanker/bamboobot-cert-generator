@@ -64,7 +64,59 @@ describe('guardLocalStorageForUser', () => {
     expect(localStorage.getItem('bamboobot_project_v1_abc')).not.toBeNull();
   });
 
+  it('purges again when the original account returns after another account used the browser', () => {
+    guardLocalStorageForUser('userA');
+    guardLocalStorageForUser('userB');
+    seedAppData();
+
+    const purged = guardLocalStorageForUser('userA');
+
+    expect(purged).toBe(true);
+    expect(localStorage.getItem(OWNER_KEY)).toBe('userA');
+    expect(localStorage.getItem('bamboobot_project_v1_abc')).toBeNull();
+  });
+
+  it('reports a purge truthfully even when recording the new owner fails', () => {
+    // Regression: a setItem failure after the purge used to report "no purge"
+    // while the previous account's data was already gone.
+    guardLocalStorageForUser('userA');
+    seedAppData();
+
+    const originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key: string, value: string) {
+      if (key === OWNER_KEY && value === 'userB') throw new Error('QuotaExceededError');
+      return originalSetItem.call(this, key, value);
+    };
+    try {
+      const purged = guardLocalStorageForUser('userB');
+      expect(purged).toBe(true);
+      expect(localStorage.getItem('bamboobot_project_v1_abc')).toBeNull();
+      // Owner was not recorded, so the next sign-in re-runs the guard.
+      expect(localStorage.getItem(OWNER_KEY)).toBe('userA');
+    } finally {
+      Storage.prototype.setItem = originalSetItem;
+    }
+  });
+
+  it('touches nothing when localStorage reads are unavailable', () => {
+    seedAppData();
+    const originalGetItem = Storage.prototype.getItem;
+    Storage.prototype.getItem = function () {
+      throw new Error('SecurityError');
+    };
+    try {
+      expect(guardLocalStorageForUser('userA')).toBe(false);
+    } finally {
+      Storage.prototype.getItem = originalGetItem;
+    }
+    expect(localStorage.getItem('bamboobot_project_v1_abc')).not.toBeNull();
+    expect(localStorage.getItem(OWNER_KEY)).toBeNull();
+  });
+
   it('classifies app-owned keys but not the owner key or unrelated keys', () => {
+    // Bare prefixes are app-owned; near-miss version prefixes are not.
+    expect(__test__.isAppOwnedKey('email-queue-')).toBe(true);
+    expect(__test__.isAppOwnedKey('bamboobot_project_v2_x')).toBe(false);
     expect(__test__.isAppOwnedKey('bamboobot_project_v1_x')).toBe(true);
     expect(__test__.isAppOwnedKey('email-queue-abc')).toBe(true);
     expect(__test__.isAppOwnedKey('pdf-queue-abc')).toBe(true);

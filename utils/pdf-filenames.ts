@@ -23,7 +23,8 @@ export class UniquePdfFilenameAllocator {
   private readonly nextSuffix = new Map<string, number>();
 
   allocate(baseFilename: string): string {
-    const sanitizedBase = sanitizePdfBaseFilename(baseFilename);
+    // An empty base would yield an extension-only filename ('.pdf'), so fall back
+    const sanitizedBase = sanitizePdfBaseFilename(baseFilename) || 'certificate';
     const initial = `${sanitizedBase}.pdf`;
     if (!this.used.has(initial)) {
       this.used.add(initial);

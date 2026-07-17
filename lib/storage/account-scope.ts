@@ -61,16 +61,19 @@ export function guardLocalStorageForUser(userId: string | null | undefined): boo
 
   if (previousOwner === userId) return false;
 
+  let purged = false;
   try {
     // Unknown owner: adopt the current account without discarding existing data.
     if (previousOwner !== null) {
       purgeAppOwnedKeys();
+      purged = true;
     }
     localStorage.setItem(OWNER_KEY, userId);
-    return previousOwner !== null;
   } catch {
-    return false;
+    // Recording the new owner can fail after the purge already ran; report the
+    // purge truthfully — the next sign-in re-runs the guard and settles state.
   }
+  return purged;
 }
 
 export const __test__ = { OWNER_KEY, isAppOwnedKey };

@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import {
+  assertPdfBuffer,
+  getMaxPdfSourceBytes,
   loadTrustedPdf,
   PdfSourceError,
   resolveManagedLocalPdfPath,
@@ -146,12 +148,6 @@ describe('trusted PDF source loading', () => {
       .toThrow(PdfSourceError);
     expect(() => resolveManagedLocalPdfPath('/api/files/temp_images/u_1/cert.pdf'))
       .toThrow(PdfSourceError);
-  });
-
-  it('accepts only valid signed local download sources', () => {
-    const signedUrl = createSignedGeneratedFileUrl('session/cert.pdf');
-    expect(resolveManagedLocalPdfPath(signedUrl))
-      .toContain('storage/generated/session/cert.pdf');
 
     const tamperedUrl = signedUrl.replace('session%2Fcert.pdf', 'session%2Fother.pdf');
     expect(() => resolveManagedLocalPdfPath(tamperedUrl)).toThrow(PdfSourceError);
@@ -190,9 +186,64 @@ describe('trusted PDF source loading', () => {
       .resolves.toEqual({ buffer: pdf, source: 'local' });
   });
 
+  it('falls back to the default size limit when the env value has trailing garbage', () => {
+    // Regression: parseInt('10MB') used to truncate to a 10-byte ceiling,
+    // silently breaking every PDF load.
+    process.env.MAX_PDF_SOURCE_SIZE_BYTES = '10MB';
+    expect(getMaxPdfSourceBytes()).toBe(25 * 1024 * 1024);
+    process.env.MAX_PDF_SOURCE_SIZE_BYTES = '12';
+    expect(getMaxPdfSourceBytes()).toBe(12);
+    for (const bad of ['-1', '0', 'NaN', '1.5', '']) {
+      process.env.MAX_PDF_SOURCE_SIZE_BYTES = bad;
+      expect(getMaxPdfSourceBytes()).toBe(25 * 1024 * 1024);
+    }
+  });
+
+  it('accepts a PDF header anywhere within the first 1024 bytes and nowhere later', () => {
+    // Pins the documented header window (the PDF spec allows leading junk).
+    expect(() => assertPdfBuffer(
+      Buffer.concat([Buffer.alloc(1019, 0x20), Buffer.from('%PDF-1.4')])
+    )).not.toThrow();
+    expect(() => assertPdfBuffer(
+      Buffer.concat([Buffer.alloc(1020, 0x20), Buffer.from('%PDF-1.4')])
+    )).toThrow(PdfSourceError);
+    expect(() => assertPdfBuffer(Buffer.alloc(0))).toThrow(PdfSourceError);
+  });
+
+  it('rejects oversized source URLs before parsing or fetching', async () => {
+    const longUrl = `https://certs.example.com/${'a'.repeat(8_192)}.pdf`;
+    await expect(loadTrustedPdf(longUrl))
+      .rejects.toMatchObject({ code: 'INVALID_SOURCE', statusCode: 400 });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects http sources and drops http-configured bases in production', async () => {
+    Object.defineProperty(process.env, 'NODE_ENV', { configurable: true, value: 'production' });
+    process.env.R2_PUBLIC_URL = 'http://certs.example.com';
+
+    expect(() => validateTrustedRemotePdfUrl('http://certs.example.com/generated/a.pdf'))
+      .toThrow(PdfSourceError);
+    expect(() => validateTrustedRemotePdfUrl('https://certs.example.com/generated/a.pdf'))
+      .toThrow(PdfSourceError);
+  });
+
+  it('rejects incomplete or empty signed local sources without touching disk', async () => {
+    await expect(loadTrustedPdf('/api/files/download?path=session%2Fcert.pdf&expires=1'))
+      .rejects.toMatchObject({ code: 'INVALID_SOURCE', statusCode: 400 });
+    await expect(loadTrustedPdf('')).rejects.toMatchObject({ code: 'INVALID_SOURCE' });
+    await expect(loadTrustedPdf(123 as unknown as string))
+      .rejects.toMatchObject({ code: 'INVALID_SOURCE' });
+    await expect(loadTrustedPdf('https://certs.example.com/generated/a.pdf', Number.NaN))
+      .rejects.toMatchObject({ code: 'INVALID_SOURCE', statusCode: 500 });
+  });
+
   it('sanitizes download and archive filenames', () => {
     expect(sanitizePdfFilename('../../evil\r\nname".pdf')).toBe('evil__name_.pdf');
     expect(sanitizePdfFilename('certificate')).toBe('certificate.pdf');
     expect(sanitizePdfFilename(`${'a'.repeat(300)}.pdf`)).toMatch(/^a{176}\.pdf$/);
+    expect(sanitizePdfFilename(undefined)).toBe('download.pdf');
+    expect(sanitizePdfFilename(42)).toBe('download.pdf');
+    expect(sanitizePdfFilename('...')).toBe('download.pdf');
+    expect(sanitizePdfFilename(null, '../fall\r\nback.pdf')).toBe('fall__back.pdf');
   });
 });

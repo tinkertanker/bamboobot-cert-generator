@@ -33,8 +33,10 @@ export function useFileUpload(): UseFileUploadReturn {
   const [pendingIsTemplate, setPendingIsTemplate] = useState<boolean>(false);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
 
-  const uploadToServerInternal = useCallback(async () => {
-    const file = pendingFile || (uploadedFile instanceof File ? uploadedFile : null);
+  const uploadToServerInternal = useCallback(async (fileOverride?: File, isTemplateOverride?: boolean) => {
+    // processFile passes the file it was just given: the pendingFile state it
+    // sets is not visible in this closure until the next render.
+    const file = fileOverride || pendingFile || (uploadedFile instanceof File ? uploadedFile : null);
     if (!file) {
       console.log("No file to upload to server");
       return;
@@ -43,7 +45,7 @@ export function useFileUpload(): UseFileUploadReturn {
     setIsLoading(true);
     const formData = new FormData();
     formData.append("template", file);
-    formData.append("isTemplate", pendingIsTemplate.toString());
+    formData.append("isTemplate", (isTemplateOverride ?? pendingIsTemplate).toString());
     
     try {
       const response = await fetch("/api/upload", {
@@ -130,7 +132,7 @@ export function useFileUpload(): UseFileUploadReturn {
     
     // Only upload if not skipping (for client-side generation, we skip)
     if (!skipUpload) {
-      await uploadToServerInternal();
+      await uploadToServerInternal(file, isTemplate);
     }
   }, [localBlobUrl, uploadToServerInternal]);
 

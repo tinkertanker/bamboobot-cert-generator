@@ -387,6 +387,162 @@ describe('ProjectStorage', () => {
     });
   });
 
+  describe('adversarial inputs and limits', () => {
+    it('rejects a single project larger than 10% of the storage limit', async () => {
+      const bigTableData = Array.from({ length: 2000 }, (_, i) => ({
+        name: `Person ${i}`,
+        essay: 'x'.repeat(300)
+      }));
+
+      const result = await ProjectStorage.saveProject(
+        'Huge Project',
+        mockPositions,
+        mockColumns,
+        mockImageUrl,
+        mockFilename,
+        bigTableData
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Project too large to save');
+      expect(ProjectStorage.getStorageUsage()).toBe(0);
+    });
+
+    it('rejects a save that would exceed the total storage limit', async () => {
+      // Fill storage with non-project payloads counted by getStorageUsage
+      // via legitimately-prefixed keys just under the cap.
+      const chunk = 'x'.repeat(512 * 1024);
+      for (let i = 0; i < 10; i++) {
+        localStorage.setItem(`bamboobot_project_v1_filler_${i}`, chunk);
+      }
+
+      const result = await ProjectStorage.saveProject(
+        'One More',
+        mockPositions,
+        mockColumns,
+        mockImageUrl,
+        mockFilename,
+        mockTableData
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Storage limit exceeded. Please delete some projects.');
+    });
+
+    it('survives hostile non-object JSON payloads when listing', async () => {
+      await ProjectStorage.saveProject(
+        'Valid Project',
+        mockPositions,
+        mockColumns,
+        mockImageUrl,
+        mockFilename,
+        mockTableData
+      );
+      localStorage.setItem('bamboobot_project_v1_null', 'null');
+      localStorage.setItem('bamboobot_project_v1_string', '"just a string"');
+      localStorage.setItem('bamboobot_project_v1_number', '42');
+      localStorage.setItem('bamboobot_project_v1_array', '[1,2,3]');
+      localStorage.setItem('bamboobot_project_v1_no_image', JSON.stringify({
+        id: 'no-image', name: 'No Image', created: 'x', lastModified: 'x', columns: []
+      }));
+
+      const projects = await ProjectStorage.listProjects();
+      expect(projects).toHaveLength(1);
+      expect(projects[0].name).toBe('Valid Project');
+    });
+
+    it('does not pollute Object.prototype via crafted __proto__ payloads', async () => {
+      localStorage.setItem('bamboobot_project_v1_evil', JSON.stringify({
+        id: 'evil',
+        name: 'Evil',
+        created: '2024-01-01T10:00:00Z',
+        lastModified: '2024-01-01T10:00:00Z',
+        version: '1.0',
+        positions: { a: {} },
+        columns: [],
+        tableData: [],
+        certificateImage: { url: '/x.jpg', filename: 'x.pdf', uploadedAt: 'x', isCloudStorage: false },
+        __proto__: { polluted: true }
+      }));
+
+      await ProjectStorage.updateProject('evil', { name: 'Renamed' });
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+      const reloaded = ProjectStorage.loadProject('evil');
+      expect(reloaded?.name).toBe('Renamed');
+    });
+
+    it('sanitizes hostile project names in export filenames', async () => {
+      const saveResult = await ProjectStorage.saveProject(
+        '../../etc/passwd',
+        mockPositions,
+        mockColumns,
+        mockImageUrl,
+        mockFilename,
+        mockTableData
+      );
+      const exportResult = await ProjectStorage.exportProject(saveResult.id!, false);
+      expect(exportResult.success).toBe(true);
+      expect(exportResult.filename).toBe('______etc_passwd_project.json');
+      expect(exportResult.filename).not.toMatch(/[/\\.]{2}/);
+    });
+
+    it('fails gracefully when importing a project without a certificate image', async () => {
+      const result = await ProjectStorage.importProject(JSON.stringify({
+        version: '1.0',
+        project: { name: 'Broken', positions: {}, columns: [] }
+      }));
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Failed to import project');
+    });
+
+    it('clears the image URL when importing an embedded-image export', async () => {
+      const result = await ProjectStorage.importProject(JSON.stringify({
+        version: '1.0',
+        certificateImage: { base64: 'data:image/png;base64,AAAA', mimeType: 'image/png' },
+        project: {
+          name: 'Embedded',
+          positions: mockPositions,
+          columns: mockColumns,
+          tableData: mockTableData,
+          certificateImage: { url: '/should-be-cleared.jpg', filename: 'x.pdf', uploadedAt: 'x', isCloudStorage: false }
+        }
+      }));
+      expect(result.success).toBe(true);
+      const imported = ProjectStorage.loadProject(result.id!);
+      expect(imported?.certificateImage.url).toBe('');
+    });
+  });
+
+  describe('template-to-project migration', () => {
+    it('copies old template keys to project keys and dedupes listings', async () => {
+      const legacy = {
+        id: 'legacy-1',
+        name: 'Legacy Template',
+        created: '2024-01-01T10:00:00Z',
+        lastModified: '2024-01-01T10:00:00Z',
+        version: '1.0',
+        positions: { a: {} },
+        columns: ['a'],
+        tableData: [{ a: '1' }],
+        certificateImage: { url: '/x.jpg', filename: 'x.pdf', uploadedAt: 'x', isCloudStorage: false }
+      };
+      localStorage.setItem('bamboobot_template_v1_legacy-1', JSON.stringify(legacy));
+
+      const { migrated, errors } = ProjectStorage.migrateFromTemplateStorage();
+      expect(migrated).toBe(1);
+      expect(errors).toBe(0);
+      expect(localStorage.getItem('bamboobot_project_v1_legacy-1')).not.toBeNull();
+
+      // Both old and new keys now hold the same project id; listing must dedupe.
+      const projects = await ProjectStorage.listProjects();
+      expect(projects.filter(p => p.id === 'legacy-1')).toHaveLength(1);
+
+      // loadProject falls back to the old key when only it exists.
+      localStorage.removeItem('bamboobot_project_v1_legacy-1');
+      expect(ProjectStorage.loadProject('legacy-1')?.name).toBe('Legacy Template');
+    });
+  });
+
   describe('storage management', () => {
     it('should calculate storage usage correctly', async () => {
       const initialUsage = ProjectStorage.getStorageUsage();

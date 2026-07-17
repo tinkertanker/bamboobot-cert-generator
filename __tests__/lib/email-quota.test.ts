@@ -82,6 +82,64 @@ describe('atomic email quota reservation', () => {
     expect(user.updateMany).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects non-positive and non-integer recipient counts before touching the database', async () => {
+    for (const bad of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(reserveEmailUsage('u1', bad)).rejects.toThrow('Recipient count must be a positive integer');
+      await expect(checkEmailUsageAvailability('u1', bad)).rejects.toThrow('Recipient count must be a positive integer');
+    }
+    expect(user.findUnique).not.toHaveBeenCalled();
+    expect(user.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('denies quota for an unknown user without reserving anything', async () => {
+    user.updateMany.mockResolvedValueOnce({ count: 0 });
+    user.findUnique.mockResolvedValue(null);
+
+    await expect(reserveEmailUsage('ghost', 1)).resolves.toMatchObject({
+      allowed: false,
+      limit: 0,
+      current: 0
+    });
+    expect(user.updateMany).toHaveBeenCalledTimes(1); // only the daily-reset sweep
+  });
+
+  it('rejects a single request larger than the whole daily cap without an update attempt', async () => {
+    user.updateMany.mockResolvedValueOnce({ count: 0 });
+    user.findUnique.mockResolvedValue({ tier: 'plus', dailyEmailCount: 0, lastUsageReset: new Date('2026-07-11T00:00:00Z') });
+
+    await expect(reserveEmailUsage('u1', 101)).resolves.toMatchObject({
+      allowed: false,
+      limit: 100,
+      current: 0
+    });
+    expect(user.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('reserves for an unlimited tier without a daily-count predicate', async () => {
+    const accountingEpoch = new Date('2026-07-11T00:00:00Z');
+    user.updateMany
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 1 });
+    user.findUnique.mockResolvedValue({ tier: 'admin', dailyEmailCount: 5000, lastUsageReset: accountingEpoch });
+
+    const result = await reserveEmailUsage('admin-1', 10_000);
+
+    expect(result).toMatchObject({ allowed: true, limit: null, current: 15_000 });
+    expect(user.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'admin-1', lastUsageReset: accountingEpoch },
+      data: {
+        dailyEmailCount: { increment: 10_000 },
+        lifetimeEmailCount: { increment: 10_000 }
+      }
+    });
+  });
+
+  it('silently ignores compensation for non-positive recipient counts', async () => {
+    await releaseEmailUsageReservation('u1', 0, new Date('2026-07-11T12:00:00Z'));
+    await releaseEmailUsageReservation('u1', -3, new Date('2026-07-11T12:00:00Z'));
+    expect(user.updateMany).not.toHaveBeenCalled();
+  });
+
   it('atomically compensates daily and lifetime counts after an unsent email', async () => {
     user.updateMany.mockResolvedValue({ count: 1 });
     const reservedAt = new Date('2026-07-11T23:59:30Z');

@@ -29,7 +29,7 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
   // For API routes (non-auth), return 401 if not authenticated
-  if (pathname.startsWith('/api')) {
+  if (isPathOrDescendant(pathname, '/api')) {
     if (!token) {
       return new NextResponse('Unauthorized', { status: 401 });
     }

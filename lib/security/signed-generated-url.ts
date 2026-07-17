@@ -29,11 +29,15 @@ export function normalizeGeneratedPdfPath(value: string): string {
   } catch {
     throw new SignedFileUrlError('Invalid generated file path', 400);
   }
+  if (decoded.includes('\0') || decoded.includes('\\')) {
+    throw new SignedFileUrlError('Invalid generated file path', 400);
+  }
 
   const normalized = path.posix.normalize(decoded).replace(/^\/+/, '');
   if (
     !normalized ||
     normalized === '.' ||
+    normalized.endsWith('/') ||
     normalized.startsWith('../') ||
     path.posix.isAbsolute(normalized) ||
     path.posix.extname(normalized).toLowerCase() !== '.pdf'

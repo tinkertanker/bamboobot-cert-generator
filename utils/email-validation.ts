@@ -49,14 +49,14 @@ export interface ParseRecipientsResult {
 }
 
 /**
- * Parse comma-separated emails with detailed results
+ * Parse comma- or semicolon-separated emails with detailed results
  * Returns both valid recipients and rejected tokens for warning/logging
  */
 export function parseRecipientsDetailed(to: string): ParseRecipientsResult {
   const trimmed = to.trim();
   if (trimmed.length === 0) return { valid: [], rejected: [] };
 
-  const tokens = trimmed.split(',').map(e => e.trim()).filter(e => e.length > 0);
+  const tokens = trimmed.split(/[,;]+/).map(e => e.trim()).filter(e => e.length > 0);
   const valid: string[] = [];
   const rejected: string[] = [];
 

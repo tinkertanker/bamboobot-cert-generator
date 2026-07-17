@@ -87,8 +87,9 @@ export class SessionStorage {
       const session = this.loadSession();
       if (!session) return null;
       
-      const lastModified = new Date(session.lastModified);
-      return Date.now() - lastModified.getTime();
+      const lastModified = new Date(session.lastModified).getTime();
+      if (!Number.isFinite(lastModified)) return null;
+      return Date.now() - lastModified;
     } catch (error) {
       console.error('Error getting session age:', error);
       return null;

@@ -163,7 +163,7 @@ describe('useFileUpload', () => {
       expect(result.current.uploadError).toEqual(ERROR_MESSAGES.UPLOAD_FAILED);
     });
 
-    it.skip('should set loading state during upload', async () => {
+    it('should set loading state during upload', async () => {
       let resolvePromise: (value: any) => void;
       const uploadPromise = new Promise((resolve) => {
         resolvePromise = resolve;

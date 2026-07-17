@@ -68,6 +68,68 @@ describe('rate-limit utility', () => {
     ).toBe('198.51.100.24');
   });
 
+  it('resets the window once resetAt passes', async () => {
+    jest.useFakeTimers();
+    try {
+      const { rateLimit, buildKey } = await import('@/lib/rate-limit');
+      const key = buildKey({ userId: 'reset-user', ip: null, route: 'test', category: 'api' });
+      for (let i = 0; i < 3; i++) expect(rateLimit(key, 'api').allowed).toBe(true);
+      expect(rateLimit(key, 'api').allowed).toBe(false);
+      // One millisecond before the reset boundary the caller is still blocked.
+      jest.advanceTimersByTime(999);
+      expect(rateLimit(key, 'api').allowed).toBe(false);
+      jest.advanceTimersByTime(1);
+      const afterReset = rateLimit(key, 'api');
+      expect(afterReset.allowed).toBe(true);
+      expect(afterReset.remaining).toBe(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('handles array headers, blank forwarded entries, and missing sockets', async () => {
+    process.env.TRUST_PROXY_HEADERS = 'true';
+    const { getClientIp } = await import('@/lib/rate-limit');
+    expect(getClientIp({
+      headers: { 'x-forwarded-for': ['6.6.6.6, 7.7.7.7', '198.51.100.24'] },
+    })).toBe('198.51.100.24');
+    expect(getClientIp({
+      headers: { 'x-forwarded-for': ' ,  , ' },
+      socket: { remoteAddress: '127.0.0.1' },
+    })).toBe('127.0.0.1');
+    expect(getClientIp({
+      headers: { 'x-real-ip': ['   '] },
+      socket: { remoteAddress: '127.0.0.1' },
+    })).toBe('127.0.0.1');
+    expect(getClientIp({ headers: {} })).toBe(null);
+  });
+
+  it('enforceRateLimit sets standard headers and Retry-After only when blocked', async () => {
+    const { enforceRateLimit } = await import('@/lib/rate-limit');
+    const makeRes = () => {
+      const headers: Record<string, string> = {};
+      return { headers, setHeader: (name: string, value: string) => { headers[name] = value; } };
+    };
+    const req = { headers: {}, socket: { remoteAddress: '203.0.113.9' } };
+
+    let res = makeRes();
+    const first = enforceRateLimit(req, res, { userId: 'enforce-user', route: 'r', category: 'api' });
+    expect(first.allowed).toBe(true);
+    expect(res.headers['X-RateLimit-Limit']).toBe('3');
+    expect(res.headers['X-RateLimit-Remaining']).toBe('2');
+    expect(Number(res.headers['X-RateLimit-Reset'])).toBeGreaterThan(0);
+    expect(res.headers['Retry-After']).toBeUndefined();
+
+    enforceRateLimit(req, makeRes(), { userId: 'enforce-user', route: 'r', category: 'api' });
+    enforceRateLimit(req, makeRes(), { userId: 'enforce-user', route: 'r', category: 'api' });
+    res = makeRes();
+    const blocked = enforceRateLimit(req, res, { userId: 'enforce-user', route: 'r', category: 'api' });
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.remaining).toBe(0);
+    expect(Number(res.headers['Retry-After'])).toBeGreaterThanOrEqual(0);
+    expect(Number(res.headers['Retry-After'])).toBeLessThanOrEqual(1);
+  });
+
   it('isolates bounded authenticated and anonymous pools without global lockout', async () => {
     process.env.RATE_LIMIT_MAX_BUCKETS = '2';
     const { rateLimit, buildKey } = await import('@/lib/rate-limit');

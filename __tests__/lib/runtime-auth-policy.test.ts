@@ -44,6 +44,15 @@ describe('isAuthenticationRequired', () => {
     expect(isAuthenticationRequired()).toBe(false);
   });
 
+  it('treats a whitespace-only value as unset and applies the environment default', () => {
+    process.env.REQUIRE_AUTH = '   ';
+    setNodeEnv('production');
+    expect(isAuthenticationRequired()).toBe(true);
+
+    setNodeEnv('development');
+    expect(isAuthenticationRequired()).toBe(false);
+  });
+
   it('fails closed for an invalid value', () => {
     process.env.REQUIRE_AUTH = 'maybe';
     setNodeEnv('development');
