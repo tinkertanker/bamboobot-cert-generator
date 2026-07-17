@@ -452,18 +452,15 @@ describe('ProjectStorage', () => {
     });
 
     it('does not pollute Object.prototype via crafted __proto__ payloads', async () => {
-      localStorage.setItem('bamboobot_project_v1_evil', JSON.stringify({
-        id: 'evil',
-        name: 'Evil',
-        created: '2024-01-01T10:00:00Z',
-        lastModified: '2024-01-01T10:00:00Z',
-        version: '1.0',
-        positions: { a: {} },
-        columns: [],
-        tableData: [],
-        certificateImage: { url: '/x.jpg', filename: 'x.pdf', uploadedAt: 'x', isCloudStorage: false },
-        __proto__: { polluted: true }
-      }));
+      // A literal __proto__ key would set the fixture's prototype and vanish
+      // from JSON.stringify; build the hostile payload as a raw string instead.
+      const hostile = '{"id":"evil","name":"Evil","created":"2024-01-01T10:00:00Z",'
+        + '"lastModified":"2024-01-01T10:00:00Z","version":"1.0","positions":{"a":{}},'
+        + '"columns":[],"tableData":[],'
+        + '"certificateImage":{"url":"/x.jpg","filename":"x.pdf","uploadedAt":"x","isCloudStorage":false},'
+        + '"__proto__":{"polluted":true}}';
+      expect(hostile).toContain('"__proto__"');
+      localStorage.setItem('bamboobot_project_v1_evil', hostile);
 
       await ProjectStorage.updateProject('evil', { name: 'Renamed' });
       expect(({} as Record<string, unknown>).polluted).toBeUndefined();

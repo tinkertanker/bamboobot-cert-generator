@@ -14,6 +14,9 @@
  * - Enforces max length per RFC 5321
  */
 export function isValidEmail(email: string): boolean {
+  // Reject CR/LF before trimming: direct callers may pass the raw value into
+  // a mail header, where a trailing newline enables header injection.
+  if (/[\r\n]/.test(email)) return false;
   const trimmed = email.trim().toLowerCase();
   if (trimmed.length === 0 || trimmed.length > 254) return false;
 

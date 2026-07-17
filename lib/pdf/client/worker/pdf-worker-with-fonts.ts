@@ -75,9 +75,14 @@ const fontBytesCache: Map<string, ArrayBuffer> = new Map();
 
 // Message handling
 self.addEventListener('message', async (event) => {
-  const { type, id, payload } = event.data;
+  // Null/undefined data must not throw before the try block, or the caller
+  // never receives the protocol-level 'error' response.
+  const { type, id, payload } = event.data ?? {};
 
   try {
+    if (!event.data || typeof event.data !== 'object') {
+      throw new Error('Invalid worker message');
+    }
     switch (type) {
       case 'generate':
         console.log('Worker: Starting PDF generation', { mode: payload.mode, entries: payload.entries?.length });

@@ -130,7 +130,15 @@ describe('SessionStorage', () => {
   });
 
   it('rejects well-formed JSON with the wrong shape', () => {
-    for (const bad of ['null', '"a string"', '{"tableData":{}}', '{"tableData":"rows"}', '{}']) {
+    for (const bad of [
+      'null',
+      '"a string"',
+      '{"tableData":{}}',
+      '{"tableData":"rows"}',
+      '{}',
+      '{"tableData":[]}',
+      '{"tableData":[],"tableInput":1,"isFirstRowHeader":"false","useCSVMode":null,"lastModified":{}}'
+    ]) {
       mockLocalStorage.store['bamboobot_current_session_v1'] = bad;
       expect(SessionStorage.loadSession()).toBeNull();
     }

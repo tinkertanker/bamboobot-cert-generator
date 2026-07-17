@@ -36,10 +36,12 @@ describe('email validation and recipient parsing', () => {
       expect(isValidEmail('a@b.com\nBcc: evil@y.com')).toBe(false);
     });
 
-    it('trims a purely trailing newline so the accepted address is clean', () => {
-      // Trailing CR/LF is whitespace and gets trimmed before validation; the
-      // address that comes out of parsing must not carry the newline along.
-      expect(isValidEmail('a@b.com\n')).toBe(true);
+    it('rejects raw CR/LF outright but parsing still yields the clean address', () => {
+      // isValidEmail refuses any CR/LF-bearing input so direct callers cannot
+      // forward a newline into a mail header; parseRecipients tokenizes and
+      // trims first, so a trailing newline still produces the clean address.
+      expect(isValidEmail('a@b.com\n')).toBe(false);
+      expect(isValidEmail('a@b.com\r')).toBe(false);
       expect(parseRecipients('a@b.com\r\n')).toEqual(['a@b.com']);
     });
   });
