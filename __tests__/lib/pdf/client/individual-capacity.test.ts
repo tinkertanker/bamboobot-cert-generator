@@ -144,4 +144,115 @@ describe('assessIndividualPdfCapacity', () => {
 
     expect(unknown.estimatedPeakBytes).toBeGreaterThan(known.estimatedPeakBytes);
   });
+
+  it('treats non-finite or non-positive localPdfBytes as unknown', () => {
+    expect(estimateTemplateBytes(-900, { size: 100, type: 'image/png' })).toBe(150);
+    expect(estimateTemplateBytes(0, { size: 100, type: 'application/pdf' })).toBe(100);
+    expect(estimateTemplateBytes(NaN, null)).toBeNull();
+    expect(estimateTemplateBytes(Infinity, null)).toBeNull();
+    expect(estimateTemplateBytes(-1, null)).toBeNull();
+  });
+
+  it('falls back to the default template estimate for negative templateBytes', () => {
+    const memory = { available: true, deviceMemory: 8 } as const;
+    const negative = assessIndividualPdfCapacity({
+      rowCount: 5,
+      templateBytes: -5 * MIB,
+      visibleFieldCount: 1,
+      customFontCount: 0,
+      memory
+    });
+    const unknown = assessIndividualPdfCapacity({
+      rowCount: 5,
+      templateBytes: null,
+      visibleFieldCount: 1,
+      customFontCount: 0,
+      memory
+    });
+
+    expect(negative.estimatedPeakBytes).toBe(unknown.estimatedPeakBytes);
+    expect(negative.estimatedRetainedBytes).toBe(unknown.estimatedRetainedBytes);
+  });
+
+  it('falls back to the default template estimate for NaN templateBytes', () => {
+    const result = assessIndividualPdfCapacity({
+      rowCount: 5,
+      templateBytes: NaN,
+      visibleFieldCount: 1,
+      customFontCount: 0,
+      memory: { available: true, deviceMemory: 8 }
+    });
+
+    expect(Number.isFinite(result.estimatedPeakBytes)).toBe(true);
+    expect(result.allowed).toBe(true);
+  });
+
+  it('allows zero rows when memory is plentiful', () => {
+    const result = assessIndividualPdfCapacity({
+      rowCount: 0,
+      templateBytes: 100 * 1024,
+      visibleFieldCount: 1,
+      customFontCount: 0,
+      memory: {
+        available: true,
+        jsHeapSizeLimit: 1024 * MIB,
+        usedJSHeapSize: 128 * MIB
+      }
+    });
+
+    expect(result.allowed).toBe(true);
+    expect(result.reason).toBe('ok');
+    expect(result.estimatedRetainedBytes).toBe(0);
+  });
+
+  it('allows exactly 100 rows without reliable memory but rejects 101', () => {
+    const input = {
+      templateBytes: 50 * 1024,
+      visibleFieldCount: 1,
+      customFontCount: 0,
+      memory: { available: false } as const
+    };
+
+    const atLimit = assessIndividualPdfCapacity({ ...input, rowCount: 100 });
+    expect(atLimit.allowed).toBe(true);
+    expect(atLimit.reason).toBe('ok');
+
+    const overLimit = assessIndividualPdfCapacity({ ...input, rowCount: 101 });
+    expect(overLimit.allowed).toBe(false);
+    expect(overLimit.reason).toBe('unknown-memory');
+  });
+
+  it('rejects when used heap exceeds the heap limit (available heap clamps to 0)', () => {
+    const result = assessIndividualPdfCapacity({
+      rowCount: 1,
+      templateBytes: 10 * 1024,
+      visibleFieldCount: 1,
+      customFontCount: 0,
+      memory: {
+        available: true,
+        jsHeapSizeLimit: 512 * MIB,
+        usedJSHeapSize: 600 * MIB
+      }
+    });
+
+    expect(result.budgetBytes).toBe(0);
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toBe('memory-limit');
+  });
+
+  it('fails closed for NaN rowCount', () => {
+    const result = assessIndividualPdfCapacity({
+      rowCount: NaN,
+      templateBytes: 100 * 1024,
+      visibleFieldCount: 1,
+      customFontCount: 0,
+      memory: {
+        available: true,
+        jsHeapSizeLimit: 1024 * MIB,
+        usedJSHeapSize: 128 * MIB
+      }
+    });
+
+    expect(result.allowed).toBe(false);
+  });
 });

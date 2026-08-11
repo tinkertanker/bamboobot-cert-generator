@@ -14,7 +14,13 @@ export class PrivateFileAccessError extends Error {
 }
 
 export function getAuthorizedTemplateCandidates(templateFilename: string, userId: string): string[] {
-  if (typeof templateFilename !== 'string' || !templateFilename || templateFilename.includes('\\')) {
+  if (
+    typeof templateFilename !== 'string' ||
+    !templateFilename ||
+    templateFilename.includes('\\') ||
+    templateFilename.includes('\0') ||
+    templateFilename.endsWith('/')
+  ) {
     throw new PrivateFileAccessError('Invalid template path', 400);
   }
   if (/^dev-mode-template\.pdf$/i.test(templateFilename)) {

@@ -115,6 +115,50 @@ describe('SessionStorage', () => {
     expect(age).toBeLessThanOrEqual(60 * 60 * 1000 + 1000);
   });
 
+  it('returns null age for a corrupted lastModified timestamp', () => {
+    // Regression: a garbage timestamp used to produce NaN, which callers
+    // comparing against null treated as a valid age.
+    mockLocalStorage.store['bamboobot_current_session_v1'] = JSON.stringify({
+      tableData: [],
+      tableInput: '',
+      isFirstRowHeader: false,
+      useCSVMode: false,
+      lastModified: 'not-a-date'
+    });
+
+    expect(SessionStorage.getSessionAge()).toBeNull();
+  });
+
+  it('rejects well-formed JSON with the wrong shape', () => {
+    for (const bad of [
+      'null',
+      '"a string"',
+      '{"tableData":{}}',
+      '{"tableData":"rows"}',
+      '{}',
+      '{"tableData":[]}',
+      '{"tableData":[],"tableInput":1,"isFirstRowHeader":"false","useCSVMode":null,"lastModified":{}}'
+    ]) {
+      mockLocalStorage.store['bamboobot_current_session_v1'] = bad;
+      expect(SessionStorage.loadSession()).toBeNull();
+    }
+  });
+
+  it('returns false when localStorage.setItem throws', () => {
+    mockLocalStorage.setItem.mockImplementationOnce(() => {
+      throw new Error('SecurityError');
+    });
+
+    const result = SessionStorage.saveSession({
+      tableData: [],
+      tableInput: '',
+      isFirstRowHeader: false,
+      useCSVMode: false
+    });
+
+    expect(result).toBe(false);
+  });
+
   it('rejects data exceeding size limit', () => {
     // Create large data that exceeds 2MB
     const largeData = {

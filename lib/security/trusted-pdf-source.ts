@@ -41,8 +41,10 @@ export interface LoadTrustedPdfOptions {
 
 function positiveInteger(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  // Number() rejects trailing garbage ("10MB") that parseInt would silently
+  // truncate into a tiny — and effectively service-breaking — limit.
+  const parsed = Number(value.trim());
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 export function getMaxPdfSourceBytes(): number {

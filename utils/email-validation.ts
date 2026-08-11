@@ -14,6 +14,9 @@
  * - Enforces max length per RFC 5321
  */
 export function isValidEmail(email: string): boolean {
+  // Reject CR/LF before trimming: direct callers may pass the raw value into
+  // a mail header, where a trailing newline enables header injection.
+  if (/[\r\n]/.test(email)) return false;
   const trimmed = email.trim().toLowerCase();
   if (trimmed.length === 0 || trimmed.length > 254) return false;
 
@@ -49,14 +52,14 @@ export interface ParseRecipientsResult {
 }
 
 /**
- * Parse comma-separated emails with detailed results
+ * Parse comma- or semicolon-separated emails with detailed results
  * Returns both valid recipients and rejected tokens for warning/logging
  */
 export function parseRecipientsDetailed(to: string): ParseRecipientsResult {
   const trimmed = to.trim();
   if (trimmed.length === 0) return { valid: [], rejected: [] };
 
-  const tokens = trimmed.split(',').map(e => e.trim()).filter(e => e.length > 0);
+  const tokens = trimmed.split(/[,;]+/).map(e => e.trim()).filter(e => e.length > 0);
   const valid: string[] = [];
   const rejected: string[] = [];
 
