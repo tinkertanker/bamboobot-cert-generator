@@ -29,6 +29,9 @@ DATABASE_URL="file:./prisma/database.db"
 NEXTAUTH_URL=https://your-production-domain.com  # NOT http://localhost:3000
 NEXTAUTH_SECRET=your_generated_secret  # Generate with: openssl rand -base64 32
 
+# nginx-proxy certificate basename (use the wildcard name if certificates are shared)
+CERT_NAME=your-production-domain.com
+
 # Google OAuth (if enabling auth)
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
