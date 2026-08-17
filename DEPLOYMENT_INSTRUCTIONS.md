@@ -22,8 +22,8 @@ sudo chown -R 1001:1001 data
 Update your server's `.env` file with these critical changes:
 
 ```bash
-# Database (CRITICAL - must use prisma subdirectory for persistence)
-DATABASE_URL="file:./prisma/database.db"
+# Database (resolved relative to prisma/schema.prisma)
+DATABASE_URL="file:./database.db"
 
 # Authentication (Required for production)
 NEXTAUTH_URL=https://your-production-domain.com  # NOT http://localhost:3000

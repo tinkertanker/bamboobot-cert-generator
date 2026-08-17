@@ -10,6 +10,8 @@ services:
       VIRTUAL_PORT: 3000 # tells nginx proxy what port the app is listening on
       VIRTUAL_HOST: ${PRODUCTION_HOST} # how to find your app from outside
       CERT_NAME: ${CERT_NAME:-${PRODUCTION_HOST}} # may name a shared wildcard certificate
+      # Prisma resolves relative SQLite paths from prisma/schema.prisma.
+      DATABASE_URL: "file:./database.db"
       NODE_ENV: production  # Force production mode
       NEXT_TELEMETRY_DISABLED: 1
       # nginx-proxy overwrites X-Real-IP with the direct client address.
