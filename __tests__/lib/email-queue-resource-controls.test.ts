@@ -1,7 +1,8 @@
 /** @jest-environment node */
 
 import { EmailQueueManager } from '@/lib/email/email-queue';
-import type { EmailProvider } from '@/lib/email/types';
+import type { EmailProvider, EmailResult } from '@/lib/email/types';
+import { silenceConsole } from '../helpers/silence-console';
 
 function provider(sendEmail: jest.Mock): EmailProvider {
   return {
@@ -28,6 +29,8 @@ const queuedEmail = {
 };
 
 describe('email queue resource controls', () => {
+  silenceConsole();
+
   afterEach(() => jest.useRealTimers());
 
   it('releases body and attachment buffers after a successful send', async () => {
@@ -153,11 +156,11 @@ describe('email queue resource controls', () => {
 
   it('pauses without dropping payloads after sustained local provider contention', async () => {
     jest.useFakeTimers();
-    const sendEmail = jest.fn(async () => ({
+    const sendEmail = jest.fn(async (): Promise<EmailResult> => ({
       id: '',
       success: false,
       error: 'PROVIDER_BUSY: retry shortly',
-      provider: 'resend' as const
+      provider: 'resend'
     }));
     const manager = new EmailQueueManager(provider(sendEmail));
     await manager.addToQueue([queuedEmail, queuedEmail]);

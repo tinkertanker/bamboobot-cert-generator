@@ -210,9 +210,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     try {
       if (lines.length === 0) return;
 
-      // Use the format selected by the user toggle
       const delimiter = csvMode ? "," : "\t";
-      console.log(`Using ${csvMode ? "CSV" : "TSV"} mode`);
 
       const rows = lines.map((row) => {
         if (csvMode) {
@@ -238,10 +236,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
       hasTableDataRef.current = processedTableData.length > 0;
       setTableData(processedTableData);
 
-      // Auto-detect email column
-      const emailCol = detectEmailColumn(headers, processedTableData);
-      console.log("📊 useTableData: Detected email column:", emailCol);
-      setDetectedEmailColumn(emailCol);
+      setDetectedEmailColumn(detectEmailColumn(headers, processedTableData));
     } finally {
       setIsProcessingData(false);
     }
@@ -266,13 +261,11 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
       if (detectedCSV !== useCSVMode) {
         setUseCSVMode(detectedCSV);
         shouldUpdateCSV = true;
-        console.log(`📊 Auto-detected format: ${detectedCSV ? 'CSV' : 'TSV'}`);
       }
       
       if (detectedHeaders !== isFirstRowHeader) {
         setIsFirstRowHeader(detectedHeaders);
         shouldUpdateHeaders = true;
-        console.log(`📊 Auto-detected headers: ${detectedHeaders ? 'Yes' : 'No'}`);
       }
       
       // Process data with detected or current settings

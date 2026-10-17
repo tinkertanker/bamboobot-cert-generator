@@ -36,7 +36,7 @@ function getContext(): CanvasRenderingContext2D {
   return context;
 }
 
-export function clearTextMeasurementCache(): void {
+function clearTextMeasurementCache(): void {
   measurementCache.clear();
 }
 
@@ -180,11 +180,4 @@ export function splitTextIntoLines(
   
   // Final safety: slice to maxLines (this should never be needed, but just in case)
   return lines.slice(0, maxLines);
-}
-
-/**
- * Get line height for a given font size
- */
-export function getLineHeight(fontSize: number, lineHeightMultiplier: number = 1.2): number {
-  return fontSize * lineHeightMultiplier;
 }

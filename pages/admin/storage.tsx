@@ -54,7 +54,7 @@ export default function StoragePage() {
         if (!res.ok) throw new Error('Failed to load');
         const json = (await res.json()) as ListResponse;
         setData(json);
-      } catch (e) {
+      } catch {
         setError('Failed to load storage data');
       } finally {
         setLoading(false);
@@ -200,7 +200,7 @@ export default function StoragePage() {
       const freshJson = (await fresh.json()) as ListResponse;
       setData(freshJson);
       alert(`Deleted ${json.deleted?.length || 0} item(s).`);
-    } catch (e) {
+    } catch {
       alert('Failed to delete selected items');
     }
   }
@@ -223,10 +223,9 @@ export default function StoragePage() {
           { label: 'Folders', value: 'folders' },
           { label: 'Date', value: 'date' },
           { label: 'Largest', value: 'largest' },
-        ] as any}
-        // Type cast for union compatibility
-        value={view as any}
-        onChange={(v: any) => setView(v as ViewMode)}
+        ]}
+        value={view}
+        onChange={setView}
       />
     </div>
   );
@@ -258,7 +257,7 @@ export default function StoragePage() {
               <input type="number" min={0} value={minSizeMB} onChange={e=>setMinSizeMB(e.target.value===''?'':Number(e.target.value))} className="h-9 text-sm px-3 border rounded w-28" />
             </div>
             <div className="flex items-center gap-2">
-              <select value={sortBy} onChange={e=>setSortBy(e.target.value as any)} className="h-9 text-sm px-2 border rounded">
+              <select value={sortBy} onChange={e=>setSortBy(e.target.value as typeof sortBy)} className="h-9 text-sm px-2 border rounded">
                 <option value="size">Sort: Size</option>
                 <option value="date">Sort: Date</option>
                 <option value="name">Sort: Name</option>
@@ -297,6 +296,7 @@ export default function StoragePage() {
                     <td className="px-4 py-2"><input type="checkbox" checked={!!selected[it.key]} onChange={e=>setSelected(s=>({ ...s, [it.key]: e.target.checked }))} /></td>
                     <td className="px-4 py-2 text-sm">
                       {/[.](png|jpg|jpeg)$/i.test(it.key) ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- auth-gated admin preview; next/image's optimizer cannot forward the session cookie
                         <img src={previewUrlFor(it.key)} alt="preview" loading="lazy" decoding="async" className="h-16 w-24 object-contain rounded border" />
                       ) : (/\.pdf$/i.test(it.key) ? (
                         <a href={previewUrlFor(it.key)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Open PDF</a>
@@ -390,6 +390,7 @@ export default function StoragePage() {
                     <td className="px-4 py-2 text-sm font-mono">
                       <div className="flex items-center gap-3">
                         {/[.](png|jpg|jpeg)$/i.test(it.key) ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- auth-gated admin preview; next/image's optimizer cannot forward the session cookie
                           <img src={previewUrlFor(it.key)} alt="preview" loading="lazy" decoding="async" className="h-10 w-16 object-contain rounded border" />
                         ) : (/\.pdf$/i.test(it.key) ? (
                           <a href={previewUrlFor(it.key)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Open PDF</a>

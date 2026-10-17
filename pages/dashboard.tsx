@@ -12,8 +12,8 @@ interface DashboardProps {
 }
 
 export const getServerSideProps: GetServerSideProps<DashboardProps> = async (ctx) => {
-  const session = await getServerSession(ctx.req, ctx.res, authOptions as any);
-  const userEmail = (session as any)?.user?.email as string | undefined;
+  const session = await getServerSession(ctx.req, ctx.res, authOptions);
+  const userEmail = session?.user?.email ?? undefined;
   if (!session || !userEmail) {
     return { redirect: { destination: '/', permanent: false } };
   }

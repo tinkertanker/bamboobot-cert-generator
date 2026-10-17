@@ -10,7 +10,7 @@ import {
 } from "@/utils/textMeasurement";
 import type { CertificatePreviewProps, FontFamily } from "@/types/certificate";
 
-// Upload icon component (moved from main page)
+// Upload icon component
 function UploadIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg

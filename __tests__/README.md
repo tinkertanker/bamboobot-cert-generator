@@ -7,7 +7,7 @@ This directory contains the unit tests for the Bamboobot Certificate Generator a
 Before running the tests, make sure to install the required dependencies:
 
 ```bash
-npm install --save-dev jest @testing-library/react @testing-library/jest-dom jest-environment-jsdom @types/jest ts-jest
+npm install --save-dev jest @testing-library/react @testing-library/jest-dom jest-environment-jsdom @types/jest
 ```
 
 ## Running Tests

@@ -4,6 +4,8 @@
  * Provides utilities to analyze and clean up localStorage usage in Dev Mode
  */
 
+import { formatBytes } from './format';
+
 export interface LocalStorageItem {
   key: string;
   size: number;
@@ -97,8 +99,15 @@ async function estimateLocalStorageQuota(): Promise<number> {
   }
 }
 
+// Current project prefix plus the legacy one that project-storage still migrates from.
+const PROJECT_KEY_PREFIXES = ['bamboobot_project_v1_', 'bamboobot_template_v1_'];
+
+function isProjectKey(key: string): boolean {
+  return PROJECT_KEY_PREFIXES.some(prefix => key.startsWith(prefix));
+}
+
 function getItemType(key: string): LocalStorageItem['type'] {
-  if (key.startsWith('bamboobot_template_v1_')) return 'project';
+  if (isProjectKey(key)) return 'project';
   if (key === 'bamboobot_current_session_v1') return 'session';
   if (key.startsWith('email-queue-')) return 'email-queue';
   return 'other';
@@ -114,7 +123,7 @@ function parseItemData(key: string, value: string): Record<string, unknown> {
     const parsed = JSON.parse(value);
     
     // Add helpful metadata based on type
-    if (key.startsWith('bamboobot_template_v1_')) {
+    if (isProjectKey(key)) {
       return {
         name: parsed.name || 'Unnamed Project',
         created: parsed.created,
@@ -283,12 +292,4 @@ export async function cleanupLocalStorage(options: CleanupOptions): Promise<{ de
   });
   
   return result;
-}
-
-export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }

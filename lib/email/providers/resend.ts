@@ -1,5 +1,5 @@
-import type { EmailParams, EmailResult, RateLimitInfo, EmailProvider } from '../types';
-import { providerRejectedError } from '../provider-errors';
+import type { EmailParams, EmailResult, RateLimitInfo, EmailProvider } from '@/lib/email/types';
+import { providerRejectedError } from '@/lib/email/provider-errors';
 
 function getSendTimeoutMs(): number {
   const configured = Number.parseInt(process.env.EMAIL_PROVIDER_SEND_TIMEOUT_MS || '', 10);

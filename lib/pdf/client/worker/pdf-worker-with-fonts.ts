@@ -11,7 +11,7 @@ import {
   embedStandardFonts,
   addTextToPage,
   collectUsedFontKeys
-} from '../../shared/pdf-generation-core';
+} from '@/lib/pdf/shared/pdf-generation-core';
 import { UniquePdfFilenameAllocator } from '@/utils/pdf-filenames';
 import { createTemplatePageCopier } from './template-page-copier';
 
@@ -23,9 +23,7 @@ let fontkitModule: any = null;
 async function initializeFontkit() {
   if (!fontkitModule) {
     try {
-      // Dynamic import for better webpack handling
       fontkitModule = await import('@pdf-lib/fontkit');
-      console.log('Fontkit initialized successfully');
     } catch (error: unknown) {
       let reason = 'Unknown error';
       let errorCode = 'UNKNOWN';
@@ -86,13 +84,7 @@ self.addEventListener('message', async (event) => {
     }
     switch (type) {
       case 'generate':
-        console.log('Worker: Starting PDF generation', { mode: payload.mode, entries: payload.entries?.length });
         const result = await generatePdf(payload, id);
-        console.log('Worker: PDF generation complete', {
-          mode: result.mode,
-          hasData: !!result.pdfData,
-          fileCount: result.fileCount
-        });
         // Transfer (not copy) the merged PDF, which can be tens of MB.
         (self as unknown as {
           postMessage(message: unknown, transfer: Transferable[]): void;

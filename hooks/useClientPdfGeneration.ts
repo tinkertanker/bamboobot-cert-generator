@@ -182,7 +182,6 @@ export function useClientPdfGeneration({
   const getTemplateUrl = useCallback(() => {
     // Priority 1: Use local blob URL if available (for user uploads)
     if (localBlobUrl) {
-      console.log('Using local blob URL for template:', localBlobUrl);
       return localBlobUrl;
     }
     
@@ -256,13 +255,7 @@ export function useClientPdfGeneration({
 
       const preparedData = prepareDataForClient();
       const preparedPositions = preparePositionsForClient();
-      
-      console.log('Client: Generating single PDF', {
-        entries: preparedData.length,
-        hasPositions: !!preparedPositions,
-        templateUrl,
-        mode: 'single'
-      });
+
 
       const result = await generatorRef.current.generate({
         templateUrl,
@@ -270,14 +263,6 @@ export function useClientPdfGeneration({
         positions: preparedPositions,
         uiContainerDimensions,
         mode: 'single'
-      });
-
-      console.log('Client: Generation result', {
-        success: result.success,
-        mode: result.mode,
-        hasData: !!result.data,
-        dataSize: result.data?.byteLength,
-        error: result.error
       });
 
       if (result.success && result.data) {

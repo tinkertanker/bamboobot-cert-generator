@@ -3,6 +3,7 @@
 import { ResendProvider } from '@/lib/email/providers/resend';
 import { SESProvider } from '@/lib/email/providers/ses';
 import type { EmailParams } from '@/lib/email/types';
+import { silenceConsole } from '../helpers/silence-console';
 
 const params: EmailParams = {
   to: ['owner@example.com'],
@@ -33,6 +34,8 @@ function resendResponse(id: string): Response {
 }
 
 describe('email provider concurrency controls', () => {
+  silenceConsole();
+
   afterEach(() => {
     delete process.env.RESEND_API_KEY;
     delete process.env.AWS_ACCESS_KEY_ID;

@@ -33,38 +33,3 @@ export function getEmailProvider(): EmailProvider {
     'No email provider configured. Please set either AWS SES credentials or RESEND_API_KEY in environment variables.'
   );
 }
-
-/**
- * Get provider info for display
- */
-export function getProviderInfo(): {
-  name: string;
-  configured: boolean;
-  rateLimit?: { limit: number; window: string };
-} {
-  try {
-    const provider = getEmailProvider();
-    const rateLimit = provider.getRateLimit();
-    
-    return {
-      name: provider.name.toUpperCase(),
-      configured: true,
-      rateLimit: {
-        limit: rateLimit.limit,
-        window: rateLimit.window
-      }
-    };
-  } catch {
-    return {
-      name: 'None',
-      configured: false
-    };
-  }
-}
-
-/**
- * Clear cached provider (useful for testing)
- */
-export function clearProviderCache(): void {
-  cachedProvider = null;
-}

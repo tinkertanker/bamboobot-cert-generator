@@ -32,20 +32,6 @@ export function normaliseEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-/**
- * Check if a value contains valid email(s) - supports comma-separated
- */
-export function isValidEmailValue(val: string): boolean {
-  const trimmed = val.trim();
-  if (trimmed.length === 0) return false;
-
-  if (trimmed.includes(',')) {
-    const emails = trimmed.split(',').map(e => e.trim()).filter(e => e.length > 0);
-    return emails.length > 0 && emails.every(e => isValidEmail(e));
-  }
-  return isValidEmail(trimmed);
-}
-
 export interface ParseRecipientsResult {
   valid: string[];
   rejected: string[];
