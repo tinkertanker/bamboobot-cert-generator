@@ -8,6 +8,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { readFileMetadata } from '@/lib/storage/file-metadata';
+import { cleanupExpiredObjects } from '@/lib/storage/expiry-cleanup';
 
 // Initialize R2 client (S3-compatible)
 const r2Client = new S3Client({
@@ -21,7 +22,6 @@ const r2Client = new S3Client({
 });
 
 const BUCKET_NAME = process.env.R2_BUCKET_NAME || 'bamboobot-certificates';
-const CLEANUP_CONCURRENCY = 8;
 
 export interface UploadResult {
   key: string;
@@ -185,84 +185,20 @@ export async function listFiles(prefix?: string): Promise<Array<{key: string, la
 /**
  * Clean up expired files based on metadata
  */
-export async function cleanupExpiredFiles(): Promise<{deleted: string[], errors: string[]}> {
-  const deleted: string[] = [];
-  const errors: string[] = [];
-  
+export async function cleanupExpiredFiles(
+  options: { dryRun?: boolean } = {}
+): Promise<{deleted: string[], errors: string[]}> {
   try {
-    // List all files
     const files = await listFiles();
-    
-    // One HEAD request per object: run a bounded number concurrently instead of
-    // strictly sequentially, and record outcomes per index so result order is unchanged.
-    const outcomes: Array<'deleted' | 'error' | undefined> = new Array(files.length);
-    const processFile = async (file: (typeof files)[number], index: number): Promise<void> => {
-      try {
-        // Get metadata for each file
-        const metadata = await getFileMetadata(file.key);
-        
-        if (!metadata) {
-          return;
-        }
-        
-        // Check if file should be deleted based on retention
-        const created = new Date(metadata.created);
-        const now = new Date();
-        const ageInHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
-        
-        let shouldDelete = false;
-        
-        switch (metadata.retention) {
-          case '24h':
-            shouldDelete = ageInHours > 24;
-            break;
-          case '7d':
-            shouldDelete = ageInHours > (7 * 24);
-            break;
-          case '90d':
-            shouldDelete = ageInHours > (90 * 24);
-            break;
-          case 'permanent':
-            shouldDelete = false;
-            break;
-        }
-        
-        // Don't delete if email was sent (override retention)
-        if (metadata.emailSent === 'true') {
-          shouldDelete = false;
-        }
-        
-        if (shouldDelete) {
-          await deleteFromR2(file.key);
-          outcomes[index] = 'deleted';
-          console.log(`Deleted expired file: ${file.key}`);
-        }
-      } catch (error) {
-        console.error(`Error processing file ${file.key}:`, error);
-        outcomes[index] = 'error';
-      }
-    };
-
-    let nextIndex = 0;
-    const worker = async (): Promise<void> => {
-      while (nextIndex < files.length) {
-        const index = nextIndex++;
-        await processFile(files[index], index);
-      }
-    };
-    await Promise.all(
-      Array.from({ length: Math.min(CLEANUP_CONCURRENCY, files.length) }, worker)
-    );
-
-    files.forEach((file, index) => {
-      if (outcomes[index] === 'deleted') deleted.push(file.key);
-      else if (outcomes[index] === 'error') errors.push(file.key);
+    return await cleanupExpiredObjects(files, {
+      getMetadata: getFileMetadata,
+      deleteObject: deleteFromR2,
+      dryRun: options.dryRun,
     });
   } catch (error) {
     console.error('Error in cleanup process:', error);
+    return { deleted: [], errors: [] };
   }
-  
-  return { deleted, errors };
 }
 
 /**

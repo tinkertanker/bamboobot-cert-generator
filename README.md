@@ -208,6 +208,19 @@ rm -rf ./data/temp_images/* ./data/generated/*
 docker-compose down && docker system prune -a
 ```
 
+### Cloud Storage Cleanup (R2 / S3)
+Expired files in Cloudflare R2 or Amazon S3 are deleted by a scheduled call to
+`/api/cleanup-r2` or `/api/cleanup-s3`. Retention: previews 24 hours, bulk PDFs
+7 days, individual certificates 90 days, emailed files and templates kept.
+
+```bash
+# Set CLEANUP_SECRET_KEY on the server and in the cron environment, then run daily:
+0 2 * * * CLEANUP_BASE_URL=https://your-domain.com /path/to/scripts/storage-cleanup.sh
+
+# Preview what would be deleted without deleting anything
+CLEANUP_DRY_RUN=1 ./scripts/storage-cleanup.sh
+```
+
 ### Docker Commands
 ```bash
 # Production

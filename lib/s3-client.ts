@@ -7,7 +7,8 @@ import {
   HeadObjectCommand 
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { normalizeStoredMetadata } from '@/lib/storage/file-metadata';
+import { normalizeStoredMetadata, readFileMetadata } from '@/lib/storage/file-metadata';
+import { cleanupExpiredObjects } from '@/lib/storage/expiry-cleanup';
 
 // Initialize S3 client
 const s3Client = new S3Client({
@@ -161,6 +162,38 @@ export async function listAllS3Objects(
   } while (continuationToken);
 
   return results;
+}
+
+/**
+ * Get the retention metadata stored on an S3 object, or null if unavailable.
+ */
+export async function getS3FileMetadata(key: string): Promise<FileMetadata | null> {
+  try {
+    const response = await s3Client.send(new HeadObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    }));
+    // S3 returns custom metadata keys lowercased.
+    return readFileMetadata(response.Metadata);
+  } catch (error) {
+    console.error(`Error getting S3 metadata for ${key}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Delete S3 objects whose retention period has passed (same rules as R2).
+ * Listing failures are thrown so a scheduled run reports them.
+ */
+export async function cleanupExpiredS3Files(
+  options: { dryRun?: boolean } = {}
+): Promise<{ deleted: string[]; errors: string[] }> {
+  const files = await listAllS3Objects();
+  return cleanupExpiredObjects(files.filter(f => f.key), {
+    getMetadata: getS3FileMetadata,
+    deleteObject: deleteFromS3,
+    dryRun: options.dryRun,
+  });
 }
 
 /**
