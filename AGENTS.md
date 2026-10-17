@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for coding agents (Claude Code, Codex, Cursor and others) working in this repository. `CLAUDE.md` imports this file, so edit this one.
+Guidance for coding agents (Claude Code, Codex, Cursor and others) working in this repository.
 
 Bamboobot is a Next.js (Pages Router) app for making certificates: upload a background image, place text fields on it, paste a table of names, then generate PDFs in bulk and optionally email them. It is an internal Tinkertanker tool sized for 50 to 500 recipients per batch.
 
