@@ -472,8 +472,14 @@ export class ClientPdfGenerator {
    * Create a blob URL from PDF data
    */
   static createBlobUrl(pdfData: Uint8Array): string {
-    const copy = new Uint8Array(pdfData);
-    const blob = new Blob([copy], { type: 'application/pdf' });
+    // Blob() copies its input, so pass the underlying buffer directly when the
+    // view spans all of it instead of making a second full-size copy first.
+    const part =
+      pdfData.byteOffset === 0 &&
+      pdfData.byteLength === pdfData.buffer.byteLength
+        ? (pdfData.buffer as ArrayBuffer)
+        : pdfData.slice().buffer;
+    const blob = new Blob([part], { type: 'application/pdf' });
     return URL.createObjectURL(blob);
   }
 

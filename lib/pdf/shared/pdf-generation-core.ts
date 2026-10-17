@@ -146,6 +146,49 @@ function selectFont(
 }
 
 /**
+ * Resolve the font family and style used to draw one field (entry overrides
+ * win over the field's position defaults).
+ */
+export function resolveFontStyle(
+  entryValue: Entry[string],
+  position: Position
+): { fontFamily: FontFamily; isBold: boolean; isOblique: boolean } {
+  return {
+    fontFamily: entryValue.font || position.font || 'Helvetica',
+    isBold: entryValue.bold !== undefined ? entryValue.bold : (position.bold || false),
+    isOblique: entryValue.oblique !== undefined ? entryValue.oblique : (position.oblique || false),
+  };
+}
+
+/**
+ * Collect the FontSet keys (e.g. "Poppins", "PoppinsBold") that addTextToPage
+ * would look up for these entries. Lets callers embed only the custom font
+ * variants that are actually drawn.
+ */
+export function collectUsedFontKeys(
+  entries: Entry[],
+  positions: Record<string, Position>
+): Set<string> {
+  const used = new Set<string>();
+  // Records which key selectFont reads first; it returns that font when present.
+  const recorder = new Proxy({} as FontSet, {
+    get: (_target, key) => {
+      if (typeof key === 'string') used.add(key);
+      return {} as PDFFont;
+    },
+  });
+  for (const entry of entries) {
+    for (const [key, position] of Object.entries(positions)) {
+      const entryValue = entry[key];
+      if (!entryValue) continue;
+      const { fontFamily, isBold, isOblique } = resolveFontStyle(entryValue, position);
+      selectFont(recorder, fontFamily, isBold, isOblique);
+    }
+  }
+  return used;
+}
+
+/**
  * Add text to a PDF page with all optimizations
  */
 export function addTextToPage(
@@ -175,9 +218,7 @@ export function addTextToPage(
     }
 
     // Determine which font to use
-    const fontFamily = entryValue.font || position.font || 'Helvetica';
-    const isBold = entryValue.bold !== undefined ? entryValue.bold : (position.bold || false);
-    const isOblique = entryValue.oblique !== undefined ? entryValue.oblique : (position.oblique || false);
+    const { fontFamily, isBold, isOblique } = resolveFontStyle(entryValue, position);
 
     const font = selectFont(fonts, fontFamily, isBold, isOblique);
 

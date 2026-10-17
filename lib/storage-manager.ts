@@ -76,23 +76,39 @@ function lstatIfPresent(candidate: string): fs.Stats | null {
 }
 
 // Local helpers
-function walkLocal(dir: string): StorageItem[] {
-  if (!fs.existsSync(dir)) return [];
+// Async walk so an admin listing of a large storage tree does not block the
+// event loop (and every other in-flight request) for the duration of the scan.
+async function walkLocal(dir: string): Promise<StorageItem[]> {
+  try {
+    await fs.promises.access(dir);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    console.error(`Failed to access local storage directory ${dir}:`, err);
+    throw err;
+  }
   const items: StorageItem[] = [];
+  const storageDir = getLocalStorageDir();
 
   const stack: string[] = [dir];
   while (stack.length) {
     const current = stack.pop() as string;
-    const entries = fs.readdirSync(current);
+    const entries = await fs.promises.readdir(current);
     for (const name of entries) {
       const full = path.join(current, name);
-      const stat = fs.lstatSync(full);
+      let stat: fs.Stats;
+      try {
+        stat = await fs.promises.lstat(full);
+      } catch (err) {
+        // Entry was deleted between readdir and lstat
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        throw err;
+      }
       if (stat.isSymbolicLink()) continue;
       if (stat.isDirectory()) {
         stack.push(full);
         continue;
       }
-      const rel = path.relative(getLocalStorageDir(), full).replaceAll('\\', '/');
+      const rel = path.relative(storageDir, full).replaceAll('\\', '/');
       items.push({
         key: `${rel}`,
         size: stat.size,
@@ -121,11 +137,14 @@ export async function listAllObjects(prefix?: string): Promise<StorageItem[]> {
   }
 
   // Local
+  // Skip walking a namespace root that the prefix filter would discard anyway.
   const results: StorageItem[] = [];
-  const genDir = getGeneratedDir();
-  const tmpDir = getTempImagesDir();
-  results.push(...walkLocal(genDir));
-  results.push(...walkLocal(tmpDir));
+  if (!prefix || prefix.startsWith('generated/') || 'generated/'.startsWith(prefix)) {
+    results.push(...(await walkLocal(getGeneratedDir())));
+  }
+  if (!prefix || prefix.startsWith('temp_images/') || 'temp_images/'.startsWith(prefix)) {
+    results.push(...(await walkLocal(getTempImagesDir())));
+  }
 
   // Apply prefix filter if present
   return prefix ? results.filter(i => i.key.startsWith(prefix)) : results;

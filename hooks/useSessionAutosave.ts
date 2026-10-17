@@ -29,21 +29,21 @@ export function useSessionAutosave({
       clearTimeout(autosaveTimeoutRef.current);
     }
     
-    // Serialize current state for comparison
-    const currentData = JSON.stringify({
-      tableData,
-      tableInput,
-      isFirstRowHeader,
-      useCSVMode
-    });
-    
-    // Don't save if nothing changed
-    if (currentData === lastSavedDataRef.current) {
-      return;
-    }
-    
-    // Set up new timeout for autosave
+    // Set up new timeout for autosave. Serialization happens inside the
+    // debounced callback so typing doesn't stringify the whole table per keystroke.
     autosaveTimeoutRef.current = setTimeout(() => {
+      const currentData = JSON.stringify({
+        tableData,
+        tableInput,
+        isFirstRowHeader,
+        useCSVMode
+      });
+
+      // Don't save if nothing changed
+      if (currentData === lastSavedDataRef.current) {
+        return;
+      }
+
       const saved = SessionStorage.saveSession({
         tableData,
         tableInput,

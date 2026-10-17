@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { TableData } from "@/types/certificate";
 import { parseRecipientsDetailed } from "@/utils/email-validation";
 
@@ -180,6 +180,11 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
   const [useCSVMode, setUseCSVMode] = useState<boolean>(false); // Default to TSV
   const [detectedEmailColumn, setDetectedEmailColumn] = useState<string | null>(null);
   const [isProcessingData, setIsProcessingData] = useState<boolean>(false);
+  // Whether a table is currently loaded. Used to show the loading skeleton only
+  // for an initial large load: re-showing it on every edit of an existing
+  // large table would unmount/remount the whole table (and add a 50ms delay)
+  // on each keystroke in the data textarea.
+  const hasTableDataRef = useRef(false);
 
   const processTableData = useCallback(async (
     input: string,
@@ -188,14 +193,15 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
   ) => {
     const trimmedInput = input.trim();
     if (!trimmedInput) {
+      hasTableDataRef.current = false;
       setTableData([]);
       setDetectedEmailColumn(null);
       return;
     }
 
-    // For large datasets, show loading state
+    // For large datasets, show loading state on the initial load
     const lines = trimmedInput.split("\n");
-    if (lines.length > 100) {
+    if (lines.length > 100 && !hasTableDataRef.current) {
       setIsProcessingData(true);
       // Small delay to let UI update
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -227,6 +233,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
         return obj;
       });
       
+      hasTableDataRef.current = processedTableData.length > 0;
       setTableData(processedTableData);
 
       setDetectedEmailColumn(detectEmailColumn(headers, processedTableData));
@@ -239,6 +246,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     const newInput = event.target.value;
     setTableInput(newInput);
     if (newInput.trim() === "") {
+      hasTableDataRef.current = false;
       setTableData([]);
       setDetectedEmailColumn(null);
     } else {
@@ -298,6 +306,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
   }, [processTableData]);
 
   const clearData = useCallback(() => {
+    hasTableDataRef.current = false;
     setTableData([]);
     setTableInput("");
     setDetectedEmailColumn(null);

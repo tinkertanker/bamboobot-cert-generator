@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { FONT_CAPABILITIES } from "@/utils/constants";
 
 export interface UseKeyboardShortcutsProps {
@@ -16,6 +16,13 @@ export function useKeyboardShortcuts({
   setPositions,
   onEscapePressed
 }: UseKeyboardShortcutsProps) {
+  // Read positions through a ref so the format-shortcut listener isn't torn
+  // down and re-attached on every position change (60x/s while dragging).
+  const positionsRef = useRef(positions);
+  useLayoutEffect(() => {
+    positionsRef.current = positions;
+  }, [positions]);
+
   // Arrow key nudging for selected field
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -105,7 +112,7 @@ export function useKeyboardShortcuts({
 
       if (!isCommandPressed) return;
 
-      const currentFont = positions[selectedField]?.fontFamily || "Helvetica";
+      const currentFont = positionsRef.current[selectedField]?.fontFamily || "Helvetica";
       const fontCapabilities = FONT_CAPABILITIES[currentFont as keyof typeof FONT_CAPABILITIES];
 
       if (event.key === "b" || event.key === "B") {
@@ -138,5 +145,5 @@ export function useKeyboardShortcuts({
       return () =>
         document.removeEventListener("keydown", handleFormatShortcuts);
     }
-  }, [selectedField, positions, setPositions]);
+  }, [selectedField, setPositions]);
 }

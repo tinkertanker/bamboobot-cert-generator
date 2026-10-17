@@ -12,6 +12,8 @@ import {
   UniquePdfFilenameAllocator
 } from '@/utils/pdf-filenames';
 
+const FINISHED_SESSION_RETENTION_MS = 60 * 60 * 1000;
+
 export class PdfQueueManager {
   private queue: PdfQueue;
   private config: Required<PdfGenerationConfig>;
@@ -124,6 +126,7 @@ export class PdfQueueManager {
         // No more items to process
         this.queue.status = 'completed';
         this.queue.completedAt = new Date();
+        this.lastActivity = Date.now();
         return { completed: [], failed: [] };
       }
       
@@ -174,6 +177,7 @@ export class PdfQueueManager {
     if (remainingItems.length === 0) {
       this.queue.status = 'completed';
       this.queue.completedAt = new Date();
+      this.lastActivity = Date.now();
     }
 
     return { completed, failed };
@@ -289,7 +293,13 @@ export class PdfQueueManager {
    * Check if session is expired
    */
   isExpired(): boolean {
-    return Date.now() - this.lastActivity > this.config.sessionTimeout;
+    // Finished sessions only need to live long enough for the client to fetch
+    // results; don't hold every row's data in memory for the full session timeout.
+    const isFinished = this.queue.status === 'completed' || this.queue.status === 'error';
+    const timeout = isFinished
+      ? Math.min(this.config.sessionTimeout, FINISHED_SESSION_RETENTION_MS)
+      : this.config.sessionTimeout;
+    return Date.now() - this.lastActivity > timeout;
   }
 
   /**
