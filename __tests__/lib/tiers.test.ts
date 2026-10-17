@@ -43,9 +43,9 @@ describe('Multi-domain Admin Configuration', () => {
         expect(detectUserTier(null)).toBe('free');
       });
 
-      it('should return existing tier for null email when provided', () => {
+      it('should keep a non-admin existing tier for null email', () => {
         const detectUserTier = getDetectUserTier();
-        expect(detectUserTier(null, 'admin')).toBe('admin');
+        expect(detectUserTier(null, 'plus')).toBe('plus');
       });
     });
 
@@ -270,5 +270,95 @@ describe('Multi-domain Admin Configuration', () => {
         expect(detectUserTier('user@example.com')).toBe('free');
       });
     });
+
+    describe('revoking admin tiers removed from the env', () => {
+      it('demotes an env-granted admin whose domain is no longer listed', () => {
+        process.env.ADMIN_DOMAINS = 'other.com';
+        const detectUserTier = getDetectUserTier();
+        expect(detectUserTier('staff@company.com', 'admin')).toBe('free');
+        expect(detectUserTier('staff@company.com', 'admin', 'env')).toBe('free');
+      });
+
+      it('demotes an env-granted super admin whose email is no longer listed', () => {
+        const detectUserTier = getDetectUserTier();
+        expect(detectUserTier('former@company.com', 'super_admin')).toBe('free');
+        expect(detectUserTier(null, 'super_admin')).toBe('free');
+      });
+
+      it('moves a super admin removed from SUPER_ADMIN_EMAILS down to admin if their domain is listed', () => {
+        process.env.ADMIN_DOMAINS = 'company.com';
+        const detectUserTier = getDetectUserTier();
+        expect(detectUserTier('former@company.com', 'super_admin')).toBe('admin');
+      });
+
+      it('keeps plus for env-sourced users', () => {
+        const detectUserTier = getDetectUserTier();
+        expect(detectUserTier('user@example.com', 'plus', 'env')).toBe('plus');
+      });
+
+      it('keeps manually granted admin tiers that the env does not list', () => {
+        const detectUserTier = getDetectUserTier();
+        expect(detectUserTier('helper@example.com', 'admin', 'manual')).toBe('admin');
+        expect(detectUserTier('boss@example.com', 'super_admin', 'manual')).toBe('super_admin');
+      });
+
+      it('lets the env raise a manual tier but never lower it', () => {
+        process.env.SUPER_ADMIN_EMAILS = 'boss@company.com';
+        process.env.ADMIN_DOMAINS = 'company.com';
+        const detectUserTier = getDetectUserTier();
+        expect(detectUserTier('boss@company.com', 'admin', 'manual')).toBe('super_admin');
+        expect(detectUserTier('staff@company.com', 'plus', 'manual')).toBe('admin');
+        expect(detectUserTier('manual@company.com', 'super_admin', 'manual')).toBe('super_admin');
+      });
+    });
+  });
+});
+
+describe('syncUserTier', () => {
+  const update = jest.fn();
+
+  beforeEach(() => {
+    jest.resetModules();
+    update.mockReset();
+    const cleanEnv = { ...originalEnv };
+    delete cleanEnv.SUPER_ADMIN_EMAILS;
+    delete cleanEnv.SUPER_ADMIN_EMAIL;
+    delete cleanEnv.ADMIN_DOMAIN;
+    cleanEnv.ADMIN_DOMAINS = 'company.com';
+    process.env = cleanEnv;
+    jest.doMock('@/lib/server/prisma', () => ({ prisma: { user: { update } } }));
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+    jest.dontMock('@/lib/server/prisma');
+  });
+
+  const load = () => require('@/lib/server/tiers').syncUserTier;
+
+  it('persists the demotion of a removed env admin', async () => {
+    const syncUserTier = load();
+    await expect(
+      syncUserTier({ id: 'u1', email: 'old@removed.com', tier: 'admin', tierSource: 'env' })
+    ).resolves.toBe('free');
+    expect(update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { tier: 'free', tierSource: 'env' } });
+  });
+
+  it('does not write when the tier is unchanged', async () => {
+    const syncUserTier = load();
+    await expect(
+      syncUserTier({ id: 'u2', email: 'staff@company.com', tier: 'admin', tierSource: 'env' })
+    ).resolves.toBe('admin');
+    await expect(
+      syncUserTier({ id: 'u3', email: 'helper@example.com', tier: 'admin', tierSource: 'manual' })
+    ).resolves.toBe('admin');
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('treats a missing source as env', async () => {
+    const syncUserTier = load();
+    await expect(
+      syncUserTier({ id: 'u4', email: 'old@removed.com', tier: 'super_admin', tierSource: null })
+    ).resolves.toBe('free');
   });
 });

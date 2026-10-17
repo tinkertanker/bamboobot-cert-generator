@@ -21,6 +21,7 @@ model User {
   
   // Tier and usage tracking
   tier              String    @default("free") // free, plus, admin, super_admin
+  tierSource        String    @default("env")  // env (from SUPER_ADMIN_EMAILS/ADMIN_DOMAINS) or manual (set by an admin)
   dailyPdfCount     Int       @default(0)
   dailyEmailCount   Int       @default(0)
   lastUsageReset    DateTime  @default(now())

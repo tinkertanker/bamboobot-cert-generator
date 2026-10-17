@@ -87,6 +87,7 @@ docker-compose -f docker-compose.dev.yml up -d
 - Set `REQUIRE_AUTH=true` to gate app pages and APIs behind login while keeping the public landing page available at `/`. This server-only setting is evaluated at runtime; production defaults to authentication enabled when it is omitted or invalid. Setting it to `false` removes the global middleware login wall, including from APIs; use it only in a trusted local environment. Only endpoints with their own authorization checks remain protected.
 - Configure Google provider in `.env` and set `NEXTAUTH_SECRET`.
 - Admin dashboard at `/dashboard` is gated by `ADMIN_EMAILS` (comma‑separated emails).
+- Admin tiers come from `SUPER_ADMIN_EMAILS` and `ADMIN_DOMAINS`. Removing an email or domain drops that user back to free on their next request; tiers a super admin sets in `/admin/users` are kept.
 
 Example env snippet:
 

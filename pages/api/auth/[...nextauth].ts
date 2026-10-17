@@ -2,7 +2,7 @@ import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import prisma from '@/lib/server/prisma';
-import { detectUserTier, resetDailyUsageIfNeeded } from '@/lib/server/tiers';
+import { resetDailyUsageIfNeeded, syncUserTier } from '@/lib/server/tiers';
 import type { UserTier } from '@/types/user';
 
 export const authOptions: NextAuthOptions = {
@@ -17,52 +17,42 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
-    async jwt({ token, user, trigger }) {
-      // On first sign in, attach user id and tier to token
+    async jwt({ token, user }) {
+      // On first sign in, attach user id to the token. The tier is resolved
+      // below, on sign-in and on every session check, so an admin removed from
+      // SUPER_ADMIN_EMAILS / ADMIN_DOMAINS loses the tier without signing out.
       if (user) {
-        // Cast user to include database fields
-        const dbUser = user as typeof user & { id: string; tier?: UserTier };
+        const dbUser = user as typeof user & { id: string };
         token.uid = dbUser.id;
-        
-        // Detect and set initial tier based on email
-        const detectedTier = detectUserTier(user.email ?? null, dbUser.tier);
-        token.tier = detectedTier;
-        
-        // Update tier in database if it changed
         await prisma.user.update({
           where: { id: dbUser.id },
-          data: { 
-            tier: detectedTier,
-            lastActiveAt: new Date()
-          }
+          data: { lastActiveAt: new Date() }
         });
       }
-      
-      // On each session access, check if we need to refresh tier or reset usage
-      if (trigger === 'update' || trigger === undefined) {
-        if (token.uid) {
-          // Reset daily usage if needed
-          await resetDailyUsageIfNeeded(token.uid as string);
-          
-          // Get latest user data including tier and usage
-          const currentUser = await prisma.user.findUnique({
-            where: { id: token.uid as string },
-            select: {
-              tier: true,
-              dailyPdfCount: true,
-              dailyEmailCount: true,
-              lastUsageReset: true
-            }
-          });
-          
-          if (currentUser) {
-            token.tier = currentUser.tier as UserTier;
-            token.dailyPdfCount = currentUser.dailyPdfCount;
-            token.dailyEmailCount = currentUser.dailyEmailCount;
+
+      if (token.uid) {
+        // Reset daily usage if needed
+        await resetDailyUsageIfNeeded(token.uid as string);
+
+        const currentUser = await prisma.user.findUnique({
+          where: { id: token.uid as string },
+          select: {
+            id: true,
+            email: true,
+            tier: true,
+            tierSource: true,
+            dailyPdfCount: true,
+            dailyEmailCount: true
           }
+        });
+
+        if (currentUser) {
+          token.tier = await syncUserTier(currentUser);
+          token.dailyPdfCount = currentUser.dailyPdfCount;
+          token.dailyEmailCount = currentUser.dailyEmailCount;
         }
       }
-      
+
       return token;
     },
     async session({ session, token }) {
