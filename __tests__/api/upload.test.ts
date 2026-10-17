@@ -1,217 +1,115 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import * as fs from 'fs';
-import * as fsPromises from 'fs/promises';
+/**
+ * @jest-environment node
+ */
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import httpMocks from 'node-mocks-http';
 import { PDFDocument } from 'pdf-lib';
-import { File } from 'formidable';
 
-// Mock the modules
-jest.mock('fs', () => ({
-  existsSync: jest.fn().mockReturnValue(true),
-  mkdirSync: jest.fn(),
+jest.mock('@/lib/auth/requireAuth', () => ({ requireAuth: jest.fn(async () => ({ user: { id: 'u1' } })) }));
+jest.mock('@/lib/rate-limit', () => ({
+  buildKey: jest.fn(() => 'key'),
+  rateLimit: jest.fn(() => ({ allowed: true, limit: 10, remaining: 9, resetAt: Date.now() + 1000 })),
 }));
-
-jest.mock('fs/promises', () => ({
-  readFile: jest.fn().mockResolvedValue(Buffer.from('mock-image-data')),
-  writeFile: jest.fn().mockResolvedValue(undefined),
-  copyFile: jest.fn().mockResolvedValue(undefined),
-}));
-
-jest.mock('formidable', () => {
-  const mockFile = {
-    filepath: '/path/to/file.jpg',
-    mimetype: 'image/jpeg',
-    originalFilename: 'test.jpg',
-    size: 1024,
-    toJSON: () => ({ filepath: '/path/to/file.jpg', mimetype: 'image/jpeg' }),
-  };
-  
-  return {
-    IncomingForm: jest.fn().mockImplementation(() => ({
-      parse: jest.fn().mockImplementation((req, callback) => {
-        setTimeout(() => {
-          callback(null, {}, { template: mockFile });
-        }, 0);
-      }),
-    })),
-    File: jest.fn(),
-  };
-});
-
-jest.mock('pdf-lib', () => {
-  const mockImage = {
-    scale: jest.fn().mockReturnValue({ width: 100, height: 100 }),
-  };
-  
-  const mockPage = {
-    drawImage: jest.fn(),
-  };
-  
-  const mockPDFDoc = {
-    embedPng: jest.fn().mockResolvedValue(mockImage),
-    embedJpg: jest.fn().mockResolvedValue(mockImage),
-    addPage: jest.fn().mockReturnValue(mockPage),
-    save: jest.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
-  };
-  
-  return {
-    PDFDocument: {
-      create: jest.fn().mockResolvedValue(mockPDFDoc),
-    },
-  };
-});
-
-jest.mock('path', () => ({
-  join: jest.fn().mockImplementation((...args) => args.join('/')),
-  basename: jest.fn().mockImplementation((path, ext) => {
-    if (ext) return path.replace(ext, '');
-    return path.split('/').pop();
-  }),
-  extname: jest.fn().mockReturnValue('.jpg'),
-}));
-
-// Create a manual mock for the upload handler
-const mockConfig = {
-  api: {
-    bodyParser: false,
+jest.mock('@/lib/storage-config', () => ({
+  __esModule: true,
+  default: {
+    isR2Enabled: false,
+    isS3Enabled: false,
+    getFileUrl: (filename: string, _sub?: string, type = 'generated') => `/api/files/${type}/${filename}`,
   },
-};
+}));
+jest.mock('@/lib/r2-client', () => ({ uploadToR2: jest.fn() }));
+jest.mock('@/lib/s3-client', () => ({ uploadToS3: jest.fn() }));
 
-const mockHandler = jest.fn((req, res) => {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-  
-  // Simulate successful response
-  setTimeout(() => {
-    res.status(200).json({
-      message: 'Template uploaded successfully',
-      filename: 'test.pdf',
-      image: '/temp_images/test.jpg',
-    });
-  }, 10);
-  
-  return Promise.resolve();
-});
+const mockParsed: { files: Record<string, unknown> } = { files: {} };
+const formOptions: Array<Record<string, unknown>> = [];
+jest.mock('formidable', () => ({
+  IncomingForm: jest.fn().mockImplementation((options: Record<string, unknown>) => {
+    formOptions.push(options);
+    return {
+      parse: (_req: unknown, cb: (err: unknown, fields: unknown, files: unknown) => void) =>
+        cb(null, {}, mockParsed.files),
+    };
+  }),
+}));
 
-// Define config and handler directly
-const config = mockConfig;
-const handler = mockHandler;
+import handler, { config } from '@/pages/api/upload';
 
-describe('Upload API', () => {
-  let req: Partial<NextApiRequest>;
-  let res: Partial<NextApiResponse>;
+let storageDir: string;
+let uploadTmp: string;
 
+async function tinyPng(): Promise<Buffer> {
+  // 1x1 transparent PNG
+  return Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    'base64',
+  );
+}
+
+function stageUpload(contents: Buffer, mimetype: string, originalFilename: string) {
+  const filepath = path.join(uploadTmp, `formidable-${Math.random().toString(36).slice(2)}`);
+  fs.writeFileSync(filepath, contents);
+  mockParsed.files = { template: { filepath, mimetype, originalFilename } };
+  return filepath;
+}
+
+async function callUpload() {
+  const req = httpMocks.createRequest({ method: 'POST', headers: {} });
+  (req as unknown as { socket: { remoteAddress: string } }).socket = { remoteAddress: '127.0.0.1' };
+  const res = httpMocks.createResponse();
+  await handler(req as never, res as never);
+  return res;
+}
+
+describe('/api/upload', () => {
   beforeEach(() => {
-    req = {
-      method: 'POST',
-    };
-    
-    res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-    
-    // Reset all mocks
-    jest.clearAllMocks();
+    storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'upload-storage-'));
+    uploadTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'upload-tmp-'));
+    process.env.LOCAL_STORAGE_DIR = storageDir;
+    formOptions.length = 0;
   });
 
-  it('should have bodyParser disabled in config', () => {
-    expect(config).toEqual({
-      api: {
-        bodyParser: false,
-      },
-    });
+  afterEach(() => {
+    delete process.env.LOCAL_STORAGE_DIR;
+    fs.rmSync(storageDir, { recursive: true, force: true });
+    fs.rmSync(uploadTmp, { recursive: true, force: true });
   });
 
-  it('should return 405 for non-POST requests', async () => {
-    req.method = 'GET';
-    await handler(req as NextApiRequest, res as NextApiResponse);
-    expect(res.status).toHaveBeenCalledWith(405);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Method not allowed' });
+  it('disables the body parser', () => {
+    expect(config).toEqual({ api: { bodyParser: false } });
   });
 
-  it('should process valid image file upload', async () => {
-    // Set up a hook for when json is called
-    const jsonPromise = new Promise<void>((resolve) => {
-      (res.json as jest.Mock).mockImplementationOnce(() => {
-        resolve();
-        return res;
-      });
-    });
-    
-    // Call the handler
-    handler(req as NextApiRequest, res as NextApiResponse);
-    
-    // Wait for the json method to be called
-    await jsonPromise;
-    
-    // Assertions
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: 'Template uploaded successfully',
-        filename: expect.any(String),
-        image: expect.any(String),
-      })
-    );
-  }, 30000); // Increase timeout to 30 seconds to avoid test timeouts
+  it('bounds the multipart parser and does not keep client extensions', async () => {
+    stageUpload(await tinyPng(), 'image/png', 'cert.png');
+    await callUpload();
+    expect(formOptions[0]).toEqual(expect.objectContaining({ keepExtensions: false, maxFiles: 1 }));
+  });
 
-  it('should handle template upload with isTemplate parameter', async () => {
-    // Update the mock to include isTemplate field
-    const mockFormWithTemplate = {
-      parse: jest.fn().mockImplementation((req, callback) => {
-        setTimeout(() => {
-          callback(null, { isTemplate: 'true' }, { template: mockFile });
-        }, 0);
-      }),
-    };
-    
-    (jest.requireMock('formidable').IncomingForm as jest.Mock).mockImplementationOnce(() => mockFormWithTemplate);
-    
-    // Update mock handler to include isTemplate and storageType
-    const projectHandler = jest.fn((req, res) => {
-      if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
-      }
-      
-      setTimeout(() => {
-        res.status(200).json({
-          message: 'Template uploaded successfully',
-          filename: 'test.pdf',
-          image: '/template_images/test.jpg',
-          isTemplate: true,
-          storageType: 'local'
-        });
-      }, 10);
-      
-      return Promise.resolve();
-    });
-    
-    // Set up a hook for when json is called
-    const jsonPromise = new Promise<void>((resolve) => {
-      (res.json as jest.Mock).mockImplementationOnce(() => {
-        resolve();
-        return res;
-      });
-    });
-    
-    // Call the handler
-    projectHandler(req as NextApiRequest, res as NextApiResponse);
-    
-    // Wait for the json method to be called
-    await jsonPromise;
-    
-    // Assertions
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: 'Template uploaded successfully',
-        filename: 'test.pdf',
-        image: '/template_images/test.jpg',
-        isTemplate: true,
-        storageType: 'local'
-      })
-    );
+  it('converts a real PNG and removes the formidable temp file', async () => {
+    const tempFile = stageUpload(await tinyPng(), 'image/png', 'my cert.png');
+    const res = await callUpload();
+    expect(res.statusCode).toBe(200);
+    expect(res._getJSONData()).toEqual(expect.objectContaining({ filename: 'u_u1/my_cert.pdf' }));
+    const pdfBytes = fs.readFileSync(path.join(storageDir, 'temp_images', 'u_u1', 'my_cert.pdf'));
+    await expect(PDFDocument.load(pdfBytes)).resolves.toBeDefined();
+    expect(fs.existsSync(path.join(storageDir, 'temp_images', 'u_u1', 'my_cert.png'))).toBe(true);
+    expect(fs.existsSync(tempFile)).toBe(false);
+  });
+
+  it('rejects HTML/SVG content even when the client claims image/png', async () => {
+    const tempFile = stageUpload(Buffer.from('<svg onload="alert(1)"></svg>'), 'image/png', 'x.png');
+    const res = await callUpload();
+    expect(res.statusCode).toBe(400);
+    expect(fs.existsSync(tempFile)).toBe(false);
+    expect(fs.readdirSync(path.join(storageDir, 'temp_images', 'u_u1'))).toEqual([]);
+  });
+
+  it('stores the extension matching the detected content, not the claimed type', async () => {
+    stageUpload(await tinyPng(), 'image/jpeg', 'cert.jpg');
+    const res = await callUpload();
+    expect(res.statusCode).toBe(200);
+    expect(res._getJSONData().image).toBe('/api/files/temp_images/u_u1/cert.png');
   });
 });

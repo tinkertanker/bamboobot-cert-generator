@@ -1,5 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import crypto from 'crypto';
 import { cleanupExpiredFiles, isR2Configured } from '@/lib/r2-client';
+
+function secretMatches(provided: string | string[] | undefined, expected: string): boolean {
+  if (typeof provided !== 'string') return false;
+  // Compare fixed-length digests so neither content nor length leaks via timing.
+  const a = crypto.createHash('sha256').update(provided).digest();
+  const b = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,7 +29,7 @@ export default async function handler(
   // Authentication check
   // Only allow access if CLEANUP_SECRET_KEY is set and matches
   const authKey = req.headers['x-cleanup-key'];
-  if (process.env.CLEANUP_SECRET_KEY && authKey !== process.env.CLEANUP_SECRET_KEY) {
+  if (process.env.CLEANUP_SECRET_KEY && !secretMatches(authKey, process.env.CLEANUP_SECRET_KEY)) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }

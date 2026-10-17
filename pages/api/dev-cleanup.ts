@@ -130,6 +130,22 @@ function cleanupDirectory(dirPath: string, maxAge?: number, targetTypes?: string
   return result;
 }
 
+// The Docker data directory also holds the SQLite database (data/database.db)
+// and permanent template images, so only its disposable subdirectories are
+// ever cleaned.
+const DOCKER_DISPOSABLE_SUBDIRS = ['generated', 'temp_images'];
+
+function cleanupDockerData(dockerDataDir: string): CleanupResult {
+  const result: CleanupResult = { deletedFiles: 0, freedSpace: 0, deletedItems: [] };
+  for (const subdir of DOCKER_DISPOSABLE_SUBDIRS) {
+    const subResult = cleanupDirectory(path.join(dockerDataDir, subdir));
+    result.deletedFiles += subResult.deletedFiles;
+    result.freedSpace += subResult.freedSpace;
+    result.deletedItems.push(...subResult.deletedItems);
+  }
+  return result;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
@@ -176,9 +192,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       case 'all':
         const generatedResult = cleanupDirectory(generatedDir);
         const tempResult = cleanupDirectory(tempImagesDir);
-        const dockerResult = fs.existsSync(dockerDataDir) 
-          ? cleanupDirectory(dockerDataDir) 
-          : { deletedFiles: 0, freedSpace: 0, deletedItems: [] };
+        const dockerResult = cleanupDockerData(dockerDataDir);
         
         result = {
           deletedFiles: generatedResult.deletedFiles + tempResult.deletedFiles + dockerResult.deletedFiles,
@@ -196,9 +210,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         break;
         
       case 'docker':
-        if (fs.existsSync(dockerDataDir)) {
-          result = cleanupDirectory(dockerDataDir);
-        }
+        result = cleanupDockerData(dockerDataDir);
         break;
         
       case 'old':

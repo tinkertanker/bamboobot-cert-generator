@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
 import type { EmailParams, EmailResult, RateLimitInfo, EmailProvider } from '../types';
 import { providerRejectedError } from '../provider-errors';
@@ -13,6 +14,25 @@ function assertSafeMimeHeader(value: string, field: string): void {
   if (/[\r\n]/.test(value)) {
     throw new Error(`Invalid ${field} email header`);
   }
+}
+
+// RFC 2047 encoded-word for header values that contain non-ASCII text.
+function encodeMimeHeaderText(value: string): string {
+  return /^[\x20-\x7e]*$/.test(value) ? value : `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`;
+}
+
+function encodeMimeMailbox(value: string): string {
+  const match = /^(.*?)\s*<([^<>]+)>$/.exec(value);
+  if (!match) return value;
+  const [, displayName, address] = match;
+  return displayName ? `${encodeMimeHeaderText(displayName)} <${address}>` : `<${address}>`;
+}
+
+// Body parts are base64-encoded so user-supplied text can never contain a
+// line that the MIME parser treats as a boundary or part header.
+function base64MimeBody(value: string): string {
+  const encoded = Buffer.from(value, 'utf8').toString('base64');
+  return encoded.match(/.{1,76}/g)?.join('\r\n') ?? '';
 }
 
 function getSendTimeoutMs(): number {
@@ -159,7 +179,7 @@ export class SESProvider implements EmailProvider {
       if (params.attachments && params.attachments.length > 0) {
         const rawMessage = await this.buildRawEmailMessage(params);
         const command = new SendRawEmailCommand({
-          Source: params.from,
+          Source: encodeMimeMailbox(params.from),
           Destinations: params.to,
           RawMessage: {
             Data: Buffer.from(rawMessage)
@@ -173,7 +193,7 @@ export class SESProvider implements EmailProvider {
       } else {
         // Use simple SendEmailCommand for text/html only emails
         const emailParams = {
-          Source: params.from,
+          Source: encodeMimeMailbox(params.from),
           Destination: {
             ToAddresses: params.to
           },
@@ -262,15 +282,15 @@ export class SESProvider implements EmailProvider {
     assertSafeMimeHeader(params.subject, 'Subject');
     params.to.forEach(recipient => assertSafeMimeHeader(recipient, 'To'));
 
-    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
-    const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+    const boundary = `----=_Part_${randomBytes(16).toString('hex')}`;
+    const altBoundary = `----=_Alt_${randomBytes(16).toString('hex')}`;
 
     let message = '';
 
     // Headers
-    message += `From: ${params.from}\r\n`;
+    message += `From: ${encodeMimeMailbox(params.from)}\r\n`;
     message += `To: ${params.to.join(', ')}\r\n`;
-    message += `Subject: ${params.subject}\r\n`;
+    message += `Subject: ${encodeMimeHeaderText(params.subject)}\r\n`;
     message += `MIME-Version: 1.0\r\n`;
     message += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
 
@@ -282,15 +302,15 @@ export class SESProvider implements EmailProvider {
     if (params.text) {
       message += `--${altBoundary}\r\n`;
       message += `Content-Type: text/plain; charset=UTF-8\r\n`;
-      message += `Content-Transfer-Encoding: 7bit\r\n\r\n`;
-      message += `${params.text}\r\n\r\n`;
+      message += `Content-Transfer-Encoding: base64\r\n\r\n`;
+      message += `${base64MimeBody(params.text)}\r\n\r\n`;
     }
 
     // HTML part
     message += `--${altBoundary}\r\n`;
     message += `Content-Type: text/html; charset=UTF-8\r\n`;
-    message += `Content-Transfer-Encoding: 7bit\r\n\r\n`;
-    message += `${params.html}\r\n\r\n`;
+    message += `Content-Transfer-Encoding: base64\r\n\r\n`;
+    message += `${base64MimeBody(params.html)}\r\n\r\n`;
     message += `--${altBoundary}--\r\n`;
 
     // Attachments

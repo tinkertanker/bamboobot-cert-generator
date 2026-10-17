@@ -47,6 +47,12 @@ describe('email validation and recipient parsing', () => {
   });
 
   describe('parseRecipientsDetailed', () => {
+    it('treats non-string request values as no recipients instead of throwing', () => {
+      for (const value of [undefined, null, 42, ['a@b.com'], { to: 'a@b.com' }]) {
+        expect(parseRecipientsDetailed(value)).toEqual({ valid: [], rejected: [] });
+      }
+    });
+
     it('deduplicates case-variant addresses to one normalised recipient', () => {
       const { valid, rejected } = parseRecipientsDetailed('A@B.com, a@b.com, A@b.COM');
       expect(valid).toEqual(['a@b.com']);

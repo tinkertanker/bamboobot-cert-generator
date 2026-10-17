@@ -66,6 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new SignedFileUrlError('Generated file is not a regular file', 400);
     }
     res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Length', String(stat.size));
     res.setHeader('Content-Disposition', `inline; filename="${path.basename(verifiedPath).replace(/["\\\r\n]/g, '_')}"`);
     res.setHeader('Cache-Control', 'private, no-store');

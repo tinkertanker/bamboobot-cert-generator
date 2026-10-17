@@ -136,4 +136,28 @@ describe('SES attachment source security', () => {
     });
     expect(mockSesSend).not.toHaveBeenCalled();
   });
+  it('base64-encodes body parts so user text cannot forge MIME boundaries or parts', async () => {
+    const provider = new SESProvider();
+    const injected = '\r\n------=_Part_x\r\nContent-Type: text/html\r\n\r\n<a href="https://evil.example">x</a>';
+
+    const result = await provider.sendEmail({
+      to: ['recipient@example.com'],
+      from: 'Résumé Team <sender@example.com>',
+      subject: 'Certificat élève',
+      html: '<p>Attached</p>',
+      text: injected,
+      attachments: [{ content: Buffer.from('%PDF-1.4\ntrusted'), filename: 'certificate.pdf' }]
+    });
+
+    expect(result.success).toBe(true);
+    const command = mockRawCommand.mock.calls[0][0];
+    const raw = (command.RawMessage.Data as Buffer).toString();
+    expect(raw).not.toContain('evil.example');
+    expect(raw).not.toContain('7bit');
+    expect(raw).toContain(Buffer.from(injected, 'utf8').toString('base64').slice(0, 40));
+    expect(raw).toContain(`Subject: =?UTF-8?B?${Buffer.from('Certificat élève').toString('base64')}?=`);
+    expect(raw).toContain(`From: =?UTF-8?B?${Buffer.from('Résumé Team').toString('base64')}?= <sender@example.com>`);
+    expect(raw).toMatch(/boundary="----=_Part_[0-9a-f]{32}"/);
+    expect(command.Source).toBe(`=?UTF-8?B?${Buffer.from('Résumé Team').toString('base64')}?= <sender@example.com>`);
+  });
 });
