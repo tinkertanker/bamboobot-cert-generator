@@ -8,7 +8,8 @@ import {
   FontSet,
   FontFamily,
   embedStandardFonts,
-  addTextToPage
+  addTextToPage,
+  collectUsedFontKeys
 } from '@/lib/pdf/shared/pdf-generation-core';
 
 // Re-export types for backward compatibility
@@ -100,7 +101,8 @@ export function getNeededCustomFontFamilies(
  */
 export async function embedCustomFonts(
   pdf: PDFDocument,
-  families: FontFamily[]
+  families: FontFamily[],
+  usedKeys?: Set<string>
 ): Promise<Partial<FontSet>> {
   const embedded: Partial<FontSet> = {};
   if (families.length === 0) return embedded;
@@ -111,6 +113,9 @@ export async function embedCustomFonts(
   for (const family of families) {
     try {
       for (const [key, file] of CUSTOM_FONT_FILES[family] ?? []) {
+        // Skip variants nothing draws with (selectFont only falls back to
+        // standard fonts, never to another custom variant).
+        if (usedKeys && !usedKeys.has(key)) continue;
         embedded[key] = await pdf.embedFont(await readFontFile(file));
       }
     } catch (e) {
@@ -149,7 +154,8 @@ export async function renderSinglePdf(
   // Only register fontkit and embed custom fonts if needed
   const customFontsEmbedded = await embedCustomFonts(
     pdf,
-    getNeededCustomFontFamilies(positions, [entryData])
+    getNeededCustomFontFamilies(positions, [entryData]),
+    collectUsedFontKeys([entryData], positions)
   );
 
   // Combine standard and custom fonts

@@ -28,7 +28,8 @@ import {
   Position,
   FontSet,
   embedStandardFonts,
-  addTextToPage
+  addTextToPage,
+  collectUsedFontKeys
 } from '@/lib/pdf/shared/pdf-generation-core';
 import { embedCustomFonts, getNeededCustomFontFamilies } from '@/lib/pdf-generator';
 import { UniquePdfFilenameAllocator } from '@/utils/pdf-filenames';
@@ -133,7 +134,11 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
       const standardFonts = await embedStandardFonts(pdf);
       
       // Only register fontkit and embed custom fonts if needed (font bytes are cached in-process)
-      const customFontsEmbedded = await embedCustomFonts(pdf, neededCustomFonts);
+      const customFontsEmbedded = await embedCustomFonts(
+        pdf,
+        neededCustomFonts,
+        collectUsedFontKeys([entry], positions)
+      );
 
       // Combine standard and custom fonts
       const fonts: FontSet = { ...standardFonts, ...customFontsEmbedded } as FontSet;

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { FONT_CAPABILITIES } from "@/utils/constants";
 
 export interface UseKeyboardShortcutsProps {
@@ -19,7 +19,9 @@ export function useKeyboardShortcuts({
   // Read positions through a ref so the format-shortcut listener isn't torn
   // down and re-attached on every position change (60x/s while dragging).
   const positionsRef = useRef(positions);
-  positionsRef.current = positions;
+  useLayoutEffect(() => {
+    positionsRef.current = positions;
+  }, [positions]);
 
   // Arrow key nudging for selected field
   useEffect(() => {

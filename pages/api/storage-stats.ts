@@ -127,7 +127,14 @@ async function getDirSize(dirPath: string): Promise<number> {
   
   for (const item of items) {
     const itemPath = path.join(dirPath, item);
-    const stats = await fsPromises.stat(itemPath);
+    let stats;
+    try {
+      stats = await fsPromises.stat(itemPath);
+    } catch (err) {
+      // Entry was deleted between readdir and stat
+      if (isMissing(err)) continue;
+      throw err;
+    }
     
     if (stats.isFile()) {
       size += stats.size;

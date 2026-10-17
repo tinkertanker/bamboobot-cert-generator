@@ -126,6 +126,7 @@ export class PdfQueueManager {
         // No more items to process
         this.queue.status = 'completed';
         this.queue.completedAt = new Date();
+        this.lastActivity = Date.now();
         return { completed: [], failed: [] };
       }
       
@@ -176,6 +177,7 @@ export class PdfQueueManager {
     if (remainingItems.length === 0) {
       this.queue.status = 'completed';
       this.queue.completedAt = new Date();
+      this.lastActivity = Date.now();
     }
 
     return { completed, failed };

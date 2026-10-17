@@ -7,6 +7,7 @@ import prisma from '@/lib/server/prisma';
 const lastTouch = new Map<string, number>();
 const TOUCH_INTERVAL_MS = 5 * 60 * 1000;
 const MAX_TOUCH_ENTRIES = 10_000;
+let lastSweep = 0;
 
 async function touchUser(userId: string) {
   const now = Date.now();
@@ -14,7 +15,8 @@ async function touchUser(userId: string) {
   if (now - last < TOUCH_INTERVAL_MS) return;
   // Keep the throttle map bounded in a long-lived server: entries older than the
   // interval no longer suppress anything and can be dropped.
-  if (lastTouch.size >= MAX_TOUCH_ENTRIES) {
+  if (lastTouch.size >= MAX_TOUCH_ENTRIES && now - lastSweep >= TOUCH_INTERVAL_MS) {
+    lastSweep = now;
     for (const [id, touchedAt] of lastTouch) {
       if (now - touchedAt >= TOUCH_INTERVAL_MS) lastTouch.delete(id);
     }

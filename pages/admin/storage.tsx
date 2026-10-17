@@ -297,7 +297,7 @@ export default function StoragePage() {
                     <td className="px-4 py-2"><input type="checkbox" checked={!!selected[it.key]} onChange={e=>setSelected(s=>({ ...s, [it.key]: e.target.checked }))} /></td>
                     <td className="px-4 py-2 text-sm">
                       {/[.](png|jpg|jpeg)$/i.test(it.key) ? (
-                        <img src={previewUrlFor(it.key)} alt="preview" loading="lazy" decoding="async" className="h-16 w-auto rounded border" />
+                        <img src={previewUrlFor(it.key)} alt="preview" loading="lazy" decoding="async" className="h-16 w-24 object-contain rounded border" />
                       ) : (/\.pdf$/i.test(it.key) ? (
                         <a href={previewUrlFor(it.key)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Open PDF</a>
                       ) : (
@@ -390,7 +390,7 @@ export default function StoragePage() {
                     <td className="px-4 py-2 text-sm font-mono">
                       <div className="flex items-center gap-3">
                         {/[.](png|jpg|jpeg)$/i.test(it.key) ? (
-                          <img src={previewUrlFor(it.key)} alt="preview" loading="lazy" decoding="async" className="h-10 w-auto rounded border" />
+                          <img src={previewUrlFor(it.key)} alt="preview" loading="lazy" decoding="async" className="h-10 w-16 object-contain rounded border" />
                         ) : (/\.pdf$/i.test(it.key) ? (
                           <a href={previewUrlFor(it.key)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Open PDF</a>
                         ) : null)}

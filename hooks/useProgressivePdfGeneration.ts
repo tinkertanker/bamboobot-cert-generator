@@ -36,6 +36,8 @@ export function useProgressivePdfGeneration({
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Session currently being polled; responses for any other session are stale.
+  const activePollSessionRef = useRef<string | null>(null);
 
   // Helper function to convert hex color to RGB array
   const hexToRgb = useCallback((hex: string): [number, number, number] => {
@@ -116,11 +118,13 @@ export function useProgressivePdfGeneration({
   const pollProgress = useCallback(async (sessionId: string) => {
     try {
       const response = await fetch(`/api/generate-progressive?sessionId=${sessionId}`);
+      if (activePollSessionRef.current !== sessionId) return;
       if (!response.ok) {
         throw new Error('Failed to get progress');
       }
 
       const data = await response.json();
+      if (activePollSessionRef.current !== sessionId) return;
       setProgress(data);
 
       // If generation is complete or errored, stop polling and set results
@@ -140,6 +144,7 @@ export function useProgressivePdfGeneration({
         }
       }
     } catch (err) {
+      if (activePollSessionRef.current !== sessionId) return;
       console.error('Error polling progress:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
       setIsGenerating(false);
@@ -212,6 +217,7 @@ export function useProgressivePdfGeneration({
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
       }
+      activePollSessionRef.current = data.sessionId;
       pollIntervalRef.current = setInterval(() => {
         pollProgress(data.sessionId);
       }, PROGRESSIVE_PDF.POLL_INTERVAL_MS);
@@ -283,6 +289,7 @@ export function useProgressivePdfGeneration({
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
       }
+      activePollSessionRef.current = sessionId;
       pollIntervalRef.current = setInterval(() => {
         pollProgress(sessionId);
       }, PROGRESSIVE_PDF.POLL_INTERVAL_MS);

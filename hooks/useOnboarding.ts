@@ -166,7 +166,16 @@ export function useOnboarding() {
     };
     
     const runTour = () => {
-      startTourInternal().catch((e) => console.error('Failed to start tour:', e));
+      startTourInternal().catch((e) => {
+        console.error('Failed to start tour:', e);
+        // Let the user retry next time rather than marking onboarding done
+        try {
+          localStorage.removeItem(ONBOARDING_KEY);
+        } catch {
+          // ignore storage errors
+        }
+        setHasSeenOnboarding(false);
+      });
     };
 
     // Add a delay to ensure the welcome screen/modal is fully closed and DOM is updated

@@ -81,8 +81,10 @@ function lstatIfPresent(candidate: string): fs.Stats | null {
 async function walkLocal(dir: string): Promise<StorageItem[]> {
   try {
     await fs.promises.access(dir);
-  } catch {
-    return [];
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    console.error(`Failed to access local storage directory ${dir}:`, err);
+    throw err;
   }
   const items: StorageItem[] = [];
   const storageDir = getLocalStorageDir();
@@ -93,7 +95,14 @@ async function walkLocal(dir: string): Promise<StorageItem[]> {
     const entries = await fs.promises.readdir(current);
     for (const name of entries) {
       const full = path.join(current, name);
-      const stat = await fs.promises.lstat(full);
+      let stat: fs.Stats;
+      try {
+        stat = await fs.promises.lstat(full);
+      } catch (err) {
+        // Entry was deleted between readdir and lstat
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        throw err;
+      }
       if (stat.isSymbolicLink()) continue;
       if (stat.isDirectory()) {
         stack.push(full);
