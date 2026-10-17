@@ -1,5 +1,7 @@
 # Open Source Strategy
 
+> **Status: proposal.** Nothing here has been adopted yet; for example, the repository has no licence file. See `AGENTS.md` for how the app works today.
+
 ## Executive Summary
 
 Release the current certificate generator as open source (AGPL v3) while maintaining a separate SaaS offering. This strategy follows the successful "open core" model used by Plausible Analytics and Cal.com - giving away a fully functional product while monetizing convenience and enterprise features.

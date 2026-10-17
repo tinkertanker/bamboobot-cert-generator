@@ -1,67 +1,36 @@
-# Testing Documentation
+# Unit tests
 
-This directory contains the unit tests for the Bamboobot Certificate Generator application.
-
-## Setup
-
-Before running the tests, make sure to install the required dependencies:
+Jest (jsdom) with React Testing Library. Dependencies come from `npm ci`; nothing extra to install.
 
 ```bash
-npm install --save-dev jest @testing-library/react @testing-library/jest-dom jest-environment-jsdom @types/jest
-```
-
-## Running Tests
-
-To run all tests:
-
-```bash
-npm test
-```
-
-To run tests in watch mode (useful during development):
-
-```bash
+npm test -- __tests__/lib/rate-limit.test.ts   # one file
+npm test -- -t "rate limit"                    # tests whose name matches
 npm run test:watch
-```
-
-## Test Structure
-
-The tests are organized into the following directories:
-
-- `__tests__/api/`: Tests for API endpoints
-  - `upload.test.ts`: Tests for the upload endpoint
-  - `generate.test.ts`: Tests for the certificate generation endpoint
-- `__tests__/components/`: Tests for React components
-  - `Spinner.test.tsx`: Tests for the Spinner component
-  - `ui/button.test.tsx`: Tests for the Button component
-- `__tests__/lib/`: Tests for utility functions
-  - `utils.test.ts`: Tests for the utility functions
-
-## Mocking Strategy
-
-The tests use Jest's mocking capabilities to mock external dependencies:
-
-- File system operations (`fs` and `fs/promises`)
-- Path operations (`path`)
-- PDF generation (`pdf-lib`)
-- Form data handling (`formidable`)
-
-## Adding New Tests
-
-When adding new tests, follow these guidelines:
-
-1. Create a new test file in the appropriate directory
-2. Import the component or function being tested
-3. Mock any external dependencies
-4. Write test cases using `describe` and `it` functions
-5. Run the tests to ensure they pass
-
-## Coverage
-
-To run tests with coverage reporting:
-
-```bash
+npm test                                       # everything, including build.test.ts (runs a full build)
 npm test -- --coverage
 ```
 
-This will generate a coverage report in the `coverage` directory.
+## Layout
+
+| Folder | What it covers |
+| --- | --- |
+| `api/` | API routes in `pages/api/`, called with `node-mocks-http` requests |
+| `components/` | Components, including `modals/`, `panels/` and `ui/` |
+| `hooks/` | Hooks in `hooks/` |
+| `lib/` | Server and shared library code, including `lib/email/` and `lib/pdf/` |
+| `utils/` | Helpers in `utils/` |
+| `fonts/` | Font files and `FONT_CAPABILITIES` |
+| `pages/` | Page rendering |
+| `middleware.test.ts` | Route gating in `middleware.ts` |
+| `build.test.ts` | `npm run build` succeeds |
+| `helpers/` | Shared helpers (`mock-local-storage.ts`, `silence-console.ts`); not test suites |
+| `__mocks__/` | AWS SDK mocks, wired up in `jest.config.js` |
+
+`jest.setup.js` sets test environment variables (for example `NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=false`) and global stubs.
+
+## Writing tests
+
+- Import and exercise the real module. Do not copy the logic under test into the test file.
+- Skip tests that only assert on mocks, echo props back, or test third-party libraries.
+- Check the test reaches the code it claims to cover; a test that passes with the code removed is not testing anything.
+- Mock at the edges (filesystem, network, AWS, Prisma), not the module under test.

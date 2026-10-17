@@ -1,5 +1,7 @@
 # SaaS Architecture & Business Model
 
+> **Status: proposal.** This describes a possible public SaaS version and was written before auth and tiers were built. The app as it stands uses NextAuth with Google sign-in, Prisma with SQLite, and the tiers in `types/user.ts` (`free`, `plus`, `admin`, `super_admin`), not Supabase. PDF generation already runs in a browser Web Worker by default. See `AGENTS.md` for the current architecture.
+
 ## Executive Summary
 
 Transform Bamboobot from an internal tool to a public SaaS offering with a generous free tier that serves individual users while monetizing business/institutional use cases.

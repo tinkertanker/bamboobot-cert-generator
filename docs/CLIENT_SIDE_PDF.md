@@ -1,195 +1,42 @@
-# Client-Side PDF Generation (DEFAULT)
+# Client-Side PDF Generation
 
-## Overview
+Certificates are generated in the browser by default. The server is a fallback for browsers that cannot do it, and for batches too large for the device.
 
-**As of September 2025, client-side PDF generation is the DEFAULT method.** PDFs are created directly in the browser without server round-trips, reducing server load, improving performance, and enabling offline PDF generation. Server-side generation is maintained only as a legacy fallback for unsupported browsers.
+## Choosing client or server
 
-## Architecture
+`getPdfGenerationMethod` in `hooks/usePdfGenerationMethods.tsx` decides, in this order:
 
-### Components
+1. Dev Mode with "server" chosen explicitly: server.
+2. Browser not supported (`lib/pdf/client/feature-detection.ts` checks Web Workers, ArrayBuffer, fetch and available memory): server.
+3. Otherwise: client.
 
-1. **PDF Worker** (`lib/pdf/client/worker/pdf-worker-simplified.ts`)
-   - Runs in a Web Worker to avoid blocking the UI
-   - Handles all PDF generation operations
-   - Uses pdf-lib library for PDF manipulation
+For individual PDFs there is one more check. `lib/pdf/client/individual-capacity.ts` estimates the memory the batch will need from the row count, template size, number of fields and custom fonts. If it does not fit (or there are more than 500 rows, or more than 100 when the device does not report its memory), generation moves to the server.
 
-2. **Font Manager** (`lib/pdf/client/font-manager.ts`)
-   - Manages font loading and caching
-   - Uses IndexedDB for persistent storage
-   - Implements memory management with LRU eviction
+Server generation of individual PDFs uses progressive batches when there are more than 100 rows (`PROGRESSIVE_PDF` in `utils/constants.ts`), with pause, resume and cancel.
 
-3. **Feature Detection** (`lib/pdf/client/feature-detection.ts`)
-   - Checks browser capabilities
-   - Determines if client-side generation is supported
-   - Provides memory estimation and limits
+## Pieces
 
-4. **Client PDF Generator** (`lib/pdf/client/pdf-generator-client.ts`)
-   - Main interface for client-side generation
-   - Manages worker lifecycle
-   - Handles progress tracking
+| File | Role |
+| --- | --- |
+| `hooks/useClientPdfGeneration.ts` | React hook used by the editor; wraps the generator and reports progress |
+| `lib/pdf/client/pdf-generator-client.ts` | Starts the worker, sends jobs, collects results |
+| `lib/pdf/client/worker/pdf-worker-with-fonts.ts` | Web Worker entry; builds PDFs with pdf-lib and fontkit |
+| `lib/pdf/client/font-manager.ts` | Fetches TTFs from `public/fonts/`, caches them in memory and IndexedDB |
+| `lib/pdf/client/image-to-pdf.ts` | Turns the uploaded PNG/JPEG into a PDF page to stamp on |
+| `lib/pdf/shared/pdf-generation-core.ts` | Text placement, shrink-to-fit and two-line wrapping, shared with the server |
+| `lib/pdf/shared/coordinate-transform.ts` | Converts top-left percentage positions to PDF bottom-left coordinates |
 
-5. **React Hook** (`hooks/useClientPdfGeneration.ts`)
-   - Integrates client-side generation with React components
-   - Provides same interface as server-side generation
-   - Manages state and cleanup
+All ten fonts, bold and italic variants, both text modes and ZIP download (JSZip, in `components/modals/IndividualPdfsModal.tsx`) work client-side.
 
-### Coordinate System
+## Building the worker
 
-The shared coordinate transformation module (`lib/pdf/shared/coordinate-transform.ts`) ensures consistent positioning between client and server implementations:
+The worker is bundled separately by webpack (`webpack.worker.config.js`) into `public/pdf-worker.js` plus chunk files. `npm run dev` and `npm run build` rebuild it, and the output is committed, so run `npm run build:worker` and commit the result whenever you change the worker, `lib/pdf/shared/`, or anything they import.
 
-- UI uses top-left origin (0,0 at top-left)
-- PDF uses bottom-left origin (0,0 at bottom-left)
-- Transformation: `pdfY = height - (uiY * height)`
+## Debugging
 
-## Features
+`useClientPdfGeneration` returns `getCapabilityReport()`, a text report of worker, IndexedDB and memory support and the overall verdict; log it from the editor when a browser unexpectedly falls back to the server. In Dev Mode you can generate the same batch on the server to compare output.
 
-### Supported
-- ✅ Single merged PDF generation
-- ✅ Individual PDF generation
-- ✅ Standard fonts (Helvetica, Times, Courier)
-- ✅ Basic text positioning and alignment
-- ✅ Progress tracking
-- ✅ Memory management
-- ✅ Browser capability detection
+## Known gaps
 
-### Not Yet Implemented
-- ❌ Custom font loading (Montserrat, Poppins, etc.)
-- ❌ Progressive batch generation
-- ❌ Advanced text features (multiline, shrink-to-fit)
-- ❌ Client-side ZIP creation
-
-## Usage
-
-### Automatic Client-Side Generation
-
-Client-side PDF generation is the DEFAULT for all users:
-
-1. The system automatically detects browser capabilities
-2. If supported (most modern browsers), PDFs are generated client-side
-3. If not supported, falls back to server-side generation
-4. In Dev Mode, you can explicitly choose server-side for testing
-
-### Browser Requirements
-
-- Modern browser with Web Worker support
-- Sufficient memory (2GB+ recommended)
-- JavaScript enabled
-
-### Performance Considerations
-
-| Dataset Size | Recommended Mode | Notes |
-|-------------|------------------|-------|
-| 1-50 rows | Client-side | Fast, no network latency |
-| 50-100 rows | Client-side | Monitor memory usage |
-| 100-500 rows | Server-side | Better memory management |
-| 500+ rows | Progressive server | Batch processing required |
-
-## Development
-
-### Building the Worker
-
-The PDF worker is built separately using webpack:
-
-```bash
-npm run build:worker
-```
-
-This creates `public/pdf-worker.js` which is loaded by the client.
-
-### Testing
-
-1. Enable Dev Mode in the UI
-2. The system will automatically use client-side generation if supported
-3. Check the browser console for capability report
-4. Monitor memory usage in Chrome DevTools
-
-### Debugging
-
-To get a capability report:
-```javascript
-const report = await featureDetector.getCapabilityReport();
-console.log(report);
-```
-
-Output example:
-```
-=== Browser Capability Report ===
-Web Worker Support: ✅
-IndexedDB Support: ✅ (optional)
-ArrayBuffer Support: ✅
-Fetch API Support: ✅
-Memory Estimation Available: ✅
-Sufficient Memory: ✅
-
-=== Memory Information ===
-Device Memory: 8GB
-JS Heap Limit: 4096MB
-JS Heap Used: 152MB
-
-=== Overall Support: ✅ Ready ===
-```
-
-## Implementation Status
-
-### Phase 1: Core Infrastructure ✅
-- Created library structure
-- Implemented font manager with caching
-- Built Web Worker for PDF generation
-- Added feature detection
-
-### Phase 2: Basic Generation ✅
-- Single PDF generation working
-- Individual PDF generation working
-- Basic text positioning implemented
-- Progress tracking added
-
-### Phase 3: Progressive Generation 🚧
-- Queue system not yet implemented
-- Pause/resume functionality pending
-- Memory monitoring in progress
-
-### Phase 4: UI Integration 🚧
-- Basic integration complete
-- Dev Mode toggle pending
-- Performance metrics pending
-
-### Phase 5: Optimization 📅
-- Font subsetting not implemented
-- PDF object reuse pending
-- Advanced caching strategies pending
-
-## Future Improvements
-
-1. **Custom Font Support**
-   - Load fonts dynamically from server
-   - Implement font subsetting
-   - Cache fonts in IndexedDB
-
-2. **Advanced Features**
-   - Multiline text support
-   - Shrink-to-fit text
-   - Text box width calculations
-
-3. **Performance**
-   - Implement PDF object pooling
-   - Add streaming generation
-   - Optimize memory usage
-
-4. **User Experience**
-   - Add detailed progress indicators
-   - Implement retry mechanisms
-   - Provide memory warnings
-
-## Limitations
-
-1. **Font Loading**: Custom fonts require server access for initial load
-2. **Memory**: Large datasets may exceed browser memory limits
-3. **Browser Support**: Older browsers fall back to server-side
-4. **File Access**: Cannot save directly to filesystem (download only)
-
-## Security Considerations
-
-- All processing happens in the browser
-- No sensitive data sent to server
-- Font files cached locally
-- IndexedDB storage is origin-scoped
+- Emailing download links needs the PDFs in cloud storage, which client-side generation does not do. Email attachments work. See `TODO.md`.
+- `ClientPdfGenerator.generateProgressive` exists but the editor does not use it; client batches run in one pass.

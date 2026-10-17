@@ -1,6 +1,6 @@
 # Bamboobot Certificate Generator
 
-Generate beautiful, personalised certificates from an image background with drag‑and‑drop text fields, rich formatting, and bulk PDF/email workflows. Includes Google sign‑in with route gating, server persistence (Prisma + SQLite), and a basic admin dashboard.
+Generate beautiful, personalised certificates from an image background with drag‑and‑drop text fields, rich formatting, and bulk PDF/email workflows. Includes Google sign‑in with route gating, user tiers, optional server persistence (Prisma + SQLite) and an admin area.
 
 ## Key Features
 
@@ -17,7 +17,7 @@ Generate beautiful, personalised certificates from an image background with drag
 - **Client-Side PDF Generation** - Fast, browser-based PDF creation (with server-side fallback)
 - **Table Virtualization** - Handles 400+ row datasets efficiently
 - **Search & Filter** - Natural language search with `column:value` syntax
-- **Progressive Generation** - Batch processing for large server-side operations
+- **Progressive Generation** - Batch processing with pause/resume/cancel for large datasets
 
 ### Project Management
 - **Complete Project System** - Save/load projects including certificate image and all certificate data
@@ -31,8 +31,8 @@ Generate beautiful, personalised certificates from an image background with drag
 - **Marketing Landing** at `/`; signed‑in users redirect to `/app`
 
 ### Persistence & Migration
-- **Server Persistence** with Prisma + SQLite; projects stored per user
-- **Local Migration** on first login: import existing browser localStorage projects, then clear
+- **Projects in the browser by default**, stored in localStorage and scoped to the signed-in account
+- **Optional Server Persistence** with Prisma + SQLite when `NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=true` at build time; signed-in users are then offered an import of projects saved in the browser
 
 ### Distribution & Delivery
 - **Multiple Download Options** - Individual PDFs, single combined PDF, or ZIP archives
@@ -54,7 +54,8 @@ Generate beautiful, personalised certificates from an image background with drag
 git clone <repository-url>
 cd bamboobot-cert-generator
 npm install
-npx prisma db push  # initialize SQLite for NextAuth + projects
+cp .env.example .env  # then fill in Google OAuth and NEXTAUTH_SECRET
+npx prisma db push  # initialise SQLite for NextAuth, tiers and projects
 npm run dev
 # Open http://localhost:3000
 ```
@@ -86,7 +87,7 @@ docker-compose -f docker-compose.dev.yml up -d
 
 - Set `REQUIRE_AUTH=true` to gate app pages and APIs behind login while keeping the public landing page available at `/`. This server-only setting is evaluated at runtime; production defaults to authentication enabled when it is omitted or invalid. Setting it to `false` removes the global middleware login wall, including from APIs; use it only in a trusted local environment. Only endpoints with their own authorization checks remain protected.
 - Configure Google provider in `.env` and set `NEXTAUTH_SECRET`.
-- Admin dashboard at `/dashboard` is gated by `ADMIN_EMAILS` (comma‑separated emails).
+- The admin area at `/admin` is available to the `admin` and `super_admin` tiers. The older `/dashboard` page is gated separately by `ADMIN_EMAILS` (comma‑separated emails).
 - Admin tiers come from `SUPER_ADMIN_EMAILS` and `ADMIN_DOMAINS`. Removing an email or domain drops that user back to free on their next request; tiers a super admin sets in `/admin/users` are kept.
 
 Example env snippet:
@@ -156,7 +157,7 @@ When using cloud storage (R2 or S3), files automatically expire:
 - **Bulk PDFs**: 7 days
 - **Previews**: 24 hours
 
-Note: Projects are persisted in the database per user. Legacy localStorage projects are auto‑imported on first login.
+Note: projects are saved in the browser unless server persistence is enabled (see Persistence above).
 
 ```bash
 # Cloudflare R2
@@ -190,7 +191,7 @@ npm run test:e2e    # Run E2E tests (Playwright)
 npm run test:e2e:headed  # Run E2E tests with browser visible
 npm run test:e2e:ui      # Run E2E tests in interactive UI mode
 npm run lint        # Run ESLint with Next.js configuration
-npm run verify      # Verify frontend build and dependencies
+npm run verify      # Start the dev server and check it responds
 npm run test:r2-cleanup # Test R2 storage cleanup functionality
 
 # Cleanup
@@ -240,6 +241,7 @@ pages/
   ├── index.tsx               # Public marketing landing page
   ├── app.tsx                 # Authenticated application
   ├── _app.tsx                # App wrapper with fonts and AuthHeartbeat
+  ├── admin/                  # Tier-gated admin area
   └── api/                    # API endpoints
 components/
   ├── CertificatePreview.tsx  # Certificate display with drag positioning
@@ -251,7 +253,10 @@ components/
 hooks/                        # Feature-specific state management
 lib/
   ├── auth/                   # Auth helpers (e.g., requireAuth)
-  ├── pdf/                    # Client and server PDF generation
+  ├── pdf/                    # Shared layout core, browser worker, progressive queue
+  ├── security/               # Signed download links, private file access
+  ├── server/                 # Prisma client, user tiers, feature gate
+  ├── storage/                # Account-scoped localStorage, expiry cleanup
   ├── email/                  # Email providers and queue system
   ├── r2-client.ts           # Cloudflare R2 integration
   ├── s3-client.ts           # Amazon S3 integration
@@ -259,18 +264,19 @@ lib/
 middleware.ts                 # Auth gating by env flag
 prisma/
   └── schema.prisma          # SQLite models for NextAuth + Projects
-types/certificate.ts         # TypeScript interfaces
+types/                       # Shared TypeScript types (certificate, user, api)
 utils/
   ├── styles.ts              # Color constants and theme
   └── textMeasurement.ts     # Text width calculation and line wrapping utilities
 ```
 
 ### Development Guidelines
-- Types centralised in `types/certificate.ts`
+See `AGENTS.md` for the full contributor guide (commands, architecture notes and pitfalls). In short:
+- Shared types live in `types/`
 - Use provider factory for email/storage, never hardcode
 - Use `COLORS` constants from `utils/styles.ts`
 - Extract complex UI into focused components
-- **Coordinate System**: PDF uses bottom-left origin (0,0), UI uses top-left - conversion handled in API
+- **Coordinate System**: PDF uses bottom-left origin (0,0), UI uses top-left; conversion lives in `lib/pdf/shared/coordinate-transform.ts`
 
 ## Testing
 
@@ -279,8 +285,9 @@ The project includes comprehensive unit and end-to-end tests:
 ### Unit Tests (Jest + React Testing Library)
 Tests organised by type:
 - `__tests__/components/` - UI component tests
-- `__tests__/pages/api/` - API endpoint tests
-- `__tests__/lib/` - Utility function tests
+- `__tests__/api/` - API endpoint tests
+- `__tests__/hooks/` - Hook tests
+- `__tests__/lib/`, `__tests__/utils/` - Library and utility tests
 
 ```bash
 npm test            # Run all tests with Jest
@@ -289,6 +296,8 @@ npm test -- __tests__/path/to/specific.test.ts  # Run single test file
 ```
 
 ### End-to-End Tests (Playwright)
+The E2E suite is not run in CI and predates the move of the editor to `/app`, so expect to update it before relying on it. See `e2e/README.md`.
+
 ```bash
 npm run test:e2e        # Run all E2E tests (headless)
 npm run test:e2e:headed # Run tests with browser visible
