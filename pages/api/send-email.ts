@@ -74,7 +74,7 @@ async function sendEmailHandler(req: AuthenticatedRequest, res: NextApiResponse)
     // Parse and validate recipients before proceeding
     const { valid: recipients, rejected } = parseRecipientsDetailed(to);
     if (rejected.length > 0) {
-      console.warn(`Send email - invalid addresses filtered for ${userId}: ${rejected.join(', ')}`);
+      console.warn(`Send email - ${rejected.length} invalid address(es) filtered for ${userId}`);
     }
     if (recipients.length === 0) {
       res.status(400).json({ error: 'No valid email addresses provided' });

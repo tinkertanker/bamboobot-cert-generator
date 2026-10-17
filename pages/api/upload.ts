@@ -10,6 +10,7 @@ import { getTempImagesDir, ensureAllDirectoriesExist, ensureDirectoryExists } fr
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { debug, error } from '@/lib/log';
 import { rateLimit, buildKey } from '@/lib/rate-limit';
+import { detectUploadedImage } from '@/lib/security/uploaded-image';
 
 export const config = {
   api: {
@@ -65,7 +66,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   try {
     await fsPromises.mkdir(formidableTempDir, { recursive: true });
-    await fsPromises.chmod(formidableTempDir, 0o777).catch(() => {});
   } catch (err) {
     console.error('Failed to create formidable temp directory:', err);
     formidableTempDir = userTempDir; // fallback
@@ -80,11 +80,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   
   const form = new IncomingForm({
     uploadDir: formidableTempDir, // Use dedicated temp directory for initial upload
-    keepExtensions: true,
+    // Never keep the client-chosen extension: in development the temp dir is
+    // the served user folder, and an attacker-chosen ".html" must not land there.
+    keepExtensions: false,
     maxFileSize: MAX_FILE_SIZE,
-    multiples: false,
+    maxTotalFileSize: MAX_FILE_SIZE,
+    maxFiles: 1,
+    maxFields: 10,
+    maxFieldsSize: 64 * 1024,
+    filter: ({ name }) => name === 'template',
   });
 
+  const uploadedTempFiles: string[] = [];
   try {
     const { files } = await new Promise<{fields: Fields, files: Files}>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
@@ -101,6 +108,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     });
 
+    for (const value of Object.values(files)) {
+      for (const uploaded of Array.isArray(value) ? value : value ? [value] : []) {
+        if (uploaded?.filepath) uploadedTempFiles.push(uploaded.filepath);
+      }
+    }
+
     const fileArray = files.template as File[] | File | undefined;
     if (!fileArray) {
       res.status(400).json({ error: 'No file uploaded' });
@@ -113,24 +126,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
 
-    const { filepath, mimetype } = file;
-    if (!filepath || !mimetype) {
-      res.status(400).json({ error: 'Missing file path or mime type' });
+    const { filepath } = file;
+    if (!filepath) {
+      res.status(400).json({ error: 'Missing file path' });
       return;
     }
     const originalName = (file as File & { originalFilename?: string }).originalFilename || 'upload';
     const baseFromName = path.basename(originalName, path.extname(originalName)) || 'upload';
-    const safeBase = baseFromName.replace(/[^a-z0-9_-]/gi, '_');
-    const fileExtension = mimetype === 'image/png' ? '.png' : '.jpg';
-    debug('Upload name resolution:', { originalName, detectedExt: fileExtension, mimetype });
+    const safeBase = baseFromName.replace(/[^a-z0-9_-]/gi, '_').slice(0, 100) || 'upload';
 
-    if (mimetype !== 'image/png' && mimetype !== 'image/jpeg') {
+    // Trust the file content, not the client-supplied MIME type.
+    const imageBytes = await fsPromises.readFile(filepath);
+    const detected = detectUploadedImage(imageBytes);
+    if (!detected) {
       res.status(400).json({ error: 'The input is not a PNG or JPEG file!' });
       return;
     }
+    const { mimetype, extension: fileExtension } = detected;
+    debug('Upload name resolution:', { originalName, detectedExt: fileExtension, mimetype });
 
     const pdfFilename = `${safeBase}.pdf`;
-    const imageBytes = await fsPromises.readFile(filepath);
     const pdfDoc = await PDFDocument.create();
 
     const image = mimetype === 'image/png' ? await pdfDoc.embedPng(imageBytes) : await pdfDoc.embedJpg(imageBytes);
@@ -142,8 +157,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Generate PDF bytes
     const pdfBytes = await pdfDoc.save();
     
-    // Read original image bytes
-    const originalImageBytes = await fsPromises.readFile(filepath);
+    const originalImageBytes = imageBytes;
     const imageName = `${safeBase}${fileExtension}`;
     
     let imageUrl: string;
@@ -203,7 +217,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const errObj = err as Error & { code?: string; httpCode?: number };
     
     // Provide more specific error messages
-    if (errObj.code === 'LIMIT_FILE_SIZE' || errObj.httpCode === 413) {
+    if (errObj.code === 'LIMIT_FILE_SIZE' || errObj.httpCode === 413 || /maxTotalFileSize|maxFiles/.test(errObj.message || '')) {
       const maxSizeMB = Math.round(MAX_FILE_SIZE / 1024 / 1024);
       res.status(413).json({ 
         error: `File size exceeds maximum allowed size of ${maxSizeMB}MB` 
@@ -240,5 +254,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         : 'Error uploading file. Please try again.'
     });
     return;
+  } finally {
+    // Formidable's randomly named temp copy is never served; always remove it.
+    await Promise.all(uploadedTempFiles.map(tempFile => fsPromises.unlink(tempFile).catch(() => undefined)));
   }
 }

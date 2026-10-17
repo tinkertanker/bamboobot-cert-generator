@@ -246,7 +246,7 @@ export class EmailQueueManager {
         pendingItem.status = 'failed';
         this.queue.failed++;
         this.completeItem(pendingItem);
-        console.log(`Email to ${pendingItem.to} stopped after an ambiguous delivery outcome`);
+        console.log(`Email ${pendingItem.id} stopped after an ambiguous delivery outcome`);
       } else {
         const isProviderRejected = pendingItem.lastError?.startsWith('PROVIDER_REJECTED:');
         const isProviderCapacity = pendingItem.lastError?.startsWith('PROVIDER_CAPACITY:');
@@ -257,7 +257,7 @@ export class EmailQueueManager {
           pendingItem.status = 'failed';
           this.queue.failed++;
           this.completeItem(pendingItem);
-          console.log(`Email to ${pendingItem.to} was definitively rejected`);
+          console.log(`Email ${pendingItem.id} was definitively rejected`);
         } else if (isProviderBackpressure) {
           this.consecutiveProviderCapacityDeferrals = isProviderCapacity
             ? this.consecutiveProviderCapacityDeferrals + 1
@@ -304,13 +304,13 @@ export class EmailQueueManager {
                 : this.calculateRetryDelay(pendingItem.attempts);
             pendingItem.nextRetryAt = new Date(Date.now() + retryDelay);
             console.log(
-              `Email to ${pendingItem.to} failed (attempt ${pendingItem.attempts}). Next retry in ${retryDelay}ms`
+              `Email ${pendingItem.id} failed (attempt ${pendingItem.attempts}). Next retry in ${retryDelay}ms`
             );
           } else {
             pendingItem.status = 'failed';
             this.queue.failed++;
             this.completeItem(pendingItem);
-            console.log(`Email to ${pendingItem.to} permanently failed after ${pendingItem.attempts} attempts`);
+            console.log(`Email ${pendingItem.id} permanently failed after ${pendingItem.attempts} attempts`);
           }
         }
       }

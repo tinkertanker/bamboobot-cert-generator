@@ -2,7 +2,10 @@ jest.mock('@/pages/api/auth/[...nextauth]', () => ({ __esModule: true, authOptio
 jest.mock('@/lib/auth/requireAuth', () => ({ requireAuth: jest.fn(async () => ({ user: { id: 'u1' } })) }));
 import handlerList from '@/pages/api/projects/index';
 import handlerItem from '@/pages/api/projects/[id]';
+import handlerImport from '@/pages/api/projects/import';
 import httpMocks from 'node-mocks-http';
+
+jest.mock('@/lib/server/tiers', () => ({ getRemainingProjectAllowance: jest.fn() }));
 
 jest.mock('next-auth/next', () => ({
   getServerSession: jest.fn(),
@@ -13,6 +16,7 @@ jest.mock('@/lib/server/prisma', () => ({
   default: {
     project: {
       findMany: jest.fn(),
+      create: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
       findUnique: jest.fn(),
@@ -24,6 +28,7 @@ jest.mock('@/lib/server/prisma', () => ({
 const { getServerSession } = require('next-auth/next');
 const prisma = require('@/lib/server/prisma').default;
 const { requireAuth } = require('@/lib/auth/requireAuth');
+const { getRemainingProjectAllowance } = require('@/lib/server/tiers');
 
 describe('projects API', () => {
   beforeEach(() => {
@@ -91,5 +96,81 @@ describe('projects API', () => {
       where: { id: 'p1', ownerId: 'u1' },
     });
     expect(prisma.project.findUnique).not.toHaveBeenCalled();
+  });
+
+  describe('project limits and input validation', () => {
+    beforeEach(() => {
+      requireAuth.mockResolvedValue({ user: { id: 'u1' } });
+    });
+
+    it('rejects creating a project beyond the tier limit', async () => {
+      getRemainingProjectAllowance.mockResolvedValue(0);
+      const req = httpMocks.createRequest({ method: 'POST', body: { name: 'Second', data: {} } });
+      const res = httpMocks.createResponse();
+      await handlerList(req as any, res as any);
+      expect(res.statusCode).toBe(403);
+      expect(prisma.project.create).not.toHaveBeenCalled();
+    });
+
+    it('creates a project owned by the caller regardless of client-supplied owner fields', async () => {
+      getRemainingProjectAllowance.mockResolvedValue(null);
+      prisma.project.create.mockResolvedValue({ id: 'p1', name: 'A' });
+      const req = httpMocks.createRequest({
+        method: 'POST',
+        body: { name: ' A ', data: { x: 1 }, ownerId: 'someone-else', clientProjectId: { evil: true } },
+      });
+      const res = httpMocks.createResponse();
+      await handlerList(req as any, res as any);
+      expect(res.statusCode).toBe(201);
+      expect(prisma.project.create.mock.calls[0][0].data).toEqual({
+        name: 'A',
+        data: { x: 1 },
+        ownerId: 'u1',
+        clientProjectId: null,
+      });
+    });
+
+    it('rejects non-object project data', async () => {
+      const req = httpMocks.createRequest({ method: 'PUT', query: { id: 'p1' }, body: { data: 'str' } });
+      const res = httpMocks.createResponse();
+      await handlerItem(req as any, res as any);
+      expect(res.statusCode).toBe(400);
+      expect(prisma.project.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects imports that exceed the tier limit without creating anything', async () => {
+      getRemainingProjectAllowance.mockResolvedValue(1);
+      const req = httpMocks.createRequest({ method: 'POST', body: { projects: [{ name: 'a' }, { name: 'b' }] } });
+      const res = httpMocks.createResponse();
+      await handlerImport(req as any, res as any);
+      expect(res.statusCode).toBe(403);
+      expect(prisma.project.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects oversized import batches', async () => {
+      const projects = Array.from({ length: 101 }, (_, i) => ({ name: `p${i}` }));
+      const req = httpMocks.createRequest({ method: 'POST', body: { projects } });
+      const res = httpMocks.createResponse();
+      await handlerImport(req as any, res as any);
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('keeps project data when retrying a duplicate-name import', async () => {
+      getRemainingProjectAllowance.mockResolvedValue(null);
+      prisma.project.create.mockRejectedValueOnce({ code: 'P2002' }).mockResolvedValue({ id: 'p2' });
+      const req = httpMocks.createRequest({
+        method: 'POST',
+        body: { projects: [{ id: 'local-1', name: 'Dup', tableData: [{ a: 1 }] }] },
+      });
+      const res = httpMocks.createResponse();
+      await handlerImport(req as any, res as any);
+      expect(res.statusCode).toBe(200);
+      expect(res._getJSONData()).toEqual({ imported: 1 });
+      const retry = prisma.project.create.mock.calls[1][0].data;
+      expect(retry.ownerId).toBe('u1');
+      expect(retry.name).toMatch(/^Dup \(Imported /);
+      expect(retry.data).toEqual({ id: 'local-1', name: 'Dup', tableData: [{ a: 1 }] });
+      expect(retry.clientProjectId).toBe('local-1');
+    });
   });
 });

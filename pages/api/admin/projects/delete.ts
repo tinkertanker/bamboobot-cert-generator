@@ -18,7 +18,12 @@ async function deleteProjectsHandler(
   const actor = authenticatedReq.user;
   const { projectIds } = req.body;
   
-  if (!projectIds || !Array.isArray(projectIds) || projectIds.length === 0) {
+  if (
+    !Array.isArray(projectIds) ||
+    projectIds.length === 0 ||
+    projectIds.length > 1000 ||
+    !projectIds.every((id: unknown) => typeof id === 'string' && id.length > 0)
+  ) {
     res.status(400).json({ error: 'Invalid project IDs' });
     return;
   }

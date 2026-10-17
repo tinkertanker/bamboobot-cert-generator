@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import prisma from '@/lib/server/prisma';
+import { getRemainingProjectAllowance } from '@/lib/server/tiers';
+
+const MAX_PROJECT_NAME_LENGTH = 200;
 
 /** The subset of stored project data read to build list summaries. */
 interface ProjectSummarySource {
@@ -51,11 +54,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'POST') {
     const { name, data, clientProjectId } = req.body ?? {};
-    if (!name || !data) return res.status(400).json({ error: 'name and data are required' });
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    if (!trimmedName || !data || typeof data !== 'object' || Array.isArray(data)) {
+      return res.status(400).json({ error: 'name and data are required' });
+    }
+    if (trimmedName.length > MAX_PROJECT_NAME_LENGTH) {
+      return res.status(400).json({ error: 'Project name is too long' });
+    }
 
     try {
+      const remaining = await getRemainingProjectAllowance(userId);
+      if (remaining !== null && remaining <= 0) {
+        res.status(403).json({ error: 'Project limit reached for your plan', code: 'LIMIT_REACHED' });
+        return;
+      }
       const created = await prisma.project.create({
-        data: { name: String(name).trim(), data, ownerId: userId, clientProjectId: clientProjectId ?? null },
+        data: {
+          name: trimmedName,
+          data,
+          ownerId: userId,
+          clientProjectId: typeof clientProjectId === 'string' ? clientProjectId.slice(0, 200) : null,
+        },
         select: { id: true, name: true, createdAt: true, updatedAt: true },
       });
       res.status(201).json({ project: created });

@@ -27,6 +27,12 @@ import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { getGeneratedDir } from '@/lib/paths';
 import { getAuthorizedTemplateCandidates, PrivateFileAccessError } from '@/lib/security/private-file-access';
+import {
+  clampProgressiveBatchSize,
+  MAX_ACTIVE_PROGRESSIVE_SESSIONS_PER_USER,
+  MAX_PROGRESSIVE_PDF_ROWS,
+  validatePdfJobInput,
+} from '@/lib/pdf/server-limits';
 
 const sessionManager = PdfSessionManager.getInstance();
 const sessionOwners = new Map<string, string>();
@@ -86,7 +92,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
     uiContainerDimensions,
     mode = 'individual',
     namingColumn,
-    batchSize = 20
+    batchSize: requestedBatchSize
   } = req.body;
 
   // Validate required fields
@@ -97,6 +103,31 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
 
   if (!Array.isArray(data) || data.length === 0) {
     res.status(400).json({ error: 'Data must be a non-empty array' });
+    return;
+  }
+
+  if (mode !== 'individual' && mode !== 'bulk') {
+    res.status(400).json({ error: 'Invalid mode' });
+    return;
+  }
+
+  const inputError = validatePdfJobInput(data, positions, MAX_PROGRESSIVE_PDF_ROWS);
+  if (inputError) {
+    res.status(data.length > MAX_PROGRESSIVE_PDF_ROWS ? 413 : 400).json({ error: inputError });
+    return;
+  }
+  const batchSize = clampProgressiveBatchSize(requestedBatchSize);
+
+  // Each session keeps its rows in memory and runs a background loop until it
+  // finishes or expires, so bound how many a single user can hold open.
+  let activeSessions = 0;
+  for (const [activeSessionId, ownerId] of sessionOwners) {
+    if (ownerId !== userId) continue;
+    const status = sessionManager.getSession(activeSessionId)?.getProgress().status;
+    if (status === 'processing' || status === 'paused' || status === 'idle') activeSessions += 1;
+  }
+  if (activeSessions >= MAX_ACTIVE_PROGRESSIVE_SESSIONS_PER_USER) {
+    res.status(429).json({ error: 'Too many PDF generation jobs in progress. Wait for one to finish or cancel it.' });
     return;
   }
 

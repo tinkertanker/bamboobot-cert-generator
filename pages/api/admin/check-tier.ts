@@ -8,6 +8,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ): Promise<void> {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   const session = await getServerSession(req, res, authOptions);
   
   if (!session?.user?.id) {
@@ -15,17 +20,26 @@ export default async function handler(
   }
   
   // Force update tier based on email
-  const updatedUser = await updateUserTierIfNeeded(session.user.id);
+  let updatedUser;
+  try {
+    updatedUser = await updateUserTierIfNeeded(session.user.id);
+  } catch (error) {
+    console.error('check-tier failed:', error);
+    return res.status(500).json({ error: 'Failed to check tier' });
+  }
   
   // Get detected tier
   const detectedTier = detectUserTier(session.user.email || null);
   
+  const isAdminTier = updatedUser.tier === 'admin' || updatedUser.tier === 'super_admin';
+
   res.status(200).json({
     email: session.user.email,
     currentTier: updatedUser.tier,
     detectedTier,
     shouldBeAdmin: detectedTier === 'admin' || detectedTier === 'super_admin',
-    envVars: {
+    // Admin configuration is only disclosed to admins.
+    envVars: !isAdminTier ? undefined : {
       SUPER_ADMIN_EMAILS: process.env.SUPER_ADMIN_EMAILS ? 'Set' : 'Not set',
       SUPER_ADMIN_EMAIL: process.env.SUPER_ADMIN_EMAIL ? 'Set (legacy)' : 'Not set',
       ADMIN_DOMAINS: process.env.ADMIN_DOMAINS ? 'Set' : 'Not set',

@@ -1,12 +1,16 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
-import { lookup } from 'mime-types';
 import storageConfig from '@/lib/storage-config';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
 import { getS3SignedUrl } from '@/lib/s3-client';
 import { getGeneratedDir, resolvePathWithin } from '@/lib/paths';
+
+const SERVED_TYPES: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.zip': 'application/zip',
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   // Require auth for local serving and signed URL issuance
@@ -32,8 +36,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Join the path segments
   const relativePath = filePath.join('/');
-  if (path.posix.normalize(relativePath) !== relativePath || relativePath.includes('\\')) {
+  if (
+    path.posix.normalize(relativePath) !== relativePath ||
+    relativePath.includes('\\') ||
+    relativePath.includes('\0')
+  ) {
     res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+  // Generated storage only ever holds PDFs (plus ZIP archives); never serve
+  // anything a browser could render as same-origin active content.
+  const mimeType = SERVED_TYPES[path.posix.extname(relativePath).toLowerCase()];
+  if (!mimeType) {
+    res.status(404).json({ error: 'File not found' });
     return;
   }
   
@@ -69,10 +84,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const fileBuffer = fs.readFileSync(fullPath);
-    const filename = path.basename(relativePath);
-    const mimeType = lookup(filename) || 'application/octet-stream';
-    
+
     res.setHeader('Content-Type', mimeType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, no-store');
     res.send(fileBuffer);
   } catch (error) {

@@ -6,7 +6,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const session = await requireAuth(req, res);
   if (!session) return;
   const userId = session.user.id;
-  const { id } = req.query as { id: string };
+  const id = typeof req.query.id === 'string' ? req.query.id : '';
 
   if (!id) { res.status(400).json({ error: 'id is required' }); return; }
 
@@ -19,10 +19,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'PUT') {
     const { name, data } = req.body ?? {};
+    const trimmedName = typeof name === 'string' ? name.trim() : undefined;
+    if (name !== undefined && (!trimmedName || trimmedName.length > 200)) {
+      res.status(400).json({ error: 'Invalid project name' });
+      return;
+    }
+    if (data !== undefined && (data === null || typeof data !== 'object' || Array.isArray(data))) {
+      res.status(400).json({ error: 'Invalid project data' });
+      return;
+    }
     try {
       const updated = await prisma.project.update({
         where: { id, ownerId: userId },
-        data: { name: name ? String(name).trim() : undefined, data: data ?? undefined },
+        data: { name: trimmedName, data: data ?? undefined },
       });
       res.status(200).json({ project: updated });
       return;

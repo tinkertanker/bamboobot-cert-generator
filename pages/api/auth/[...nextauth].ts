@@ -1,11 +1,9 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/server/prisma';
 import { detectUserTier, resetDailyUsageIfNeeded } from '@/lib/server/tiers';
 import type { UserTier } from '@/types/user';
-
-const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -83,27 +81,13 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async signIn({ user }) {
-      // Auto-detect tier on sign in
-      if (user.email) {
-        const detectedTier = detectUserTier(user.email);
-        
-        // Check if user exists
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email }
-        });
-        
-        if (existingUser) {
-          // Update existing user's tier if needed
-          if (existingUser.tier !== detectedTier) {
-            await prisma.user.update({
-              where: { id: existingUser.id },
-              data: { tier: detectedTier }
-            });
-          }
-        }
+    async signIn({ account, profile }) {
+      // Admin tiers are granted from the email address (SUPER_ADMIN_EMAILS /
+      // ADMIN_DOMAINS), so only accept addresses the provider has verified.
+      // Tier detection itself happens in the jwt callback on first sign-in.
+      if (account?.provider === 'google') {
+        return (profile as { email_verified?: boolean } | undefined)?.email_verified === true;
       }
-      
       return true;
     }
   },

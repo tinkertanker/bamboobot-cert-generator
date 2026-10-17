@@ -27,6 +27,20 @@ export interface AuthSession {
   };
 }
 
+/**
+ * Callers scope storage paths and database queries by this id, so it must be
+ * a non-empty string. An undefined id would silently drop Prisma `where`
+ * filters (matching every owner) and collapse storage prefixes to `u_undefined`.
+ */
+function toUserId(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
+}
+
+function unauthorized(res: NextApiResponse): null {
+  res.status(401).json({ message: 'Unauthorized' });
+  return null;
+}
+
 export async function requireAuth(
   req: NextApiRequest,
   res: NextApiResponse
@@ -34,11 +48,12 @@ export async function requireAuth(
   // Fast path: JWT token check without importing authOptions
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   if (token) {
-    const uid = token.uid ?? token.sub;
-    if (uid) touchUser(String(uid));
+    const uid = toUserId(token.uid) ?? toUserId(token.sub);
+    if (!uid) return unauthorized(res);
+    touchUser(uid);
     return {
       user: {
-        id: uid as string,
+        id: uid,
         email: typeof token.email === 'string' ? token.email : null,
         name: typeof token.name === 'string' ? token.name : null,
       },
@@ -47,11 +62,8 @@ export async function requireAuth(
 
   // Fallback: server session (may be undefined in tests without NextAuth wiring)
   const session = await getServerSession(req, res, undefined as unknown as AuthOptions);
-  if (!session?.user) {
-    res.status(401).json({ message: 'Unauthorized' });
-    return null;
-  }
-  const uid = session.user.id as string | undefined;
-  if (uid) touchUser(uid);
+  const uid = toUserId(session?.user?.id);
+  if (!session?.user || !uid) return unauthorized(res);
+  touchUser(uid);
   return session;
 }
