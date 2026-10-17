@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { DEFAULT_FONT_SIZE, PROGRESSIVE_PDF } from '@/utils/constants';
 import type { TableData, Positions } from '@/types/certificate';
 import type { PdfGenerationProgress, PdfGenerationResult } from '@/lib/pdf/types';
+import { getFontReferenceDimensions } from '@/utils/fontScale';
 
 export interface UseProgressivePdfGenerationProps {
   tableData: TableData[];
@@ -102,17 +103,8 @@ export function useProgressivePdfGeneration({
   }, [positions]);
 
   // Helper function to get container dimensions
-  const getContainerDimensions = useCallback(() => {
-    const containerElement = document.querySelector(
-      ".image-container img"
-    ) as HTMLImageElement;
-    return containerElement
-      ? {
-          width: containerElement.offsetWidth,
-          height: containerElement.offsetHeight
-        }
-      : { width: 600, height: 400 }; // Fallback dimensions
-  }, []);
+  // Font sizes are relative to a fixed reference width, not the live preview
+  const getContainerDimensions = useCallback(() => getFontReferenceDimensions(), []);
 
   // Poll for progress updates
   const pollProgress = useCallback(async (sessionId: string) => {

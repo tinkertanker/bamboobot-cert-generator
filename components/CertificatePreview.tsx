@@ -3,6 +3,7 @@ import { EyeOff } from "lucide-react";
 import Spinner from "@/components/Spinner";
 import { DEFAULT_FONT_SIZE } from "@/utils/constants";
 import { COLORS } from "@/utils/styles";
+import { FONT_REFERENCE_WIDTH, getPreviewFontScale } from "@/utils/fontScale";
 import {
   calculateShrinkToFitFontSize,
   splitTextIntoLines
@@ -56,7 +57,8 @@ function CertificatePreviewComponent({
   // Function to update container width
   const updateWidth = useCallback(() => {
     if (containerRef.current) {
-      setContainerWidth(containerRef.current.offsetWidth);
+      // clientWidth excludes the border, so it matches the image the text sits on
+      setContainerWidth(containerRef.current.clientWidth);
     }
   }, []);
 
@@ -130,8 +132,10 @@ function CertificatePreviewComponent({
                   const widthPercent = positions[key]?.width || 90;
                   const lineHeight = positions[key]?.lineHeight || 1.2;
 
-                  // Calculate actual width in pixels
-                  const maxWidth = containerWidth * (widthPercent / 100);
+                  // Fit text in reference units so wrapping and shrinking
+                  // match the PDF, then scale to the live preview width.
+                  const fontScale = getPreviewFontScale(containerWidth);
+                  const maxWidth = FONT_REFERENCE_WIDTH * (widthPercent / 100);
 
                   // Calculate font size and lines based on text mode
                   let actualFontSize = fontSize;
@@ -186,7 +190,7 @@ function CertificatePreviewComponent({
                     left: leftPos,
                     top: `${positions[key]?.y ?? 50 + index * 10}%`,
                     transform: `translate(${transformX}, -50%)`,
-                    fontSize: `${actualFontSize}px`,
+                    fontSize: `${actualFontSize * fontScale}px`,
                     fontFamily: fontFamilyMap[fontFamily],
                     fontWeight: isBold ? "bold" : "normal",
                     fontStyle: isItalic ? "italic" : "normal",

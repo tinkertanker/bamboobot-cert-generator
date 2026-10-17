@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { ClientPdfGenerator } from '@/lib/pdf/client/pdf-generator-client';
 import { FeatureDetector } from '@/lib/pdf/client/feature-detection';
 import { DEFAULT_FONT_SIZE } from '@/utils/constants';
+import { getFontReferenceDimensions } from '@/utils/fontScale';
 import type { TableData, Positions, PdfFile } from '@/types/certificate';
 import {
   assessIndividualPdfCapacity,
@@ -246,10 +247,7 @@ export function useClientPdfGeneration({
     cleanupBlobUrls();
 
     try {
-      const containerElement = document.querySelector('.image-container img') as HTMLImageElement;
-      const uiContainerDimensions = containerElement
-        ? { width: containerElement.offsetWidth, height: containerElement.offsetHeight }
-        : { width: 600, height: 400 };
+      const uiContainerDimensions = getFontReferenceDimensions();
 
       const templateUrl = getTemplateUrl();
       if (!templateUrl) {
@@ -332,10 +330,7 @@ export function useClientPdfGeneration({
     };
 
     try {
-      const containerElement = document.querySelector('.image-container img') as HTMLImageElement;
-      const uiContainerDimensions = containerElement
-        ? { width: containerElement.offsetWidth, height: containerElement.offsetHeight }
-        : { width: 600, height: 400 };
+      const uiContainerDimensions = getFontReferenceDimensions();
 
       const templateUrl = getTemplateUrl();
       if (!templateUrl) {
