@@ -1,12 +1,18 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
-import { lookup } from 'mime-types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { getTempImagesDir, resolvePathWithin } from '@/lib/paths';
 import storageConfig from '@/lib/storage-config';
 import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
 import { getS3SignedUrl } from '@/lib/s3-client';
+
+const SERVED_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.pdf': 'application/pdf',
+};
 
 // Serve nested temp_images paths, e.g. temp_images/u_<userId>/<filename>
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -33,8 +39,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const relativePath = segments.join('/');
-  if (path.posix.normalize(relativePath) !== relativePath || relativePath.includes('\\')) {
+  if (
+    path.posix.normalize(relativePath) !== relativePath ||
+    relativePath.includes('\\') ||
+    relativePath.includes('\0')
+  ) {
     res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+  // Only the image and PDF types produced by the upload endpoint are served, so
+  // a stray file can never be rendered as same-origin HTML/SVG.
+  const mimeType = SERVED_TYPES[path.posix.extname(relativePath).toLowerCase()];
+  if (!mimeType) {
+    res.status(404).json({ error: 'File not found' });
     return;
   }
   const baseDir = getTempImagesDir();
@@ -61,9 +78,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const buf = fs.readFileSync(fullPath);
-    const filename = segments[segments.length - 1];
-    const mimeType = lookup(filename) || 'application/octet-stream';
     res.setHeader('Content-Type', mimeType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, no-store');
     res.send(buf);
   } catch (e) {

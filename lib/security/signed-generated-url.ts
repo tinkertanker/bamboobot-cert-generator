@@ -11,10 +11,23 @@ export class SignedFileUrlError extends Error {
   }
 }
 
+const DEV_SECRET_KEY = Symbol.for('bamboobot.devFileUrlSigningSecret');
+
+function developmentSigningSecret(): string {
+  // A publicly known constant would let anyone forge download links for any
+  // user's files on a non-production deployment (the download route is public).
+  // Use a random per-process secret instead; links simply expire on restart.
+  const holder = globalThis as typeof globalThis & { [DEV_SECRET_KEY]?: string };
+  if (!holder[DEV_SECRET_KEY]) {
+    holder[DEV_SECRET_KEY] = crypto.randomBytes(32).toString('base64url');
+  }
+  return holder[DEV_SECRET_KEY];
+}
+
 function signingSecret(): string {
   const secret = process.env.FILE_URL_SIGNING_SECRET || process.env.NEXTAUTH_SECRET;
   if (secret) return secret;
-  if (process.env.NODE_ENV !== 'production') return 'bamboobot-local-development-only';
+  if (process.env.NODE_ENV !== 'production') return developmentSigningSecret();
   throw new SignedFileUrlError('File URL signing is not configured', 500);
 }
 
