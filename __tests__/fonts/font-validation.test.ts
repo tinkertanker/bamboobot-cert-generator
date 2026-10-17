@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { FONT_CAPABILITIES } from '@/utils/constants';
 
 describe('Font File Validation', () => {
   const fontsDir = path.join(process.cwd(), 'public', 'fonts');
@@ -58,43 +59,20 @@ describe('Font File Validation', () => {
   });
 
   describe('Font Capabilities Match', () => {
-    it('should have all fonts defined in FONT_CAPABILITIES', () => {
-      // These should match what's defined in app/page.tsx
-      const fontCapabilities = {
-        Helvetica: { bold: true, italic: true },
-        Times: { bold: true, italic: true },
-        Courier: { bold: true, italic: true },
-        Montserrat: { bold: true, italic: false },
-        Poppins: { bold: true, italic: true },
-        WorkSans: { bold: true, italic: true },
-        Roboto: { bold: true, italic: true },
-        SourceSansPro: { bold: true, italic: true },
-        Nunito: { bold: true, italic: true },
-        GreatVibes: { bold: false, italic: false },
-        Archivo: { bold: true, italic: true },
-        Rubik: { bold: true, italic: true }
-      };
+    // Built-in PDF standard fonts need no files
+    const builtIn = ['Helvetica', 'Times', 'Courier'];
 
-      // Check that each font's capabilities match its available files
-      expectedFonts.forEach(font => {
-        const fontKey = font.name.replace(' ', '');
-        const capabilities = fontCapabilities[fontKey as keyof typeof fontCapabilities];
-        
-        if (capabilities) {
-          // Check bold capability
-          if (capabilities.bold) {
-            const hasBoldFile = font.files.some(f => f.toLowerCase().includes('bold'));
-            expect(hasBoldFile).toBe(true);
-          }
-          
-          // Check italic capability
-          if (capabilities.italic) {
-            const hasItalicFile = font.files.some(f => f.toLowerCase().includes('italic'));
-            expect(hasItalicFile).toBe(true);
-          }
-        }
+    Object.entries(FONT_CAPABILITIES)
+      .filter(([font]) => !builtIn.includes(font))
+      .forEach(([font, capabilities]) => {
+        it(`${font} has the files its FONT_CAPABILITIES entry promises`, () => {
+          const has = (suffix: string) => fs.existsSync(path.join(fontsDir, `${font}-${suffix}.ttf`));
+          expect(has('Regular')).toBe(true);
+          if (capabilities.bold) expect(has('Bold')).toBe(true);
+          if (capabilities.italic) expect(has('Italic')).toBe(true);
+          if (capabilities.bold && capabilities.italic) expect(has('BoldItalic')).toBe(true);
+        });
       });
-    });
   });
 
   describe('Font File Integrity', () => {

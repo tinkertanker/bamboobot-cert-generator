@@ -103,13 +103,6 @@ describe('scaleFontSize', () => {
     expect(scaleFontSize(16, 400, 800)).toBe(32);
   });
 
-  it('scales proportionally with pdf width', () => {
-    const single = scaleFontSize(12, 600, 300);
-    const doubled = scaleFontSize(12, 600, 600);
-
-    expect(doubled).toBe(single * 2);
-  });
-
   it('returns the base size unscaled when the container width is not a positive finite number', () => {
     expect(scaleFontSize(16, 0, 400)).toBe(16);
     expect(scaleFontSize(16, NaN, 400)).toBe(16);

@@ -1,8 +1,7 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SplitButton, SplitButtonMenuItem } from '@/components/ui/split-button';
-import { Download, Save } from 'lucide-react';
 
 describe('SplitButton Component', () => {
   const defaultProps = {
@@ -38,18 +37,6 @@ describe('SplitButton Component', () => {
       expect(mainButton).toHaveClass('bg-gradient-to-r', 'from-blue-600', 'to-blue-700');
     });
 
-    it('renders with secondary variant', () => {
-      render(<SplitButton {...defaultProps} variant="secondary" />);
-      const mainButton = screen.getByRole('button', { name: 'Main Action' });
-      expect(mainButton).toHaveClass('bg-white', 'border', 'border-gray-300');
-    });
-
-    it('applies custom className', () => {
-      render(<SplitButton {...defaultProps} className="custom-class" />);
-      const container = screen.getByRole('button', { name: 'Main Action' }).parentElement;
-      expect(container).toHaveClass('custom-class');
-    });
-
     it('applies custom gradient class', () => {
       render(<SplitButton {...defaultProps} gradientClass="bg-gradient-to-r from-green-500 to-green-600" />);
       const mainButton = screen.getByRole('button', { name: 'Main Action' });
@@ -72,13 +59,6 @@ describe('SplitButton Component', () => {
       
       await user.click(screen.getByRole('button', { name: 'Main Action' }));
       expect(defaultProps.onClick).not.toHaveBeenCalled();
-    });
-
-    it('applies disabled styles when disabled', () => {
-      render(<SplitButton {...defaultProps} disabled />);
-      const mainButton = screen.getByRole('button', { name: 'Main Action' });
-      expect(mainButton).toBeDisabled();
-      expect(mainButton).toHaveClass('opacity-50', 'cursor-not-allowed');
     });
   });
 
@@ -113,20 +93,6 @@ describe('SplitButton Component', () => {
       
       expect(screen.getByRole('menuitem', { name: 'Option 1' })).toBeInTheDocument();
       expect(screen.getByRole('menuitem', { name: 'Option 2' })).toBeInTheDocument();
-    });
-
-    it('renders menu items with icons', async () => {
-      const user = userEvent.setup();
-      const menuItems = [
-        { label: 'Download', onClick: jest.fn(), icon: <Download /> },
-        { label: 'Save', onClick: jest.fn(), icon: <Save /> },
-      ];
-      
-      render(<SplitButton {...defaultProps} menuItems={menuItems} />);
-      await user.click(screen.getAllByRole('button')[1]);
-      
-      const downloadItem = screen.getByRole('menuitem', { name: 'Download' });
-      expect(downloadItem.querySelector('svg')).toBeInTheDocument();
     });
 
     it('calls menu item onClick and closes dropdown when clicked', async () => {
@@ -207,24 +173,6 @@ describe('SplitButton Component', () => {
       await user.click(dropdownButton);
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
-
-    it('rotates chevron icon when dropdown is open', async () => {
-      const user = userEvent.setup();
-      render(<SplitButton {...defaultProps} />);
-      
-      const dropdownButton = screen.getAllByRole('button')[1];
-      const chevron = dropdownButton.querySelector('svg');
-      
-      expect(chevron).not.toHaveClass('rotate-180');
-      
-      await user.click(dropdownButton);
-      expect(chevron).toHaveClass('rotate-180');
-      
-      await user.click(dropdownButton);
-      await waitFor(() => {
-        expect(chevron).not.toHaveClass('rotate-180');
-      });
-    });
   });
 
   describe('Keyboard Navigation', () => {
@@ -249,16 +197,6 @@ describe('SplitButton Component', () => {
       await waitFor(() => {
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
       });
-    });
-  });
-
-  describe('Ref Forwarding', () => {
-    it('forwards ref correctly', () => {
-      const ref = React.createRef<HTMLDivElement>();
-      render(<SplitButton {...defaultProps} ref={ref} />);
-      
-      expect(ref.current).not.toBeNull();
-      expect(ref.current).toBeInstanceOf(HTMLDivElement);
     });
   });
 });

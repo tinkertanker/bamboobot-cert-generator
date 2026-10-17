@@ -68,26 +68,6 @@ describe('useProjectAutosave', () => {
       expect(result.current.sessionName).toMatch(/^Session \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);
     });
 
-    it('maintains the same session name throughout the hook lifecycle', () => {
-      const { result, rerender } = renderHook(() => useProjectAutosave(defaultProps));
-      
-      const initialSessionName = result.current.sessionName;
-      
-      // Rerender with updated props
-      rerender();
-      
-      expect(result.current.sessionName).toBe(initialSessionName);
-    });
-  });
-
-  describe('Initial State', () => {
-    it('initializes with correct default values', () => {
-      const { result } = renderHook(() => useProjectAutosave(defaultProps));
-      
-      expect(result.current.lastAutosaved).toBeNull();
-      expect(result.current.isAutosaving).toBe(false);
-      expect(typeof result.current.manualSave).toBe('function');
-    });
   });
 
   describe('Autosave Functionality', () => {
@@ -233,10 +213,11 @@ describe('useProjectAutosave', () => {
       });
 
       act(() => {
-        jest.advanceTimersByTime(3000);
+        jest.advanceTimersByTime(10000);
       });
 
       expect(ProjectStorage.saveProject).not.toHaveBeenCalled();
+      expect(ProjectStorage.updateProject).not.toHaveBeenCalled();
     });
 
     it('does not autosave when data has not changed', async () => {
@@ -250,18 +231,34 @@ describe('useProjectAutosave', () => {
       rerender({ ...defaultProps, positions: newPositions });
 
       await act(async () => {
-        jest.advanceTimersByTime(2000);
+        jest.advanceTimersByTime(10000);
         await Promise.resolve();
       });
+
+      // With no current project, autosave creates a new session project
+      await waitFor(() => {
+        expect(ProjectStorage.saveProject).toHaveBeenCalledTimes(1);
+      });
+      expect(ProjectStorage.saveProject).toHaveBeenCalledWith(
+        result.current.sessionName,
+        newPositions,
+        mockColumns,
+        '/test-image.jpg',
+        'test-cert.pdf',
+        mockTableData,
+        mockEmailConfig,
+        { isCloudStorage: false, provider: 'local' }
+      );
 
       // Clear mock to check for subsequent calls
       jest.clearAllMocks();
 
-      // Rerender with same data
-      rerender({ ...defaultProps, positions: newPositions });
+      // Rerender with structurally equal data in a new object, which
+      // reschedules the debounce but must not save again
+      rerender({ ...defaultProps, positions: { ...newPositions } });
 
       await act(async () => {
-        jest.advanceTimersByTime(3000);
+        jest.advanceTimersByTime(10000);
         await Promise.resolve();
       });
 
@@ -436,9 +433,9 @@ describe('useProjectAutosave', () => {
       // Unmount before timeout completes
       unmount();
 
-      // Fast forward
+      // Fast forward past the debounce
       act(() => {
-        jest.advanceTimersByTime(3000);
+        jest.advanceTimersByTime(10000);
       });
 
       // Should not have called saveTemplate

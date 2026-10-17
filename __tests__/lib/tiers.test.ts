@@ -6,6 +6,7 @@ const originalEnv = process.env;
 // Helper to get a fresh instance of detectUserTier with new env vars
 const getDetectUserTier = () => {
   jest.resetModules();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { detectUserTier } = require('@/lib/server/tiers');
   return detectUserTier;
 };
@@ -50,21 +51,11 @@ describe('Multi-domain Admin Configuration', () => {
     });
 
     describe('with multi-value SUPER_ADMIN_EMAILS', () => {
-      it('should detect super admin from first email', () => {
+      it('should detect super admin from any position in the list', () => {
         process.env.SUPER_ADMIN_EMAILS = 'admin@company.com,founder@startup.io,ceo@corporation.org';
         const detectUserTier = getDetectUserTier();
         expect(detectUserTier('admin@company.com')).toBe('super_admin');
-      });
-
-      it('should detect super admin from middle email', () => {
-        process.env.SUPER_ADMIN_EMAILS = 'admin@company.com,founder@startup.io,ceo@corporation.org';
-        const detectUserTier = getDetectUserTier();
         expect(detectUserTier('founder@startup.io')).toBe('super_admin');
-      });
-
-      it('should detect super admin from last email', () => {
-        process.env.SUPER_ADMIN_EMAILS = 'admin@company.com,founder@startup.io,ceo@corporation.org';
-        const detectUserTier = getDetectUserTier();
         expect(detectUserTier('ceo@corporation.org')).toBe('super_admin');
       });
 
@@ -89,21 +80,11 @@ describe('Multi-domain Admin Configuration', () => {
     });
 
     describe('with multi-value ADMIN_DOMAINS', () => {
-      it('should detect admin from first domain', () => {
+      it('should detect admin from any position in the list', () => {
         process.env.ADMIN_DOMAINS = 'company.com,startup.io,corporation.org';
         const detectUserTier = getDetectUserTier();
         expect(detectUserTier('user@company.com')).toBe('admin');
-      });
-
-      it('should detect admin from middle domain', () => {
-        process.env.ADMIN_DOMAINS = 'company.com,startup.io,corporation.org';
-        const detectUserTier = getDetectUserTier();
         expect(detectUserTier('employee@startup.io')).toBe('admin');
-      });
-
-      it('should detect admin from last domain', () => {
-        process.env.ADMIN_DOMAINS = 'company.com,startup.io,corporation.org';
-        const detectUserTier = getDetectUserTier();
         expect(detectUserTier('staff@corporation.org')).toBe('admin');
       });
 
@@ -334,6 +315,7 @@ describe('syncUserTier', () => {
     jest.dontMock('@/lib/server/prisma');
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const load = () => require('@/lib/server/tiers').syncUserTier;
 
   it('persists the demotion of a removed env admin', async () => {

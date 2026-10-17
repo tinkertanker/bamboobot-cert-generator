@@ -1,141 +1,116 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+/** @jest-environment node */
 
-// Mock the modules
-jest.mock('fs/promises', () => ({
-  readFile: jest.fn().mockResolvedValue(new Uint8Array()),
-  writeFile: jest.fn().mockResolvedValue(undefined),
-  mkdir: jest.fn().mockResolvedValue(undefined),
-}));
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import httpMocks from 'node-mocks-http';
+import type { RequestMethod } from 'node-mocks-http';
+import { PDFDocument } from 'pdf-lib';
 
-jest.mock('path', () => ({
-  join: jest.fn().mockImplementation((...args) => args.join('/')),
-}));
-
-// Mock the pdf-lib module
-jest.mock('pdf-lib', () => {
-  // Mock the page object
-  const mockPage = {
-    getSize: jest.fn().mockReturnValue({ width: 100, height: 100 }),
-    drawText: jest.fn(),
-  };
-
-  // Mock the PDFDocument
-  const mockPdfDoc = {
-    getPages: jest.fn().mockReturnValue([mockPage]),
-    copyPages: jest.fn().mockResolvedValue([mockPage]),
-    addPage: jest.fn(),
-    embedFont: jest.fn().mockResolvedValue({}),
-    save: jest.fn().mockResolvedValue(new Uint8Array()),
-  };
-
-  return {
-    PDFDocument: {
-      load: jest.fn().mockResolvedValue(mockPdfDoc),
-      create: jest.fn().mockResolvedValue(mockPdfDoc),
+jest.mock('@/lib/server/middleware/featureGate', () => ({
+  withFeatureGate:
+    (_options: unknown, handler: (req: Record<string, unknown>, res: unknown) => unknown) =>
+    (req: Record<string, unknown>, res: unknown) => {
+      req.user = { id: 'u1', email: 'owner@example.com', tier: 'plus' };
+      return handler(req, res);
     },
-    rgb: jest.fn().mockReturnValue({}),
-    StandardFonts: {
-      Helvetica: 'Helvetica',
-      HelveticaBold: 'Helvetica-Bold',
-      HelveticaOblique: 'Helvetica-Oblique',
-      HelveticaBoldOblique: 'Helvetica-BoldOblique',
-      TimesRoman: 'Times-Roman',
-      TimesRomanBold: 'Times-Bold',
-      TimesRomanItalic: 'Times-Italic',
-      TimesRomanBoldItalic: 'Times-BoldItalic',
-      Courier: 'Courier',
-      CourierBold: 'Courier-Bold',
-      CourierOblique: 'Courier-Oblique',
-      CourierBoldOblique: 'Courier-BoldOblique',
-    },
-  };
+}));
+jest.mock('@/lib/rate-limit', () => ({
+  buildKey: jest.fn(() => 'generate:test'),
+  rateLimit: jest.fn(() => ({ allowed: true, limit: 10, remaining: 9, resetAt: Date.now() + 60_000 })),
+}));
+jest.mock('@/lib/storage-config', () => ({
+  __esModule: true,
+  default: {
+    isR2Enabled: false,
+    isS3Enabled: false,
+    getFileUrl: (filename: string, subdirectory?: string) => `/files/${subdirectory}/${filename}`,
+  },
+}));
+jest.mock('@/lib/r2-client', () => ({ uploadToR2: jest.fn() }));
+jest.mock('@/lib/s3-client', () => ({ uploadToS3: jest.fn() }));
+
+import handler from '@/pages/api/generate';
+import { MAX_SINGLE_REQUEST_PDF_ROWS } from '@/lib/pdf/server-limits';
+import { silenceConsole } from '../helpers/silence-console';
+
+let storageDir: string;
+
+const body = (overrides: Record<string, unknown> = {}) => ({
+  templateFilename: 'u_u1/template.pdf',
+  data: [{ name: { text: 'Ada Lovelace' } }, { name: { text: 'Grace Hopper' } }],
+  positions: { name: { x: 50, y: 50, fontSize: 24 } },
+  uiContainerDimensions: { width: 800, height: 600 },
+  ...overrides,
 });
 
-// Create a manual mock for the generate handler
-const mockHandler = jest.fn((req, res) => {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-  
-  if (req.body.projectFilename && req.body.data && req.body.positions) {
-    return res.status(200).json({
-      message: 'Certificates generated successfully',
-      outputPath: `${req.headers.host}/generated/certificates_${Date.now()}.pdf`
-    });
-  } else {
-    return res.status(500).json({ error: 'Server error' });
-  }
-});
+async function call(method: RequestMethod, payload: Record<string, unknown> = {}) {
+  const req = httpMocks.createRequest({ method, body: payload });
+  const res = httpMocks.createResponse();
+  await handler(req as never, res as never);
+  return res;
+}
 
-// Use the mock handler directly
-const handler = mockHandler;
+describe('/api/generate', () => {
+  silenceConsole();
 
-describe('Generate API', () => {
-  let req: Partial<NextApiRequest>;
-  let res: Partial<NextApiResponse>;
-
-  beforeEach(() => {
-    req = {
-      method: 'POST',
-      body: {
-        projectFilename: 'template.pdf',
-        data: [
-          {
-            name: { text: 'John Doe' },
-            title: { text: 'Web Developer', font: 'Helvetica', bold: true },
-          },
-          {
-            name: { text: 'Jane Smith' },
-            title: { text: 'UI Designer', font: 'Times', oblique: true },
-          },
-        ],
-        positions: {
-          name: { x: 0.5, y: 0.6, fontSize: 24 },
-          title: { x: 0.5, y: 0.5, fontSize: 16 },
-        },
-      },
-      headers: {
-        host: 'localhost:3000',
-      },
-    };
-
-    res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-
-    // Reset mocks
-    jest.clearAllMocks();
+  beforeEach(async () => {
+    storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bamboobot-generate-'));
+    process.env.LOCAL_STORAGE_DIR = storageDir;
+    const templateDir = path.join(storageDir, 'temp_images', 'u_u1');
+    fs.mkdirSync(templateDir, { recursive: true });
+    const template = await PDFDocument.create();
+    template.addPage([800, 600]);
+    fs.writeFileSync(path.join(templateDir, 'template.pdf'), await template.save());
   });
 
-  it('should return 405 for non-POST requests', async () => {
-    req.method = 'GET';
-    await handler(req as NextApiRequest, res as NextApiResponse);
-    expect(res.status).toHaveBeenCalledWith(405);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Method not allowed' });
+  afterEach(() => {
+    delete process.env.LOCAL_STORAGE_DIR;
+    fs.rmSync(storageDir, { recursive: true, force: true });
   });
 
-  it('should generate certificates successfully', async () => {
-    await handler(req as NextApiRequest, res as NextApiResponse);
-    
-    // Verify response
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: 'Certificates generated successfully',
-        outputPath: expect.stringContaining('/generated/'),
-      })
-    );
+  it('returns 405 for non-POST requests', async () => {
+    const res = await call('GET');
+    expect(res.statusCode).toBe(405);
   });
 
-  it('should handle errors appropriately', async () => {
-    // Simulate an error by removing required properties
-    req.body = {};
-    
-    await handler(req as NextApiRequest, res as NextApiResponse);
-    
-    // Verify error handling
-    expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Server error' });
+  it("refuses another user's template", async () => {
+    const res = await call('POST', body({ templateFilename: 'u_other/template.pdf' }));
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('rejects datasets over the single-request row limit', async () => {
+    const data = Array.from({ length: MAX_SINGLE_REQUEST_PDF_ROWS + 1 }, () => ({ name: { text: 'x' } }));
+    const res = await call('POST', body({ data }));
+    expect(res.statusCode).toBe(413);
+  });
+
+  it('merges one page per entry into a PDF in the user namespace', async () => {
+    const res = await call('POST', body());
+
+    expect(res.statusCode).toBe(200);
+    const { outputPath } = res._getJSONData();
+    expect(outputPath).toMatch(/^\/files\/u_u1\/certificates_\d+\.pdf$/);
+    const filename = path.basename(outputPath);
+    const merged = await PDFDocument.load(fs.readFileSync(path.join(storageDir, 'generated', 'u_u1', filename)));
+    expect(merged.getPageCount()).toBe(2);
+  });
+
+  it('names individual PDFs from the naming column with sanitised, unique filenames', async () => {
+    const res = await call('POST', body({
+      mode: 'individual',
+      namingColumn: 'name',
+      data: [{ name: { text: '../Ada Lovelace' } }, { name: { text: '../Ada Lovelace' } }],
+    }));
+
+    expect(res.statusCode).toBe(200);
+    const { files } = res._getJSONData();
+    expect(files).toHaveLength(2);
+    const [first, second] = files.map((file: { filename: string }) => file.filename);
+    expect(first).not.toEqual(second);
+    for (const name of [first, second]) {
+      expect(name).toMatch(/^___Ada_Lovelace.*\.pdf$/);
+      expect(name).not.toContain('/');
+    }
   });
 });

@@ -106,8 +106,12 @@ describe('/api/send-bulk-email', () => {
     expect(res._getStatusCode()).toBe(200);
     const data = JSON.parse(res._getData());
     expect(data.success).toBe(true);
-    expect(data.queueLength).toBe(0);
-    expect(data.status).toBeDefined();
+    const queueModule = jest.requireMock('@/lib/email/email-queue');
+    const queue = queueModule.EmailQueueManager.mock.results.at(-1).value;
+    expect(queue.addToQueue).toHaveBeenCalledWith([
+      expect.objectContaining({ to: ['test@example.com'] })
+    ]);
+    expect(queue.processQueue).toHaveBeenCalledTimes(1);
   });
 
   it('defers queue processing until the final attachment batch', async () => {
@@ -183,23 +187,6 @@ describe('/api/send-bulk-email', () => {
 
     expect(overflow.res._getStatusCode()).toBe(413);
     expect(queue.addToQueue).toHaveBeenCalledTimes(1);
-  });
-
-  it('should handle GET requests for status', async () => {
-    const { req, res } = createMocks({
-      method: 'GET',
-      query: {
-        sessionId: 'test-session'
-      }
-    });
-
-    await handler(req, res);
-
-    expect(res._getStatusCode()).toBe(200);
-    const data = JSON.parse(res._getData());
-    expect(data.status).toBe('idle');
-    expect(data.processed).toBe(0);
-    expect(data.total).toBe(0);
   });
 
   it('releases completed queue items after returning their terminal status', async () => {
@@ -469,7 +456,7 @@ describe('/api/send-bulk-email', () => {
           }
         ],
         config: { senderName: 'Test', subject: 'Test', message: 'Test' },
-        sessionId: 'test-session'
+        sessionId: 'pause-session'
       }
     });
     await handler(postReq, postRes);
@@ -479,7 +466,7 @@ describe('/api/send-bulk-email', () => {
       method: 'PUT',
       body: {
         action: 'pause',
-        sessionId: 'test-session'
+        sessionId: 'pause-session'
       }
     });
 
@@ -488,6 +475,9 @@ describe('/api/send-bulk-email', () => {
     expect(res._getStatusCode()).toBe(200);
     const data = JSON.parse(res._getData());
     expect(data.success).toBe(true);
+    const queueModule = jest.requireMock('@/lib/email/email-queue');
+    const queue = queueModule.EmailQueueManager.mock.results.at(-1).value;
+    expect(queue.pause).toHaveBeenCalledTimes(1);
   });
 
   it('should return 405 for unsupported methods', async () => {

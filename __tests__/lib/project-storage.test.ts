@@ -245,6 +245,8 @@ describe('ProjectStorage', () => {
         mockFilename,
         mockTableData
       );
+      const originalCreated = ProjectStorage.loadProject(saveResult.id!)?.created;
+      expect(originalCreated).toBeDefined();
 
       const newPositions: Positions = {
         ...mockPositions,
@@ -263,7 +265,7 @@ describe('ProjectStorage', () => {
       expect(updated?.name).toBe('Updated Name');
       expect(updated?.positions).toEqual(newPositions);
       expect(updated?.emailConfig).toEqual(mockEmailConfig);
-      expect(updated?.created).toBe(updated?.created); // Created date shouldn't change
+      expect(updated?.created).toBe(originalCreated); // Created date shouldn't change
     });
 
     it('should fail when updating non-existent template', async () => {

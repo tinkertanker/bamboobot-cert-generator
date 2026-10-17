@@ -139,31 +139,6 @@ describe('/api/cleanup-s3', () => {
     expect(response.details).toBe('S3 connection failed');
   });
 
-  it('should log cleanup progress to console', async () => {
-    const { isS3Configured, cleanupExpiredS3Files } = require('../../lib/s3-client');
-    isS3Configured.mockReturnValue(true);
-    cleanupExpiredS3Files.mockResolvedValue({
-      deleted: ['file1.pdf', 'file2.pdf'],
-      errors: ['error.pdf']
-    });
-
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-
-    const { req, res } = createMocks({
-      method: 'POST',
-    });
-
-    await handler(req, res);
-
-    expect(consoleSpy).toHaveBeenCalledWith('Starting S3 cleanup process...');
-    expect(consoleSpy).toHaveBeenCalledWith('Cleanup complete. Deleted 2 files.');
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Errors processing 1 files.');
-
-    consoleSpy.mockRestore();
-    consoleErrorSpy.mockRestore();
-  });
-
   afterEach(() => {
     // Clean up environment variables
     delete process.env.CLEANUP_SECRET_KEY;

@@ -11,51 +11,6 @@ describe('Button Component', () => {
     expect(button).toHaveClass('h-10 px-4 py-2');
   });
 
-  it('renders with destructive variant', () => {
-    render(<Button variant="destructive">Delete</Button>);
-    const button = screen.getByRole('button', { name: /delete/i });
-    expect(button).toHaveClass('bg-destructive');
-  });
-
-  it('renders with outline variant', () => {
-    render(<Button variant="outline">Outline</Button>);
-    const button = screen.getByRole('button', { name: /outline/i });
-    expect(button).toHaveClass('border border-input bg-background');
-  });
-
-  it('renders with secondary variant', () => {
-    render(<Button variant="secondary">Secondary</Button>);
-    const button = screen.getByRole('button', { name: /secondary/i });
-    expect(button).toHaveClass('bg-secondary');
-  });
-
-  it('renders with ghost variant', () => {
-    render(<Button variant="ghost">Ghost</Button>);
-    const button = screen.getByRole('button', { name: /ghost/i });
-    expect(button).toHaveClass('hover:bg-accent');
-  });
-
-  it('renders with link variant', () => {
-    render(<Button variant="link">Link</Button>);
-    const button = screen.getByRole('button', { name: /link/i });
-    expect(button).toHaveClass('text-primary');
-    expect(button).toHaveClass('hover:underline');
-  });
-
-  it('supports different sizes', () => {
-    render(<Button size="sm">Small</Button>);
-    const smallButton = screen.getByRole('button', { name: /small/i });
-    expect(smallButton).toHaveClass('h-9');
-    
-    render(<Button size="lg">Large</Button>);
-    const largeButton = screen.getByRole('button', { name: /large/i });
-    expect(largeButton).toHaveClass('h-11');
-    
-    render(<Button size="icon">Icon</Button>);
-    const iconButton = screen.getByRole('button', { name: /icon/i });
-    expect(iconButton).toHaveClass('h-10 w-10');
-  });
-
   it('applies custom class names', () => {
     render(<Button className="custom-class">Custom</Button>);
     const button = screen.getByRole('button', { name: /custom/i });

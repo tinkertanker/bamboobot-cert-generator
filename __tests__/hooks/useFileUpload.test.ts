@@ -24,16 +24,6 @@ describe('useFileUpload', () => {
     (global.URL.revokeObjectURL as jest.Mock).mockClear();
   });
 
-  it('should initialize with default values', () => {
-    const { result } = renderHook(() => useFileUpload());
-
-    expect(result.current.uploadedFile).toBeNull();
-    expect(result.current.uploadedFileUrl).toBeNull();
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.isDraggingFile).toBe(false);
-    expect(result.current.uploadError).toBeNull();
-  });
-
   describe('processFile', () => {
     it('should process valid image file successfully', async () => {
       const { result } = renderHook(() => useFileUpload());
@@ -203,16 +193,7 @@ describe('useFileUpload', () => {
   });
 
   describe('handleFileUpload', () => {
-    it('should process file from input change event', async () => {
-      const mockResponse = {
-        ok: true,
-        json: jest.fn().mockResolvedValue({
-          filename: 'test.pdf',
-          image: '/temp_images/test.jpg'
-        })
-      };
-      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
-
+    it('should process file from input change event without uploading', async () => {
       const { result } = renderHook(() => useFileUpload());
       const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
       const event = { target: { files: [file] } } as any;
@@ -223,6 +204,7 @@ describe('useFileUpload', () => {
 
       expect(result.current.uploadedFile).toBe(file);
       expect(result.current.uploadedFileUrl).toBe('blob:mock-url');
+      expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('should handle empty file input', async () => {
@@ -274,16 +256,7 @@ describe('useFileUpload', () => {
       expect(result.current.isDraggingFile).toBe(false);
     });
 
-    it('should handle file drop', async () => {
-      const mockResponse = {
-        ok: true,
-        json: jest.fn().mockResolvedValue({
-          filename: 'test.pdf',
-          image: '/temp_images/test.jpg'
-        })
-      };
-      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
-
+    it('should handle file drop without uploading', async () => {
       const { result } = renderHook(() => useFileUpload());
       const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
       const event = {
@@ -301,29 +274,34 @@ describe('useFileUpload', () => {
       expect(result.current.isDraggingFile).toBe(false);
       expect(result.current.uploadedFile).toBe(file);
       expect(result.current.uploadedFileUrl).toBe('blob:mock-url');
+      expect(global.fetch).not.toHaveBeenCalled();
     });
   });
 
   describe('utility functions', () => {
-    it('should clear file', () => {
+    it('should clear file and revoke its blob URLs', async () => {
+      (global.URL.createObjectURL as jest.Mock)
+        .mockReturnValueOnce('blob:pdf-url')
+        .mockReturnValueOnce('blob:image-url');
       const { result } = renderHook(() => useFileUpload());
+      const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
 
-      // Set some values first
-      act(() => {
-        result.current.setUploadedFile('test.pdf');
-        result.current.setUploadedFileUrl('/temp_images/test.jpg');
+      await act(async () => {
+        await result.current.processFile(file, false, true);
       });
 
-      expect(result.current.uploadedFile).toBe('test.pdf');
-      expect(result.current.uploadedFileUrl).toBe('/temp_images/test.jpg');
+      expect(result.current.localBlobUrl).toBe('blob:pdf-url');
+      expect(result.current.uploadedFileUrl).toBe('blob:image-url');
 
-      // Clear file
       act(() => {
         result.current.clearFile();
       });
 
+      expect(global.URL.revokeObjectURL).toHaveBeenCalledWith('blob:pdf-url');
+      expect(global.URL.revokeObjectURL).toHaveBeenCalledWith('blob:image-url');
       expect(result.current.uploadedFile).toBeNull();
       expect(result.current.uploadedFileUrl).toBeNull();
+      expect(result.current.localBlobUrl).toBeNull();
     });
 
     it('should clear error', async () => {
