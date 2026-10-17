@@ -96,10 +96,15 @@ export function useFileUpload(): UseFileUploadReturn {
     setPendingIsTemplate(isTemplate);
     setPdfBlob(null);
     
-    // Clean up previous blob URL
+    // Clean up previous blob URLs (the PDF blob and, when replacing a local
+    // background, the preview image blob) so replaced images don't leak.
     if (localBlobUrl) {
       URL.revokeObjectURL(localBlobUrl);
     }
+    const previousImageBlobUrl =
+      uploadedFileUrl?.startsWith('blob:') && uploadedFileUrl !== localBlobUrl
+        ? uploadedFileUrl
+        : null;
     
     try {
       // Convert image to PDF for client-side generation
@@ -129,12 +134,16 @@ export function useFileUpload(): UseFileUploadReturn {
       setLocalBlobUrl(blobUrl);
       setUploadedFileUrl(blobUrl);
     }
+    // Revoke only once the preview has been pointed at the new image.
+    if (previousImageBlobUrl) {
+      URL.revokeObjectURL(previousImageBlobUrl);
+    }
     
     // Only upload if not skipping (for client-side generation, we skip)
     if (!skipUpload) {
       await uploadToServerInternal(file, isTemplate);
     }
-  }, [localBlobUrl, uploadToServerInternal]);
+  }, [localBlobUrl, uploadedFileUrl, uploadToServerInternal]);
 
   const uploadToServer = useCallback(async () => {
     return uploadToServerInternal();

@@ -50,6 +50,8 @@ export async function middleware(req: NextRequest) {
 export const config = {
   // Node.js middleware can read server-only environment variables at runtime.
   // Matching every path ensures API paths ending in a file extension are gated.
+  // Next.js build assets are excluded from the matcher (they were always
+  // allowed through) so the middleware is not invoked for every chunk request.
   runtime: 'nodejs',
-  matcher: ['/:path*'],
+  matcher: ['/((?!_next/static/|_next/image).*)'],
 };

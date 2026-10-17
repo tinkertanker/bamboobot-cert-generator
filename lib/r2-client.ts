@@ -21,6 +21,7 @@ const r2Client = new S3Client({
 });
 
 const BUCKET_NAME = process.env.R2_BUCKET_NAME || 'bamboobot-certificates';
+const CLEANUP_CONCURRENCY = 8;
 
 export interface UploadResult {
   key: string;
@@ -192,13 +193,16 @@ export async function cleanupExpiredFiles(): Promise<{deleted: string[], errors:
     // List all files
     const files = await listFiles();
     
-    for (const file of files) {
+    // One HEAD request per object: run a bounded number concurrently instead of
+    // strictly sequentially, and record outcomes per index so result order is unchanged.
+    const outcomes: Array<'deleted' | 'error' | undefined> = new Array(files.length);
+    const processFile = async (file: (typeof files)[number], index: number): Promise<void> => {
       try {
         // Get metadata for each file
         const metadata = await getFileMetadata(file.key);
         
         if (!metadata) {
-          continue;
+          return;
         }
         
         // Check if file should be deleted based on retention
@@ -230,14 +234,30 @@ export async function cleanupExpiredFiles(): Promise<{deleted: string[], errors:
         
         if (shouldDelete) {
           await deleteFromR2(file.key);
-          deleted.push(file.key);
+          outcomes[index] = 'deleted';
           console.log(`Deleted expired file: ${file.key}`);
         }
       } catch (error) {
         console.error(`Error processing file ${file.key}:`, error);
-        errors.push(file.key);
+        outcomes[index] = 'error';
       }
-    }
+    };
+
+    let nextIndex = 0;
+    const worker = async (): Promise<void> => {
+      while (nextIndex < files.length) {
+        const index = nextIndex++;
+        await processFile(files[index], index);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CLEANUP_CONCURRENCY, files.length) }, worker)
+    );
+
+    files.forEach((file, index) => {
+      if (outcomes[index] === 'deleted') deleted.push(file.key);
+      else if (outcomes[index] === 'error') errors.push(file.key);
+    });
   } catch (error) {
     console.error('Error in cleanup process:', error);
   }

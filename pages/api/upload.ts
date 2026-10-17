@@ -157,7 +157,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Generate PDF bytes
     const pdfBytes = await pdfDoc.save();
     
-    const originalImageBytes = imageBytes;
     const imageName = `${safeBase}${fileExtension}`;
     
     let imageUrl: string;
@@ -173,7 +172,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       // Upload original image to R2 for display
       await uploadToR2(
-        Buffer.from(originalImageBytes),
+        imageBytes,
         `temp_images/u_${userId}/${imageName}`,
         mimetype,
         imageName
@@ -187,7 +186,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       debug('R2 upload successful:', imageUrl);
     } else if (storageConfig.isS3Enabled) {
       await uploadToS3(
-        Buffer.from(originalImageBytes),
+        imageBytes,
         `temp_images/u_${userId}/${imageName}`,
         mimetype,
         imageName,

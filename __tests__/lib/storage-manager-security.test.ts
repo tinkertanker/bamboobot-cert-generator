@@ -246,7 +246,9 @@ describe('storage manager deletion boundaries', () => {
     const originalLstat = fs.lstatSync.bind(fs);
     let matchingFileChecks = 0;
     jest.spyOn(fs, 'lstatSync').mockImplementation((candidate) => {
-      if (candidate === matchingFile && ++matchingFileChecks === 2) {
+      // Listing uses async lstat, so the first synchronous lstat of this file is
+      // the final safety check performed just before deletion.
+      if (candidate === matchingFile && ++matchingFileChecks === 1) {
         const error = new Error('simulated removal race') as NodeJS.ErrnoException;
         error.code = 'ENOENT';
         throw error;
