@@ -24,23 +24,60 @@ interface FilterChip {
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-// Parse search query for column:value syntax
-const parseSearchQuery = (query: string) => {
+// Column names are compared ignoring case, spaces, underscores, hyphens and dots, so
+// "First Name", "first_name" and "firstname" all refer to the same column.
+const normaliseColumnName = (name: string) =>
+  name.toLowerCase().replace(/[\s_.-]+/g, '');
+
+export const findColumn = (columns: string[], name: string) => {
+  const target = normaliseColumnName(name);
+  if (!target) return undefined;
+  return (
+    columns.find(col => col.toLowerCase() === name.toLowerCase()) ||
+    columns.find(col => normaliseColumnName(col) === target)
+  );
+};
+
+// How a column is written in a query: quoted when it contains whitespace.
+export const formatColumnToken = (column: string) =>
+  /\s/.test(column) ? `"${column.toLowerCase()}"` : column.toLowerCase();
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// The token being typed at the end of the input, e.g. `"first name":jo`.
+export const getLastToken = (input: string) =>
+  input.match(/(?:"[^"]*"?:?\S*|\S+)$/)?.[0] ?? '';
+
+// Parse search query for column:value syntax. Columns may be quoted
+// ("first name":john) or written as-is when they match a known column
+// (First Name:john).
+export const parseSearchQuery = (query: string, columns: string[] = []) => {
+  let prepared = query;
+  // Quote known multi-word column names that are typed without quotes
+  columns
+    .filter(col => /\s/.test(col))
+    .sort((a, b) => b.length - a.length)
+    .forEach(col => {
+      const pattern = new RegExp(`(^|\\s)${escapeRegExp(col)}\\s*:`, 'gi');
+      prepared = prepared.replace(pattern, (_m, lead) => `${lead}"${col}":`);
+    });
+
   const filters: { column?: string; value: string }[] = [];
-  const regex = /(\w+):("([^"]+)"|([^\s]+))|("[^"]+"|\S+)/g;
+  const regex = /(?:"([^"]+)"|([^\s:"]+)):(?:"([^"]*)"|(\S*))|"([^"]+)"|(\S+)/g;
   let match;
 
-  while ((match = regex.exec(query)) !== null) {
-    if (match[1]) {
+  while ((match = regex.exec(prepared)) !== null) {
+    const column = match[1] ?? match[2];
+    if (column !== undefined) {
       // Column:value syntax
       filters.push({
-        column: match[1].toLowerCase(),
-        value: (match[3] || match[4]).toLowerCase()
+        column: column.toLowerCase(),
+        value: (match[3] ?? match[4] ?? '').toLowerCase()
       });
     } else {
       // General search term
       filters.push({
-        value: (match[5] || match[0]).replace(/"/g, '').toLowerCase()
+        value: (match[5] ?? match[6] ?? '').replace(/"/g, '').toLowerCase()
       });
     }
   }
@@ -110,7 +147,7 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
   const suggestions = useMemo(() => {
     const suggs: SearchSuggestion[] = [];
     const queryLower = inputValue.toLowerCase();
-    const lastWord = inputValue.split(' ').pop() || '';
+    const lastWord = getLastToken(inputValue);
 
     if (inputValue === '') {
       suggs.push({
@@ -124,10 +161,10 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
     // Column name suggestions
     if (queryLower.length > 0) {
       columns.forEach(col => {
-        if (col.toLowerCase().includes(lastWord.toLowerCase().split(':')[0])) {
+        if (col.toLowerCase().includes(lastWord.toLowerCase().split(':')[0].replace(/"/g, ''))) {
           suggs.push({
             type: 'column',
-            text: `${col.toLowerCase()}:`,
+            text: `${formatColumnToken(col)}:`,
             display: `${col}:`,
             description: `Search in ${col} column`
           });
@@ -138,9 +175,9 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
     // Value suggestions based on column
     const colonIndex = lastWord.indexOf(':');
     if (colonIndex > -1) {
-      const columnName = lastWord.substring(0, colonIndex).toLowerCase();
+      const columnName = lastWord.substring(0, colonIndex).replace(/"/g, '');
       const valueStart = lastWord.substring(colonIndex + 1).replace(/"/g, '').toLowerCase();
-      const matchingCol = columns.find(col => col.toLowerCase() === columnName);
+      const matchingCol = findColumn(columns, columnName);
 
       const uniqueValues = new Set<string>();
       if (matchingCol) {
@@ -156,9 +193,9 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
       Array.from(uniqueValues).forEach(value => {
         suggs.push({
           type: 'value',
-          text: `${columnName}:"${value}"`,
+          text: `${formatColumnToken(matchingCol || columnName)}:"${value}"`,
           display: value,
-          description: `in ${columnName}`
+          description: `in ${matchingCol || columnName}`
         });
       });
     }
@@ -183,11 +220,11 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
     let filtered = tableData;
 
     if (searchQuery.trim()) {
-      const filters = parseSearchQuery(searchQuery);
+      const filters = parseSearchQuery(searchQuery, columns);
       filtered = filtered.filter(row => {
         return filters.every(filter => {
           if (filter.column) {
-            const matchingCol = columns.find(col => col.toLowerCase() === filter.column);
+            const matchingCol = findColumn(columns, filter.column);
             return !!matchingCol && !!row[matchingCol] &&
               row[matchingCol].toString().toLowerCase().includes(filter.value);
           }
@@ -227,9 +264,8 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
   // Handle suggestion selection
   const handleSuggestionClick = (suggestion: SearchSuggestion) => {
     if (suggestion.type === 'column') {
-      const words = inputValue.split(' ');
-      words[words.length - 1] = suggestion.text;
-      applyQuery(words.join(' '));
+      const lastToken = getLastToken(inputValue);
+      applyQuery(inputValue.slice(0, inputValue.length - lastToken.length) + suggestion.text);
       setSelectedSuggestionIndex(-1);
       searchInputRef.current?.focus();
     } else {

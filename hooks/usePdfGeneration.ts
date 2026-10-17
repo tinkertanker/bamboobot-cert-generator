@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { DEFAULT_FONT_SIZE } from "@/utils/constants";
 import type { TableData, Positions, PdfFile } from "@/types/certificate";
+import { getFontReferenceDimensions } from "@/utils/fontScale";
 
 export interface UsePdfGenerationProps {
   tableData: TableData[];
@@ -102,17 +103,8 @@ export function usePdfGeneration({
   }, [positions]);
 
   // Helper function to get container dimensions
-  const getContainerDimensions = useCallback(() => {
-    const containerElement = document.querySelector(
-      ".image-container img"
-    ) as HTMLImageElement;
-    return containerElement
-      ? {
-          width: containerElement.offsetWidth,
-          height: containerElement.offsetHeight
-        }
-      : { width: 600, height: 400 }; // Fallback dimensions
-  }, []);
+  // Font sizes are relative to a fixed reference width, not the live preview
+  const getContainerDimensions = useCallback(() => getFontReferenceDimensions(), []);
 
   const generatePdf = useCallback(async () => {
     if (!uploadedFile) {
