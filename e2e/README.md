@@ -151,7 +151,7 @@ Tests are configured in `playwright.config.ts`:
 ## CI settings
 
 `playwright.config.ts` changes behaviour when `CI` is set:
-- Retries are enabled (2 attempts)
+- Failed tests are retried twice (up to 3 attempts)
 - Tests fail if `test.only` is left in code
 - An already running dev server is not reused
 

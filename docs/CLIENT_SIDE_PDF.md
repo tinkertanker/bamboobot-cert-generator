@@ -10,7 +10,7 @@ Certificates are generated in the browser by default. The server is a fallback f
 2. Browser not supported (`lib/pdf/client/feature-detection.ts` checks Web Workers, ArrayBuffer, fetch and available memory): server.
 3. Otherwise: client.
 
-For individual PDFs there is one more check. `lib/pdf/client/individual-capacity.ts` estimates the memory the batch will need from the row count, template size, number of fields and custom fonts. If it does not fit (or there are more than 500 rows, or more than 100 when the device does not report its memory), generation moves to the server.
+For individual PDFs there is one more check. `lib/pdf/client/individual-capacity.ts` estimates the memory the batch will need from the row count, template size, number of fields and custom fonts. If it does not fit (or there are more than 500 rows, or more than 100 when the browser reports neither its JS heap limit nor its device memory), generation moves to the server.
 
 Server generation of individual PDFs uses progressive batches when there are more than 100 rows (`PROGRESSIVE_PDF` in `utils/constants.ts`), with pause, resume and cancel.
 

@@ -56,13 +56,17 @@ UPLOAD_TEMP_DIR=/tmp/bamboobot-uploads
    docker exec bamboobot ls -la /app/tmp/uploads
    ```
 
-4. **Test with curl** (with `REQUIRE_AUTH` on, `/api/upload` needs a signed-in session, so copy the `next-auth.session-token` cookie from your browser and add `-b "next-auth.session-token=..."`; on HTTPS the cookie is called `__Secure-next-auth.session-token`)
+4. **Test with curl**
+
+   With `REQUIRE_AUTH` on, `/api/upload` needs a signed-in session. Copy the session cookie from your browser's developer tools: it is `next-auth.session-token` over HTTP and `__Secure-next-auth.session-token` over HTTPS.
    ```bash
    # Test direct upload (bypassing nginx)
-   curl -X POST -F "template=@your-file.png" http://localhost:3000/api/upload
-   
+   curl -X POST -b "next-auth.session-token=YOUR_TOKEN" \
+     -F "template=@your-file.png" http://localhost:3000/api/upload
+
    # Test through nginx
-   curl -X POST -F "template=@your-file.png" https://your-domain.com/api/upload
+   curl -X POST -b "__Secure-next-auth.session-token=YOUR_TOKEN" \
+     -F "template=@your-file.png" https://your-domain.com/api/upload
    ```
 
 ## Solutions Summary

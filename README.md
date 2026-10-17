@@ -318,7 +318,7 @@ The E2E tests cover:
 - **Package Manager**: npm
 - **UI**: Tailwind CSS
 - **PDF**: pdf-lib (client-side and server-side)
-- **Storage**: DB for projects; Local/Cloudflare R2/Amazon S3 for files
+- **Storage**: browser localStorage for projects (optional Prisma/SQLite persistence); Local/Cloudflare R2/Amazon S3 for files
 - **Email**: Resend or Amazon SES
 - **Testing**: Jest + React Testing Library + Playwright
 - **Deployment**: Docker
