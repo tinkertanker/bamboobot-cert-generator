@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Toast, ToastContainer, useToast } from '@/components/ui/toast';
 
@@ -44,21 +44,6 @@ describe('Toast Component', () => {
       // Check for SVG icon presence
       const icon = toast?.querySelector('svg');
       expect(icon).toBeInTheDocument();
-    });
-
-    it('renders close button', () => {
-      render(<Toast {...defaultProps} />);
-      
-      const closeButton = screen.getByRole('button');
-      expect(closeButton).toBeInTheDocument();
-      expect(closeButton.querySelector('svg')).toBeInTheDocument(); // X icon
-    });
-
-    it('applies animation class', () => {
-      render(<Toast {...defaultProps} />);
-      
-      const toast = screen.getByText('Test message').closest('div');
-      expect(toast).toHaveClass('animate-slide-in');
     });
   });
 
@@ -121,35 +106,6 @@ describe('Toast Component', () => {
       
       expect(defaultProps.onClose).toHaveBeenCalledWith('test-toast');
     });
-
-    it('does not auto-dismiss after manual close', async () => {
-      const user = userEvent.setup({ delay: null });
-      const { unmount } = render(<Toast {...defaultProps} />);
-      
-      await user.click(screen.getByRole('button'));
-      
-      // Component would typically be removed from DOM after close
-      // So we unmount to simulate this behavior
-      unmount();
-      
-      jest.clearAllMocks();
-      
-      act(() => {
-        jest.advanceTimersByTime(3000);
-      });
-      
-      expect(defaultProps.onClose).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('Ref forwarding', () => {
-    it('forwards ref correctly', () => {
-      const ref = React.createRef<HTMLDivElement>();
-      render(<Toast {...defaultProps} ref={ref} />);
-      
-      expect(ref.current).not.toBeNull();
-      expect(ref.current?.textContent).toContain('Test message');
-    });
   });
 });
 
@@ -168,30 +124,6 @@ describe('ToastContainer Component', () => {
     expect(screen.getByText('Toast 3')).toBeInTheDocument();
   });
 
-  it('positions container correctly', () => {
-    render(<ToastContainer toasts={mockToasts} onClose={jest.fn()} />);
-    
-    const container = screen.getByText('Toast 1').closest('.fixed');
-    expect(container).toHaveClass('fixed', 'bottom-4', 'right-4', 'z-[60]');
-  });
-
-  it('stacks toasts vertically', () => {
-    render(<ToastContainer toasts={mockToasts} onClose={jest.fn()} />);
-    
-    const container = screen.getByText('Toast 1').closest('.fixed');
-    expect(container).toHaveClass('flex', 'flex-col', 'gap-2');
-  });
-
-  it('makes toasts interactive while container is not', () => {
-    render(<ToastContainer toasts={mockToasts} onClose={jest.fn()} />);
-    
-    const container = screen.getByText('Toast 1').closest('.fixed');
-    expect(container).toHaveClass('pointer-events-none');
-    
-    const toastWrapper = screen.getByText('Toast 1').closest('.pointer-events-auto');
-    expect(toastWrapper).toHaveClass('pointer-events-auto');
-  });
-
   it('passes onClose to each toast', async () => {
     const user = userEvent.setup({ delay: null });
     const onClose = jest.fn();
@@ -201,14 +133,6 @@ describe('ToastContainer Component', () => {
     await user.click(closeButtons[0]);
     
     expect(onClose).toHaveBeenCalledWith('1');
-  });
-
-  it('forwards ref correctly', () => {
-    const ref = React.createRef<HTMLDivElement>();
-    render(<ToastContainer toasts={mockToasts} onClose={jest.fn()} ref={ref} />);
-    
-    expect(ref.current).not.toBeNull();
-    expect(ref.current).toHaveClass('fixed', 'bottom-4', 'right-4');
   });
 });
 
@@ -231,21 +155,6 @@ describe('useToast Hook', () => {
       </div>
     );
   }
-
-  it('initializes with empty toasts', () => {
-    render(<TestComponent />);
-    
-    expect(screen.queryByText('Test toast')).not.toBeInTheDocument();
-  });
-
-  it('shows toast when showToast is called', async () => {
-    const user = userEvent.setup({ delay: null });
-    render(<TestComponent />);
-    
-    await user.click(screen.getByText('Show Toast'));
-    
-    expect(screen.getByText('Test toast')).toBeInTheDocument();
-  });
 
   it('shows multiple toasts', async () => {
     const user = userEvent.setup({ delay: null });

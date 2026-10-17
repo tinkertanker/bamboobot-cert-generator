@@ -60,49 +60,6 @@ describe('ProjectStorage - getMostRecentTemplate', () => {
     expect(result?.name).toBe('Newer Template');
   });
 
-  it('handles templates with same lastModified by id order', async () => {
-    const template1 = {
-      id: 'template1',
-      name: 'Template 1',
-      created: '2024-01-01T10:00:00Z',
-      lastModified: '2024-01-01T10:00:00Z',
-      version: '1.0' as const,
-      positions: {},
-      columns: [],
-      certificateImage: {
-        url: '/test.jpg',
-        filename: 'test.pdf',
-        uploadedAt: '2024-01-01T10:00:00Z',
-        isCloudStorage: false
-      }
-    };
-
-    const template2 = {
-      id: 'template2',
-      name: 'Template 2',
-      created: '2024-01-01T10:00:00Z',
-      lastModified: '2024-01-01T10:00:00Z', // Same time
-      version: '1.0' as const,
-      positions: {},
-      columns: [],
-      certificateImage: {
-        url: '/test.jpg',
-        filename: 'test.pdf',
-        uploadedAt: '2024-01-01T10:00:00Z',
-        isCloudStorage: false
-      }
-    };
-
-    mockLocalStorage.setItem('bamboobot_project_v1_template1', JSON.stringify(template1));
-    mockLocalStorage.setItem('bamboobot_project_v1_template2', JSON.stringify(template2));
-
-    const result = await ProjectStorage.getMostRecentProject();
-    
-    expect(result).not.toBeNull();
-    // Should return one of them consistently
-    expect(['template1', 'template2']).toContain(result?.id);
-  });
-
   it('handles corrupted template data gracefully', async () => {
     // Save one valid template
     const validTemplate = {

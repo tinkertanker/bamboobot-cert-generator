@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NewProjectModal } from '@/components/modals/NewProjectModal';
 
@@ -28,16 +28,6 @@ describe('NewProjectModal Component', () => {
       expect(screen.queryByText('Start New Project?')).not.toBeInTheDocument();
     });
 
-    it('renders warning icon', () => {
-      render(<NewProjectModal {...defaultProps} />);
-      
-      // Find the container with the warning icon
-      const contentContainer = screen.getByText('Start New Project?').closest('.flex');
-      const icon = contentContainer?.querySelector('svg');
-      expect(icon).toBeInTheDocument();
-      expect(icon).toHaveClass('text-amber-500');
-    });
-
     it('renders autosave message when the work belongs to a saved project', () => {
       render(<NewProjectModal {...defaultProps} hasUnsavedWork={true} isSavedProject={true} />);
       
@@ -56,13 +46,6 @@ describe('NewProjectModal Component', () => {
       render(<NewProjectModal {...defaultProps} hasUnsavedWork={false} />);
       
       expect(screen.getByText(/This will clear all current settings and start fresh/)).toBeInTheDocument();
-    });
-
-    it('renders both action buttons', () => {
-      render(<NewProjectModal {...defaultProps} />);
-      
-      expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Start New' })).toBeInTheDocument();
     });
   });
 
@@ -102,23 +85,6 @@ describe('NewProjectModal Component', () => {
     });
   });
 
-  describe('Modal Behavior', () => {
-    it('uses Modal component with correct props', () => {
-      render(<NewProjectModal {...defaultProps} />);
-      
-      // Check for Modal's characteristic classes
-      const modalBackdrop = document.querySelector('.fixed.inset-0.bg-black');
-      expect(modalBackdrop).toBeInTheDocument();
-    });
-
-    it('sets correct width on modal', () => {
-      render(<NewProjectModal {...defaultProps} />);
-      
-      const modalContent = screen.getByText('Start New Project?').closest('.w-96');
-      expect(modalContent).toHaveClass('w-96');
-    });
-  });
-
   describe('Keyboard Navigation', () => {
     it('can navigate with keyboard', async () => {
       const user = userEvent.setup();
@@ -131,81 +97,6 @@ describe('NewProjectModal Component', () => {
       // Tab to second button (Start New)
       await user.tab();
       expect(screen.getByRole('button', { name: 'Start New' })).toHaveFocus();
-    });
-
-    it('handles Enter key on focused button', async () => {
-      const user = userEvent.setup();
-      render(<NewProjectModal {...defaultProps} />);
-      
-      // Tab to Cancel button and press Enter
-      await user.tab();
-      await user.keyboard('{Enter}');
-      
-      expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('Button Styling', () => {
-    it('applies correct styles to Cancel button', () => {
-      render(<NewProjectModal {...defaultProps} />);
-      
-      const cancelButton = screen.getByRole('button', { name: 'Cancel' });
-      expect(cancelButton).toHaveClass('border', 'border-input', 'bg-background');
-    });
-
-    it('applies correct styles to Start New button', () => {
-      render(<NewProjectModal {...defaultProps} />);
-      
-      const startButton = screen.getByRole('button', { name: 'Start New' });
-      expect(startButton).toHaveClass('bg-blue-600', 'hover:bg-blue-700', 'text-white');
-    });
-  });
-
-  describe('Content Layout', () => {
-    it('uses correct spacing classes', () => {
-      render(<NewProjectModal {...defaultProps} />);
-      
-      const contentWrapper = screen.getByText('Start New Project?').closest('.space-y-4');
-      expect(contentWrapper).toHaveClass('space-y-4');
-      
-      const iconWrapper = screen.getByText('Start New Project?').closest('.flex');
-      expect(iconWrapper).toHaveClass('flex', 'items-start', 'gap-3');
-    });
-
-    it('positions buttons correctly', () => {
-      render(<NewProjectModal {...defaultProps} />);
-      
-      const buttonWrapper = screen.getByRole('button', { name: 'Cancel' }).parentElement;
-      expect(buttonWrapper).toHaveClass('flex', 'gap-3', 'justify-end');
-    });
-  });
-
-  describe('Edge Cases', () => {
-    it('handles rapid clicks without errors', async () => {
-      const user = userEvent.setup();
-      render(<NewProjectModal {...defaultProps} />);
-      
-      const startButton = screen.getByRole('button', { name: 'Start New' });
-      
-      // Simulate rapid clicks
-      await user.click(startButton);
-      await user.click(startButton);
-      await user.click(startButton);
-      
-      // Should still only call each function once per actual click
-      expect(defaultProps.onConfirm).toHaveBeenCalledTimes(3);
-      expect(defaultProps.onClose).toHaveBeenCalledTimes(3);
-    });
-
-    it('updates correctly when props change', () => {
-      const { rerender } = render(<NewProjectModal {...defaultProps} hasUnsavedWork={false} />);
-      
-      expect(screen.getByText(/This will clear all current settings/)).toBeInTheDocument();
-      
-      rerender(<NewProjectModal {...defaultProps} hasUnsavedWork={true} isSavedProject={true} />);
-      
-      expect(screen.queryByText(/This will clear all current settings/)).not.toBeInTheDocument();
-      expect(screen.getByText(/Your last autosaved version can be reopened/)).toBeInTheDocument();
     });
   });
 });

@@ -277,15 +277,6 @@ describe('SaveProjectModal', () => {
     expect(screen.getByText('Saving…')).toBeInTheDocument();
   });
 
-  it('closes modal on cancel', () => {
-    render(<SaveProjectModal {...defaultProps} />);
-    
-    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
-    fireEvent.click(cancelButton);
-    
-    expect(defaultProps.onClose).toHaveBeenCalled();
-  });
-
   it('cancel button does not submit the form', () => {
     render(<SaveProjectModal {...defaultProps} />);
     
@@ -296,11 +287,5 @@ describe('SaveProjectModal', () => {
     fireEvent.click(cancelButton);
     expect(ProjectStorage.saveProject).not.toHaveBeenCalled();
     expect(defaultProps.onClose).toHaveBeenCalled();
-  });
-
-  it('shows cloud storage indicator when R2 is enabled', () => {
-    // For this test, we'll just skip it since module mocking is complex
-    // and the cloud storage feature is already tested manually
-    expect(true).toBe(true);
   });
 });

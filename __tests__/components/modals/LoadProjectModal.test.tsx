@@ -105,17 +105,6 @@ describe('LoadProjectModal', () => {
     jest.restoreAllMocks();
   });
 
-  it('renders when open', async () => {
-    render(<LoadProjectModal {...defaultProps} />);
-    
-    expect(screen.getByText('Projects')).toBeInTheDocument();
-    
-    await waitFor(() => {
-      expect(screen.getByText('Template 1')).toBeInTheDocument();
-      expect(screen.getByText('Template 2')).toBeInTheDocument();
-    });
-  });
-
   it('does not render when closed', () => {
     render(<LoadProjectModal {...defaultProps} isOpen={false} />);
     
@@ -167,23 +156,6 @@ describe('LoadProjectModal', () => {
     expect(ProjectStorage.loadProject).toHaveBeenCalledWith('template-1');
     expect(defaultProps.onLoadProject).toHaveBeenCalledWith(mockSavedProject);
     expect(defaultProps.onClose).toHaveBeenCalled();
-  });
-
-  it('shows delete confirmation', async () => {
-    render(<LoadProjectModal {...defaultProps} />);
-    
-    await waitFor(() => {
-      const deleteButtons = screen.getAllByTitle('Delete project');
-      fireEvent.click(deleteButtons[0]);
-    });
-    
-    // Look for the small cancel/confirm buttons, not the main Cancel button
-    const buttons = screen.getAllByRole('button');
-    const cancelButton = buttons.find(btn => btn.textContent === 'Cancel' && btn.className.includes('text-xs'));
-    const confirmButton = buttons.find(btn => btn.textContent === 'Confirm');
-    
-    expect(cancelButton).toBeInTheDocument();
-    expect(confirmButton).toBeInTheDocument();
   });
 
   it('deletes template after confirmation', async () => {

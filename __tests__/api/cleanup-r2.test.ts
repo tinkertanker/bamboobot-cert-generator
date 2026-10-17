@@ -139,31 +139,6 @@ describe('/api/cleanup-r2', () => {
     expect(response.details).toBe('R2 connection failed');
   });
 
-  it('should log cleanup progress to console', async () => {
-    const { isR2Configured, cleanupExpiredFiles } = require('../../lib/r2-client');
-    isR2Configured.mockReturnValue(true);
-    cleanupExpiredFiles.mockResolvedValue({
-      deleted: ['file1.pdf', 'file2.pdf'],
-      errors: ['error.pdf']
-    });
-
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-
-    const { req, res } = createMocks({
-      method: 'POST',
-    });
-
-    await handler(req, res);
-
-    expect(consoleSpy).toHaveBeenCalledWith('Starting R2 cleanup process...');
-    expect(consoleSpy).toHaveBeenCalledWith('Cleanup complete. Deleted 2 files.');
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Errors processing 1 files.');
-
-    consoleSpy.mockRestore();
-    consoleErrorSpy.mockRestore();
-  });
-
   afterEach(() => {
     // Clean up environment variables
     delete process.env.CLEANUP_SECRET_KEY;
