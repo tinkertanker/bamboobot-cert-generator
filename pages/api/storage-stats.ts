@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
+import fsPromises from 'fs/promises';
 import path from 'path';
 import { getTempImagesDir, getGeneratedDir } from '@/lib/paths';
 import { getServerSession } from 'next-auth';
@@ -31,17 +32,9 @@ interface StorageStats {
 }
 
 
-function getFileAge(filePath: string): number {
-  try {
-    const stats = fs.statSync(filePath);
-    const now = new Date();
-    const fileDate = new Date(stats.mtime);
-    const diffTime = Math.abs(now.getTime() - fileDate.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  } catch {
-    // File may have been deleted or is inaccessible; return -1 to indicate unknown age
-    return -1;
-  }
+function getAgeInDays(mtime: Date): number {
+  const diffTime = Math.abs(Date.now() - mtime.getTime());
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
 function getFileType(filename: string): FileInfo['type'] {
@@ -52,8 +45,18 @@ function getFileType(filename: string): FileInfo['type'] {
   return 'other';
 }
 
-function analyzeDirectory(dirPath: string): DirectoryStats {
-  if (!fs.existsSync(dirPath)) {
+function isMissing(err: unknown): boolean {
+  return (err as NodeJS.ErrnoException)?.code === 'ENOENT';
+}
+
+// Async (non-blocking) directory walk: storage can hold thousands of files and a
+// synchronous scan would stall every other request on this server while it runs.
+async function analyzeDirectory(dirPath: string): Promise<DirectoryStats> {
+  let items: string[];
+  try {
+    items = await fsPromises.readdir(dirPath);
+  } catch (err) {
+    if (!isMissing(err)) throw err;
     return {
       path: dirPath,
       totalSize: 0,
@@ -66,45 +69,35 @@ function analyzeDirectory(dirPath: string): DirectoryStats {
   let totalSize = 0;
   let fileCount = 0;
 
-  const items = fs.readdirSync(dirPath);
-
   for (const item of items) {
     const itemPath = path.join(dirPath, item);
     
     let stats: fs.Stats;
     try {
-      stats = fs.statSync(itemPath);
+      stats = await fsPromises.stat(itemPath);
     } catch {
-      // File may have been deleted between readdir and statSync; skip this item
+      // File may have been deleted between readdir and stat; skip this item
       continue;
     }
 
     if (stats.isFile()) {
-      const age = getFileAge(itemPath);
-      if (age === -1) continue; // Skip files we can't access
-      
-      const fileInfo: FileInfo = {
+      files.push({
         name: item,
         size: stats.size,
-        age: age,
+        age: getAgeInDays(stats.mtime),
         type: getFileType(item)
-      };
-      files.push(fileInfo);
+      });
       totalSize += stats.size;
       fileCount++;
     } else if (stats.isDirectory()) {
       // For directories (like progressive PDF folders), get the total size
-      const subDirSize = getDirSize(itemPath);
-      const age = getFileAge(itemPath);
-      if (age === -1) continue; // Skip directories we can't access
-      
-      const fileInfo: FileInfo = {
+      const subDirSize = await getDirSize(itemPath);
+      files.push({
         name: item,
         size: subDirSize,
-        age: age,
+        age: getAgeInDays(stats.mtime),
         type: getFileType(item)
-      };
-      files.push(fileInfo);
+      });
       totalSize += subDirSize;
       fileCount++;
     }
@@ -121,21 +114,32 @@ function analyzeDirectory(dirPath: string): DirectoryStats {
   };
 }
 
-function getDirSize(dirPath: string): number {
+async function getDirSize(dirPath: string): Promise<number> {
   let size = 0;
   
-  if (!fs.existsSync(dirPath)) return 0;
-  
-  const items = fs.readdirSync(dirPath);
+  let items: string[];
+  try {
+    items = await fsPromises.readdir(dirPath);
+  } catch (err) {
+    if (isMissing(err)) return 0;
+    throw err;
+  }
   
   for (const item of items) {
     const itemPath = path.join(dirPath, item);
-    const stats = fs.statSync(itemPath);
+    let stats;
+    try {
+      stats = await fsPromises.stat(itemPath);
+    } catch (err) {
+      // Entry was deleted between readdir and stat
+      if (isMissing(err)) continue;
+      throw err;
+    }
     
     if (stats.isFile()) {
       size += stats.size;
     } else if (stats.isDirectory()) {
-      size += getDirSize(itemPath);
+      size += await getDirSize(itemPath);
     }
   }
   
@@ -176,12 +180,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const tempImagesDir = getTempImagesDir();
     const dockerDataDir = path.join(process.cwd(), 'data');
 
+    const dockerDataExists = await fsPromises.stat(dockerDataDir).then(() => true, () => false);
+    const [generated, tempImages, dockerData] = await Promise.all([
+      analyzeDirectory(generatedDir),
+      analyzeDirectory(tempImagesDir),
+      dockerDataExists ? analyzeDirectory(dockerDataDir) : undefined,
+    ]);
     const directories = {
-      generated: analyzeDirectory(generatedDir),
-      tempImages: analyzeDirectory(tempImagesDir),
-      ...(fs.existsSync(dockerDataDir) && {
-        dockerData: analyzeDirectory(dockerDataDir)
-      })
+      generated,
+      tempImages,
+      ...(dockerData && { dockerData })
     };
 
     const totalSize = Object.values(directories).reduce((sum, dir) => sum + dir.totalSize, 0);

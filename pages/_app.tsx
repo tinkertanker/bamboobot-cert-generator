@@ -7,6 +7,9 @@ import "../styles/globals.css";
 
 // Switch to local fonts to avoid network fetch during build/tests.
 // All referenced TTFs live under public/fonts.
+// Only Rubik (the UI body font) is preloaded. The certificate fonts use
+// `preload: false` so the browser fetches them on demand when a text field
+// actually uses that family, instead of preloading ~2.3MB of TTFs on every page.
 // Note: Next.js font loader requires literal strings, not template literals,
 // so we cannot use a constant for the base path.
 const rubik = localFont({
@@ -27,6 +30,7 @@ const montserrat = localFont({
   ],
   variable: "--font-montserrat",
   display: "swap",
+  preload: false,
 });
 
 const poppins = localFont({
@@ -38,6 +42,7 @@ const poppins = localFont({
   ],
   variable: "--font-poppins",
   display: "swap",
+  preload: false,
 });
 
 const sourceSansPro = localFont({
@@ -49,6 +54,7 @@ const sourceSansPro = localFont({
   ],
   variable: "--font-source-sans-pro",
   display: "swap",
+  preload: false,
 });
 
 const nunito = localFont({
@@ -60,6 +66,7 @@ const nunito = localFont({
   ],
   variable: "--font-nunito",
   display: "swap",
+  preload: false,
 });
 
 const greatVibes = localFont({
@@ -68,6 +75,7 @@ const greatVibes = localFont({
   ],
   variable: "--font-great-vibes",
   display: "swap",
+  preload: false,
 });
 
 const archivo = localFont({
@@ -79,6 +87,7 @@ const archivo = localFont({
   ],
   variable: "--font-archivo",
   display: "swap",
+  preload: false,
 });
 
 export default function App({ Component, pageProps }: AppProps) {

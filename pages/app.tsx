@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { useTable, Column } from "react-table";
@@ -218,7 +218,13 @@ export default function HomePage() {
     uploadToServer
   } = useFileUpload();
 
-  const tableColumnsKey = JSON.stringify(Object.keys(tableData[0] || {}));
+  // Memoised so hooks that list it as a dependency (autosave) only see a new
+  // array when the table actually changes, not on every render.
+  const tableColumns = useMemo(() => Object.keys(tableData[0] || {}), [tableData]);
+  const tableColumnsKey = JSON.stringify(tableColumns);
+  // Luminance is a property of the image alone; cache it per URL so editing
+  // column headers doesn't re-decode the background image on every keystroke.
+  const luminanceCacheRef = useRef<{ imageUrl: string; luminance: number | null } | null>(null);
   const [automaticTextColorResult, setAutomaticTextColorResult] = useState<{
     imageUrl: string;
     color: '#ffffff' | '#000000';
@@ -232,15 +238,20 @@ export default function HomePage() {
   useEffect(() => {
     if (!uploadedFileUrl) return;
 
-    const tableColumns = JSON.parse(tableColumnsKey) as string[];
-    if (tableColumns.length === 0) return;
+    const columnNames = JSON.parse(tableColumnsKey) as string[];
+    if (columnNames.length === 0) return;
 
     let cancelled = false;
 
     const updateAutomaticTextColor = async () => {
       try {
-        const lum = await getImageAverageLuminance(uploadedFileUrl);
+        const cached = luminanceCacheRef.current;
+        const lum =
+          cached?.imageUrl === uploadedFileUrl
+            ? cached.luminance
+            : await getImageAverageLuminance(uploadedFileUrl);
         if (cancelled) return;
+        luminanceCacheRef.current = { imageUrl: uploadedFileUrl, luminance: lum };
         if (lum === null) return;
 
         const autoColor = getReadableTextColorForLuminance(lum); // '#000000' or '#ffffff'
@@ -250,7 +261,7 @@ export default function HomePage() {
             : { imageUrl: uploadedFileUrl, color: autoColor }
         );
         setPositions((prev) =>
-          applyAutomaticTextColor(prev, tableColumns, autoColor)
+          applyAutomaticTextColor(prev, columnNames, autoColor)
         );
       } catch {
         // Ignore analysis errors silently
@@ -388,18 +399,22 @@ export default function HomePage() {
   // Toast notifications
   const { toasts, showToast, hideToast } = useToast();
 
+  // Stable callback: an inline function here would change performAutosave's
+  // identity on every render and keep resetting the autosave debounce timer.
+  const handleAutosave = useCallback(() => {
+    // Silent autosave - no toast notification
+    console.log("Project autosaved");
+  }, []);
+
   // Early autosave hook for manual save function
   const { manualSave: baseManualSave } = useProjectAutosave({
     positions,
-    columns: Object.keys(tableData[0] || {}),
+    columns: tableColumns,
     emailConfig,
     certificateImageUrl: uploadedFileUrl,
     certificateFilename: uploadedFile as string | null,
     tableData,
-    onAutosave: () => {
-      // Silent autosave - no toast notification
-      console.log("Project autosaved");
-    },
+    onAutosave: handleAutosave,
     enabled: false, // Base hook is disabled, only used for manual save
     currentProjectId: null,
     currentProjectName: null
@@ -455,15 +470,12 @@ export default function HomePage() {
   // Project autosave hook - actually enables autosave after manual save
   useProjectAutosave({
     positions,
-    columns: Object.keys(tableData[0] || {}),
+    columns: tableColumns,
     emailConfig,
     certificateImageUrl: uploadedFileUrl,
     certificateFilename: uploadedFile as string | null,
     tableData,
-    onAutosave: () => {
-      // Silent autosave - no toast notification
-      console.log("Project autosaved");
-    },
+    onAutosave: handleAutosave,
     enabled: hasManuallySaved,
     currentProjectId,
     currentProjectName
@@ -1109,7 +1121,7 @@ export default function HomePage() {
         isOpen={showSaveProjectModal}
         onClose={() => setShowSaveProjectModal(false)}
         positions={positions}
-        columns={Object.keys(tableData[0] || {})}
+        columns={tableColumns}
         tableData={tableData}
         emailConfig={emailConfig}
         certificateImageUrl={uploadedFileUrl || undefined}

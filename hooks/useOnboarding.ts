@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { driver } from "driver.js";
+import type { Driver } from "driver.js";
 import "driver.js/dist/driver.css";
 
 const ONBOARDING_KEY = "bamboobot_onboarding_completed";
@@ -109,7 +109,7 @@ const tourSteps: TourStep[] = [
 export function useOnboarding() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(true);
-  const [driverInstance, setDriverInstance] = useState<any>(null);
+  const [driverInstance, setDriverInstance] = useState<Driver | null>(null);
 
   useEffect(() => {
     const hasCompleted = localStorage.getItem(ONBOARDING_KEY);
@@ -128,7 +128,11 @@ export function useOnboarding() {
   const startTour = useCallback(() => {
     completeOnboarding();
     
-    const startTourInternal = () => {
+    const startTourInternal = async () => {
+      // driver.js is only needed once a tour starts, so load it on demand
+      // instead of shipping it in the main /app bundle.
+      const { driver } = await import("driver.js");
+
       // Clean up any existing instance first
       if (driverInstance) {
         try {
@@ -161,17 +165,30 @@ export function useOnboarding() {
       localStorage.setItem(TOUR_KEY, "true");
     };
     
+    const runTour = () => {
+      startTourInternal().catch((e) => {
+        console.error('Failed to start tour:', e);
+        // Let the user retry next time rather than marking onboarding done
+        try {
+          localStorage.removeItem(ONBOARDING_KEY);
+        } catch {
+          // ignore storage errors
+        }
+        setHasSeenOnboarding(false);
+      });
+    };
+
     // Add a delay to ensure the welcome screen/modal is fully closed and DOM is updated
     setTimeout(() => {
       // Check if the main app elements are ready
       const uploadArea = document.querySelector('[data-tour="upload-area"]');
       if (!uploadArea) {
         console.warn('Tour elements not ready yet, waiting a bit more...');
-        setTimeout(startTourInternal, 500);
+        setTimeout(runTour, 500);
         return;
       }
       
-      startTourInternal();
+      runTour();
     }, 100); // Wait 100ms for DOM to settle
   }, [completeOnboarding, driverInstance]);
 

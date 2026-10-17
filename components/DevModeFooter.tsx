@@ -1,7 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
-import { StorageMonitor } from "@/components/StorageMonitor";
-import { LocalStorageMonitor } from "@/components/LocalStorageMonitor";
+import dynamic from "next/dynamic";
 import { ChevronUp, Minimize2, Wrench } from "lucide-react";
+
+// The storage monitors are dev/super-admin tooling shown only when this footer
+// is expanded, so keep them (and lib/localStorage-monitor) out of the main bundle.
+const StorageMonitor = dynamic(
+  () => import("@/components/StorageMonitor").then((m) => m.StorageMonitor),
+  { ssr: false }
+);
+const LocalStorageMonitor = dynamic(
+  () => import("@/components/LocalStorageMonitor").then((m) => m.LocalStorageMonitor),
+  { ssr: false }
+);
 
 interface DevModeFooterProps {
   isDevelopment: boolean;
