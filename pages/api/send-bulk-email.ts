@@ -300,6 +300,11 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
       return;
     }
 
+    if (emails.some(email => !email || typeof email !== 'object')) {
+      res.status(400).json({ error: 'Invalid email entry' });
+      return;
+    }
+
     if (emails.length > MAX_BULK_EMAILS) {
       res.status(413).json({
         error: `A bulk request can contain at most ${MAX_BULK_EMAILS} emails`
@@ -390,7 +395,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
         .filter(email => email.recipients.length > 0);
 
       if (rejectedEmails.length > 0) {
-        console.warn(`Bulk email - invalid addresses filtered: ${rejectedEmails.join(', ')}`);
+        console.warn(`Bulk email - ${rejectedEmails.length} invalid address(es) filtered`);
       }
 
       const skippedCount = emails.length - emailsWithRecipients.length;

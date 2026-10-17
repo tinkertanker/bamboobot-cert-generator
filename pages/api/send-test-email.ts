@@ -63,7 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       attachmentData
     } = req.body;
 
-    if (!testEmailAddress || !testEmailAddress.trim()) {
+    if (typeof testEmailAddress !== 'string' || !testEmailAddress.trim()) {
       res.status(400).json({ error: 'Test email address is required' });
       return;
     }
@@ -71,7 +71,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Parse and validate recipients
     const { valid: recipients, rejected } = parseRecipientsDetailed(testEmailAddress);
     if (rejected.length > 0) {
-      console.warn(`Test email - invalid addresses filtered: ${rejected.join(', ')}`);
+      console.warn(`Test email - ${rejected.length} invalid address(es) filtered`);
     }
     if (recipients.length === 0) {
       res.status(400).json({ error: 'Invalid email address format' });

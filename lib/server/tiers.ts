@@ -338,18 +338,40 @@ export async function getUserProjectCount(userId: string): Promise<number> {
 }
 
 /**
+ * Remaining number of projects the user may create under their tier.
+ * Returns null when the tier has no project limit, and 0 for unknown users.
+ */
+export async function getRemainingProjectAllowance(userId: string): Promise<number | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tier: true }
+  });
+  if (!user) return 0;
+  const limit = getTierLimits(user.tier as UserTier).projectLimit;
+  if (limit === null) return null;
+  const count = await getUserProjectCount(userId);
+  return Math.max(0, limit - count);
+}
+
+/**
  * Manually set user tier (admin action)
  */
 export async function setUserTier(actorId: string, targetUserId: string, newTier: UserTier): Promise<DbUser> {
+  const previous = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { tier: true }
+  });
   const updatedUser = await prisma.user.update({
     where: { id: targetUserId },
     data: { tier: newTier }
   });
 
   // Log the audit action
-  await logAudit(actorId, newTier === 'plus' ? 'user_upgrade' : 'user_downgrade', targetUserId, 'user', {
+  const rank: Record<UserTier, number> = { free: 0, plus: 1, admin: 2, super_admin: 3 };
+  const previousRank = previous ? rank[previous.tier as UserTier] ?? 0 : 0;
+  await logAudit(actorId, rank[newTier] >= previousRank ? 'user_upgrade' : 'user_downgrade', targetUserId, 'user', {
     newTier,
-    previousTier: updatedUser.tier
+    previousTier: previous?.tier ?? null
   });
 
   return updatedUser;
