@@ -201,7 +201,7 @@ describe('LoadProjectModal', () => {
     
     await waitFor(() => {
       expect(ProjectStorage.deleteProject).toHaveBeenCalledWith('template-1');
-      expect(defaultProps.onProjectDeleted).toHaveBeenCalled();
+      expect(defaultProps.onProjectDeleted).toHaveBeenCalledWith('template-1');
     });
   });
 
@@ -240,8 +240,7 @@ describe('LoadProjectModal', () => {
     render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
-      const importLabel = screen.getByText('Import').closest('label');
-      const importInput = importLabel?.querySelector('input[type="file"]');
+      const importInput = screen.getByLabelText('Import project file');
       expect(importInput).toBeDefined();
       
       fireEvent.change(importInput!, { target: { files: [file] } });
@@ -252,6 +251,17 @@ describe('LoadProjectModal', () => {
       expect(ProjectStorage.importProject).toHaveBeenCalledWith('{"project": {}}');
       expect(ProjectStorage.listProjects).toHaveBeenCalledTimes(2); // Once on open, once after import
     });
+  });
+
+  it('opens the file picker from the Import button', async () => {
+    render(<LoadProjectModal {...defaultProps} />);
+
+    const importInput = screen.getByLabelText('Import project file') as HTMLInputElement;
+    const clickSpy = jest.spyOn(importInput, 'click');
+    fireEvent.click(screen.getByRole('button', { name: /Import/ }));
+
+    expect(clickSpy).toHaveBeenCalled();
+    await waitFor(() => expect(ProjectStorage.listProjects).toHaveBeenCalled());
   });
 
   it('shows error when no templates found', async () => {
@@ -314,9 +324,7 @@ describe('LoadProjectModal', () => {
     render(<LoadProjectModal {...defaultProps} />);
     
     await waitFor(() => {
-      const importButton = screen.getByText('Import');
-      const importLabel = importButton.closest('label');
-      const importInput = importLabel?.querySelector('input[type="file"]');
+      const importInput = screen.getByLabelText('Import project file');
       expect(importInput).toBeDefined();
       
       fireEvent.change(importInput!, { target: { files: [file] } });

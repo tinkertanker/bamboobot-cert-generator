@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ const onboardingSteps: OnboardingStep[] = [
     title: "Welcome to Bamboobot Certificate Generator! 🎉",
     description:
       "Create professional certificates in bulk with our easy-to-use tool. Let's walk through how it works.",
-    icon: <Image src="/bamboobot-icon.png" alt="Bamboobot Icon" width={64} height={64} className="w-16 h-16" />,
+    icon: <Image src="/bamboobot-icon.png" alt="" width={64} height={64} className="w-16 h-16" priority />,
     features: [
       "Generate hundreds of certificates in minutes",
       "Drag-and-drop text positioning",
@@ -69,7 +69,7 @@ const onboardingSteps: OnboardingStep[] = [
   {
     title: "Step 3: Position Text Fields",
     description:
-      "Click on column names to add them to your certificate, then drag them to the perfect position.",
+      "A text field appears on your certificate for each column of data. Drag them into the perfect position.",
     icon: <Type className="w-16 h-16 text-green-700" />,
     features: [
       "Drag-and-drop positioning",
@@ -81,13 +81,13 @@ const onboardingSteps: OnboardingStep[] = [
   {
     title: "Step 4: Format Your Text",
     description:
-      "Customize fonts, colors, sizes, and alignment to match your brand perfectly.",
+      "Customise fonts, colours, sizes and alignment to match your brand perfectly.",
     icon: <Palette className="w-16 h-16 text-green-700" />,
     features: [
       "7 professional fonts",
-      "Custom colors",
+      "Custom colours",
       "Size and alignment options",
-      "Save formatting as templates"
+      "Formatting is saved with your project"
     ]
   },
   {
@@ -110,7 +110,7 @@ const onboardingSteps: OnboardingStep[] = [
     features: [
       "Interactive step-by-step guide",
       "Learn by doing",
-      "Access tutorial anytime from the header",
+      "Reopen the tutorial any time from the header",
       "Skip if you prefer to explore on your own"
     ]
   }
@@ -143,52 +143,76 @@ export function OnboardingModal({
     onClose();
   };
 
+  // Left/right arrow keys step through the slides
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setCurrentStep((prev) => Math.min(onboardingSteps.length - 1, prev + 1));
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setCurrentStep((prev) => Math.max(0, prev - 1));
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
   const step = onboardingSteps[currentStep];
 
   return (
     <Modal
       open={isOpen}
       onClose={handleSkip}
-      className="max-w-2xl"
-      width="w-full">
-      <div className="relative" style={{ minHeight: "480px", width: "100%" }}>
+      className="max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto"
+      width="w-[calc(100%-2rem)]"
+      ariaLabelledBy="onboarding-title"
+      ariaDescribedBy="onboarding-description">
+      <div className="relative w-full sm:min-h-[480px]">
         <button
+          type="button"
           onClick={handleSkip}
-          className="absolute top-0 right-0 p-2 rounded-full hover:bg-gray-100 transition-colors"
-          aria-label="Close">
-          <X className="w-5 h-5 text-gray-700" />
+          className="absolute top-0 right-0 p-2 rounded-full hover:bg-gray-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700"
+          aria-label="Close tutorial">
+          <X className="w-5 h-5 text-gray-700" aria-hidden="true" />
         </button>
 
-        <div className="text-center mb-8" style={{ width: "100%" }}>
-          <div className="flex justify-center mb-6">{step.icon}</div>
+        <div className="text-center mb-8 w-full">
+          <div className="flex justify-center mb-6" aria-hidden="true">{step.icon}</div>
 
           <h2
-            className="text-2xl font-bold mb-3 text-gray-900"
-            style={{ minHeight: "36px" }}>
+            id="onboarding-title"
+            className="text-xl sm:text-2xl font-bold mb-3 text-gray-900 sm:min-h-[36px]">
             {step.title}
           </h2>
 
           <p
-            className="text-lg mb-6 text-gray-600 px-4"
-            style={{ minHeight: "56px" }}>
+            id="onboarding-description"
+            className="text-base sm:text-lg mb-6 text-gray-600 sm:px-4 sm:min-h-[56px]">
             {step.description}
           </p>
 
-          <div
-            className="grid grid-cols-2 gap-4 text-left mx-auto px-1"
-            style={{ minHeight: "120px", maxWidth: "28rem" }}>
-            {step.features &&
-              step.features.map((feature, index) => (
-                <div key={index} className="flex items-start">
-                  <div className="w-2 h-2 rounded-full bg-green-900 mt-2 mr-2 flex-shrink-0" />
+          {step.features && (
+            <ul
+              className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-left mx-auto px-1 max-w-md sm:min-h-[120px]"
+              aria-label="Highlights">
+              {step.features.map((feature) => (
+                <li key={feature} className="flex items-start">
+                  <span className="w-2 h-2 rounded-full bg-green-900 mt-2 mr-2 flex-shrink-0" aria-hidden="true" />
                   <span className="text-sm text-gray-600">{feature}</span>
-                </div>
+                </li>
               ))}
-          </div>
+            </ul>
+          )}
         </div>
 
         <div className="flex items-center justify-between mb-6">
-          <div className="flex gap-1">
+          <div className="flex gap-1" aria-hidden="true">
             {onboardingSteps.map((_, index) => (
               <div
                 key={index}
@@ -203,41 +227,44 @@ export function OnboardingModal({
             ))}
           </div>
 
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600" aria-live="polite">
             Step {currentStep + 1} of {onboardingSteps.length}
+            {/* Announce the step's title too; it's already visible as the heading */}
+            <span className="sr-only">: {step.title}</span>
           </div>
         </div>
 
-        <div className="flex justify-between gap-3">
-          <Button onClick={handleSkip} variant="outline" className="flex-1">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3">
+          <Button type="button" onClick={handleSkip} variant="ghost" className="text-gray-700">
             Skip Tutorial
           </Button>
 
-          <div className="flex gap-2 flex-1 justify-end">
-            {!isFirstStep ? (
+          <div className="flex gap-2 justify-end">
+            {!isFirstStep && (
               <Button
+                type="button"
                 onClick={handlePrevious}
                 variant="outline"
                 className="gap-2">
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-4 h-4" aria-hidden="true" />
                 Previous
               </Button>
-            ) : (
-              <div className="w-[100px]" />
             )}
 
             <Button
+              type="button"
+              autoFocus
               onClick={handleNext}
-              className={`gap-2 ${isLastStep ? "bg-green-600 hover:bg-green-700" : ""}`}>
+              className={`gap-2 ${isLastStep ? "bg-green-700 hover:bg-green-800" : ""}`}>
               {isLastStep ? (
                 <>
                   Start Interactive Tour
-                  <Play className="w-4 h-4" />
+                  <Play className="w-4 h-4" aria-hidden="true" />
                 </>
               ) : (
                 <>
                   Next
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-4 h-4" aria-hidden="true" />
                 </>
               )}
             </Button>

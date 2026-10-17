@@ -172,7 +172,7 @@ describe('ToastContainer Component', () => {
     render(<ToastContainer toasts={mockToasts} onClose={jest.fn()} />);
     
     const container = screen.getByText('Toast 1').closest('.fixed');
-    expect(container).toHaveClass('fixed', 'bottom-4', 'right-4', 'z-50');
+    expect(container).toHaveClass('fixed', 'bottom-4', 'right-4', 'z-[60]');
   });
 
   it('stacks toasts vertically', () => {

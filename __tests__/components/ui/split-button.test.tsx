@@ -28,7 +28,7 @@ describe('SplitButton Component', () => {
       render(<SplitButton {...defaultProps} />);
       const buttons = screen.getAllByRole('button');
       expect(buttons).toHaveLength(2);
-      expect(buttons[1]).toHaveAttribute('aria-haspopup', 'true');
+      expect(buttons[1]).toHaveAttribute('aria-haspopup', 'menu');
       expect(buttons[1]).toHaveAttribute('aria-expanded', 'false');
     });
 

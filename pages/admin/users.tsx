@@ -3,10 +3,11 @@ import { GetServerSideProps } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/lib/server/prisma';
-import { getTierLimits } from '@/types/user';
+import { getTierLimits, TIER_LABELS } from '@/types/user';
 import type { UserTier } from '@/types/user';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import AdminLayout from '@/components/admin/AdminLayout';
 
 interface UserData {
@@ -32,6 +33,8 @@ interface UsersPageProps {
 export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersPageProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [tierFilter, setTierFilter] = useState<UserTier | 'all'>('all');
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  const router = useRouter();
   
   const filteredUsers = users.filter(user => {
     const matchesSearch = searchTerm === '' || 
@@ -43,23 +46,40 @@ export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersP
     return matchesSearch && matchesTier;
   });
   
-  const handleTierChange = async (userId: string, newTier: UserTier) => {
+  const handleTierChange = async (user: UserData, newTier: UserTier) => {
+    if (newTier === user.tier) return;
+    if (!window.confirm(`Change ${user.email} from ${TIER_LABELS[user.tier]} to ${TIER_LABELS[newTier]}?`)) return;
+    const userId = user.id;
+    setUpdatingUserId(userId);
     try {
-      const response = await fetch('/api/admin/users/update-tier', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, tier: newTier })
-      });
-      
-      if (response.ok) {
-        // Refresh page to show updated data
-        window.location.reload();
-      } else {
+      let updated = false;
+      try {
+        const response = await fetch('/api/admin/users/update-tier', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, tier: newTier })
+        });
+        if (response.ok) {
+          updated = true;
+        } else {
+          const body = await response.json().catch(() => ({}));
+          alert(body.error || 'Failed to update user tier');
+        }
+      } catch (error) {
+        console.error('Error updating tier:', error);
         alert('Failed to update user tier');
       }
-    } catch (error) {
-      console.error('Error updating tier:', error);
-      alert('Failed to update user tier');
+      if (!updated) return;
+
+      try {
+        // Re-run getServerSideProps without a full reload so filters are kept
+        await router.replace(router.asPath, undefined, { scroll: false });
+      } catch (error) {
+        console.error('Error refreshing users after tier update:', error);
+        alert('Tier updated, but the list could not be refreshed. Reload the page.');
+      }
+    } finally {
+      setUpdatingUserId(null);
     }
   };
   
@@ -69,11 +89,12 @@ export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersP
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Search Users
+              <label htmlFor="admin-user-search" className="block text-sm font-medium text-gray-700 mb-1">
+                Search users
               </label>
               <input
-                type="text"
+                id="admin-user-search"
+                type="search"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Email or name..."
@@ -81,10 +102,11 @@ export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersP
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Filter by Tier
+              <label htmlFor="admin-user-tier-filter" className="block text-sm font-medium text-gray-700 mb-1">
+                Filter by tier
               </label>
               <select
+                id="admin-user-tier-filter"
                 value={tierFilter}
                 onChange={(e) => setTierFilter(e.target.value as UserTier | 'all')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -97,7 +119,7 @@ export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersP
               </select>
             </div>
             <div className="flex items-end">
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-gray-600" aria-live="polite">
                 Showing {filteredUsers.length} of {users.length} users
               </div>
             </div>
@@ -106,29 +128,30 @@ export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersP
         
         {/* Users Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
+              <caption className="sr-only">Users</caption>
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     User
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Tier
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Usage Today
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Lifetime
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Projects
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Joined
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -136,10 +159,11 @@ export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersP
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredUsers.map((user) => (
                   <tr key={user.id} className={user.id === currentUserId ? 'bg-blue-50' : ''}>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-4 min-w-[12rem] max-w-xs">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-gray-900 break-all">
                           {user.email}
+                          {user.id === currentUserId && <span className="ml-1 text-xs font-normal text-blue-700">(you)</span>}
                         </div>
                         {user.name && (
                           <div className="text-sm text-gray-500">
@@ -148,12 +172,14 @@ export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersP
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       {isSuperAdmin && user.id !== currentUserId ? (
                         <select
                           value={user.tier}
-                          onChange={(e) => handleTierChange(user.id, e.target.value as UserTier)}
-                          className="text-sm border border-gray-300 rounded px-2 py-1"
+                          onChange={(e) => handleTierChange(user, e.target.value as UserTier)}
+                          disabled={updatingUserId === user.id}
+                          aria-label={`Tier for ${user.email}`}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 disabled:opacity-50"
                         >
                           <option value="free">Free</option>
                           <option value="plus">Plus</option>
@@ -167,34 +193,41 @@ export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersP
                           user.tier === 'plus' ? 'bg-blue-100 text-blue-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
-                          {user.tier.replace('_', ' ')}
+                          {TIER_LABELS[user.tier] ?? user.tier}
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div>PDFs: {user.dailyPdfCount}</div>
                       <div>Emails: {user.dailyEmailCount}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div>PDFs: {user.lifetimePdfCount}</div>
                       <div>Emails: {user.lifetimeEmailCount}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                       {user.projectCount}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500" suppressHydrationWarning>
                       {new Date(user.createdAt).toLocaleDateString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm">
                       <Link
                         href={`/admin/users/${user.id}`}
                         className="text-blue-600 hover:text-blue-700"
                       >
-                        View Details
+                        View details<span className="sr-only"> for {user.email}</span>
                       </Link>
                     </td>
                   </tr>
                 ))}
+                {filteredUsers.length === 0 && (
+                  <tr>
+                    <td className="px-6 py-6 text-sm text-gray-500" colSpan={7}>
+                      {users.length === 0 ? 'No users yet.' : 'No users match your search or filter.'}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

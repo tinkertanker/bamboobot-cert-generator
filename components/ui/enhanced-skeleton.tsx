@@ -40,9 +40,19 @@ function ShimmerSkeleton({ className, children, ...props }: ShimmerSkeletonProps
   );
 }
 
+// Fixed, varied widths. Math.random() in render caused SSR hydration
+// mismatches and made the skeleton jump on every re-render; percentages
+// across three flex columns also summed to >100% and overflowed.
+const ROW_WIDTHS: Array<[string, string, string]> = [
+  ["30%", "40%", "20%"],
+  ["25%", "35%", "28%"],
+  ["33%", "30%", "22%"],
+  ["22%", "42%", "18%"],
+];
+
 function EnhancedTableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200">
+    <div className="overflow-hidden rounded-lg border border-gray-200" aria-hidden="true">
       {/* Header */}
       <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
         <div className="flex gap-4">
@@ -53,43 +63,32 @@ function EnhancedTableSkeleton({ rows = 5 }: { rows?: number }) {
       </div>
       
       {/* Rows */}
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="px-4 py-3 border-b border-gray-200 last:border-b-0">
-          <div className="flex gap-4">
-            <ShimmerSkeleton 
-              className="h-4" 
-              style={{ 
-                width: `${60 + Math.random() * 40}%`,
-                animationDelay: `${i * 100}ms`
-              }} 
-            />
-            <ShimmerSkeleton 
-              className="h-4" 
-              style={{ 
-                width: `${50 + Math.random() * 50}%`,
-                animationDelay: `${i * 100 + 50}ms`
-              }} 
-            />
-            <ShimmerSkeleton 
-              className="h-4" 
-              style={{ 
-                width: `${40 + Math.random() * 60}%`,
-                animationDelay: `${i * 100 + 100}ms`
-              }} 
-            />
+      {Array.from({ length: rows }).map((_, i) => {
+        const widths = ROW_WIDTHS[i % ROW_WIDTHS.length];
+        return (
+          <div key={i} className="px-4 py-3 border-b border-gray-200 last:border-b-0">
+            <div className="flex gap-4">
+              {widths.map((width, col) => (
+                <ShimmerSkeleton
+                  key={col}
+                  className="h-4"
+                  style={{ width, animationDelay: `${i * 100 + col * 50}ms` }}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
 export function ProcessingDataSkeleton() {
   return (
-    <div className="flex flex-col space-y-4 p-4">
+    <div className="flex flex-col space-y-4 p-4" role="status">
       <div className="text-center">
-        <ShimmerSkeleton className="h-6 w-48 mx-auto mb-2" />
-        <div className="text-sm text-gray-500">Processing your data...</div>
+        <ShimmerSkeleton className="h-6 w-48 mx-auto mb-2" aria-hidden="true" />
+        <div className="text-sm text-gray-600">Processing your data…</div>
       </div>
       <EnhancedTableSkeleton rows={8} />
     </div>

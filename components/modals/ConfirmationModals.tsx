@@ -27,8 +27,9 @@ export function ConfirmationModals({
           <ModalTitle>Reset Field Formatting</ModalTitle>
         </ModalHeader>
         <ModalContent>
-          Are you sure you want to reset the formatting for &quot;
-          {selectedField}&quot; to default settings?
+          Are you sure you want to reset the formatting for &ldquo;
+          <span className="font-medium text-gray-900 break-words">{selectedField}</span>
+          &rdquo; to the default settings?
         </ModalContent>
         <ModalFooter>
           <Button
@@ -56,11 +57,7 @@ export function ConfirmationModals({
               }
               setShowResetFieldModal(false);
             }}
-            className="px-4 py-2"
-            style={{
-              backgroundColor: "#6B7280",
-              color: "white"
-            }}>
+            className="px-4 py-2 bg-gray-600 text-white hover:bg-gray-700">
             Reset
           </Button>
         </ModalFooter>
@@ -71,7 +68,7 @@ export function ConfirmationModals({
         open={showClearAllModal}
         onClose={() => setShowClearAllModal(false)}>
         <ModalHeader>
-          <ModalTitle>Clear All Formatting</ModalTitle>
+          <ModalTitle>Clear all formatting</ModalTitle>
         </ModalHeader>
         <ModalContent>
           Are you sure you want to reset all text fields to default
@@ -106,12 +103,8 @@ export function ConfirmationModals({
               }
               setShowClearAllModal(false);
             }}
-            className="px-4 py-2"
-            style={{
-              backgroundColor: "#DC2626",
-              color: "white"
-            }}>
-            Clear All
+            className="px-4 py-2 bg-red-600 text-white hover:bg-red-700">
+            Clear all
           </Button>
         </ModalFooter>
       </Modal>

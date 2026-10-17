@@ -94,9 +94,10 @@ export default function SystemPage({ system }: SystemPageProps) {
           {/* Database Health */}
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Database</h3>
+              <h2 className="text-lg font-semibold text-gray-900">Database</h2>
               <span className={getStatusColor(system.database.isHealthy)}>
-                {getStatusIcon(system.database.isHealthy)}
+                <span aria-hidden="true">{getStatusIcon(system.database.isHealthy)}</span>
+                <span className="sr-only">{system.database.isHealthy ? 'Healthy' : 'Unhealthy'}</span>
               </span>
             </div>
             <div className="space-y-2">
@@ -115,10 +116,10 @@ export default function SystemPage({ system }: SystemPageProps) {
           
           {/* Storage */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Storage</h3>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Storage</h2>
             <div className="space-y-4">
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Local Storage</h4>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Local Storage</h3>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Temp Images</span>
@@ -131,7 +132,7 @@ export default function SystemPage({ system }: SystemPageProps) {
                 </div>
               </div>
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Cloud Storage (R2/S3)</h4>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Cloud Storage (R2/S3)</h3>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Enabled</span>
@@ -142,7 +143,7 @@ export default function SystemPage({ system }: SystemPageProps) {
                   {system.storage.r2.bucket && (
                     <div className="flex justify-between">
                       <span className="text-gray-500">Bucket</span>
-                      <span>{system.storage.r2.bucket}</span>
+                      <span className="break-all text-right">{system.storage.r2.bucket}</span>
                     </div>
                   )}
                 </div>
@@ -152,7 +153,7 @@ export default function SystemPage({ system }: SystemPageProps) {
           
           {/* Environment */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Environment</h3>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Environment</h2>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-500">Node Version</span>
@@ -160,7 +161,7 @@ export default function SystemPage({ system }: SystemPageProps) {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Platform</span>
-                <span>{system.environment.platform}</span>
+                <span className="break-all text-right">{system.environment.platform}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Uptime</span>
@@ -171,7 +172,14 @@ export default function SystemPage({ system }: SystemPageProps) {
                   <span className="text-gray-500">Memory Usage</span>
                   <span>{system.environment.memory.percentage.toFixed(1)}%</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="w-full bg-gray-200 rounded-full h-2"
+                  role="progressbar"
+                  aria-label="Memory usage"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(system.environment.memory.percentage)}
+                >
                   <div 
                     className={`h-2 rounded-full ${
                       system.environment.memory.percentage > 80 ? 'bg-red-500' :
@@ -191,10 +199,10 @@ export default function SystemPage({ system }: SystemPageProps) {
           
           {/* Services */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Services</h3>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Services</h2>
             <div className="space-y-4">
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Email Providers</h4>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Email Providers</h3>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Resend</span>
@@ -215,7 +223,7 @@ export default function SystemPage({ system }: SystemPageProps) {
                 </div>
               </div>
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Authentication</h4>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Authentication</h3>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Provider</span>
@@ -239,34 +247,34 @@ export default function SystemPage({ system }: SystemPageProps) {
         
         {/* Configuration Status */}
         <div className="mt-6 bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Configuration</h3>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Configuration</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className={`text-2xl mb-1 ${system.configuration.requireAuth ? 'text-green-600' : 'text-gray-400'}`}>
+              <div className={`text-2xl mb-1 ${system.configuration.requireAuth ? 'text-green-600' : 'text-gray-400'}`} aria-hidden="true">
                 {system.configuration.requireAuth ? '🔒' : '🔓'}
               </div>
-              <div className="text-sm text-gray-600">Auth Required</div>
+              <div className="text-sm text-gray-600">Auth required</div>
               <div className="text-xs text-gray-500">{system.configuration.requireAuth ? 'Enabled' : 'Disabled'}</div>
             </div>
             <div className="text-center">
-              <div className={`text-2xl mb-1 ${system.configuration.projectPersistence ? 'text-green-600' : 'text-gray-400'}`}>
+              <div className={`text-2xl mb-1 ${system.configuration.projectPersistence ? 'text-green-600' : 'text-gray-400'}`} aria-hidden="true">
                 {system.configuration.projectPersistence ? '💾' : '📝'}
               </div>
-              <div className="text-sm text-gray-600">Project Persistence</div>
+              <div className="text-sm text-gray-600">Project persistence</div>
               <div className="text-xs text-gray-500">{system.configuration.projectPersistence ? 'Enabled' : 'Disabled'}</div>
             </div>
             <div className="text-center">
-              <div className={`text-2xl mb-1 ${system.configuration.superAdminConfigured ? 'text-green-600' : 'text-yellow-600'}`}>
+              <div className={`text-2xl mb-1 ${system.configuration.superAdminConfigured ? 'text-green-600' : 'text-yellow-600'}`} aria-hidden="true">
                 {system.configuration.superAdminConfigured ? '👑' : '⚠️'}
               </div>
-              <div className="text-sm text-gray-600">Super Admin</div>
+              <div className="text-sm text-gray-600">Super admin</div>
               <div className="text-xs text-gray-500">{system.configuration.superAdminConfigured ? 'Configured' : 'Not set'}</div>
             </div>
             <div className="text-center">
-              <div className={`text-2xl mb-1 ${system.configuration.adminDomainConfigured ? 'text-green-600' : 'text-yellow-600'}`}>
+              <div className={`text-2xl mb-1 ${system.configuration.adminDomainConfigured ? 'text-green-600' : 'text-yellow-600'}`} aria-hidden="true">
                 {system.configuration.adminDomainConfigured ? '🏢' : '⚠️'}
               </div>
-              <div className="text-sm text-gray-600">Admin Domain</div>
+              <div className="text-sm text-gray-600">Admin domain</div>
               <div className="text-xs text-gray-500">{system.configuration.adminDomainConfigured ? 'Configured' : 'Not set'}</div>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { Mail } from "lucide-react";
 import { ProcessingDataSkeleton } from "@/components/ui/enhanced-skeleton";
 import { VirtualizedTable } from "@/components/VirtualizedTable";
@@ -7,6 +7,9 @@ import { COLORS } from "@/utils/styles";
 import type { DataPanelProps, TableData } from "@/types/certificate";
 import type { HeaderGroup, Row, Cell, ColumnInstance } from "react-table";
 import { useTable } from "react-table";
+
+const TABLE_BODY_MAX_HEIGHT = 250;
+const VIRTUALIZE_THRESHOLD = 100;
 
 export function DataPanelWithSearch({
   tableInput,
@@ -22,7 +25,32 @@ export function DataPanelWithSearch({
   setCurrentPreviewIndex,
   isProcessing = false
 }: Omit<DataPanelProps, 'getTableProps' | 'getTableBodyProps'> & { isProcessing?: boolean }) {
-  const [filteredData, setFilteredData] = useState<TableData[]>(tableData);
+  // Remember which tableData the filtered rows were computed from so a stale
+  // filter result is never shown after the data changes.
+  const [filterResult, setFilterResult] = useState<{
+    source: TableData[];
+    rows: TableData[];
+  } | null>(null);
+  const filteredData =
+    filterResult && filterResult.source === tableData
+      ? filterResult.rows
+      : tableData;
+  const handleFilteredDataChange = useCallback(
+    (rows: TableData[]) => setFilterResult({ source: tableData, rows }),
+    [tableData]
+  );
+
+  // Map each row object back to its position in the full dataset so clicks
+  // and highlighting refer to the real entry, not the filtered position.
+  const originalIndexByRow = useMemo(() => {
+    const map = new Map<TableData, number>();
+    tableData.forEach((row, index) => map.set(row, index));
+    return map;
+  }, [tableData]);
+  const getOriginalIndex = useCallback(
+    (row: Row<TableData>) => originalIndexByRow.get(row.original) ?? row.index,
+    [originalIndexByRow]
+  );
 
   // Get column names from the first header group
   const columnNames = useMemo(() => {
@@ -54,14 +82,63 @@ export function DataPanelWithSearch({
     data: filteredData
   });
 
-  // Update filtered data when table data changes
-  React.useEffect(() => {
-    setFilteredData(tableData);
-  }, [tableData]);
+  const currentRowVisible = rows.some(
+    (row) => getOriginalIndex(row) === currentPreviewIndex
+  );
+
+  // Arrow keys move between rows (and the preview) without nudging the canvas
+  const handleRowKeyDown = (
+    event: React.KeyboardEvent<HTMLTableRowElement>,
+    position: number,
+    originalIndex: number
+  ) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setCurrentPreviewIndex(originalIndex);
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    event.stopPropagation();
+    const nextPosition = event.key === "ArrowDown" ? position + 1 : position - 1;
+    if (nextPosition < 0 || nextPosition >= rows.length) return;
+    setCurrentPreviewIndex(getOriginalIndex(rows[nextPosition]));
+    const tbody = event.currentTarget.parentElement;
+    const nextRow = tbody?.querySelector<HTMLTableRowElement>(
+      `[data-row-position="${nextPosition}"]`
+    );
+    nextRow?.focus();
+  };
+
+  const renderHeaderRow = (headerGroup: HeaderGroup<TableData>, index: number) => (
+    <tr {...headerGroup.getHeaderGroupProps()} key={headerGroup.id || `header-${index}`}>
+      {headerGroup.headers.map((column: ColumnInstance<TableData>) => (
+        <th
+          {...column.getHeaderProps()}
+          key={column.id}
+          scope="col"
+          className="px-4 py-2 border-b border-gray-200 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"
+          style={{
+            width: `${100 / headerGroup.headers.length}%`,
+            backgroundColor: COLORS.tabInactive
+          }}>
+          <div className="flex items-center gap-2">
+            {column.render("Header")}
+            {detectedEmailColumn === column.id && (
+              <span title="Email column detected">
+                <Mail className="h-3 w-3 text-blue-600" aria-hidden="true" />
+                <span className="sr-only">(email column)</span>
+              </span>
+            )}
+          </div>
+        </th>
+      ))}
+    </tr>
+  );
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-6 mb-4">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4">
         <div className="flex items-center">
           <input
             type="checkbox"
@@ -87,8 +164,12 @@ export function DataPanelWithSearch({
           </label>
         </div>
       </div>
-      <div className="flex flex-col h-[480px]">
+      <div className="flex flex-col">
+        <label htmlFor="table-data-input" className="sr-only">
+          Certificate data
+        </label>
         <textarea
+          id="table-data-input"
           value={tableInput}
           onChange={handleTableDataChange}
           placeholder={
@@ -96,92 +177,75 @@ export function DataPanelWithSearch({
               ? "Paste the text you want to show on the certs here, one per line. You can copy and paste from your spreadsheet (comma-separated format)"
               : "Paste the text you want to show on the certs here, one per line. You can copy and paste from your spreadsheet"
           }
-          className="w-full resize-none px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          spellCheck={false}
+          className="w-full resize-y min-h-[96px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           style={{ height: "154px" }}
         />
         {isProcessing ? (
-          <div className="mt-4 flex-1 min-h-0">
+          <div className="mt-4" role="status" aria-live="polite">
             <ProcessingDataSkeleton />
           </div>
         ) : tableData.length > 0 ? (
-          <div className="mt-4 flex-1 min-h-0">
+          <div className="mt-4 min-w-0">
             {/* Smart Search Bar */}
             <SmartSearchBar
               tableData={tableData}
-              onFilteredDataChange={setFilteredData}
+              onFilteredDataChange={handleFilteredDataChange}
               columns={columnNames}
             />
-            
-            <div className="h-full border border-gray-200 rounded-lg overflow-hidden">
-              {/* Table Header - Keep outside virtualization for sticky behavior */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white" {...getTableProps()}>
-                  <thead
-                    className="sticky top-0 z-10"
-                    style={{ backgroundColor: COLORS.tabInactive }}>
-                    {headerGroups.map(
-                      (headerGroup: HeaderGroup<TableData>, index) => (
-                        <tr {...headerGroup.getHeaderGroupProps()} key={headerGroup.id || `header-${index}`}>
-                          {headerGroup.headers.map(
-                            (column: ColumnInstance<TableData>) => (
-                              <th
-                                {...column.getHeaderProps()}
-                                key={column.id}
-                                className="px-4 py-2 border-b border-gray-200 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                style={{
-                                  width: `${100 / headerGroup.headers.length}%`
-                                }}>
-                                <div className="flex items-center gap-2">
-                                  {column.render("Header")}
-                                  {detectedEmailColumn === column.id && (
-                                    <div title="Email column detected">
-                                      <Mail className="h-3 w-3 text-blue-600" />
-                                    </div>
-                                  )}
-                                </div>
-                              </th>
-                            )
-                          )}
-                        </tr>
-                      )
-                    )}
-                  </thead>
-                </table>
-              </div>
-              
-              {/* Virtualized Table Body */}
-              {rows.length > 100 ? (
-                <VirtualizedTable
-                  rows={rows}
-                  prepareRow={prepareRow}
-                  currentPreviewIndex={currentPreviewIndex}
-                  setCurrentPreviewIndex={setCurrentPreviewIndex}
-                  height={250} // Reduced height to account for search bar
-                />
+
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              {rows.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-gray-500" role="status">
+                  No entries match your search or filters.
+                </div>
+              ) : rows.length > VIRTUALIZE_THRESHOLD ? (
+                <>
+                  {/* Header kept outside the virtualised list */}
+                  <table className="w-full bg-white table-fixed" {...getTableProps()}>
+                    <thead>{headerGroups.map(renderHeaderRow)}</thead>
+                  </table>
+                  <VirtualizedTable
+                    rows={rows}
+                    prepareRow={prepareRow}
+                    currentPreviewIndex={currentPreviewIndex}
+                    setCurrentPreviewIndex={setCurrentPreviewIndex}
+                    getOriginalIndex={getOriginalIndex}
+                    height={TABLE_BODY_MAX_HEIGHT}
+                  />
+                </>
               ) : (
-                /* Regular table for small datasets */
-                <div className="overflow-y-auto" style={{ maxHeight: "250px" }}>
+                /* Regular table for small datasets: one table so columns line up */
+                <div
+                  className="overflow-auto"
+                  style={{ maxHeight: `${TABLE_BODY_MAX_HEIGHT + 40}px` }}>
                   <table className="min-w-full bg-white" {...getTableProps()}>
+                    <thead className="sticky top-0 z-10">
+                      {headerGroups.map(renderHeaderRow)}
+                    </thead>
                     <tbody {...getTableBodyProps()}>
-                      {rows.map((row: Row<TableData>, index) => {
+                      {rows.map((row: Row<TableData>, position) => {
                         prepareRow(row);
-                        const isCurrentRow = index === currentPreviewIndex;
+                        const originalIndex = getOriginalIndex(row);
+                        const isCurrentRow = originalIndex === currentPreviewIndex;
+                        const isTabStop = currentRowVisible ? isCurrentRow : position === 0;
                         return (
                           <tr
                             {...row.getRowProps()}
-                            key={row.id || index}
+                            key={row.id || position}
+                            data-row-position={position}
+                            tabIndex={isTabStop ? 0 : -1}
+                            aria-current={isCurrentRow ? "true" : undefined}
                             className={`${
                               isCurrentRow ? "" : "hover:bg-gray-50"
-                            } transition-colors cursor-pointer`}
+                            } transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500`}
                             style={{
                               backgroundColor: isCurrentRow
                                 ? COLORS.highlightBg
-                                : "transparent",
-                              borderColor: isCurrentRow
-                                ? COLORS.highlightBorder
-                                : "transparent"
+                                : undefined
                             }}
-                            onClick={() => setCurrentPreviewIndex(index)}
+                            onClick={() => setCurrentPreviewIndex(originalIndex)}
+                            onKeyDown={(e) => handleRowKeyDown(e, position, originalIndex)}
                             title={
                               isCurrentRow
                                 ? "Currently viewing this entry"
@@ -191,7 +255,7 @@ export function DataPanelWithSearch({
                               <td
                                 {...cell.getCellProps()}
                                 key={cell.column.id}
-                                className={`px-4 py-2 border-b border-gray-200 text-sm ${
+                                className={`px-4 py-2 border-b border-gray-200 text-sm break-words ${
                                   isCurrentRow
                                     ? "text-amber-900 font-medium"
                                     : "text-gray-900"

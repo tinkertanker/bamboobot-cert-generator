@@ -173,7 +173,7 @@ export function useDragAndDrop({
       const rect = element.getBoundingClientRect();
 
       // Get current alignment to calculate correct anchor point
-      const currentAlignment = positions[key]?.alignment || "center";
+      const currentAlignment = positions[key]?.alignment || "left";
 
       // Calculate anchor point based on alignment
       let anchorX: number;

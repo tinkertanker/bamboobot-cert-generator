@@ -78,7 +78,7 @@ describe('SaveProjectModal', () => {
     
     expect(screen.getByRole('heading', { name: 'Save Project' })).toBeInTheDocument();
     expect(screen.getByLabelText('Project Name')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('e.g., Annual Awards 2025')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('e.g. Annual Awards 2025')).toBeInTheDocument();
   });
 
   it('does not render when closed', () => {
@@ -90,7 +90,7 @@ describe('SaveProjectModal', () => {
   it('displays template information correctly', () => {
     render(<SaveProjectModal {...defaultProps} emailConfig={mockEmailConfig} />);
     
-    expect(screen.getByText('1 configured text fields')).toBeInTheDocument();
+    expect(screen.getByText('1 configured text field')).toBeInTheDocument();
     expect(screen.getByText('2 data columns')).toBeInTheDocument();
     expect(screen.getByText('Email configuration')).toBeInTheDocument();
     // Check for "Certificate image" and "Local" separately as they're in different elements
@@ -187,7 +187,7 @@ describe('SaveProjectModal', () => {
   it('displays storage usage indicator', () => {
     render(<SaveProjectModal {...defaultProps} />);
     
-    expect(screen.getByText('Browser Storage')).toBeInTheDocument();
+    expect(screen.getByText('Browser storage')).toBeInTheDocument();
     expect(screen.getByText('20% used')).toBeInTheDocument();
   });
 
@@ -274,7 +274,7 @@ describe('SaveProjectModal', () => {
     fireEvent.click(saveButton);
     
     expect(saveButton).toBeDisabled();
-    expect(screen.getByText('Saving...')).toBeInTheDocument();
+    expect(screen.getByText('Saving…')).toBeInTheDocument();
   });
 
   it('closes modal on cancel', () => {
