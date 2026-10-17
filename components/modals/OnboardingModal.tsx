@@ -229,6 +229,8 @@ export function OnboardingModal({
 
           <div className="text-sm text-gray-600" aria-live="polite">
             Step {currentStep + 1} of {onboardingSteps.length}
+            {/* Announce the step's title too; it's already visible as the heading */}
+            <span className="sr-only">: {step.title}</span>
           </div>
         </div>
 

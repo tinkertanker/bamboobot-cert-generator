@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { FixedSizeList as List, areEqual } from "react-window";
 import type { ListChildComponentProps } from "react-window";
 import { COLORS } from "@/utils/styles";
@@ -21,6 +21,9 @@ interface RowData {
   currentPreviewIndex: number;
   setCurrentPreviewIndex: (index: number) => void;
   getOriginalIndex?: (row: Row<TableData>) => number;
+  /** Position of the single row that is in the tab order (roving tabindex) */
+  tabStopPosition: number;
+  onRowKeyDown: (event: React.KeyboardEvent<HTMLDivElement>, position: number) => void;
 }
 
 const ROW_HEIGHT = 41; // Height of each row in pixels (py-2 + border)
@@ -32,7 +35,15 @@ const VirtualizedRow = React.memo(function VirtualizedRow({
   style,
   data
 }: ListChildComponentProps<RowData>) {
-  const { rows, prepareRow, currentPreviewIndex, setCurrentPreviewIndex, getOriginalIndex } = data;
+  const {
+    rows,
+    prepareRow,
+    currentPreviewIndex,
+    setCurrentPreviewIndex,
+    getOriginalIndex,
+    tabStopPosition,
+    onRowKeyDown
+  } = data;
   const row = rows[index];
   prepareRow(row);
   const originalIndex = getOriginalIndex ? getOriginalIndex(row) : index;
@@ -40,8 +51,10 @@ const VirtualizedRow = React.memo(function VirtualizedRow({
 
   return (
     <div
+      role="button"
+      data-row-position={index}
       aria-current={isCurrentRow ? "true" : undefined}
-      tabIndex={0}
+      tabIndex={index === tabStopPosition ? 0 : -1}
       style={{
         ...style,
         display: "flex",
@@ -55,12 +68,7 @@ const VirtualizedRow = React.memo(function VirtualizedRow({
         !isCurrentRow ? "hover:bg-gray-50" : ""
       }`}
       onClick={() => setCurrentPreviewIndex(originalIndex)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          setCurrentPreviewIndex(originalIndex);
-        }
-      }}
+      onKeyDown={(e) => onRowKeyDown(e, index)}
       title={isCurrentRow ? "Currently viewing this entry" : "Click to view this entry"}
     >
       {row.cells.map((cell: Cell<TableData>) => (
@@ -92,13 +100,73 @@ export function VirtualizedTable({
   height,
   getOriginalIndex
 }: VirtualizedTableProps) {
+  const listRef = useRef<List<RowData>>(null);
+  const outerRef = useRef<HTMLDivElement>(null);
+
+  const originalIndexAt = useCallback(
+    (position: number) =>
+      getOriginalIndex ? getOriginalIndex(rows[position]) : position,
+    [rows, getOriginalIndex]
+  );
+
+  // Only the current row (or the first row if it's filtered out) is a tab stop
+  const tabStopPosition = useMemo(() => {
+    for (let position = 0; position < rows.length; position++) {
+      if (originalIndexAt(position) === currentPreviewIndex) return position;
+    }
+    return 0;
+  }, [rows, originalIndexAt, currentPreviewIndex]);
+
+  // Matches the small table: Enter/Space selects, arrows move between rows
+  const onRowKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>, position: number) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        setCurrentPreviewIndex(originalIndexAt(position));
+        return;
+      }
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      event.preventDefault();
+      event.stopPropagation();
+      const nextPosition = event.key === "ArrowDown" ? position + 1 : position - 1;
+      if (nextPosition < 0 || nextPosition >= rows.length) return;
+      setCurrentPreviewIndex(originalIndexAt(nextPosition));
+      listRef.current?.scrollToItem(nextPosition);
+      // The target row may only mount after scrolling, so focus on the next frame
+      requestAnimationFrame(() => {
+        outerRef.current
+          ?.querySelector<HTMLDivElement>(`[data-row-position="${nextPosition}"]`)
+          ?.focus();
+      });
+    },
+    [rows.length, originalIndexAt, setCurrentPreviewIndex]
+  );
+
   const itemData = useMemo<RowData>(
-    () => ({ rows, prepareRow, currentPreviewIndex, setCurrentPreviewIndex, getOriginalIndex }),
-    [rows, prepareRow, currentPreviewIndex, setCurrentPreviewIndex, getOriginalIndex]
+    () => ({
+      rows,
+      prepareRow,
+      currentPreviewIndex,
+      setCurrentPreviewIndex,
+      getOriginalIndex,
+      tabStopPosition,
+      onRowKeyDown
+    }),
+    [
+      rows,
+      prepareRow,
+      currentPreviewIndex,
+      setCurrentPreviewIndex,
+      getOriginalIndex,
+      tabStopPosition,
+      onRowKeyDown
+    ]
   );
 
   return (
     <List
+      ref={listRef}
+      outerRef={outerRef}
       height={Math.min(height, rows.length * ROW_HEIGHT)}
       itemCount={rows.length}
       itemSize={ROW_HEIGHT}

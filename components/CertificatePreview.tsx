@@ -44,6 +44,7 @@ function CertificatePreviewComponent({
   handlePointerDown,
   handlePointerUp,
   setShowCenterGuide,
+  setActiveTab,
   isDraggingFile,
   handleDragOver,
   handleDragLeave,
@@ -235,6 +236,7 @@ function CertificatePreviewComponent({
                     <div
                       key={key}
                       data-key={key}
+                      data-preview-field=""
                       role="button"
                       tabIndex={0}
                       aria-pressed={isSelected}
@@ -245,6 +247,7 @@ function CertificatePreviewComponent({
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           setSelectedField(key);
+                          setActiveTab?.("formatting");
                         }
                       }}
                       onPointerDown={(e) => handlePointerDown(e, key)}
@@ -515,6 +518,7 @@ export const areCertificatePreviewPropsEqual = (
     prevProps.handlePointerDown === nextProps.handlePointerDown &&
     prevProps.handlePointerUp === nextProps.handlePointerUp &&
     prevProps.setShowCenterGuide === nextProps.setShowCenterGuide &&
+    prevProps.setActiveTab === nextProps.setActiveTab &&
     prevProps.handleDragOver === nextProps.handleDragOver &&
     prevProps.handleDragLeave === nextProps.handleDragLeave &&
     prevProps.handleFileDrop === nextProps.handleFileDrop &&

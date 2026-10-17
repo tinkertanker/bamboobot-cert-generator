@@ -85,7 +85,7 @@ export function EnhancedTableSkeleton({ rows = 5 }: { rows?: number }) {
 
 export function ProcessingDataSkeleton() {
   return (
-    <div className="flex flex-col space-y-4 p-4" role="status" aria-busy="true">
+    <div className="flex flex-col space-y-4 p-4" role="status">
       <div className="text-center">
         <ShimmerSkeleton className="h-6 w-48 mx-auto mb-2" aria-hidden="true" />
         <div className="text-sm text-gray-600">Processing your data…</div>

@@ -265,7 +265,7 @@ export function SaveProjectModal({
           >
             {isSaving ? (
               <>
-                <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" aria-hidden="true" />
+                <span className="motion-safe:animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" aria-hidden="true" />
                 Saving…
               </>
             ) : (

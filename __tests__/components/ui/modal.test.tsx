@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Modal, ModalTitle } from '@/components/ui/modal';
 
 describe('Modal', () => {
@@ -71,7 +71,7 @@ describe('Modal', () => {
     expect(outerClose).not.toHaveBeenCalled();
   });
 
-  it('locks body scroll while open and restores focus on close', () => {
+  it('locks body scroll while open and restores focus on close', async () => {
     function Harness() {
       const [open, setOpen] = useState(false);
       return (
@@ -90,6 +90,6 @@ describe('Modal', () => {
     expect(document.body.style.overflow).toBe('hidden');
     fireEvent.click(screen.getByText('Done'));
     expect(document.body.style.overflow).toBe('');
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 });

@@ -131,7 +131,7 @@ export function StorageMonitor() {
         ) : (
           <>
             <span className="text-sm">Loading storage…</span>
-            <RefreshCw className="w-3 h-3 animate-spin" aria-hidden="true" />
+            <RefreshCw className="w-3 h-3 motion-safe:animate-spin" aria-hidden="true" />
           </>
         )}
       </div>
@@ -170,8 +170,18 @@ export function StorageMonitor() {
           aria-label="Refresh storage stats"
           title="Refresh"
         >
-          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+          <RefreshCw className={`w-3 h-3 ${loading ? 'motion-safe:animate-spin' : ''}`} aria-hidden="true" />
         </button>
+
+        {/* Keep showing the last stats, but don't hide a failed refresh */}
+        {loadFailed && !loading && (
+          <span className="flex items-center gap-1 text-xs text-red-700" role="alert">
+            Refresh failed
+            <button type="button" onClick={fetchStats} className="text-blue-600 hover:text-blue-800 underline">
+              Retry
+            </button>
+          </span>
+        )}
 
         {/* Detailed Breakdown */}
         {showDetails && (

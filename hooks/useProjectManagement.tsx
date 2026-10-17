@@ -66,6 +66,34 @@ interface UseProjectManagementReturn {
   handleProjectDeleted: (projectId: string | null) => void;
 }
 
+/**
+ * True when starting a new project would discard something: an uploaded image,
+ * placed text fields or table data. (emailConfig is always an object, so it
+ * can't signal "work" on its own.)
+ */
+export function hasProjectWork(
+  uploadedFileUrl: string | null,
+  positions: Record<string, unknown> | null | undefined,
+  tableData: TableData[] | null | undefined
+): boolean {
+  return (
+    !!uploadedFileUrl ||
+    Object.keys(positions || {}).length > 0 ||
+    (tableData?.length ?? 0) > 0
+  );
+}
+
+/**
+ * Saved projects may carry a stale isConfigured flag; derive it from the fields
+ * so the panel's status and the send check agree.
+ */
+function withComputedIsConfigured(config: EmailConfig): EmailConfig {
+  return {
+    ...config,
+    isConfigured: !!(config.senderName && config.subject && config.message)
+  };
+}
+
 export function useProjectManagement({
   setPositions,
   setEmailConfig,
@@ -184,7 +212,7 @@ export function useProjectManagement({
 
           // Load email configuration if present
           if (project.emailConfig) {
-            setEmailConfig(project.emailConfig);
+            setEmailConfig(withComputedIsConfigured(project.emailConfig));
           }
 
           // Load the certificate image
@@ -267,7 +295,7 @@ export function useProjectManagement({
 
       // Load email configuration if present
       if (project.emailConfig) {
-        setEmailConfig(project.emailConfig);
+        setEmailConfig(withComputedIsConfigured(project.emailConfig));
       }
       
       // Set current project info and enable autosave
@@ -424,13 +452,7 @@ export function useProjectManagement({
   // Handle new project
   const handleNewProject = useCallback(() => {
     // Ask for confirmation only when there is something that would be lost.
-    // (emailConfig is always an object, so it cannot signal "work" on its own.)
-    const hasWork =
-      !!uploadedFileUrl ||
-      Object.keys(positions || {}).length > 0 ||
-      (tableData?.length ?? 0) > 0;
-
-    if (hasWork) {
+    if (hasProjectWork(uploadedFileUrl, positions, tableData)) {
       setShowNewProjectModal(true);
     } else {
       // Nothing to lose: reset everything, including the current project

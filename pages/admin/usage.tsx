@@ -315,8 +315,6 @@ export const getServerSideProps: GetServerSideProps<UsagePageProps> = async (con
   
   // Group by day
   const dailyStats: { [key: string]: any } = {};
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
   
   for (let i = 0; i < daysToFetch; i++) {
     const date = new Date(startDate);
@@ -365,9 +363,6 @@ export const getServerSideProps: GetServerSideProps<UsagePageProps> = async (con
   });
   
   // Get tier breakdown for today
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  
   const tierStats = await prisma.user.groupBy({
     by: ['tier'],
     _count: true,

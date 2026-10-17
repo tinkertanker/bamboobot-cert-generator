@@ -14,6 +14,20 @@ function isEditableElement(element: Element | null): boolean {
   );
 }
 
+/**
+ * True when arrow keys belong to a focused control (button, link, tab…) rather
+ * than the canvas. Preview text fields are role="button" too, but they are the
+ * nudge target, so they're identified by data-preview-field and allowed.
+ */
+function isInteractiveControl(element: Element | null): boolean {
+  if (!element || element.closest("[data-preview-field]")) return false;
+  return (
+    element.closest(
+      'button, a[href], summary, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="radio"], [role="switch"], [role="slider"], [role="option"], [role="menuitem"]'
+    ) !== null
+  );
+}
+
 export interface UseKeyboardShortcutsProps {
   selectedField: string | null;
   isDragging: boolean;
@@ -43,8 +57,11 @@ export function useKeyboardShortcuts({
       // Leave browser/OS shortcuts such as Alt+Left alone
       if (event.altKey || event.ctrlKey || event.metaKey) return;
 
-      // Don't nudge while a form control, menu or dialog has focus
-      if (isEditableElement(document.activeElement)) {
+      // Don't nudge while a form control, button, menu or dialog has focus
+      if (
+        isEditableElement(document.activeElement) ||
+        isInteractiveControl(document.activeElement)
+      ) {
         return;
       }
 

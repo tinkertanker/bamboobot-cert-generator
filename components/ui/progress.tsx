@@ -39,6 +39,10 @@ export function Progress({
         aria-valuemax={100}
         aria-valuenow={percentage}
         aria-labelledby={label ? labelId : undefined}
+        // Fallback accessible name when no visible label or caller-supplied name
+        aria-label={
+          !label && !props["aria-label"] && !props["aria-labelledby"] ? "Progress" : undefined
+        }
         className={cn(
           "relative h-2 w-full overflow-hidden rounded-full bg-gray-200",
           className

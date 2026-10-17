@@ -59,6 +59,9 @@ export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
     const toggleRef = React.useRef<HTMLButtonElement>(null);
     const menuRef = React.useRef<HTMLDivElement>(null);
     const menuId = React.useId();
+    const toggleId = React.useId();
+    // Set when the menu was opened from the keyboard, so focus moves into it
+    const focusFirstItemOnOpen = React.useRef(false);
     const closeMenu = React.useCallback(() => setIsOpen(false), []);
     useClickOutside(dropdownRef, closeMenu, isOpen);
 
@@ -68,6 +71,14 @@ export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
           '[role="menuitem"]:not([disabled])'
         ) ?? []
       );
+
+    React.useEffect(() => {
+      if (!isOpen || !focusFirstItemOnOpen.current) return;
+      focusFirstItemOnOpen.current = false;
+      menuRef.current
+        ?.querySelector<HTMLButtonElement>('[role="menuitem"]:not([disabled])')
+        ?.focus();
+    }, [isOpen]);
 
     const handleMenuKeyDown = (event: React.KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -140,8 +151,13 @@ export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
         <div className="relative flex" ref={dropdownRef}>
           <button
             ref={toggleRef}
+            id={toggleId}
             type="button"
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={(e) => {
+              // detail === 0: activated with Enter/Space rather than a pointer
+              focusFirstItemOnOpen.current = !isOpen && e.detail === 0;
+              setIsOpen(!isOpen);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Escape" && isOpen) {
                 e.stopPropagation();
@@ -193,6 +209,7 @@ export const SplitButton = React.forwardRef<HTMLDivElement, SplitButtonProps>(
                 id={menuId}
                 className="py-1"
                 role="menu"
+                aria-labelledby={toggleId}
                 aria-orientation="vertical"
                 onKeyDown={handleMenuKeyDown}
               >

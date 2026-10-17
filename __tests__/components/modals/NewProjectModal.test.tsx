@@ -41,7 +41,7 @@ describe('NewProjectModal Component', () => {
     it('renders autosave message when the work belongs to a saved project', () => {
       render(<NewProjectModal {...defaultProps} hasUnsavedWork={true} isSavedProject={true} />);
       
-      expect(screen.getByText(/Your current work has been autosaved/)).toBeInTheDocument();
+      expect(screen.getByText(/Your last autosaved version can be reopened/)).toBeInTheDocument();
       expect(screen.getByText(/can be reopened from Open project/)).toBeInTheDocument();
     });
 
@@ -205,7 +205,7 @@ describe('NewProjectModal Component', () => {
       rerender(<NewProjectModal {...defaultProps} hasUnsavedWork={true} isSavedProject={true} />);
       
       expect(screen.queryByText(/This will clear all current settings/)).not.toBeInTheDocument();
-      expect(screen.getByText(/Your current work has been autosaved/)).toBeInTheDocument();
+      expect(screen.getByText(/Your last autosaved version can be reopened/)).toBeInTheDocument();
     });
   });
 });

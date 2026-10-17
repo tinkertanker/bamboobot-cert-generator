@@ -31,7 +31,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   let message = "This will clear all current settings and start fresh.";
   if (hasUnsavedWork) {
     message = isSavedProject
-      ? "Your current work has been autosaved and can be reopened from Open project."
+      ? "Your last autosaved version can be reopened from Open project. Changes made since the last autosave will be lost."
       : "This clears the current certificate, text fields and data. Anything you haven't saved as a project will be lost.";
   }
 

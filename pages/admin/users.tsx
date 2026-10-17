@@ -3,7 +3,7 @@ import { GetServerSideProps } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/lib/server/prisma';
-import { getTierLimits } from '@/types/user';
+import { getTierLimits, TIER_LABELS } from '@/types/user';
 import type { UserTier } from '@/types/user';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -30,13 +30,6 @@ interface UsersPageProps {
   isSuperAdmin: boolean;
 }
 
-const TIER_LABELS: Record<UserTier, string> = {
-  free: 'Free',
-  plus: 'Plus',
-  admin: 'Admin',
-  super_admin: 'Super Admin',
-};
-
 export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersPageProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [tierFilter, setTierFilter] = useState<UserTier | 'all'>('all');
@@ -59,22 +52,32 @@ export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersP
     const userId = user.id;
     setUpdatingUserId(userId);
     try {
-      const response = await fetch('/api/admin/users/update-tier', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, tier: newTier })
-      });
-      
-      if (response.ok) {
+      let updated = false;
+      try {
+        const response = await fetch('/api/admin/users/update-tier', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, tier: newTier })
+        });
+        if (response.ok) {
+          updated = true;
+        } else {
+          const body = await response.json().catch(() => ({}));
+          alert(body.error || 'Failed to update user tier');
+        }
+      } catch (error) {
+        console.error('Error updating tier:', error);
+        alert('Failed to update user tier');
+      }
+      if (!updated) return;
+
+      try {
         // Re-run getServerSideProps without a full reload so filters are kept
         await router.replace(router.asPath, undefined, { scroll: false });
-      } else {
-        const body = await response.json().catch(() => ({}));
-        alert(body.error || 'Failed to update user tier');
+      } catch (error) {
+        console.error('Error refreshing users after tier update:', error);
+        alert('Tier updated, but the list could not be refreshed. Reload the page.');
       }
-    } catch (error) {
-      console.error('Error updating tier:', error);
-      alert('Failed to update user tier');
     } finally {
       setUpdatingUserId(null);
     }
@@ -127,6 +130,7 @@ export default function UsersPage({ users, currentUserId, isSuperAdmin }: UsersP
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="relative overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
+              <caption className="sr-only">Users</caption>
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">

@@ -52,7 +52,7 @@ import { useSessionAutosave } from "@/hooks/useSessionAutosave";
 import { useDevMode } from "@/hooks/useDevMode";
 import { DevModeFooter } from "@/components/DevModeFooter";
 import { usePdfGenerationMethods } from "@/hooks/usePdfGenerationMethods";
-import { useProjectManagement } from "@/hooks/useProjectManagement";
+import { useProjectManagement, hasProjectWork } from "@/hooks/useProjectManagement";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingModal } from "@/components/modals/OnboardingModal";
 import { UserAvatarDropdown } from "@/components/UserAvatarDropdown";
@@ -770,6 +770,7 @@ export default function HomePage() {
             handlePointerDown={handlePointerDown}
             handlePointerUp={handlePointerUp}
             setShowCenterGuide={setShowCenterGuide}
+            setActiveTab={setActiveTab}
             isDraggingFile={isDraggingFile}
             handleDragOver={handleDragOver}
             handleDragLeave={handleDragLeave}
@@ -1167,9 +1168,7 @@ export default function HomePage() {
           onClose={() => setShowNewProjectModal(false)}
           onConfirm={confirmNewProject}
           isSavedProject={hasManuallySaved && !!currentProjectId}
-          hasUnsavedWork={
-            uploadedFileUrl !== null && Object.keys(positions || {}).length > 0
-          }
+          hasUnsavedWork={hasProjectWork(uploadedFileUrl, positions, tableData)}
         />
       )}
 

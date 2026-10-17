@@ -187,8 +187,14 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
         const index = modalStack.findIndex((entry) => entry.token === token)
         if (index !== -1) modalStack.splice(index, 1)
         unlockBodyScroll()
-        if (previouslyFocused && typeof previouslyFocused.focus === "function" && previouslyFocused.isConnected) {
-          previouslyFocused.focus({ preventScroll: true })
+        // Defer until after the dialog unmounts (and any re-render that swaps
+        // the trigger), then only restore if the element is still in the DOM.
+        if (previouslyFocused && typeof previouslyFocused.focus === "function") {
+          requestAnimationFrame(() => {
+            if (previouslyFocused.isConnected) {
+              previouslyFocused.focus({ preventScroll: true })
+            }
+          })
         }
       }
       // initialFocusRef is read once on open by design

@@ -2,6 +2,13 @@
 
 export type UserTier = 'free' | 'plus' | 'admin' | 'super_admin';
 
+export const TIER_LABELS: Record<UserTier, string> = {
+  free: 'Free',
+  plus: 'Plus',
+  admin: 'Admin',
+  super_admin: 'Super Admin',
+};
+
 export interface TierLimits {
   dailyPdfLimit: number | null;    // null = unlimited
   dailyEmailLimit: number | null;  // null = unlimited  

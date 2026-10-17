@@ -311,7 +311,7 @@ export function LoadProjectModal({ isOpen, onClose, onLoadProject, onProjectDele
                   placeholder="Type DELETE ALL"
                   aria-label="Confirmation text for deleting all projects"
                   aria-describedby="delete-all-instruction"
-                  className="flex-1 min-w-[10rem] px-3 py-2 border border-red-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="flex-1 min-w-[10rem] px-3 py-2 border border-red-300 rounded-md text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
                       handleDeleteAllProjects();
@@ -360,7 +360,7 @@ export function LoadProjectModal({ isOpen, onClose, onLoadProject, onProjectDele
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12" role="status">
-            <div className="animate-spin h-8 w-8 border-2 border-gray-300 border-t-gray-600 rounded-full" aria-hidden="true" />
+            <div className="motion-safe:animate-spin h-8 w-8 border-2 border-gray-300 border-t-gray-600 rounded-full" aria-hidden="true" />
             <span className="sr-only">Loading projects…</span>
           </div>
         ) : projects.length === 0 ? (
@@ -491,7 +491,11 @@ export function LoadProjectModal({ isOpen, onClose, onLoadProject, onProjectDele
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Double-clicking an action button must not load the project */}
+                    <div
+                      className="flex items-center gap-1 flex-shrink-0"
+                      onDoubleClick={e => e.stopPropagation()}
+                    >
                       {!renamingProjectId && (
                         <button
                           type="button"

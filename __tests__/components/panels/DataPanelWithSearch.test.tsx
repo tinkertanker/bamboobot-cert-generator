@@ -56,13 +56,14 @@ describe("DataPanelWithSearch filtering", () => {
   });
 
   it("highlights the current entry by its original index while filtered", () => {
-    render(<Harness onSelect={jest.fn()} current={0} />);
+    render(<Harness onSelect={jest.fn()} current={1} />);
     const search = screen.getByRole("combobox", { name: "Search entries" });
     fireEvent.change(search, { target: { value: "bob" } });
     act(() => {
       jest.advanceTimersByTime(400);
     });
-    // Bob is the only visible row but is entry 2, not the current entry 1
-    expect(screen.getByText("Bob").closest("tr")).not.toHaveAttribute("aria-current");
+    // Bob is original entry 1 (the current entry) but filtered position 0
+    expect(screen.queryByText("Alice")).not.toBeInTheDocument();
+    expect(screen.getByText("Bob").closest("tr")).toHaveAttribute("aria-current", "true");
   });
 });

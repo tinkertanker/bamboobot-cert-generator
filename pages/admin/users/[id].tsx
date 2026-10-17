@@ -3,7 +3,7 @@ import { GetServerSideProps } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/lib/server/prisma';
-import { getTierLimits } from '@/types/user';
+import { getTierLimits, TIER_LABELS } from '@/types/user';
 import type { UserTier } from '@/types/user';
 import AdminLayout from '@/components/admin/AdminLayout';
 import Link from 'next/link';
@@ -57,7 +57,7 @@ export default function UserDetailsPage({ user, projects, recentActivity, isSupe
 
   async function handleTierChange(newTier: UserTier) {
     if (newTier === tier) return;
-    if (!window.confirm(`Change ${user.email} from ${tier.replace(/_/g, ' ')} to ${newTier.replace(/_/g, ' ')}?`)) return;
+    if (!window.confirm(`Change ${user.email} from ${TIER_LABELS[tier]} to ${TIER_LABELS[newTier]}?`)) return;
     setSaving(true);
     try {
       const res = await fetch('/api/admin/users/update-tier', {
@@ -111,7 +111,7 @@ export default function UserDetailsPage({ user, projects, recentActivity, isSupe
               tier === 'plus' ? 'bg-blue-100 text-blue-800' :
               'bg-gray-100 text-gray-800'
             }`}>
-              {tier.replace(/_/g, ' ')}
+              {TIER_LABELS[tier] ?? tier}
             </span>
           )}
           <div className="text-xs text-gray-500 mt-3" suppressHydrationWarning>
