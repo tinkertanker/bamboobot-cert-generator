@@ -1,6 +1,11 @@
 services:
   bamboobot:
-    build: .
+    build:
+      context: .
+      args:
+        # Build-time flag: compose reads it from .env. Rebuild after changing it
+        # (docker-compose up -d --build).
+        NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE: ${NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE:-false}
     expose:
       - 3000 # Next.js default port
     env_file:

@@ -9,6 +9,11 @@ RUN npm ci
 COPY . .
 # Ensure Prisma Client is generated after the schema is available
 RUN npx prisma generate
+# NEXT_PUBLIC_* values are baked into the bundle at build time, and .env is not
+# copied into the image, so pass this flag as a build arg (docker-compose.yml
+# forwards it from .env). Changing it needs a rebuild.
+ARG NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=false
+ENV NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=$NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE
 RUN npm run build
 
 # ---- Production Stage ----

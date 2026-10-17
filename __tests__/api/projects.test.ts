@@ -165,12 +165,30 @@ describe('projects API', () => {
       const res = httpMocks.createResponse();
       await handlerImport(req as any, res as any);
       expect(res.statusCode).toBe(200);
-      expect(res._getJSONData()).toEqual({ imported: 1 });
+      expect(res._getJSONData()).toEqual({ imported: 1, importedIds: ['local-1'] });
       const retry = prisma.project.create.mock.calls[1][0].data;
       expect(retry.ownerId).toBe('u1');
       expect(retry.name).toMatch(/^Dup \(Imported /);
       expect(retry.data).toEqual({ id: 'local-1', name: 'Dup', tableData: [{ a: 1 }] });
       expect(retry.clientProjectId).toBe('local-1');
+    });
+
+    it('confirms projects an earlier import already saved without creating them again', async () => {
+      getRemainingProjectAllowance.mockResolvedValue(1);
+      prisma.project.findFirst.mockImplementation(async ({ where }: any) =>
+        where.clientProjectId === 'local-1' ? { id: 'srv-1' } : null
+      );
+      prisma.project.create.mockResolvedValue({ id: 'srv-2' });
+      const req = httpMocks.createRequest({
+        method: 'POST',
+        body: { projects: [{ id: 'local-1', name: 'Old' }, { id: 'local-2', name: 'New' }] },
+      });
+      const res = httpMocks.createResponse();
+      await handlerImport(req as any, res as any);
+      expect(res.statusCode).toBe(200);
+      expect(res._getJSONData()).toEqual({ imported: 1, importedIds: ['local-1', 'local-2'] });
+      expect(prisma.project.create).toHaveBeenCalledTimes(1);
+      expect(prisma.project.create.mock.calls[0][0].data.clientProjectId).toBe('local-2');
     });
   });
 });

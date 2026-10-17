@@ -25,6 +25,7 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 
 REQUIRE_AUTH=true                             # runtime; defaults to on in production
+NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=false  # build time; see below
 SUPER_ADMIN_EMAILS=admin@yourdomain.com
 ADMIN_DOMAINS=yourdomain.com
 
@@ -33,7 +34,7 @@ CLEANUP_SECRET_KEY=...                        # needed for scheduled R2/S3 clean
 
 `DATABASE_URL` is set by `docker-compose.yml` (`file:./database.db`, resolved from `prisma/schema.prisma`, so the file is `/app/prisma/database.db`). You do not need it in `.env` for Docker.
 
-`NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE` is inlined into the browser bundle at build time, and `.env` is excluded from the Docker build context, so setting it in `.env` does not switch on server persistence for projects. Projects stay in each user's browser.
+`NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE` is inlined into the browser bundle at build time. `.env` is excluded from the Docker build context, so `docker-compose.yml` passes this one value from `.env` as a build arg. After changing it, rebuild (`docker compose up -d --build`, or `./scripts/deploy.sh`); restarting is not enough. When it is `true`, projects are stored in the database and signed-in users are offered an import of projects saved in their browser; each browser copy is deleted only after the server confirms it was saved.
 
 In Google Cloud Console, set:
 - Authorised JavaScript origin: `https://your-production-domain.com`
