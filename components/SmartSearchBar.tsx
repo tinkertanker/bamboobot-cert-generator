@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Search, X, HelpCircle, Clock, Filter } from "lucide-react";
 import { COLORS, TRANSITIONS } from "@/utils/styles";
 import type { TableData } from "@/types/certificate";
-import { useDebounce } from "@/hooks/useDebounce";
 
 interface SearchFilterProps {
   tableData: TableData[];
@@ -24,7 +23,36 @@ interface FilterChip {
   active: boolean;
 }
 
+// Parse search query for column:value syntax
+const parseSearchQuery = (query: string) => {
+  const filters: { column?: string; value: string }[] = [];
+  const regex = /(\w+):("([^"]+)"|([^\s]+))|("[^"]+"|\S+)/g;
+  let match;
+
+  while ((match = regex.exec(query)) !== null) {
+    if (match[1]) {
+      // Column:value syntax
+      filters.push({
+        column: match[1].toLowerCase(),
+        value: (match[3] || match[4]).toLowerCase()
+      });
+    } else {
+      // General search term
+      filters.push({
+        value: (match[5] || match[0]).replace(/"/g, '').toLowerCase()
+      });
+    }
+  }
+
+  return filters;
+};
+
+const SEARCH_DEBOUNCE_MS = 300;
+
 export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: SearchFilterProps) {
+  // What the user has typed (shown in the input immediately) vs. the
+  // debounced query that actually drives filtering of the table.
+  const [inputValue, setInputValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
@@ -33,10 +61,17 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
   const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Debounced search handler for better performance
-  const debouncedSetSearchQuery = useDebounce((query: string) => {
+  // Debounce applying the typed query to the table filter
+  useEffect(() => {
+    const timeout = setTimeout(() => setSearchQuery(inputValue), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timeout);
+  }, [inputValue]);
+
+  // Apply a query immediately (explicit search actions)
+  const applyQueryNow = (query: string) => {
+    setInputValue(query);
     setSearchQuery(query);
-  }, 300); // 300ms debounce delay
+  };
 
   // Filter chips configuration
   const filterChips: FilterChip[] = useMemo(() => [
@@ -70,38 +105,14 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
     }
   ], [columns]);
 
-  // Parse search query for column:value syntax
-  const parseSearchQuery = (query: string) => {
-    const filters: { column?: string; value: string }[] = [];
-    const regex = /(\w+):("([^"]+)"|([^\s]+))|("[^"]+"|\S+)/g;
-    let match;
-
-    while ((match = regex.exec(query)) !== null) {
-      if (match[1]) {
-        // Column:value syntax
-        filters.push({
-          column: match[1].toLowerCase(),
-          value: (match[3] || match[4]).toLowerCase()
-        });
-      } else {
-        // General search term
-        filters.push({
-          value: (match[5] || match[0]).replace(/"/g, '').toLowerCase()
-        });
-      }
-    }
-
-    return filters;
-  };
-
   // Generate search suggestions
   const suggestions = useMemo(() => {
     const suggs: SearchSuggestion[] = [];
-    const queryLower = searchQuery.toLowerCase();
-    const lastWord = searchQuery.split(' ').pop() || '';
+    const queryLower = inputValue.toLowerCase();
+    const lastWord = inputValue.split(' ').pop() || '';
 
     // Show syntax help when focused with empty query
-    if (searchQuery === '') {
+    if (inputValue === '') {
       suggs.push({
         type: 'syntax',
         text: '',
@@ -137,8 +148,8 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
       const valueStart = lastWord.substring(colonIndex + 1).toLowerCase();
       
       const uniqueValues = new Set<string>();
+      const matchingCol = columns.find(col => col.toLowerCase() === columnName);
       tableData.forEach(row => {
-        const matchingCol = columns.find(col => col.toLowerCase() === columnName);
         if (matchingCol && row[matchingCol]) {
           const value = row[matchingCol].toString();
           if (value.toLowerCase().includes(valueStart)) {
@@ -158,7 +169,7 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
     }
 
     // Recent searches
-    if (recentSearches.length > 0 && searchQuery === '') {
+    if (recentSearches.length > 0 && inputValue === '') {
       recentSearches.slice(0, 3).forEach(search => {
         suggs.push({
           type: 'recent',
@@ -170,11 +181,12 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
     }
 
     return suggs.slice(0, 8); // Limit suggestions
-  }, [searchQuery, columns, tableData, recentSearches]);
+  }, [inputValue, columns, tableData, recentSearches]);
 
-  // Filter data based on search and active chips
-  useEffect(() => {
-    let filtered = [...tableData];
+  // Filter data based on search and active chips (computed once; also used
+  // for the displayed count)
+  const filteredData = useMemo(() => {
+    let filtered = tableData;
 
     // Apply search query filters
     if (searchQuery.trim()) {
@@ -203,12 +215,16 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
       }
     });
 
-    onFilteredDataChange(filtered);
-  }, [searchQuery, activeFilterChips, tableData, columns, filterChips, onFilteredDataChange]);
+    return filtered;
+  }, [searchQuery, activeFilterChips, tableData, columns, filterChips]);
+
+  useEffect(() => {
+    onFilteredDataChange(filteredData);
+  }, [filteredData, onFilteredDataChange]);
 
   // Handle search submission
   const handleSearch = (query: string) => {
-    setSearchQuery(query); // Direct update for explicit search actions
+    applyQueryNow(query); // Direct update for explicit search actions
     setShowSuggestions(false);
     
     if (query.trim() && !recentSearches.includes(query)) {
@@ -219,11 +235,9 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
   // Handle suggestion selection
   const handleSuggestionClick = (suggestion: SearchSuggestion) => {
     if (suggestion.type === 'column') {
-      setSearchQuery(prev => {
-        const words = prev.split(' ');
-        words[words.length - 1] = suggestion.text;
-        return words.join(' ');
-      });
+      const words = inputValue.split(' ');
+      words[words.length - 1] = suggestion.text;
+      applyQueryNow(words.join(' '));
       searchInputRef.current?.focus();
     } else {
       handleSearch(suggestion.text);
@@ -245,39 +259,11 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
 
   // Clear all filters
   const clearAllFilters = () => {
-    setSearchQuery(""); // Direct update for clear action
+    applyQueryNow(""); // Direct update for clear action
     setActiveFilterChips(new Set());
   };
 
-  // Calculate filtered count
-  const filteredCount = useMemo(() => {
-    let count = tableData.length;
-    
-    if (searchQuery.trim()) {
-      const filters = parseSearchQuery(searchQuery);
-      count = tableData.filter(row => {
-        return filters.every(filter => {
-          if (filter.column) {
-            const matchingCol = columns.find(col => col.toLowerCase() === filter.column);
-            return matchingCol && row[matchingCol] && 
-              row[matchingCol].toString().toLowerCase().includes(filter.value);
-          } else {
-            return Object.values(row).some(val => 
-              val && val.toString().toLowerCase().includes(filter.value)
-            );
-          }
-        });
-      }).length;
-    }
-
-    filterChips.forEach(chip => {
-      if (activeFilterChips.has(chip.id)) {
-        count = tableData.filter(chip.filter).length;
-      }
-    });
-
-    return count;
-  }, [searchQuery, activeFilterChips, tableData, columns, filterChips]);
+  const filteredCount = filteredData.length;
 
   return (
     <div className="mb-4 space-y-3">
@@ -290,14 +276,13 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
           <input
             ref={searchInputRef}
             type="text"
-            value={searchQuery}
+            value={inputValue}
             onChange={(e) => {
-              const value = e.target.value;
-              // Show suggestions immediately for better UX
+              // Show suggestions immediately for better UX; filtering of the
+              // table is debounced via the effect above
               setShowSuggestions(true);
               setSelectedSuggestionIndex(-1);
-              // Debounce the actual search query update
-              debouncedSetSearchQuery(value);
+              setInputValue(e.target.value);
             }}
             onFocus={() => setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
@@ -314,7 +299,7 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
                 e.preventDefault();
                 handleSuggestionClick(suggestions[selectedSuggestionIndex]);
               } else if (e.key === 'Enter') {
-                handleSearch(searchQuery);
+                handleSearch(inputValue);
               } else if (e.key === 'Escape') {
                 setShowSuggestions(false);
               }
@@ -328,7 +313,7 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sea
           
           {/* Help Icon */}
           <div className="absolute inset-y-0 right-0 flex items-center pr-3 gap-2">
-            {(searchQuery || activeFilterChips.size > 0) && (
+            {(inputValue || searchQuery || activeFilterChips.size > 0) && (
               <button
                 onClick={clearAllFilters}
                 className="text-gray-400 hover:text-gray-600 transition-colors"

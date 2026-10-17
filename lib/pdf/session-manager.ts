@@ -16,6 +16,8 @@ export class PdfSessionManager {
     this.cleanupInterval = setInterval(() => {
       this.cleanupExpiredSessions();
     }, PROGRESSIVE_PDF.CLEANUP_INTERVAL_MS);
+    // Don't keep the process alive just for this housekeeping timer
+    this.cleanupInterval.unref?.();
   }
 
   /**

@@ -207,7 +207,11 @@ export function useProgressivePdfGeneration({
         setSelectedNamingColumn(Object.keys(tableData[0])[0]);
       }
 
-      // Start polling for progress
+      // Start polling for progress (replacing any interval from an earlier run,
+      // which would otherwise keep polling forever)
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
       pollIntervalRef.current = setInterval(() => {
         pollProgress(data.sessionId);
       }, PROGRESSIVE_PDF.POLL_INTERVAL_MS);
@@ -276,6 +280,9 @@ export function useProgressivePdfGeneration({
       }
 
       // Resume polling
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
       pollIntervalRef.current = setInterval(() => {
         pollProgress(sessionId);
       }, PROGRESSIVE_PDF.POLL_INTERVAL_MS);

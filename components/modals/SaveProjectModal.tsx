@@ -1,10 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { ProjectStorage } from '@/lib/project-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
 import { AlertTriangle, Save, Cloud, HardDrive } from 'lucide-react';
-import storageConfig from '@/lib/storage-config';
 
 interface SaveProjectModalProps {
   isOpen: boolean;
@@ -35,8 +34,11 @@ export function SaveProjectModal({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const isCloudStorage = storageConfig.isR2Enabled || storageConfig.isS3Enabled;
-  const storageProvider = storageConfig.isR2Enabled ? 'r2' : storageConfig.isS3Enabled ? 's3' : 'local';
+  // Browser saves always reference the locally served image. (The server-only
+  // storage config reads non-public env vars, so it always reported "local" in
+  // the browser while pulling the AWS SDK into the client bundle.)
+  const isCloudStorage = false;
+  const storageProvider = 'local' as const;
   
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -99,8 +101,12 @@ export function SaveProjectModal({
     onClose();
   };
   
-  // Get storage info
-  const storageInfo = ProjectStorage.getStorageInfo();
+  // Get storage info. This reads every saved project from localStorage, so only
+  // compute it when the modal opens rather than on every parent render.
+  const storageInfo = useMemo(
+    () => (isOpen ? ProjectStorage.getStorageInfo() : { used: 0, limit: 0, percentage: 0 }),
+    [isOpen]
+  );
   const storagePercentage = storageInfo.percentage;
   const isNearLimit = storagePercentage > 80;
   

@@ -15,22 +15,130 @@ import {
 export type { Entry, Position };
 
 /**
- * Generate a single PDF certificate
+ * Custom font families and the variant files available for each, in embed order.
+ * Keys are the FontSet property names used by selectFont().
  */
-export async function generateSinglePdf(
-  templatePath: string,
+const CUSTOM_FONT_FILES: Record<string, Array<[keyof FontSet & string, string]>> = {
+  Montserrat: [
+    ['Montserrat', 'Montserrat-Regular.ttf'],
+    ['MontserratBold', 'Montserrat-Bold.ttf'],
+  ],
+  Poppins: [
+    ['Poppins', 'Poppins-Regular.ttf'],
+    ['PoppinsBold', 'Poppins-Bold.ttf'],
+    ['PoppinsItalic', 'Poppins-Italic.ttf'],
+    ['PoppinsBoldItalic', 'Poppins-BoldItalic.ttf'],
+  ],
+  SourceSansPro: [
+    ['SourceSansPro', 'SourceSansPro-Regular.ttf'],
+    ['SourceSansProBold', 'SourceSansPro-Bold.ttf'],
+    ['SourceSansProItalic', 'SourceSansPro-Italic.ttf'],
+    ['SourceSansProBoldItalic', 'SourceSansPro-BoldItalic.ttf'],
+  ],
+  Nunito: [
+    ['Nunito', 'Nunito-Regular.ttf'],
+    ['NunitoBold', 'Nunito-Bold.ttf'],
+    ['NunitoItalic', 'Nunito-Italic.ttf'],
+    ['NunitoBoldItalic', 'Nunito-BoldItalic.ttf'],
+  ],
+  GreatVibes: [
+    ['GreatVibes', 'GreatVibes-Regular.ttf'],
+  ],
+  Archivo: [
+    ['Archivo', 'Archivo-Regular.ttf'],
+    ['ArchivoBold', 'Archivo-Bold.ttf'],
+    ['ArchivoItalic', 'Archivo-Italic.ttf'],
+    ['ArchivoBoldItalic', 'Archivo-BoldItalic.ttf'],
+  ],
+  Rubik: [
+    ['Rubik', 'Rubik-Regular.ttf'],
+    ['RubikBold', 'Rubik-Bold.ttf'],
+    ['RubikItalic', 'Rubik-Italic.ttf'],
+    ['RubikBoldItalic', 'Rubik-BoldItalic.ttf'],
+  ],
+};
+
+// Font files are static assets: read each from disk once per process instead of
+// once per certificate. Failed reads are evicted so a later request can retry.
+const fontBytesCache = new Map<string, Promise<Buffer>>();
+
+function readFontFile(file: string): Promise<Buffer> {
+  let cached = fontBytesCache.get(file);
+  if (!cached) {
+    cached = fsPromises.readFile(path.join(process.cwd(), 'public/fonts', file));
+    cached.catch(() => fontBytesCache.delete(file));
+    fontBytesCache.set(file, cached);
+  }
+  return cached;
+}
+
+/**
+ * Collect the custom font families referenced by the given positions/entries.
+ */
+export function getNeededCustomFontFamilies(
+  positions: Record<string, Position>,
+  entries: Entry[]
+): FontFamily[] {
+  const needed = new Set<string>();
+  for (const pos of Object.values(positions)) {
+    if (pos?.font && pos.font in CUSTOM_FONT_FILES) needed.add(pos.font);
+  }
+  for (const entry of entries) {
+    for (const val of Object.values(entry)) {
+      if (val && typeof val === 'object' && val.font && val.font in CUSTOM_FONT_FILES) {
+        needed.add(val.font);
+      }
+    }
+  }
+  return Array.from(needed) as FontFamily[];
+}
+
+/**
+ * Embed the given custom font families into `pdf`. Only the families actually
+ * used are embedded (unused embedded fonts are written in full by pdf-lib and
+ * only bloat the output). Font bytes come from an in-process cache.
+ */
+export async function embedCustomFonts(
+  pdf: PDFDocument,
+  families: FontFamily[]
+): Promise<Partial<FontSet>> {
+  const embedded: Partial<FontSet> = {};
+  if (families.length === 0) return embedded;
+
+  // Register fontkit AFTER standard fonts are embedded
+  pdf.registerFontkit(fontkit as unknown as Parameters<typeof pdf.registerFontkit>[0]);
+
+  for (const family of families) {
+    try {
+      for (const [key, file] of CUSTOM_FONT_FILES[family] ?? []) {
+        embedded[key] = await pdf.embedFont(await readFontFile(file));
+      }
+    } catch (e) {
+      console.warn(`Failed to load ${family} fonts:`, e);
+    }
+  }
+  return embedded;
+}
+
+/**
+ * Render a single PDF certificate and return its bytes.
+ * `template` may be a file path or the already-loaded template bytes/document
+ * (pass a pre-loaded PDFDocument when rendering many certificates from one template).
+ */
+export async function renderSinglePdf(
+  template: string | Uint8Array | PDFDocument,
   entryData: Entry,
   positions: Record<string, Position>,
-  uiContainerDimensions: { width: number; height: number },
-  outputPath: string
-): Promise<void> {
-  // Load template
-  const templatePdfBytes = await fsPromises.readFile(templatePath);
-  const templateDoc = await PDFDocument.load(templatePdfBytes);
+  uiContainerDimensions: { width: number; height: number }
+): Promise<Uint8Array> {
+  const templateDoc =
+    template instanceof PDFDocument
+      ? template
+      : await PDFDocument.load(typeof template === 'string' ? await fsPromises.readFile(template) : template);
 
   // Create new PDF for this entry
   const pdf = await PDFDocument.create();
-  
+
   // Copy template page
   const [templatePage] = await pdf.copyPages(templateDoc, [0]);
   pdf.addPage(templatePage);
@@ -38,88 +146,33 @@ export async function generateSinglePdf(
   // Embed standard fonts
   const standardFonts = await embedStandardFonts(pdf);
 
-  // Check if we need custom fonts
-  const customFonts: FontFamily[] = ['Montserrat', 'Poppins', 'SourceSansPro', 'Nunito', 'GreatVibes', 'Archivo', 'Rubik'];
-  const needsCustomFonts = customFonts.some(fontName => 
-    Object.values(positions).some(pos => pos.font === fontName) || 
-    Object.values(entryData).some(val => val && typeof val === 'object' && val.font === fontName)
-  );
-
   // Only register fontkit and embed custom fonts if needed
-  const customFontsEmbedded: Partial<FontSet> = {};
-  if (needsCustomFonts) {
-    // Register fontkit AFTER standard fonts are embedded
-    pdf.registerFontkit(fontkit as unknown as Parameters<typeof pdf.registerFontkit>[0]);
-    
-    // Embed custom fonts with error handling
-    try {
-      customFontsEmbedded.Montserrat = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Montserrat-Regular.ttf')));
-      customFontsEmbedded.MontserratBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Montserrat-Bold.ttf')));
-    } catch (e) {
-      console.warn('Failed to load Montserrat fonts:', e);
-    }
-    
-    try {
-      customFontsEmbedded.Poppins = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-Regular.ttf')));
-      customFontsEmbedded.PoppinsBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-Bold.ttf')));
-      customFontsEmbedded.PoppinsItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-Italic.ttf')));
-      customFontsEmbedded.PoppinsBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Poppins-BoldItalic.ttf')));
-    } catch (e) {
-      console.warn('Failed to load Poppins fonts:', e);
-    }
-    
-    try {
-      customFontsEmbedded.SourceSansPro = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/SourceSansPro-Regular.ttf')));
-      customFontsEmbedded.SourceSansProBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/SourceSansPro-Bold.ttf')));
-      customFontsEmbedded.SourceSansProItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/SourceSansPro-Italic.ttf')));
-      customFontsEmbedded.SourceSansProBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/SourceSansPro-BoldItalic.ttf')));
-    } catch (e) {
-      console.warn('Failed to load SourceSansPro fonts:', e);
-    }
-    
-    try {
-      customFontsEmbedded.Nunito = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Nunito-Regular.ttf')));
-      customFontsEmbedded.NunitoBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Nunito-Bold.ttf')));
-      customFontsEmbedded.NunitoItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Nunito-Italic.ttf')));
-      customFontsEmbedded.NunitoBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Nunito-BoldItalic.ttf')));
-    } catch (e) {
-      console.warn('Failed to load Nunito fonts:', e);
-    }
-    
-    try {
-      customFontsEmbedded.GreatVibes = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/GreatVibes-Regular.ttf')));
-    } catch (e) {
-      console.warn('Failed to load GreatVibes font:', e);
-    }
-    
-    try {
-      customFontsEmbedded.Archivo = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Archivo-Regular.ttf')));
-      customFontsEmbedded.ArchivoBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Archivo-Bold.ttf')));
-      customFontsEmbedded.ArchivoItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Archivo-Italic.ttf')));
-      customFontsEmbedded.ArchivoBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Archivo-BoldItalic.ttf')));
-    } catch (e) {
-      console.warn('Failed to load Archivo fonts:', e);
-    }
-    
-    try {
-      customFontsEmbedded.Rubik = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Rubik-Regular.ttf')));
-      customFontsEmbedded.RubikBold = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Rubik-Bold.ttf')));
-      customFontsEmbedded.RubikItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Rubik-Italic.ttf')));
-      customFontsEmbedded.RubikBoldItalic = await pdf.embedFont(await fsPromises.readFile(path.join(process.cwd(), 'public/fonts/Rubik-BoldItalic.ttf')));
-    } catch (e) {
-      console.warn('Failed to load Rubik fonts:', e);
-    }
-  }
+  const customFontsEmbedded = await embedCustomFonts(
+    pdf,
+    getNeededCustomFontFamilies(positions, [entryData])
+  );
 
   // Combine standard and custom fonts
   const fonts: FontSet = { ...standardFonts, ...customFontsEmbedded } as FontSet;
 
   const page = pdf.getPages()[0];
-  
+
   // Use shared core function to add text to page
   addTextToPage(page, entryData, positions, fonts, uiContainerDimensions);
 
-  // Save PDF to file
-  const pdfBytes = await pdf.save();
+  return pdf.save();
+}
+
+/**
+ * Generate a single PDF certificate and write it to `outputPath`.
+ */
+export async function generateSinglePdf(
+  template: string | Uint8Array | PDFDocument,
+  entryData: Entry,
+  positions: Record<string, Position>,
+  uiContainerDimensions: { width: number; height: number },
+  outputPath: string
+): Promise<void> {
+  const pdfBytes = await renderSinglePdf(template, entryData, positions, uiContainerDimensions);
   await fsPromises.writeFile(outputPath, pdfBytes);
 }

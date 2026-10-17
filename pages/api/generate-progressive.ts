@@ -14,11 +14,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { v4 as uuidv4 } from 'uuid';
 import { PdfSessionManager } from '@/lib/pdf/session-manager';
-import { generateSinglePdf, type Entry, type Position } from '@/lib/pdf-generator';
+import { PDFDocument } from 'pdf-lib';
+import { generateSinglePdf, renderSinglePdf, type Entry, type Position } from '@/lib/pdf-generator';
 import type { PdfQueueItem } from '@/lib/pdf/types';
 import path from 'path';
 import fs from 'fs/promises';
-import fsSync from 'fs';
 import storageConfig from '@/lib/storage-config';
 import { uploadToR2 } from '@/lib/r2-client';
 import { uploadToS3 } from '@/lib/s3-client';
@@ -268,53 +268,59 @@ async function processNextBatch(sessionId: string, sessionDir: string) {
   }
 
   try {
+    // Resolve and parse the template once per batch rather than once per certificate.
+    let templateDocPromise: Promise<PDFDocument> | null = null;
+    const loadTemplate = (ownerId: string): Promise<PDFDocument> => {
+      if (!templateDocPromise) {
+        templateDocPromise = (async () => {
+          for (const candidate of getAuthorizedTemplateCandidates(queue.templateFile, ownerId)) {
+            try {
+              return await PDFDocument.load(await fs.readFile(candidate));
+            } catch (readError) {
+              if ((readError as NodeJS.ErrnoException).code !== 'ENOENT') throw readError;
+            }
+          }
+          throw new Error('Template not found');
+        })();
+      }
+      return templateDocPromise;
+    };
+
     // Process next batch
     const { completed, failed } = await queueManager.processNextBatch(
       async (item: PdfQueueItem) => {
         // Generate PDF for this item
         const ownerId = sessionOwners.get(sessionId);
         if (!ownerId) throw new Error('PDF session owner not found');
-        const templatePath = getAuthorizedTemplateCandidates(queue.templateFile, ownerId)
-          .find(candidate => fsSync.existsSync(candidate));
-        if (!templatePath) throw new Error('Template not found');
+        const templateDoc = await loadTemplate(ownerId);
         
         const filename = item.filename;
 
-        let outputPath: string;
         let fileUrl: string;
         
         if (queue.mode === 'individual') {
-          // Individual mode - save to session directory
-          outputPath = path.join(sessionDir, filename);
-          
-          // Generate single PDF
-          await generateSinglePdf(
-            templatePath,
-            item.data as Entry,
-            queue.positions as Record<string, Position>,
-            queue.uiContainerDimensions,
-            outputPath
-          );
-          
-          // Upload to R2 or return local URL
-          if (storageConfig.isR2Enabled) {
-            // Read the generated file
-            const pdfBuffer = await fs.readFile(outputPath);
-            // Upload to R2
-            const relativeDir = `u_${ownerId}/progressive_${sessionId}`;
-            await uploadToR2(pdfBuffer, `generated/${relativeDir}/${filename}`, 'application/pdf', filename);
-            fileUrl = storageConfig.getFileUrl(filename, relativeDir);
-            // Delete local file after upload
-            await fs.unlink(outputPath);
-          } else if (storageConfig.isS3Enabled) {
-            const pdfBuffer = await fs.readFile(outputPath);
-            const relativeDir = `u_${ownerId}/progressive_${sessionId}`;
-            await uploadToS3(pdfBuffer, `generated/${relativeDir}/${filename}`, 'application/pdf', filename);
-            fileUrl = storageConfig.getFileUrl(filename, relativeDir);
-            await fs.unlink(outputPath);
+          const relativeDir = `u_${ownerId}/progressive_${sessionId}`;
+          if (storageConfig.isR2Enabled || storageConfig.isS3Enabled) {
+            // Render in memory and upload directly (no local write/read/unlink round trip)
+            const pdfBytes = await renderSinglePdf(
+              templateDoc,
+              item.data as Entry,
+              queue.positions as Record<string, Position>,
+              queue.uiContainerDimensions
+            );
+            const upload = storageConfig.isR2Enabled ? uploadToR2 : uploadToS3;
+            await upload(Buffer.from(pdfBytes), `generated/${relativeDir}/${filename}`, 'application/pdf', filename);
           } else {
-            fileUrl = storageConfig.getFileUrl(filename, `u_${ownerId}/progressive_${sessionId}`);
+            // Individual mode - save to session directory
+            await generateSinglePdf(
+              templateDoc,
+              item.data as Entry,
+              queue.positions as Record<string, Position>,
+              queue.uiContainerDimensions,
+              path.join(sessionDir, filename)
+            );
           }
+          fileUrl = storageConfig.getFileUrl(filename, relativeDir);
           
           // Return URL
           return {
