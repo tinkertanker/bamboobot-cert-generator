@@ -1,11 +1,8 @@
 /**
  * Email utilities - Server-side module
  *
- * This module includes server-only helpers (uses Buffer) plus re-exports
- * the browser-safe validation functions for convenience.
- *
- * For client-side code, import directly from utils/email-validation.ts
- * to avoid bundling Buffer polyfills.
+ * Server-only attachment helpers (uses Buffer). Email validation and
+ * recipient parsing live in utils/email-validation.ts (browser-safe).
  */
 
 import {
@@ -17,17 +14,6 @@ import {
 } from '@/lib/security/trusted-pdf-source';
 
 const DEFAULT_MAX_EMAIL_ATTACHMENTS = 10;
-
-// Re-export browser-safe functions for server-side convenience
-export {
-  isValidEmail,
-  normaliseEmail,
-  isValidEmailValue,
-  parseRecipients,
-  parseRecipientsDetailed,
-  formatRecipients,
-  type ParseRecipientsResult
-} from './email-validation';
 
 /**
  * Attachment building types (server-only)

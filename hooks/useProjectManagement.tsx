@@ -169,21 +169,13 @@ export function useProjectManagement({
   useEffect(() => {
     const loadStartupData = async () => {
       try {
-        // Run migration on startup
-        const migrationResult = ProjectStorage.migrateFromTemplateStorage();
-        if (migrationResult.migrated > 0) {
-          console.log(`Migrated ${migrationResult.migrated} templates to projects`);
-        }
+        ProjectStorage.migrateFromTemplateStorage();
 
-        // First, try to load session data
+        // Restore session table data if it is less than 24 hours old
         const session = SessionStorage.loadSession();
         if (session) {
-          console.log("Loading saved session data");
-
-          // Check if session is not too old (24 hours)
           const sessionAge = SessionStorage.getSessionAge();
           if (sessionAge && sessionAge < 24 * 60 * 60 * 1000) {
-            // Load the table data with explicit settings
             await loadSessionData(
               session.tableInput,
               session.useCSVMode,
@@ -196,26 +188,19 @@ export function useProjectManagement({
               duration: 2000
             });
           } else {
-            // Session too old, clear it
             SessionStorage.clearSession();
           }
         }
 
-        // Then load the most recent project
         const project = await ProjectStorage.getMostRecentProject();
 
         if (project) {
-          console.log("Loading most recent project:", project.name);
-
-          // Load the positions
           loadProjectPositions(project);
 
-          // Load email configuration if present
           if (project.emailConfig) {
             setEmailConfig(withComputedIsConfigured(project.emailConfig));
           }
 
-          // Load the certificate image
           if (project.certificateImage.url) {
             const asset = normalizeLegacyPrivateAssetReference(
               project.certificateImage.url,
@@ -231,10 +216,9 @@ export function useProjectManagement({
             duration: 3000
           });
 
-          // Enable autosave since we loaded saved work
+          // Enable autosave; the project ID makes later saves update in place
           setHasManuallySaved(true);
           setCurrentProjectName(project.name);
-          // Also set the project ID so subsequent saves update instead of creating new projects
           setCurrentProjectId(project.id);
         }
       } catch (error) {
@@ -259,51 +243,37 @@ export function useProjectManagement({
     setUploadedFile,
     setUploadedFileUrl,
     showToast
-  ]); // Include stable dependencies
+  ]);
 
   // Project handlers
   const handleLoadProject = useCallback(
     async (project: SavedProject) => {
-      // Load the positions
       loadProjectPositions(project);
 
-      // Load the table data
+      // Rebuild TSV from the saved rows so the table hook can re-parse it
       if (project.tableData && project.tableData.length > 0) {
-        // Convert tableData array back to TSV format for loading
         const headers = project.columns;
         const rows = project.tableData.map(row => {
           return headers.map(col => row[col] || "").join("\t");
         });
         const tsvData = [headers.join("\t"), ...rows].join("\n");
-        
-        // Load the data using loadSessionData
-        const IS_BINARY = false;
-        const HAS_HEADERS = true;
-        await loadSessionData(tsvData, IS_BINARY, HAS_HEADERS);
-        console.log(`Loaded ${project.tableData.length} rows of data`);
+        await loadSessionData(tsvData, /* csvMode */ false, /* headerRow */ true);
       } else if (project.columns.length > 0) {
-        // If no data but has columns, create empty row with those columns
+        // No rows saved: load the columns with a single empty row
         const headers = project.columns;
         const emptyRow = headers.map(() => "").join("\t");
         const tsvData = [headers.join("\t"), emptyRow].join("\n");
-        
-        const IS_BINARY = false;
-        const HAS_HEADERS = true;
-        await loadSessionData(tsvData, IS_BINARY, HAS_HEADERS);
-        console.log("Project expects columns:", project.columns);
+        await loadSessionData(tsvData, /* csvMode */ false, /* headerRow */ true);
       }
 
-      // Load email configuration if present
       if (project.emailConfig) {
         setEmailConfig(withComputedIsConfigured(project.emailConfig));
       }
       
-      // Set current project info and enable autosave
       setCurrentProjectId(project.id);
       setCurrentProjectName(project.name);
       setHasManuallySaved(true);
 
-      // Update the certificate image URL and file
       if (project.certificateImage.url) {
         const asset = normalizeLegacyPrivateAssetReference(
           project.certificateImage.url,
@@ -312,8 +282,6 @@ export function useProjectManagement({
         setUploadedFileUrl(asset.url);
         setUploadedFile(asset.filename);
       }
-
-      console.log("Project loaded successfully:", project.name);
     },
     [
       loadProjectPositions,
@@ -326,10 +294,6 @@ export function useProjectManagement({
 
   const handleSaveProjectSuccess = useCallback(
     (projectId: string, projectName: string) => {
-      console.log("Project saved successfully:", {
-        id: projectId,
-        name: projectName
-      });
       showToast({
         message: `Project "${projectName}" saved successfully`,
         type: "success",
@@ -353,13 +317,11 @@ export function useProjectManagement({
 
     // If the file hasn't been uploaded to server yet (blob URL), upload it first
     if (uploadedFileUrl.startsWith('blob:')) {
-      console.log("Uploading file to server before saving project...");
       try {
         const uploadResult = await uploadToServer();
         if (uploadResult) {
           finalUrl = uploadResult.image;
           finalFilename = uploadResult.filename;
-          console.log("File uploaded, using server URL:", finalUrl);
         }
       } catch (error) {
         console.error("Failed to upload file before saving:", error);

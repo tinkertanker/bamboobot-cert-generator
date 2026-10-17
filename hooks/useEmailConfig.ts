@@ -35,23 +35,14 @@ export function useEmailConfig({
 
   // Reset email sending status when table data changes (new recipients loaded)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log("📧 useEmailConfig: tableData changed, resetting email sending status");
-    }
     setEmailSendingStatus({});
   }, [tableData]);
 
   // Handle email config reset when email column changes
   useEffect(() => {
-    const isDev = process.env.NODE_ENV === 'development';
-    if (isDev) console.log("📧 useEmailConfig: detectedEmailColumn changed to:", detectedEmailColumn);
-    // Only reset if email config is not already configured (e.g., not in dev mode)
+    // Keep a config that is already set up (e.g. pre-filled by dev mode)
     setEmailConfig((prev) => {
-      if (prev.isConfigured) {
-        if (isDev) console.log("📧 useEmailConfig: Email config already configured, keeping existing config");
-        return prev;
-      }
-      if (isDev) console.log("📧 useEmailConfig: Resetting email config...");
+      if (prev.isConfigured) return prev;
       return {
         senderName: "",
         subject: "",

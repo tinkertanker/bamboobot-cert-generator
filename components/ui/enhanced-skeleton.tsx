@@ -6,7 +6,7 @@ interface ShimmerSkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
   children?: React.ReactNode;
 }
 
-export function ShimmerSkeleton({ className, children, ...props }: ShimmerSkeletonProps) {
+function ShimmerSkeleton({ className, children, ...props }: ShimmerSkeletonProps) {
   return (
     <div className={cn("animate-pulse rounded-md bg-gray-100 relative overflow-hidden", className)} {...props}>
       {children}
@@ -50,7 +50,7 @@ const ROW_WIDTHS: Array<[string, string, string]> = [
   ["22%", "42%", "18%"],
 ];
 
-export function EnhancedTableSkeleton({ rows = 5 }: { rows?: number }) {
+function EnhancedTableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200" aria-hidden="true">
       {/* Header */}

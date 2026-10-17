@@ -314,7 +314,10 @@ export const getServerSideProps: GetServerSideProps<UsagePageProps> = async (con
   });
   
   // Group by day
-  const dailyStats: { [key: string]: any } = {};
+  const dailyStats: Record<
+    string,
+    { date: string; pdfs: number; emails: number; projects: number; users: Set<string> }
+  > = {};
   
   for (let i = 0; i < daysToFetch; i++) {
     const date = new Date(startDate);
@@ -325,7 +328,7 @@ export const getServerSideProps: GetServerSideProps<UsagePageProps> = async (con
       pdfs: 0,
       emails: 0,
       projects: 0,
-      users: new Set()
+      users: new Set<string>()
     };
   }
   
@@ -339,7 +342,7 @@ export const getServerSideProps: GetServerSideProps<UsagePageProps> = async (con
     }
   });
   
-  const daily = Object.values(dailyStats).map((day: any) => ({
+  const daily = Object.values(dailyStats).map((day) => ({
     date: day.date,
     pdfs: day.pdfs,
     emails: day.emails,

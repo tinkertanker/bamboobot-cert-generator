@@ -95,7 +95,7 @@ export function clearEmailStatus(sessionId: string): void {
 /**
  * List all persisted email sessions
  */
-export function listEmailSessions(): string[] {
+function listEmailSessions(): string[] {
   try {
     const sessions: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {

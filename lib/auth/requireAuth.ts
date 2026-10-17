@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { getToken } from 'next-auth/jwt';
+import type { AuthOptions } from 'next-auth';
 import prisma from '@/lib/server/prisma';
 
 // Throttle DB updates for lastActiveAt to once per 5 minutes per user
@@ -28,6 +29,14 @@ async function touchUser(userId: string) {
     .catch(() => void 0);
 }
 
+export interface AuthSession {
+  user: {
+    id: string;
+    email?: string | null;
+    name?: string | null;
+  };
+}
+
 /**
  * Callers scope storage paths and database queries by this id, so it must be
  * a non-empty string. An undefined id would silently drop Prisma `where`
@@ -42,11 +51,14 @@ function unauthorized(res: NextApiResponse): null {
   return null;
 }
 
-export async function requireAuth(req: NextApiRequest, res: NextApiResponse) {
+export async function requireAuth(
+  req: NextApiRequest,
+  res: NextApiResponse
+): Promise<AuthSession | null> {
   // Fast path: JWT token check without importing authOptions
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   if (token) {
-    const uid = toUserId((token as { uid?: unknown }).uid) ?? toUserId(token.sub);
+    const uid = toUserId(token.uid) ?? toUserId(token.sub);
     if (!uid) return unauthorized(res);
     touchUser(uid);
     return {
@@ -55,13 +67,13 @@ export async function requireAuth(req: NextApiRequest, res: NextApiResponse) {
         email: typeof token.email === 'string' ? token.email : null,
         name: typeof token.name === 'string' ? token.name : null,
       },
-    } as any;
+    };
   }
 
   // Fallback: server session (may be undefined in tests without NextAuth wiring)
-  const session = await getServerSession(req, res, undefined as any);
-  const uid = toUserId((session as any)?.user?.id);
-  if (!uid) return unauthorized(res);
+  const session = await getServerSession(req, res, undefined as unknown as AuthOptions);
+  const uid = toUserId(session?.user?.id);
+  if (!session?.user || !uid) return unauthorized(res);
   touchUser(uid);
-  return session as any;
+  return session;
 }

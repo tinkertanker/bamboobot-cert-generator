@@ -157,8 +157,6 @@ export function BulkEmailModal({
         setIsStarted(persistedStatus.isStarted);
         setStartTime(persistedStatus.startTime);
         setRestoredFromStorage(true);
-        
-        console.log(`Restored email status from ${formatSessionId(sessionId)}`);
       }
     }
   }, [open, sessionId, validCertificates.length, restoredFromStorage]);

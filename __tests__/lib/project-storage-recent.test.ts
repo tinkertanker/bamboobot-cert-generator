@@ -1,31 +1,7 @@
 import { ProjectStorage } from '@/lib/project-storage';
+import { installMockLocalStorage } from '../helpers/mock-local-storage';
 
-// Mock localStorage
-const mockLocalStorage = {
-  store: {} as Record<string, string>,
-  getItem: jest.fn((key: string) => mockLocalStorage.store[key] || null),
-  setItem: jest.fn((key: string, value: string) => {
-    mockLocalStorage.store[key] = value;
-  }),
-  removeItem: jest.fn((key: string) => {
-    delete mockLocalStorage.store[key];
-  }),
-  clear: jest.fn(() => {
-    mockLocalStorage.store = {};
-  }),
-  key: jest.fn((index: number) => {
-    const keys = Object.keys(mockLocalStorage.store);
-    return keys[index] || null;
-  }),
-  get length() {
-    return Object.keys(mockLocalStorage.store).length;
-  }
-};
-
-Object.defineProperty(window, 'localStorage', {
-  value: mockLocalStorage,
-  writable: true
-});
+const mockLocalStorage = installMockLocalStorage();
 
 describe('ProjectStorage - getMostRecentTemplate', () => {
   beforeEach(() => {
@@ -46,7 +22,7 @@ describe('ProjectStorage - getMostRecentTemplate', () => {
       created: '2024-01-01T10:00:00Z',
       lastModified: '2024-01-01T10:00:00Z',
       version: '1.0' as const,
-      positions: { field1: { x: 100, y: 100, fontSize: 12, fontFamily: 'Arial', color: '#000', align: 'left' as const, visible: true } },
+      positions: { field1: { x: 100, y: 100, fontSize: 12, fontFamily: 'Helvetica', color: '#000', alignment: 'left' as const, isVisible: true } },
       columns: ['field1'],
       certificateImage: {
         url: '/test.jpg',
@@ -63,7 +39,7 @@ describe('ProjectStorage - getMostRecentTemplate', () => {
       created: '2024-01-02T10:00:00Z',
       lastModified: '2024-01-03T10:00:00Z', // More recent
       version: '1.0' as const,
-      positions: { field2: { x: 200, y: 200, fontSize: 14, fontFamily: 'Times', color: '#000', align: 'center' as const, visible: true } },
+      positions: { field2: { x: 200, y: 200, fontSize: 14, fontFamily: 'Times', color: '#000', alignment: 'center' as const, isVisible: true } },
       columns: ['field2'],
       certificateImage: {
         url: '/test2.jpg',

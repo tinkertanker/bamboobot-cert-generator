@@ -37,10 +37,7 @@ export function useFileUpload(): UseFileUploadReturn {
     // processFile passes the file it was just given: the pendingFile state it
     // sets is not visible in this closure until the next render.
     const file = fileOverride || pendingFile || (uploadedFile instanceof File ? uploadedFile : null);
-    if (!file) {
-      console.log("No file to upload to server");
-      return;
-    }
+    if (!file) return;
 
     setIsLoading(true);
     const formData = new FormData();
@@ -58,11 +55,6 @@ export function useFileUpload(): UseFileUploadReturn {
       }
       
       const data = await response.json();
-      console.log("Template uploaded to server", { 
-        isTemplate: data.isTemplate, 
-        storageType: data.storageType,
-        serverUrl: data.image 
-      });
       setUploadedFile(data.filename);
       setUploadedFileUrl(data.image);
       return data;
@@ -108,7 +100,6 @@ export function useFileUpload(): UseFileUploadReturn {
     
     try {
       // Convert image to PDF for client-side generation
-      console.log("Converting image to PDF for client-side use...");
       const pdfBlob = await ImageToPdfConverter.convertImageToPdf(file);
       setPdfBlob(pdfBlob);
       
@@ -119,14 +110,6 @@ export function useFileUpload(): UseFileUploadReturn {
       // Create blob URL for the original image (for preview)
       const imageBlobUrl = URL.createObjectURL(file);
       setUploadedFileUrl(imageBlobUrl);
-      
-      console.log("File ready for local processing", { 
-        name: file.name, 
-        type: file.type, 
-        size: file.size,
-        pdfBlobUrl,
-        imageBlobUrl 
-      });
     } catch (error) {
       console.error("Error converting image to PDF:", error);
       // Fallback: just use the original file

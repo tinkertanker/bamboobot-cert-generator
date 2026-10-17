@@ -43,19 +43,16 @@ jest.mock('@/lib/storage-config', () => ({
 
 describe('SaveProjectModal', () => {
   const mockPositions: Positions = {
-    name: { x: 100, y: 200, fontSize: 16, fontFamily: 'Arial', color: '#000000', align: 'center', visible: true }
+    name: { x: 100, y: 200, fontSize: 16, fontFamily: 'Helvetica', color: '#000000', alignment: 'center', isVisible: true }
   };
   
   const mockColumns = ['name', 'date'];
   const mockEmailConfig: EmailConfig = {
-    isConfigured: true,
-    provider: 'resend',
-    apiKey: 'test-key',
-    from: 'test@example.com',
     senderName: 'Test Sender',
-    emailColumn: 'email',
-    subjectTemplate: 'Your Certificate',
-    bodyTemplate: 'Here is your certificate'
+    subject: 'Your Certificate',
+    message: 'Here is your certificate',
+    deliveryMethod: 'download',
+    isConfigured: true
   };
 
   const defaultProps = {

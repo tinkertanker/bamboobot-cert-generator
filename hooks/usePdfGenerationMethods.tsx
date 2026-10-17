@@ -77,14 +77,12 @@ export function usePdfGenerationMethods({
   // Transfer client-generated PDF URLs to main state when they change
   useEffect(() => {
     if (clientGeneratedPdfUrl) {
-      console.log("Transferring client PDF URL to main state:", clientGeneratedPdfUrl);
       setGeneratedPdfUrl(clientGeneratedPdfUrl);
     }
   }, [clientGeneratedPdfUrl, setGeneratedPdfUrl]);
 
   useEffect(() => {
     if (clientIndividualPdfsData) {
-      console.log("Transferring client individual PDFs to main state:", clientIndividualPdfsData.length, "files");
       setIndividualPdfsData(clientIndividualPdfsData);
     }
   }, [clientIndividualPdfsData, setIndividualPdfsData]);
@@ -116,10 +114,8 @@ export function usePdfGenerationMethods({
   // Helper function to ensure file is uploaded for server-side generation
   const ensureFileUploadedForServer = useCallback(async (): Promise<string | null> => {
     if (localBlobUrl && !/^https?:\/\//i.test(uploadedFileUrl || '')) {
-      console.log('Uploading file to server for server-side generation...');
       const uploadResult = await uploadToServer();
       if (uploadResult && uploadResult.filename) {
-        console.log('File uploaded successfully, filename:', uploadResult.filename);
         return uploadResult.filename;
       }
     }
@@ -137,28 +133,21 @@ export function usePdfGenerationMethods({
     const method = getPdfGenerationMethod({ useServer, forceServer: false });
     
     if (method === "server") {
-      const reason = !isClientSupported ? "(Client not supported)" : 
-                     useServer && isDevelopment && devMode ? "(Dev Mode - explicit server request)" : 
-                     "(Legacy fallback)";
-      console.log(`📡 Using SERVER-SIDE PDF generation ${reason}`);
       const uploadedFilename = await ensureFileUploadedForServer();
       
       if (!uploadedFilename) {
         handleUploadFailure();
         return;
       }
-      
-      // Note: generatePdf doesn't take a filename parameter currently
-      // It uses the state value, but ensureFileUploadedForServer ensures it's updated
+
+      // generatePdf reads the uploaded filename from state, which
+      // ensureFileUploadedForServer has just updated.
       await generatePdf();
     } else {
-      console.log("🚀 Using CLIENT-SIDE PDF generation (default)");
       await generateClientPdf();
     }
   }, [
     getPdfGenerationMethod,
-    isDevelopment,
-    devMode,
     ensureFileUploadedForServer,
     handleUploadFailure,
     generateClientPdf,
@@ -183,10 +172,6 @@ export function usePdfGenerationMethods({
     }
     
     if (method === "server") {
-      const reason = !isClientSupported ? "(Client not supported)" : 
-                     useServer && isDevelopment && devMode ? "(Dev Mode - explicit server request)" : 
-                     "(Legacy fallback)";
-      // Ensure file is uploaded and get the correct filename
       const uploadedFilename = await ensureFileUploadedForServer();
       
       if (!uploadedFilename) {
@@ -195,25 +180,17 @@ export function usePdfGenerationMethods({
       }
       
       if (isProgressive) {
-        console.log(`📡 Using PROGRESSIVE SERVER-SIDE generation for ${tableData.length} rows ${reason}`);
         await startProgressiveGeneration('individual', 20, uploadedFilename);
       } else {
-        console.log(`📡 Using SERVER-SIDE generation for ${tableData.length} rows ${reason}`);
         await generateIndividualPdfs(uploadedFilename);
       }
     } else {
-      console.log(`🚀 Using CLIENT-SIDE generation for ${tableData.length} rows (default)`);
-      if (isProgressive) {
-        console.log(`   ℹ️ Large dataset (${tableData.length} rows) - client-side handles this efficiently`);
-      }
+      // Results arrive via clientIndividualPdfsData (see effect above).
       await generateClientIndividualPdfs();
-      // Note: Results are automatically set in clientIndividualPdfsData
     }
   }, [
     getPdfGenerationMethod,
     tableData.length,
-    isDevelopment,
-    devMode,
     ensureFileUploadedForServer,
     handleUploadFailure,
     startProgressiveGeneration,

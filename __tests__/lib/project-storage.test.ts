@@ -1,10 +1,14 @@
 import { ProjectStorage, SavedProject, ProjectListItem } from '@/lib/project-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
+import { installMockLocalStorage } from '../helpers/mock-local-storage';
+import { silenceConsole } from '../helpers/silence-console';
 
 describe('ProjectStorage', () => {
+  silenceConsole();
+
   const mockPositions: Positions = {
-    name: { x: 100, y: 200, fontSize: 16, fontFamily: 'Arial', color: '#000000', align: 'center', visible: true },
-    date: { x: 300, y: 400, fontSize: 14, fontFamily: 'Times', color: '#333333', align: 'left', visible: true }
+    name: { x: 100, y: 200, fontSize: 16, fontFamily: 'Helvetica', color: '#000000', alignment: 'center', isVisible: true },
+    date: { x: 300, y: 400, fontSize: 14, fontFamily: 'Times', color: '#333333', alignment: 'left', isVisible: true }
   };
   
   const mockColumns = ['name', 'date'];
@@ -17,47 +21,19 @@ describe('ProjectStorage', () => {
   ];
   
   const mockEmailConfig: EmailConfig = {
-    isConfigured: true,
-    provider: 'resend',
-    apiKey: 'test-key',
-    from: 'test@example.com',
+  
     senderName: 'Test Sender',
-    emailColumn: 'email',
-    subjectTemplate: 'Your Certificate',
-    bodyTemplate: 'Here is your certificate'
+  
+    subject: 'Your Certificate',
+  
+    message: 'Here is your certificate',
+  
+    deliveryMethod: 'download',
+  
+    isConfigured: true
   };
 
-  // Mock localStorage
-  const localStorageMock = (() => {
-    let store: Record<string, string> = {};
-    
-    return {
-      getItem: (key: string) => store[key] || null,
-      setItem: (key: string, value: string) => {
-        store[key] = value;
-      },
-      removeItem: (key: string) => {
-        delete store[key];
-      },
-      clear: () => {
-        store = {};
-      },
-      key: (index: number) => {
-        const keys = Object.keys(store);
-        return keys[index] || null;
-      },
-      get length() {
-        return Object.keys(store).length;
-      }
-    };
-  })();
-
-  beforeAll(() => {
-    Object.defineProperty(window, 'localStorage', {
-      value: localStorageMock,
-      writable: true
-    });
-  });
+  const localStorageMock = installMockLocalStorage();
 
   beforeEach(() => {
     localStorageMock.clear();
@@ -108,9 +84,7 @@ describe('ProjectStorage', () => {
     });
 
     it('should handle storage quota exceeded error', async () => {
-      // Mock localStorage.setItem to throw QuotaExceededError
-      const originalSetItem = localStorageMock.setItem;
-      localStorageMock.setItem = jest.fn(() => {
+      localStorageMock.setItem.mockImplementationOnce(() => {
         const error = new Error('QuotaExceededError');
         error.name = 'QuotaExceededError';
         throw error;
@@ -127,8 +101,6 @@ describe('ProjectStorage', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Browser storage quota exceeded');
-
-      localStorageMock.setItem = originalSetItem;
     });
 
     it('should save template with cloud storage info', async () => {
@@ -276,7 +248,7 @@ describe('ProjectStorage', () => {
 
       const newPositions: Positions = {
         ...mockPositions,
-        title: { x: 500, y: 100, fontSize: 20, fontFamily: 'Helvetica', color: '#FF0000', align: 'right', visible: true }
+        title: { x: 500, y: 100, fontSize: 20, fontFamily: 'Helvetica', color: '#FF0000', alignment: 'right', isVisible: true }
       };
 
       const updateResult = await ProjectStorage.updateProject(saveResult.id!, {

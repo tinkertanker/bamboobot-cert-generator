@@ -1,7 +1,8 @@
 // Server-side tier detection and management
-import { prisma } from './prisma';
+import type { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/server/prisma';
 import { getTierLimits, type UserTier } from '@/types/user';
-import { isValidEmail, normaliseEmail } from '@/utils/email-utils';
+import { isValidEmail, normaliseEmail } from '@/utils/email-validation';
 
 // Get admin configuration from environment variables
 // These are optional - if not set, admin features are disabled
@@ -302,7 +303,7 @@ export async function logUsage(userId: string, action: string, metadata?: Record
     data: {
       userId,
       action,
-      metadata: (metadata as any) || {}
+      metadata: (metadata as Prisma.InputJsonValue | undefined) || {}
     }
   });
 }
@@ -323,7 +324,7 @@ export async function logAudit(
       action,
       targetId,
       targetType,
-      metadata: (metadata as any) || {}
+      metadata: (metadata as Prisma.InputJsonValue | undefined) || {}
     }
   });
 }

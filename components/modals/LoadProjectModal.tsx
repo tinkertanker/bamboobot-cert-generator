@@ -53,7 +53,7 @@ export function LoadProjectModal({ isOpen, onClose, onLoadProject, onProjectDele
   const loadProjectById = async (projectId: string) => {
     try {
       let project: SavedProject | null = null;
-      const canServer = (ProjectStorage as any).isServerMode ? (ProjectStorage as any).isServerMode() : false;
+      const canServer = typeof ProjectStorage.isServerMode === 'function' ? ProjectStorage.isServerMode() : false;
       if (canServer) {
         project = await ProjectStorage.loadProjectServer(projectId);
       } else {

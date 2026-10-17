@@ -53,7 +53,6 @@ export function useSessionAutosave({
       
       if (saved) {
         lastSavedDataRef.current = currentData;
-        console.log('Session data autosaved');
       }
     }, AUTOSAVE.DEBOUNCE_MS);
     

@@ -6,7 +6,7 @@ import fs from 'fs';
  * In Docker production environments, this is /app
  * In development, this is process.cwd()
  */
-export function getBaseDir(): string {
+function getBaseDir(): string {
   return process.env.NODE_ENV === 'production' ? '/app' : process.cwd();
 }
 

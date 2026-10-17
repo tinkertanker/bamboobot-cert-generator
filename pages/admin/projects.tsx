@@ -397,7 +397,7 @@ export const getServerSideProps: GetServerSideProps<ProjectsPageProps> = async (
   
   // Calculate stats
   const projectData: ProjectData[] = projects.map(project => {
-    const data = project.data as any;
+    const data = project.data as { image?: unknown; tableData?: unknown[]; columns?: unknown[] };
     const dataSize = JSON.stringify(project.data).length;
     
     return {

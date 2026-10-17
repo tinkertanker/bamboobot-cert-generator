@@ -9,7 +9,7 @@ export default async function handler(
 ): Promise<void> {
   const session = await requireAuth(req, res);
   if (!session) return;
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;

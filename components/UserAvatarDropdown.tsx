@@ -122,6 +122,7 @@ export function UserAvatarDropdown() {
         {/* Avatar */}
         <div aria-hidden="true" className={`w-8 h-8 rounded-full ${getAvatarColor()} flex items-center justify-center text-white text-sm font-medium`}>
           {session.user?.image ? (
+            // eslint-disable-next-line @next/next/no-img-element -- small remote OAuth avatar; next/image would need remotePatterns for every provider
             <img
               src={session.user.image}
               alt=""
@@ -153,6 +154,7 @@ export function UserAvatarDropdown() {
             <div className="flex items-center gap-3">
               <div aria-hidden="true" className={`w-10 h-10 rounded-full ${getAvatarColor()} flex items-center justify-center text-white text-sm font-medium`}>
                 {session.user?.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- small remote OAuth avatar; next/image would need remotePatterns for every provider
                   <img
                     src={session.user.image}
                     alt=""
