@@ -55,7 +55,10 @@ export interface ParseRecipientsResult {
  * Parse comma- or semicolon-separated emails with detailed results
  * Returns both valid recipients and rejected tokens for warning/logging
  */
-export function parseRecipientsDetailed(to: string): ParseRecipientsResult {
+export function parseRecipientsDetailed(to: unknown): ParseRecipientsResult {
+  // Request bodies are untrusted JSON: a non-string recipient is invalid input,
+  // not a server error.
+  if (typeof to !== 'string') return { valid: [], rejected: [] };
   const trimmed = to.trim();
   if (trimmed.length === 0) return { valid: [], rejected: [] };
 
@@ -81,7 +84,7 @@ export function parseRecipientsDetailed(to: string): ParseRecipientsResult {
  * Always returns string[] for consistent handling downstream
  * Invalid emails are filtered out silently (use parseRecipientsDetailed for warnings)
  */
-export function parseRecipients(to: string): string[] {
+export function parseRecipients(to: unknown): string[] {
   return parseRecipientsDetailed(to).valid;
 }
 

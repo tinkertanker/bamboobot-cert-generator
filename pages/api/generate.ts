@@ -33,6 +33,7 @@ import {
 } from '@/lib/pdf/shared/pdf-generation-core';
 import { embedCustomFonts, getNeededCustomFontFamilies } from '@/lib/pdf-generator';
 import { UniquePdfFilenameAllocator } from '@/utils/pdf-filenames';
+import { MAX_SINGLE_REQUEST_PDF_ROWS, validatePdfJobInput } from '@/lib/pdf/server-limits';
 
 async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse): Promise<void> {
   if (req.method !== 'POST') {
@@ -77,15 +78,9 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
       return;
     }
     
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      // Missing or invalid data
-      res.status(400).json({ error: 'Data array is required and must not be empty' });
-      return;
-    }
-    
-    if (!positions || typeof positions !== 'object') {
-      // Missing or invalid positions
-      res.status(400).json({ error: 'Positions object is required' });
+    const inputError = validatePdfJobInput(data, positions, MAX_SINGLE_REQUEST_PDF_ROWS);
+    if (inputError) {
+      res.status(Array.isArray(data) && data.length > MAX_SINGLE_REQUEST_PDF_ROWS ? 413 : 400).json({ error: inputError });
       return;
     }
     

@@ -54,6 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Set appropriate headers
     res.setHeader('Content-Type', contentType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Length', fileBuffer.length.toString());
     res.setHeader('Cache-Control', 'private, no-store');
     

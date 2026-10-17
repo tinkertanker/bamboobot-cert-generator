@@ -1,12 +1,5 @@
 # Dockerfile
 
-# ---- Base Stage ----
-# Use a specific Node.js version for reproducibility. Alpine versions are smaller.
-FROM node:22-alpine AS base
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-
 # ---- Builder Stage ----
 # This stage builds the Next.js application.
 FROM node:22-alpine AS builder
@@ -57,10 +50,9 @@ RUN chown -R nextjs:nodejs /app
 # Static public assets are read-only; persisted user files live under /app/storage
 RUN chmod -R 755 /app/public
 RUN chmod -R 775 /app/storage
-# Make temp directory writable for formidable
-RUN chmod -R 777 /app/tmp/uploads
-# Make prisma directory writable for database
-RUN chmod -R 777 /app/prisma
+# Temp uploads and the SQLite directory are owned by nextjs; no world-write needed
+RUN chmod -R 770 /app/tmp/uploads
+RUN chmod -R 770 /app/prisma
 # Make entrypoint script executable
 RUN chmod +x /app/docker-entrypoint.sh
 

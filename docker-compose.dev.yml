@@ -4,7 +4,7 @@ services:
       context: .
       target: builder  # Use the builder stage for development
     ports:
-      - "3000:3000"  # Access Next.js dev server from host
+      - "127.0.0.1:3000:3000"  # Dev server reachable from this host only
     env_file:
       - .env  # Load environment variables from file
     environment:
@@ -12,6 +12,9 @@ services:
       VIRTUAL_PORT: 3000
       VIRTUAL_HOST: ${DEV_HOST} # different subdomain for dev
       NODE_ENV: development  # Force development mode
+      # Auth defaults off in development; keep the login wall on since this
+      # service is published through the reverse proxy at DEV_HOST.
+      REQUIRE_AUTH: ${REQUIRE_AUTH:-true}
       NEXT_TELEMETRY_DISABLED: 1
     volumes:
       # Mount source code for hot reload
