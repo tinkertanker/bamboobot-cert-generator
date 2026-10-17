@@ -90,35 +90,94 @@ function extractEmailDomain(email: string): string | null {
 }
 
 /**
- * Determine user tier based on email and existing tier
+ * Where a user's current tier came from.
+ * - `env`: derived from SUPER_ADMIN_EMAILS / ADMIN_DOMAINS (or the default).
+ *   Admin tiers with this source are revoked once the env no longer grants them.
+ * - `manual`: set by an admin through the dashboard, kept until changed there.
  */
-export function detectUserTier(email: string | null, currentTier?: UserTier): UserTier {
+export type TierSource = 'env' | 'manual';
+
+const TIER_RANK: Record<UserTier, number> = { free: 0, plus: 1, admin: 2, super_admin: 3 };
+
+export function isAdminTier(tier: UserTier | string | null | undefined): boolean {
+  return tier === 'admin' || tier === 'super_admin';
+}
+
+/**
+ * The admin tier the environment grants this email, or null if it grants none.
+ */
+export function detectEnvTier(email: string | null): 'super_admin' | 'admin' | null {
   if (!email || typeof email !== 'string') {
-    return currentTier || 'free';
+    return null;
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-
-  // Validate email format before processing
   if (!isValidEmail(normalizedEmail)) {
-    return currentTier || 'free';
+    return null;
   }
 
-  // Check if super admin (highest priority)
-  const superAdminEmails = getSuperAdminEmails();
-  if (superAdminEmails.includes(normalizedEmail)) {
+  // Super admin has the highest priority
+  if (getSuperAdminEmails().includes(normalizedEmail)) {
     return 'super_admin';
   }
 
-  // Check if admin domain
   const domain = extractEmailDomain(normalizedEmail);
-  const adminDomains = getAdminDomains();
-  if (domain && adminDomains.includes(domain)) {
+  if (domain && getAdminDomains().includes(domain)) {
     return 'admin';
   }
 
-  // Return existing tier or default to free
-  return currentTier || 'free';
+  return null;
+}
+
+/**
+ * Determine a user's tier from their email, current tier and its source.
+ *
+ * The environment is the source of truth for env-granted admin tiers: an admin
+ * whose email or domain is removed from the env list drops back to `free`.
+ * Tiers set manually by a super admin are kept, though the env can still raise
+ * them (e.g. a manual admin added to SUPER_ADMIN_EMAILS becomes super admin).
+ */
+export function detectUserTier(
+  email: string | null,
+  currentTier?: UserTier,
+  tierSource: TierSource = 'env'
+): UserTier {
+  const envTier = detectEnvTier(email);
+  const current: UserTier = currentTier || 'free';
+
+  if (tierSource === 'manual') {
+    return envTier && TIER_RANK[envTier] > TIER_RANK[current] ? envTier : current;
+  }
+
+  if (envTier) {
+    return envTier;
+  }
+
+  return isAdminTier(current) ? 'free' : current;
+}
+
+/**
+ * Re-check a user's tier against the env and persist any change.
+ * Returns the user's effective tier.
+ */
+export async function syncUserTier(user: {
+  id: string;
+  email: string | null;
+  tier: string;
+  tierSource?: string | null;
+}): Promise<UserTier> {
+  const source: TierSource = user.tierSource === 'manual' ? 'manual' : 'env';
+  const detectedTier = detectUserTier(user.email, user.tier as UserTier, source);
+
+  if (detectedTier !== user.tier) {
+    // Any automatic change (an env grant or a revocation) is env-sourced.
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { tier: detectedTier, tierSource: 'env' }
+    });
+  }
+
+  return detectedTier;
 }
 
 /**
@@ -135,17 +194,8 @@ export async function updateUserTierIfNeeded(userId: string): Promise<DbUser> {
     throw new Error('User not found');
   }
 
-  const detectedTier = detectUserTier(user.email, user.tier as UserTier);
-
-  // Update tier if it changed
-  if (detectedTier !== user.tier) {
-    return await prisma.user.update({
-      where: { id: userId },
-      data: { tier: detectedTier }
-    });
-  }
-
-  return user;
+  const tier = await syncUserTier(user);
+  return tier === user.tier ? user : { ...user, tier, tierSource: 'env' };
 }
 
 /**
@@ -364,13 +414,12 @@ export async function setUserTier(actorId: string, targetUserId: string, newTier
   });
   const updatedUser = await prisma.user.update({
     where: { id: targetUserId },
-    data: { tier: newTier }
+    data: { tier: newTier, tierSource: 'manual' }
   });
 
   // Log the audit action
-  const rank: Record<UserTier, number> = { free: 0, plus: 1, admin: 2, super_admin: 3 };
-  const previousRank = previous ? rank[previous.tier as UserTier] ?? 0 : 0;
-  await logAudit(actorId, rank[newTier] >= previousRank ? 'user_upgrade' : 'user_downgrade', targetUserId, 'user', {
+  const previousRank = previous ? TIER_RANK[previous.tier as UserTier] ?? 0 : 0;
+  await logAudit(actorId, TIER_RANK[newTier] >= previousRank ? 'user_upgrade' : 'user_downgrade', targetUserId, 'user', {
     newTier,
     previousTier: previous?.tier ?? null
   });
