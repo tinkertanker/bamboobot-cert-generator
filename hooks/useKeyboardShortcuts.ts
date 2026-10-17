@@ -1,6 +1,33 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { FONT_CAPABILITIES } from "@/utils/constants";
 
+/** True when keyboard input belongs to a form control rather than the canvas. */
+function isEditableElement(element: Element | null): boolean {
+  if (!element) return false;
+  const tag = element.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    element.getAttribute("contenteditable") === "true" ||
+    element.closest('[role="menu"], [role="listbox"], [role="dialog"]') !== null
+  );
+}
+
+/**
+ * True when arrow keys belong to a focused control (button, link, tab…) rather
+ * than the canvas. Preview text fields are role="button" too, but they are the
+ * nudge target, so they're identified by data-preview-field and allowed.
+ */
+function isInteractiveControl(element: Element | null): boolean {
+  if (!element || element.closest("[data-preview-field]")) return false;
+  return (
+    element.closest(
+      'button, a[href], summary, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="radio"], [role="switch"], [role="slider"], [role="option"], [role="menuitem"]'
+    ) !== null
+  );
+}
+
 export interface UseKeyboardShortcutsProps {
   selectedField: string | null;
   isDragging: boolean;
@@ -26,14 +53,14 @@ export function useKeyboardShortcuts({
   // Arrow key nudging for selected field
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!selectedField || isDragging) return;
+      if (!selectedField || isDragging || event.defaultPrevented) return;
+      // Leave browser/OS shortcuts such as Alt+Left alone
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
 
-      // Don't nudge if an input, textarea, or contenteditable element has focus
-      const activeElement = document.activeElement;
+      // Don't nudge while a form control, button, menu or dialog has focus
       if (
-        activeElement?.tagName === 'INPUT' ||
-        activeElement?.tagName === 'TEXTAREA' ||
-        activeElement?.getAttribute('contenteditable') === 'true'
+        isEditableElement(document.activeElement) ||
+        isInteractiveControl(document.activeElement)
       ) {
         return;
       }
@@ -47,7 +74,7 @@ export function useKeyboardShortcuts({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
-              y: Math.max(0, (prev[selectedField]?.y || 50) - nudgeAmount)
+              y: Math.max(0, (prev[selectedField]?.y ?? 50) - nudgeAmount)
             }
           }));
           break;
@@ -57,7 +84,7 @@ export function useKeyboardShortcuts({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
-              y: Math.min(100, (prev[selectedField]?.y || 50) + nudgeAmount)
+              y: Math.min(100, (prev[selectedField]?.y ?? 50) + nudgeAmount)
             }
           }));
           break;
@@ -67,7 +94,7 @@ export function useKeyboardShortcuts({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
-              x: Math.max(0, (prev[selectedField]?.x || 50) - nudgeAmount)
+              x: Math.max(0, (prev[selectedField]?.x ?? 50) - nudgeAmount)
             }
           }));
           break;
@@ -77,7 +104,7 @@ export function useKeyboardShortcuts({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
-              x: Math.min(100, (prev[selectedField]?.x || 50) + nudgeAmount)
+              x: Math.min(100, (prev[selectedField]?.x ?? 50) + nudgeAmount)
             }
           }));
           break;
@@ -93,7 +120,8 @@ export function useKeyboardShortcuts({
   // ESC key to dismiss all modals
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      // Modals handle Escape themselves and mark the event as handled
+      if (event.key === "Escape" && !event.defaultPrevented) {
         onEscapePressed();
       }
     };
@@ -111,6 +139,8 @@ export function useKeyboardShortcuts({
       const isCommandPressed = isMac ? event.metaKey : event.ctrlKey;
 
       if (!isCommandPressed) return;
+      // Let text fields keep their own Ctrl/Cmd+B/I behaviour
+      if (isEditableElement(document.activeElement)) return;
 
       const currentFont = positionsRef.current[selectedField]?.fontFamily || "Helvetica";
       const fontCapabilities = FONT_CAPABILITIES[currentFont as keyof typeof FONT_CAPABILITIES];

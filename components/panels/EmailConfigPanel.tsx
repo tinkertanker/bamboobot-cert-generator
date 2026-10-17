@@ -1,192 +1,157 @@
 import React from "react";
-import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { Mail } from "lucide-react";
 import { COLORS } from "@/utils/styles";
-import type { EmailConfigPanelProps } from "@/types/certificate";
+import type { EmailConfigPanelProps, EmailConfig } from "@/types/certificate";
+
+const INPUT_CLASSES =
+  "w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400";
 
 export function EmailConfigPanel({
   detectedEmailColumn,
   emailConfig,
-  setEmailConfig,
-  selectedField,
-  setSelectedField,
-  setShowCenterGuide
+  setEmailConfig
 }: EmailConfigPanelProps) {
+  const updateField = (
+    field: "senderName" | "subject" | "message",
+    value: string
+  ) => {
+    setEmailConfig((prev: EmailConfig) => {
+      const updated = { ...prev, [field]: value };
+      updated.isConfigured = !!(
+        updated.senderName &&
+        updated.subject &&
+        updated.message
+      );
+      return updated;
+    });
+  };
+
+  const setDeliveryMethod = (value: string) =>
+    setEmailConfig((prev: EmailConfig) => ({
+      ...prev,
+      deliveryMethod: value as "download" | "attachment"
+    }));
+
+  const isComplete = !!(
+    emailConfig.senderName &&
+    emailConfig.subject &&
+    emailConfig.message
+  );
+
   return (
     <div className="flex flex-col h-full space-y-6">
       <div
-        className="flex items-center justify-between p-3 rounded-lg relative"
+        className="flex items-center gap-2 p-3 rounded-lg text-sm min-w-0"
         style={{
           backgroundColor: COLORS.cardBg,
           border: `1px solid ${COLORS.border}`
         }}>
-        <h3 className="text-sm">
-          <span className="text-gray-500 font-normal">Field:</span>{" "}
-          <span className="font-medium text-gray-900">
-            {detectedEmailColumn}
-          </span>
-        </h3>
-        {selectedField && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setSelectedField(null);
-              setShowCenterGuide({
-                horizontal: false,
-                vertical: false
-              });
-            }}>
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-      
-      {/* Email Settings */}
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">
-              From:
-            </label>
-            <input
-              type="text"
-              value={emailConfig.senderName}
-              onChange={(e) => {
-                const newValue = e.target.value;
-                setEmailConfig((prev) => {
-                  const updated = { ...prev, senderName: newValue };
-                  updated.isConfigured = !!(
-                    updated.senderName &&
-                    updated.subject &&
-                    updated.message
-                  );
-                  return updated;
-                });
-              }}
-              placeholder="Bamboobot"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">
-              Subject:
-            </label>
-            <input
-              type="text"
-              value={emailConfig.subject}
-              onChange={(e) => {
-                const newValue = e.target.value;
-                setEmailConfig((prev) => {
-                  const updated = { ...prev, subject: newValue };
-                  updated.isConfigured = !!(
-                    updated.senderName &&
-                    updated.subject &&
-                    updated.message
-                  );
-                  return updated;
-                });
-              }}
-              placeholder="Your Certificate of Completion"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-        </div>
+        <Mail className="h-4 w-4 flex-shrink-0 text-gray-500" aria-hidden="true" />
+        <span className="text-gray-500">Recipients from column:</span>
+        <span className="font-medium text-gray-900 truncate">
+          {detectedEmailColumn}
+        </span>
       </div>
 
-      <div className="space-y-4">
+      {/* Email Settings */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-600 mb-1">
-            Message (plain text):
+          <label
+            htmlFor="email-sender-name"
+            className="block text-sm font-medium text-gray-600 mb-1">
+            Sender name
           </label>
-          <textarea
-            value={emailConfig.message}
-            onChange={(e) => {
-              const newValue = e.target.value;
-              setEmailConfig((prev) => {
-                const updated = { ...prev, message: newValue };
-                updated.isConfigured = !!(
-                  updated.senderName &&
-                  updated.subject &&
-                  updated.message
-                );
-                return updated;
-              });
-            }}
-            placeholder={`Hi there,\n\nYour certificate is ready! Please find it attached.\n\nThanks!`}
-            rows={6}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+          <input
+            id="email-sender-name"
+            type="text"
+            autoComplete="off"
+            value={emailConfig.senderName}
+            onChange={(e) => updateField("senderName", e.target.value)}
+            placeholder="Bamboobot"
+            className={INPUT_CLASSES}
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="email-subject"
+            className="block text-sm font-medium text-gray-600 mb-1">
+            Subject
+          </label>
+          <input
+            id="email-subject"
+            type="text"
+            autoComplete="off"
+            value={emailConfig.subject}
+            onChange={(e) => updateField("subject", e.target.value)}
+            placeholder="Your Certificate of Completion"
+            className={INPUT_CLASSES}
           />
         </div>
       </div>
 
+      <div>
+        <label
+          htmlFor="email-message"
+          className="block text-sm font-medium text-gray-600 mb-1">
+          Message (plain text)
+        </label>
+        <textarea
+          id="email-message"
+          value={emailConfig.message}
+          onChange={(e) => updateField("message", e.target.value)}
+          placeholder={`Hi there,\n\nYour certificate is ready! Please find it attached.\n\nThanks!`}
+          rows={6}
+          className={`${INPUT_CLASSES} resize-y`}
+        />
+      </div>
+
       {/* Delivery Method */}
-      <div className="space-y-4">
-        <div className="text-sm text-gray-600">
-          <p className="font-medium mb-1">Send certificate as:</p>
-          <label className="inline-flex items-center ml-4 cursor-pointer">
+      <fieldset className="text-sm text-gray-600">
+        <legend className="font-medium mb-2">Send certificate as</legend>
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
+          <label className="inline-flex items-center cursor-pointer">
             <input
               type="radio"
               name="deliveryMethod"
               value="download"
               checked={emailConfig.deliveryMethod === "download"}
-              onChange={(e) =>
-                setEmailConfig((prev) => ({
-                  ...prev,
-                  deliveryMethod: e.target.value as
-                    | "download"
-                    | "attachment"
-                }))
-              }
+              onChange={(e) => setDeliveryMethod(e.target.value)}
               className="mr-2"
             />
             <span className="text-sm text-gray-700">
-              Download link (expires 90 days)
+              Download link (expires after 90 days)
             </span>
           </label>
-          <label className="inline-flex items-center ml-6 cursor-pointer">
+          <label className="inline-flex items-center cursor-pointer">
             <input
               type="radio"
               name="deliveryMethod"
               value="attachment"
               checked={emailConfig.deliveryMethod === "attachment"}
-              onChange={(e) =>
-                setEmailConfig((prev) => ({
-                  ...prev,
-                  deliveryMethod: e.target.value as
-                    | "download"
-                    | "attachment"
-                }))
-              }
+              onChange={(e) => setDeliveryMethod(e.target.value)}
               className="mr-2"
             />
-            <span className="text-sm text-gray-700">
-              PDF attachment
-            </span>
+            <span className="text-sm text-gray-700">PDF attachment</span>
           </label>
         </div>
-      </div>
+      </fieldset>
 
       {/* Configuration Status */}
-      <div className="mt-6 p-4 rounded-lg border">
-        {emailConfig.senderName &&
-        emailConfig.subject &&
-        emailConfig.message ? (
+      <div className="p-4 rounded-lg border" role="status">
+        {isComplete ? (
           <div className="flex items-center gap-2 text-green-700">
-            <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+            <div className="h-2 w-2 bg-green-500 rounded-full flex-shrink-0" aria-hidden="true"></div>
             <span className="text-sm">
-              Email configuration complete.{" "}
-              <span className="font-medium">
-                Generate Individual PDFs
-              </span>{" "}
-              to send.
+              Email configuration complete. Choose{" "}
+              <span className="font-medium">Generate</span> to create the
+              certificates, then send them from the results window.
             </span>
           </div>
         ) : (
           <div className="flex items-center gap-2 text-amber-700">
-            <div className="h-2 w-2 bg-amber-500 rounded-full"></div>
+            <div className="h-2 w-2 bg-amber-500 rounded-full flex-shrink-0" aria-hidden="true"></div>
             <span className="text-sm font-medium">
-              Complete all fields above to enable email sending
+              Fill in the sender name, subject and message to enable email sending
             </span>
           </div>
         )}

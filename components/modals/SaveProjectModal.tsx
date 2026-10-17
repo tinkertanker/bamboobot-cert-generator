@@ -109,9 +109,19 @@ export function SaveProjectModal({
   );
   const storagePercentage = storageInfo.percentage;
   const isNearLimit = storagePercentage > 80;
+  const fieldCount = Object.keys(positions || {}).length;
   
   return (
-    <Modal open={isOpen} onClose={handleClose} width="w-[600px]">
+    <Modal
+      open={isOpen}
+      onClose={handleClose}
+      width="w-[600px] max-w-[calc(100vw-2rem)]"
+      ariaLabelledBy="save-project-title"
+      initialFocusRef={inputRef}
+      // Don't let a stray Escape/backdrop click abandon an in-flight save
+      closeOnEscape={!isSaving}
+      closeOnBackdropClick={!isSaving}
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -121,7 +131,7 @@ export function SaveProjectModal({
         }}
       >
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-gray-900">Save Project</h2>
+        <h2 id="save-project-title" className="text-2xl font-bold text-gray-900">Save Project</h2>
         
         <div>
           <label htmlFor="project-name" className="block text-sm font-medium text-gray-700 mb-2">
@@ -135,7 +145,9 @@ export function SaveProjectModal({
               setProjectName(e.target.value);
               if (error) setError(null);
             }}
-            placeholder="e.g., Annual Awards 2025"
+            placeholder="e.g. Annual Awards 2025"
+            maxLength={100}
+            autoComplete="off"
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
             ref={inputRef}
@@ -146,9 +158,9 @@ export function SaveProjectModal({
         
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" aria-hidden="true" />
             <div className="text-sm text-amber-800">
-              <p className="font-semibold mb-1">Important Notes:</p>
+              <p className="font-semibold mb-1">Important notes:</p>
               <ul className="list-disc ml-5 space-y-1">
                 <li>This project includes all your data and formatting</li>
                 <li>Saved locally in your browser</li>
@@ -165,36 +177,39 @@ export function SaveProjectModal({
             <p className="font-medium">Project will include:</p>
             <ul className="mt-1 space-y-1">
               <li className="flex items-center gap-2">
-                <span className="text-green-600">✓</span>
-                {Object.keys(positions || {}).length} configured text fields
+                <span className="text-green-600" aria-hidden="true">✓</span>
+                {fieldCount} configured text {fieldCount === 1 ? 'field' : 'fields'}
               </li>
               <li className="flex items-center gap-2">
-                <span className="text-green-600">✓</span>
-                {columns.length} data columns
+                <span className="text-green-600" aria-hidden="true">✓</span>
+                {columns.length} data {columns.length === 1 ? 'column' : 'columns'}
               </li>
               <li className="flex items-center gap-2">
-                <span className="text-green-600">✓</span>
-                {tableData.length} data rows
+                <span className="text-green-600" aria-hidden="true">✓</span>
+                {tableData.length} data {tableData.length === 1 ? 'row' : 'rows'}
               </li>
               {emailConfig?.isConfigured && (
                 <li className="flex items-center gap-2">
-                  <span className="text-green-600">✓</span>
+                  <span className="text-green-600" aria-hidden="true">✓</span>
                   Email configuration
                 </li>
               )}
               <li className="flex items-center gap-2">
-                <span className="text-green-600">✓</span>
-                Certificate image ({isCloudStorage ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Cloud className="h-3 w-3" />
-                    Cloud
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1">
-                    <HardDrive className="h-3 w-3" />
-                    Local
-                  </span>
-                )})
+                <span className="text-green-600" aria-hidden="true">✓</span>
+                Certificate image
+                <span className="inline-flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">
+                  {isCloudStorage ? (
+                    <>
+                      <Cloud className="h-3 w-3" aria-hidden="true" />
+                      Cloud
+                    </>
+                  ) : (
+                    <>
+                      <HardDrive className="h-3 w-3" aria-hidden="true" />
+                      Local
+                    </>
+                  )}
+                </span>
               </li>
             </ul>
           </div>
@@ -203,10 +218,17 @@ export function SaveProjectModal({
         {/* Storage usage indicator */}
         <div className="space-y-1">
           <div className="flex justify-between text-xs text-gray-600">
-            <span>Browser Storage</span>
+            <span id="browser-storage-label">Browser storage</span>
             <span>{storagePercentage}% used</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div
+            className="w-full bg-gray-200 rounded-full h-2"
+            role="progressbar"
+            aria-labelledby="browser-storage-label"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.min(storagePercentage, 100)}
+          >
             <div 
               className={`h-2 rounded-full transition-all ${
                 isNearLimit ? 'bg-amber-500' : 'bg-green-500'
@@ -215,14 +237,14 @@ export function SaveProjectModal({
             />
           </div>
           {isNearLimit && (
-            <p className="text-xs text-amber-600">
+            <p className="text-xs text-amber-700">
               Storage is nearly full. Consider deleting old projects.
             </p>
           )}
         </div>
         
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <div role="alert" className="bg-red-50 border border-red-200 rounded-lg p-3">
             <p id="project-name-error" className="text-sm text-red-600">{error}</p>
           </div>
         )}
@@ -243,12 +265,12 @@ export function SaveProjectModal({
           >
             {isSaving ? (
               <>
-                <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                Saving...
+                <span className="motion-safe:animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" aria-hidden="true" />
+                Saving…
               </>
             ) : (
               <>
-                <Save className="h-4 w-4" />
+                <Save className="h-4 w-4" aria-hidden="true" />
                 Save Project
               </>
             )}

@@ -126,7 +126,7 @@ export function usePdfGenerationMethods({
   // Helper function to handle upload failures
   const handleUploadFailure = useCallback(() => {
     console.error('Failed to get uploaded filename');
-    alert('Failed to get uploaded filename. Please try again.');
+    alert("We couldn't upload your certificate template to the server. Check your connection and try again.");
   }, []);
 
   const handleGeneratePdf = useCallback(async (useServer = false) => {

@@ -24,9 +24,9 @@ export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
     }, [id, duration, onClose]);
 
     const icon = {
-      success: <CheckCircle className="h-4 w-4" />,
-      error: <AlertCircle className="h-4 w-4" />,
-      info: <Info className="h-4 w-4" />
+      success: <CheckCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />,
+      error: <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />,
+      info: <Info className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
     }[type];
 
     const colorClasses = {
@@ -38,6 +38,7 @@ export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
     return (
       <div
         ref={ref}
+        role={type === "error" ? "alert" : "status"}
         className={cn(
           "flex items-center gap-2 px-4 py-3 rounded-lg border shadow-lg",
           TOAST.ANIMATION,
@@ -45,12 +46,14 @@ export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
         )}
       >
         {icon}
-        <p className="text-sm font-medium flex-1">{message}</p>
+        <p className="text-sm font-medium flex-1 break-words min-w-0">{message}</p>
         <button
+          type="button"
           onClick={() => onClose?.(id)}
-          className="ml-2 p-1 rounded hover:bg-black/5 transition-colors"
+          className="ml-2 p-1 rounded hover:bg-black/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current flex-shrink-0"
+          aria-label="Dismiss notification"
         >
-          <X className="h-3 w-3" />
+          <X className="h-3 w-3" aria-hidden="true" />
         </button>
       </div>
     );
@@ -70,7 +73,11 @@ export const ToastContainer = React.forwardRef<HTMLDivElement, ToastContainerPro
     return (
       <div
         ref={ref}
-        className={cn("fixed z-50 flex flex-col gap-2 pointer-events-none", TOAST.POSITION)}
+        // Above modal overlays (z-50) so feedback triggered from a modal stays visible
+        className={cn(
+          "fixed z-[60] flex flex-col gap-2 pointer-events-none max-w-[calc(100vw-2rem)] sm:max-w-sm",
+          TOAST.POSITION
+        )}
       >
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto">

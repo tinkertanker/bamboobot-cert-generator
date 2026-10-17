@@ -8,42 +8,62 @@ interface NewProjectModalProps {
   onClose: () => void;
   onConfirm: () => void;
   hasUnsavedWork: boolean;
+  /**
+   * Whether the current work belongs to a saved project (and is therefore
+   * kept up to date by autosave). When omitted, the copy avoids promising
+   * that anything has been saved.
+   */
+  isSavedProject?: boolean;
 }
 
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({
   isOpen,
   onClose,
   onConfirm,
-  hasUnsavedWork
+  hasUnsavedWork,
+  isSavedProject
 }) => {
   const handleConfirm = () => {
     onConfirm();
     onClose();
   };
 
+  let message = "This will clear all current settings and start fresh.";
+  if (hasUnsavedWork) {
+    message = isSavedProject
+      ? "Your last autosaved version can be reopened from Open project. Changes made since the last autosave will be lost."
+      : "This clears the current certificate, text fields and data. Anything you haven't saved as a project will be lost.";
+  }
+
   return (
-    <Modal open={isOpen} onClose={onClose} width="w-96">
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      width="w-96 max-w-[calc(100vw-2rem)]"
+      ariaLabelledBy="new-project-title"
+      ariaDescribedBy="new-project-description"
+    >
       <div className="space-y-4">
         <div className="flex items-start gap-3">
-          <AlertTriangle className="h-6 w-6 text-amber-500 flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="h-6 w-6 text-amber-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Start New Project?</h2>
-            <p className="mt-2 text-sm text-gray-600">
-              {hasUnsavedWork
-                ? "Your current work has been autosaved and will remain accessible via Load Projects."
-                : "This will clear all current settings and start fresh."}
+            <h2 id="new-project-title" className="text-lg font-semibold text-gray-900">Start New Project?</h2>
+            <p id="new-project-description" className="mt-2 text-sm text-gray-600">
+              {message}
             </p>
           </div>
         </div>
         
         <div className="flex gap-3 justify-end">
           <Button
+            type="button"
             variant="outline"
             onClick={onClose}
           >
             Cancel
           </Button>
           <Button
+            type="button"
             onClick={handleConfirm}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >

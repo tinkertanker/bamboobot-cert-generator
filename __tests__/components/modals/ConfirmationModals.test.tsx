@@ -61,7 +61,7 @@ describe('ConfirmationModals automatic colour reset', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Clear All' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
 
     const result = setPositions.mock.calls[0][0] as Positions;
     expect(result.Name.color).toBe('#ffffff');

@@ -3,7 +3,7 @@ import { GetServerSideProps } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/lib/server/prisma';
-import { getTierLimits } from '@/types/user';
+import { getTierLimits, TIER_LABELS } from '@/types/user';
 import type { UserTier } from '@/types/user';
 import AdminLayout from '@/components/admin/AdminLayout';
 import Link from 'next/link';
@@ -51,12 +51,13 @@ export default function UserDetailsPage({ user, projects, recentActivity, isSupe
 
   const subNav = (
     <div className="flex items-center gap-2">
-      <Link href="/admin/users" className="px-3 py-1.5 text-sm rounded-md bg-gray-100 hover:bg-gray-200">Back to Users</Link>
+      <Link href="/admin/users" className="px-3 py-1.5 text-sm rounded-md bg-gray-100 hover:bg-gray-200">Back to users</Link>
     </div>
   );
 
   async function handleTierChange(newTier: UserTier) {
     if (newTier === tier) return;
+    if (!window.confirm(`Change ${user.email} from ${TIER_LABELS[tier]} to ${TIER_LABELS[newTier]}?`)) return;
     setSaving(true);
     try {
       const res = await fetch('/api/admin/users/update-tier', {
@@ -89,13 +90,14 @@ export default function UserDetailsPage({ user, projects, recentActivity, isSupe
           <div className="text-xs text-gray-400 mt-2">ID: {user.id}</div>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-sm text-gray-500 mb-1">Tier</div>
+          <div id="user-tier-label" className="text-sm text-gray-500 mb-1">Tier</div>
           {isSuperAdmin && user.id !== currentUserId ? (
             <select
+              aria-labelledby="user-tier-label"
               value={tier}
               onChange={(e) => handleTierChange(e.target.value as UserTier)}
               disabled={saving}
-              className="px-2 py-1 border rounded text-sm"
+              className="px-2 py-1 border rounded text-sm disabled:opacity-50"
             >
               <option value="free">Free</option>
               <option value="plus">Plus</option>
@@ -109,10 +111,10 @@ export default function UserDetailsPage({ user, projects, recentActivity, isSupe
               tier === 'plus' ? 'bg-blue-100 text-blue-800' :
               'bg-gray-100 text-gray-800'
             }`}>
-              {tier.replace('_', ' ')}
+              {TIER_LABELS[tier] ?? tier}
             </span>
           )}
-          <div className="text-xs text-gray-500 mt-3">
+          <div className="text-xs text-gray-500 mt-3" suppressHydrationWarning>
             Created: {new Date(user.createdAt).toLocaleString()}<br/>
             Last active: {user.lastActiveAt ? new Date(user.lastActiveAt).toLocaleString() : '—'}
           </div>
@@ -131,7 +133,7 @@ export default function UserDetailsPage({ user, projects, recentActivity, isSupe
           <div className="px-6 py-4 border-b">
             <h2 className="text-lg font-semibold text-gray-900">Recent Projects</h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -143,7 +145,7 @@ export default function UserDetailsPage({ user, projects, recentActivity, isSupe
                 {projects.map(p => (
                   <tr key={p.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{p.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(p.updatedAt).toLocaleString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" suppressHydrationWarning>{new Date(p.updatedAt).toLocaleString()}</td>
                   </tr>
                 ))}
                 {projects.length === 0 && (
@@ -161,7 +163,7 @@ export default function UserDetailsPage({ user, projects, recentActivity, isSupe
           <div className="px-6 py-4 border-b">
             <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -172,8 +174,8 @@ export default function UserDetailsPage({ user, projects, recentActivity, isSupe
               <tbody className="bg-white divide-y divide-gray-200">
                 {recentActivity.map(a => (
                   <tr key={a.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{a.action.replace('_', ' ')}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(a.createdAt).toLocaleString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{a.action.replace(/_/g, ' ')}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" suppressHydrationWarning>{new Date(a.createdAt).toLocaleString()}</td>
                   </tr>
                 ))}
                 {recentActivity.length === 0 && (

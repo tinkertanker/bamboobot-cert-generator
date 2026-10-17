@@ -45,6 +45,7 @@ function CertificatePreviewComponent({
   handlePointerDown,
   handlePointerUp,
   setShowCenterGuide,
+  setActiveTab,
   isDraggingFile,
   handleDragOver,
   handleDragLeave,
@@ -62,9 +63,16 @@ function CertificatePreviewComponent({
     }
   }, []);
 
-  // Update container width on resize
+  // Track the preview width (layout changes as well as window resizes) so
+  // shrink-to-fit and multi-line measurements stay in sync with what is shown.
   useEffect(() => {
     updateWidth();
+    const element = containerRef.current;
+    if (element && typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(() => updateWidth());
+      observer.observe(element);
+      return () => observer.disconnect();
+    }
     window.addEventListener('resize', updateWidth);
     return () => window.removeEventListener('resize', updateWidth);
   }, [uploadedFileUrl, updateWidth]);
@@ -92,7 +100,8 @@ function CertificatePreviewComponent({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={uploadedFileUrl}
-              alt="Certificate Template"
+              alt="Certificate background"
+              draggable={false}
               className="w-full h-auto block"
               onLoad={updateWidth}
               onError={() => {
@@ -127,7 +136,8 @@ function CertificatePreviewComponent({
                   const isBold = positions[key]?.bold || false;
                   const isItalic = positions[key]?.italic || false;
                   const textColor = positions[key]?.color || "#000000";
-                  const alignment = positions[key]?.alignment || "center";
+                  // Default must match PDF generation (pdf-generation-core) and the formatting panel
+                  const alignment = positions[key]?.alignment || "left";
                   const textMode = positions[key]?.textMode || "shrink";
                   const widthPercent = positions[key]?.width || 90;
                   const lineHeight = positions[key]?.lineHeight || 1.2;
@@ -230,8 +240,20 @@ function CertificatePreviewComponent({
                     <div
                       key={key}
                       data-key={key}
-                      className="absolute"
+                      data-preview-field=""
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      aria-label={`${key || `Column ${index + 1}`} text field${isHidden ? " (hidden)" : ""}. Press Enter to select, then use arrow keys to move.`}
+                      className="absolute focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-emerald-600"
                       style={style}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedField(key);
+                          setActiveTab?.("formatting");
+                        }
+                      }}
                       onPointerDown={(e) => handlePointerDown(e, key)}
                       onPointerUp={handlePointerUp}
                       onPointerCancel={handlePointerUp}>
@@ -426,8 +448,8 @@ function CertificatePreviewComponent({
         </>
       ) : (
         <div
-          className={`flex items-center justify-center h-64 rounded-lg border-2 border-dashed transition-colors ${
-            isDraggingFile ? "text-white" : "text-gray-600 bg-gray-50"
+          className={`flex items-center justify-center h-64 rounded-lg border-2 border-dashed transition-colors focus-within:ring-2 focus-within:ring-emerald-600 focus-within:ring-offset-2 hover:border-gray-400 ${
+            isDraggingFile ? "text-emerald-900" : "text-gray-600"
           }`}
           style={{
             borderColor: isDraggingFile ? COLORS.primaryMedium : COLORS.borderGray,
@@ -442,8 +464,9 @@ function CertificatePreviewComponent({
           <label
             htmlFor="file-upload"
             className="cursor-pointer w-full h-full flex items-center justify-center">
-            <div className="flex flex-col items-center justify-center space-y-2">
+            <div className="flex flex-col items-center justify-center space-y-2 px-4">
               <UploadIcon
+                aria-hidden="true"
                 className={`h-12 w-12 ${
                   isDraggingFile ? "animate-pulse" : ""
                 }`}
@@ -453,6 +476,11 @@ function CertificatePreviewComponent({
                   ? "Drop your image here"
                   : "Upload your certificate's background image here, in JPEG or PNG format"}
               </span>
+              {!isDraggingFile && (
+                <span className="text-xs text-gray-500 text-center">
+                  Click to browse, or drag and drop a file
+                </span>
+              )}
             </div>
             <input
               id="file-upload"
@@ -494,6 +522,7 @@ export const areCertificatePreviewPropsEqual = (
     prevProps.handlePointerDown === nextProps.handlePointerDown &&
     prevProps.handlePointerUp === nextProps.handlePointerUp &&
     prevProps.setShowCenterGuide === nextProps.setShowCenterGuide &&
+    prevProps.setActiveTab === nextProps.setActiveTab &&
     prevProps.handleDragOver === nextProps.handleDragOver &&
     prevProps.handleDragLeave === nextProps.handleDragLeave &&
     prevProps.handleFileDrop === nextProps.handleFileDrop &&

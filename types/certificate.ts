@@ -172,6 +172,8 @@ export interface CertificatePreviewProps {
   handlePointerDown: (event: React.PointerEvent, key: string) => void;
   handlePointerUp: (event: React.PointerEvent) => void;
   setShowCenterGuide: React.Dispatch<React.SetStateAction<CenterGuideState>>;
+  /** Switches the sidebar tab; keyboard selection opens formatting like a click does */
+  setActiveTab?: (tab: TabType) => void;
   // File upload props
   isDraggingFile: boolean;
   handleDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
