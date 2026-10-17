@@ -118,6 +118,49 @@ describe('authentication middleware', () => {
     }
   });
 
+  describe('scheduled storage cleanup', () => {
+    function cleanupRequest(pathname: string, key?: string): NextRequest {
+      return new NextRequest(`https://certificates.example${pathname}`, {
+        method: 'POST',
+        headers: key ? { 'x-cleanup-key': key } : {},
+      });
+    }
+
+    beforeEach(() => {
+      process.env.CLEANUP_SECRET_KEY = 'cleanup-secret';
+      mockedGetToken.mockResolvedValue(null);
+    });
+
+    afterEach(() => {
+      delete process.env.CLEANUP_SECRET_KEY;
+    });
+
+    it.each(['/api/cleanup-r2', '/api/cleanup-s3'])(
+      'lets %s through without a session when the cleanup key matches',
+      async pathname => {
+        const response = await middleware(cleanupRequest(pathname, 'cleanup-secret'));
+        expect(response.status).toBe(200);
+        expect(mockedGetToken).not.toHaveBeenCalled();
+      },
+    );
+
+    it('requires a session when the cleanup key is wrong or missing', async () => {
+      expect((await middleware(cleanupRequest('/api/cleanup-s3', 'wrong'))).status).toBe(401);
+      expect((await middleware(cleanupRequest('/api/cleanup-s3'))).status).toBe(401);
+    });
+
+    it('does not let the cleanup key open other API routes', async () => {
+      for (const pathname of ['/api/storage/list', '/api/cleanup-s3/extra', '/api/cleanup-s3x']) {
+        expect((await middleware(cleanupRequest(pathname, 'cleanup-secret'))).status).toBe(401);
+      }
+    });
+
+    it('requires a session when no cleanup secret is configured', async () => {
+      delete process.env.CLEANUP_SECRET_KEY;
+      expect((await middleware(cleanupRequest('/api/cleanup-s3', ''))).status).toBe(401);
+    });
+  });
+
   it('gates a /_next lookalike path outside the framework prefix', async () => {
     mockedGetToken.mockResolvedValue(null);
 
