@@ -85,8 +85,8 @@ export class ProjectStorage {
           const data = localStorage.getItem(oldKey);
           if (data) {
             const newKey = oldKey.replace(OLD_STORAGE_KEY_PREFIX, STORAGE_KEY_PREFIX);
+            // The old key is intentionally kept as a fallback
             localStorage.setItem(newKey, data);
-            // Keep old key temporarily for safety - can be removed in a future update
             migrated++;
           }
         } catch (error) {
@@ -95,7 +95,9 @@ export class ProjectStorage {
         }
       }
       
-      console.log(`Migration complete: ${migrated} projects migrated, ${errors} errors`);
+      if (migrated > 0 || errors > 0) {
+        console.log(`Migration complete: ${migrated} projects migrated, ${errors} errors`);
+      }
     } catch (error) {
       console.error('Error during migration:', error);
     }
@@ -409,15 +411,12 @@ export class ProjectStorage {
           if (processedIds.has(project.id)) continue;
           processedIds.add(project.id);
           
-          // Check if certificate image is available
+          // Image availability is not verified remotely: cloud images are
+          // assumed present, local ones only need a stored URL.
           let imageStatus: ProjectListItem['imageStatus'] = 'checking';
-          
-          // For cloud storage, assume available (would need actual check in production)
           if (project.certificateImage.isCloudStorage) {
             imageStatus = 'available';
           } else {
-            // For local storage, we can check if the URL is accessible
-            // This is a simplified check - in production you'd want to actually verify
             imageStatus = project.certificateImage.url ? 'available' : 'missing';
           }
           
@@ -634,10 +633,8 @@ export class ProjectStorage {
       // Support both old and new format
       const project = (importData.project || importData.template) as SavedProject;
       
-      // Handle embedded image if present
+      // Embedded images are not uploaded on import; the user must re-upload
       if (importData.certificateImage?.base64) {
-        // In a real implementation, you'd upload this to the server
-        // For now, we'll just note that the image needs to be re-uploaded
         project.certificateImage.url = '';
         console.warn('Imported project contains embedded image - user will need to re-upload');
       }

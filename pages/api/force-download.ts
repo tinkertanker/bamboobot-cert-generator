@@ -23,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  const userId = (session.user as any).id as string;
+  const userId = session.user.id;
   const rateLimit = enforceRateLimit(req, res, {
     userId,
     route: 'force-download',

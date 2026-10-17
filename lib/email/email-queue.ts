@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { EmailQueue, EmailQueueItem, EmailParams, BulkEmailProgress, EmailProvider } from './types';
-import { formatRecipients } from '@/utils/email-utils';
+import { formatRecipients } from '@/utils/email-validation';
 import { isDefinitelyUnsentProviderError, publicProviderError } from './provider-errors';
 
 export class EmailQueueManager {

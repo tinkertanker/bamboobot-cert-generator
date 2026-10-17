@@ -7,10 +7,10 @@ import {
   HeadObjectCommand 
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { normalizeStoredMetadata, readFileMetadata } from '@/lib/storage/file-metadata';
+import { normalizeStoredMetadata } from '@/lib/storage/file-metadata';
 
 // Initialize S3 client
-export const s3Client = new S3Client({
+const s3Client = new S3Client({
   region: process.env.S3_REGION || 'us-east-1',
   credentials: {
     accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
@@ -136,56 +136,6 @@ export async function deleteFromS3(key: string): Promise<void> {
 }
 
 /**
- * List objects in S3
- */
-export async function listS3Objects(
-  prefix?: string,
-  maxKeys: number = 1000
-): Promise<Array<{key: string; lastModified?: Date; size?: number; metadata?: Record<string, string>}>> {
-  const command = new ListObjectsV2Command({
-    Bucket: BUCKET_NAME,
-    Prefix: prefix,
-    MaxKeys: maxKeys,
-  });
-
-  const response = await s3Client.send(command);
-  
-  const objects = response.Contents || [];
-  
-  // Fetch metadata for each object
-  const objectsWithMetadata = await Promise.all(
-    objects.map(async (obj) => {
-      if (!obj.Key) return null;
-      
-      try {
-        const headCommand = new HeadObjectCommand({
-          Bucket: BUCKET_NAME,
-          Key: obj.Key,
-        });
-        const headResponse = await s3Client.send(headCommand);
-        
-        return {
-          key: obj.Key,
-          lastModified: obj.LastModified,
-          size: obj.Size,
-          metadata: headResponse.Metadata,
-        };
-      } catch (error) {
-        console.error(`Failed to get metadata for ${obj.Key}:`, error);
-        return {
-          key: obj.Key,
-          lastModified: obj.LastModified,
-          size: obj.Size,
-          metadata: {},
-        };
-      }
-    })
-  );
-  
-  return objectsWithMetadata.filter((obj): obj is NonNullable<typeof obj> => obj !== null);
-}
-
-/**
  * List ALL objects in S3 with optional prefix, using pagination
  */
 export async function listAllS3Objects(
@@ -216,7 +166,7 @@ export async function listAllS3Objects(
 /**
  * Update object metadata (for marking as emailed)
  */
-export async function updateS3Metadata(key: string, metadata: Partial<FileMetadata>): Promise<void> {
+async function updateS3Metadata(key: string, metadata: Partial<FileMetadata>): Promise<void> {
   // S3 doesn't support updating metadata in place, so we need to copy the object
   // First, get the current object metadata
   const headCommand = new HeadObjectCommand({
@@ -263,81 +213,6 @@ async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
     chunks.push(Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
-}
-
-/**
- * Clean up expired files based on metadata
- */
-export async function cleanupExpiredS3Files(dryRun: boolean = false): Promise<{
-  deleted: string[];
-  kept: string[];
-  errors: string[];
-}> {
-  const objects = await listS3Objects();
-  const now = new Date();
-  const results = {
-    deleted: [] as string[],
-    kept: [] as string[],
-    errors: [] as string[],
-  };
-
-  for (const obj of objects) {
-    try {
-      // Providers return custom metadata keys lowercased, so parse
-      // case-insensitively; a camelCase read of emailSent would always miss.
-      const metadata = readFileMetadata(obj.metadata) || {
-        retention: 'permanent' as const,
-        created: '',
-        type: 'template' as const,
-      };
-      const created = metadata.created ? new Date(metadata.created) : obj.lastModified;
-      const retention = metadata.retention || 'permanent';
-      const emailSent = metadata.emailSent === 'true';
-      
-      if (!created) {
-        results.errors.push(`${obj.key}: No creation date`);
-        continue;
-      }
-
-      // Skip if email was sent (extends retention)
-      if (emailSent && retention !== 'permanent') {
-        results.kept.push(`${obj.key}: Email sent, retention extended`);
-        continue;
-      }
-
-      // Check retention period
-      const age = now.getTime() - created.getTime();
-      let shouldDelete = false;
-
-      switch (retention) {
-        case '24h':
-          shouldDelete = age > 24 * 60 * 60 * 1000;
-          break;
-        case '7d':
-          shouldDelete = age > 7 * 24 * 60 * 60 * 1000;
-          break;
-        case '90d':
-          shouldDelete = age > 90 * 24 * 60 * 60 * 1000;
-          break;
-        case 'permanent':
-          shouldDelete = false;
-          break;
-      }
-
-      if (shouldDelete) {
-        if (!dryRun) {
-          await deleteFromS3(obj.key);
-        }
-        results.deleted.push(`${obj.key}: Expired (${retention} retention)`);
-      } else {
-        results.kept.push(`${obj.key}: Not expired (${retention} retention)`);
-      }
-    } catch (error) {
-      results.errors.push(`${obj.key}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  return results;
 }
 
 /**

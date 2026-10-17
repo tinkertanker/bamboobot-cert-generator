@@ -26,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Require authentication
   const session = await requireAuth(req, res);
   if (!session) return;
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
   // Rate limit uploads
   const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
   const key = buildKey({ userId, ip, route: 'upload', category: 'upload' });

@@ -183,7 +183,7 @@ export async function deleteObjects(actions: Array<{ key?: unknown; isPrefix?: u
           await deleteFromR2(a.key);
           deleted.push(a.key);
         }
-      } catch (e) {
+      } catch {
         errors.push(`${a.key}`);
       }
     }
@@ -207,7 +207,7 @@ export async function deleteObjects(actions: Array<{ key?: unknown; isPrefix?: u
           await deleteFromS3(a.key);
           deleted.push(a.key);
         }
-      } catch (e) {
+      } catch {
         errors.push(`${a.key}`);
       }
     }
@@ -284,7 +284,7 @@ export async function deleteObjects(actions: Array<{ key?: unknown; isPrefix?: u
           deleted.push(a.key);
         }
       }
-    } catch (e) {
+    } catch {
       errors.push(`${a.key}`);
     }
   }

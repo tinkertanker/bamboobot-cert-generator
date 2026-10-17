@@ -13,7 +13,7 @@ export interface TierLimits {
   canImpersonate: boolean;
 }
 
-export const TIER_LIMITS: Record<UserTier, TierLimits> = {
+const TIER_LIMITS: Record<UserTier, TierLimits> = {
   free: {
     dailyPdfLimit: 10,
     dailyEmailLimit: 0,
@@ -90,17 +90,6 @@ export interface AuditAction {
 // Helper functions
 export function getTierLimits(tier: UserTier): TierLimits {
   return TIER_LIMITS[tier];
-}
-
-// Note: canPerformAction is not used - actual checks are done server-side in featureGate.ts
-// This function is kept for reference but should not be used client-side
-
-export function isAdmin(tier: UserTier): boolean {
-  return tier === 'admin' || tier === 'super_admin';
-}
-
-export function isSuperAdmin(tier: UserTier): boolean {
-  return tier === 'super_admin';
 }
 
 export function getRemainingQuota(user: UserWithTier, action: 'pdf' | 'email'): number | null {

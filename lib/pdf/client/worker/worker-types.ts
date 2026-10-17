@@ -4,6 +4,7 @@
  */
 
 import type { FontFamily } from '@/types/certificate';
+import type { Position, Entry } from '@/lib/pdf/shared/pdf-generation-core';
 
 // Message types for worker communication
 export interface WorkerRequest {
@@ -33,28 +34,7 @@ export interface GeneratePayload {
   namingColumn?: string;
 }
 
-export interface Position {
-  fontSize?: number;
-  x: number;
-  y: number;
-  font?: FontFamily;
-  bold?: boolean;
-  oblique?: boolean;
-  alignment?: 'left' | 'center' | 'right';
-  textMode?: 'shrink' | 'multiline';
-  width?: number;
-  lineHeight?: number;
-}
-
-export interface Entry {
-  [key: string]: {
-    text: string;
-    color?: [number, number, number];
-    font?: FontFamily;
-    bold?: boolean;
-    oblique?: boolean;
-  };
-}
+export type { Position, Entry };
 
 export interface FontVariant {
   family: FontFamily;

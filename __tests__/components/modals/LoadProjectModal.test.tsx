@@ -66,7 +66,7 @@ describe('LoadProjectModal', () => {
     lastModified: '2024-01-01T10:00:00Z',
     version: '1.0',
     positions: {
-      name: { x: 100, y: 200, fontSize: 16, fontFamily: 'Arial', color: '#000000', align: 'center', visible: true }
+      name: { x: 100, y: 200, fontSize: 16, fontFamily: 'Helvetica', color: '#000000', alignment: 'center', isVisible: true }
     },
     columns: ['name', 'email', 'date'],
     tableData: [
@@ -74,14 +74,11 @@ describe('LoadProjectModal', () => {
       { name: 'Jane Smith', email: 'jane@example.com', date: '2024-01-02' }
     ],
     emailConfig: {
-      isConfigured: true,
-      provider: 'resend',
-      apiKey: 'test-key',
-      from: 'test@example.com',
       senderName: 'Test Sender',
-      emailColumn: 'email',
-      subjectTemplate: 'Your Certificate',
-      bodyTemplate: 'Here is your certificate'
+      subject: 'Your Certificate',
+      message: 'Here is your certificate',
+      deliveryMethod: 'download',
+      isConfigured: true
     },
     certificateImage: {
       url: '/temp_images/certificate.jpg',

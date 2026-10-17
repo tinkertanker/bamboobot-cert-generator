@@ -4,9 +4,8 @@
  */
 
 import { StandardFonts } from 'pdf-lib';
+import type { FontFamily } from '@/types/certificate';
 
-export type FontFamily = 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 
-  'SourceSansPro' | 'Nunito' | 'GreatVibes' | 'Archivo' | 'Rubik';
 
 export type FontStyle = {
   bold?: boolean;

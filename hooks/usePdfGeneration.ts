@@ -184,8 +184,6 @@ export function usePdfGeneration({
         throw new Error('No valid template filename');
       }
 
-      console.log('Generating individual PDFs with filename:', templateFilename);
-
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: {

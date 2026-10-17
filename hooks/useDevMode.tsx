@@ -107,7 +107,6 @@ export function useDevMode({
   const handleEmailTemplateUpdate = useCallback(() => {
     if (!isDevelopment || !devMode) return;
 
-    console.log("🔧 Dev Mode: Updating email template data...");
     const testData = baseEmail
       ? generateEmailTestData(baseEmail, numTestEmails)
       : presetCSVData;
@@ -115,46 +114,27 @@ export function useDevMode({
   }, [isDevelopment, devMode, baseEmail, numTestEmails, presetCSVData, loadPresetData]);
 
   const handleDevModeToggle = useCallback(() => {
-    if (!isDevelopment) return; // Safety check - only works in development
+    if (!isDevelopment) return;
 
     setDevMode(!devMode);
     
     if (!devMode) {
-      // Enabling dev mode
-      console.log("🔧 Dev Mode: Enabling...");
-
-      // Enable dev mode: load preset data and template
-      console.log("🔧 Dev Mode: Loading preset data...");
+      // Enabling: load preset data and template
       const testData = baseEmail
         ? generateEmailTestData(baseEmail, numTestEmails)
         : presetCSVData;
       
-      // Load data asynchronously
-      loadPresetData(testData).then(() => {
-        console.log("🔧 Dev Mode: Data loaded successfully");
-      }).catch(err => {
+      loadPresetData(testData).catch(err => {
         console.error("🔧 Dev Mode: Failed to load data:", err);
       });
 
-      // Use existing template files in dev mode
-      if (isDevelopment) {
-        const existingImage = "/template_images/dev-mode-template.jpg"; // Dev mode template
-        console.log("🔧 Dev Mode: Setting template image:", existingImage);
-        setUploadedFileUrl(existingImage);
-      }
-
-      // Use the dev mode template PDF
-      const existingPdf = "dev-mode-template.pdf"; // Using dev mode template
-      const mockFile = new File([""], existingPdf, {
+      setUploadedFileUrl("/template_images/dev-mode-template.jpg");
+      setUploadedFile(new File([""], "dev-mode-template.pdf", {
         type: "application/pdf"
-      });
-      setUploadedFile(mockFile);
-      console.log("🔧 Dev Mode: Using existing PDF:", existingPdf);
+      }));
 
-      // Pre-fill email configuration in dev mode
-      // Use setTimeout to ensure this runs after the email column detection
+      // Delay so this runs after email column detection, which resets the config
       setTimeout(() => {
-        console.log("🔧 Dev Mode: Setting email config (delayed)...");
         setEmailConfig({
           senderName: "Bamboobot Testing",
           subject: "Your Certificate of Completion",
@@ -170,10 +150,7 @@ Email Sending Robot`,
           deliveryMethod: "download",
           isConfigured: true
         });
-        console.log("🔧 Dev Mode: Email config set!");
-      }, 500); // Increased delay to ensure email column detection completes first
-
-      console.log("Dev mode enabled: preset template and data loaded");
+      }, 500);
     } else {
       // Disable dev mode: clear data
       clearData();
@@ -187,7 +164,6 @@ Email Sending Robot`,
         deliveryMethod: "download",
         isConfigured: false
       });
-      console.log("Dev mode disabled: data cleared");
     }
   }, [
     isDevelopment,

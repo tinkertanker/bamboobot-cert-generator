@@ -9,7 +9,7 @@ import type {
   PdfGenerationProgress,
   PdfGenerationResult,
   PdfGenerationConfig
-} from '../types';
+} from '@/lib/pdf/types';
 import { PROGRESSIVE_PDF } from '@/utils/constants';
 import {
   getPdfBaseFilename,

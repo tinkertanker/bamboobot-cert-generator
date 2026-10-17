@@ -14,7 +14,7 @@ import type {
   Entry,
   WorkerFilePayload
 } from './worker/worker-types';
-import type { PdfGenerationProgress } from '../types';
+import type { PdfGenerationProgress } from '@/lib/pdf/types';
 import { PROGRESSIVE_PDF } from '@/utils/constants';
 import { ImageToPdfConverter } from './image-to-pdf';
 
@@ -211,7 +211,12 @@ export class ClientPdfGenerator {
       const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
       // Create promise for result
-      const resultPromise = new Promise<GenerateResult>((resolve, reject) => {
+      // The worker's 'complete' payload carries the PDF bytes as `pdfData`
+      const resultPromise = new Promise<{
+        mode: GenerateResult['mode'];
+        pdfData?: Uint8Array;
+        data?: Uint8Array;
+      }>((resolve, reject) => {
         this.pendingRequests.set(requestId, {
           resolve,
           reject,
@@ -238,12 +243,10 @@ export class ClientPdfGenerator {
       // Wait for result
       const result = await resultPromise;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const resultAny = result as any;
       return {
         success: true,
         mode: result.mode,
-        data: resultAny.pdfData || resultAny.data
+        data: result.pdfData || result.data
       };
     } catch (error) {
       return {
@@ -286,7 +289,7 @@ export class ClientPdfGenerator {
             const pdfBlob = await ImageToPdfConverter.convertImageUrlToPdf(candidate);
             const buf = await pdfBlob.arrayBuffer();
             return buf;
-          } catch (_) {
+          } catch {
             // keep trying
           }
         }

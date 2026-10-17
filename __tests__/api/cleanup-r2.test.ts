@@ -1,5 +1,6 @@
 import { createMocks } from 'node-mocks-http';
 import handler from '../../pages/api/cleanup-r2';
+import { silenceConsole } from '../helpers/silence-console';
 
 // Mock the R2 client
 jest.mock('../../lib/r2-client', () => ({
@@ -8,6 +9,8 @@ jest.mock('../../lib/r2-client', () => ({
 }));
 
 describe('/api/cleanup-r2', () => {
+  silenceConsole();
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
