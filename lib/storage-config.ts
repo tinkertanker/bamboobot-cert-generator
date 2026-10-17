@@ -5,7 +5,7 @@ import { uploadToR2, getPublicUrl, isR2Configured } from './r2-client';
 import { uploadToS3, getS3PublicUrl, isS3Configured } from './s3-client';
 import { createSignedGeneratedFileUrl } from './security/signed-generated-url';
 
-export const storageConfig = {
+const storageConfig = {
   // Check if R2 is configured
   isR2Enabled: isR2Configured() && process.env.STORAGE_PROVIDER === 'cloudflare-r2',
   

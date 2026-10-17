@@ -135,8 +135,7 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
       const customFontsEmbedded: Partial<FontSet> = {};
       if (needsCustomFonts) {
         // Register fontkit AFTER standard fonts are embedded
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        pdf.registerFontkit(fontkit as any);
+        pdf.registerFontkit(fontkit as unknown as Parameters<typeof pdf.registerFontkit>[0]);
         
         // Embed custom fonts
         try {

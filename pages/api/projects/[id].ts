@@ -5,7 +5,7 @@ import prisma from '@/lib/server/prisma';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await requireAuth(req, res);
   if (!session) return;
-  const userId = (session.user as any).id as string;
+  const userId = session.user.id;
   const { id } = req.query as { id: string };
 
   if (!id) { res.status(400).json({ error: 'id is required' }); return; }
@@ -26,7 +26,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       res.status(200).json({ project: updated });
       return;
-    } catch (e: any) {
+    } catch (err) {
+      const e = err as { code?: string } | null;
       if (e?.code === 'P2025') { res.status(404).json({ error: 'Not found' }); return; }
       if (e?.code === 'P2002') { res.status(409).json({ error: 'Project name already exists' }); return; }
       console.error('Update project error:', e);
@@ -40,7 +41,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await prisma.project.delete({ where: { id, ownerId: userId } });
       res.status(204).end();
       return;
-    } catch (e: any) {
+    } catch (err) {
+      const e = err as { code?: string } | null;
       if (e?.code === 'P2025') { res.status(404).json({ error: 'Not found' }); return; }
       console.error('Delete project error:', e);
       res.status(500).json({ error: 'Failed to delete project' });

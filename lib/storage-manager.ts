@@ -76,7 +76,7 @@ function lstatIfPresent(candidate: string): fs.Stats | null {
 }
 
 // Local helpers
-function walkLocal(dir: string, basePrefix: string): StorageItem[] {
+function walkLocal(dir: string): StorageItem[] {
   if (!fs.existsSync(dir)) return [];
   const items: StorageItem[] = [];
 
@@ -124,8 +124,8 @@ export async function listAllObjects(prefix?: string): Promise<StorageItem[]> {
   const results: StorageItem[] = [];
   const genDir = getGeneratedDir();
   const tmpDir = getTempImagesDir();
-  results.push(...walkLocal(genDir, 'generated/'));
-  results.push(...walkLocal(tmpDir, 'temp_images/'));
+  results.push(...walkLocal(genDir));
+  results.push(...walkLocal(tmpDir));
 
   // Apply prefix filter if present
   return prefix ? results.filter(i => i.key.startsWith(prefix)) : results;
@@ -164,7 +164,7 @@ export async function deleteObjects(actions: Array<{ key?: unknown; isPrefix?: u
           await deleteFromR2(a.key);
           deleted.push(a.key);
         }
-      } catch (e) {
+      } catch {
         errors.push(`${a.key}`);
       }
     }
@@ -188,7 +188,7 @@ export async function deleteObjects(actions: Array<{ key?: unknown; isPrefix?: u
           await deleteFromS3(a.key);
           deleted.push(a.key);
         }
-      } catch (e) {
+      } catch {
         errors.push(`${a.key}`);
       }
     }
@@ -265,7 +265,7 @@ export async function deleteObjects(actions: Array<{ key?: unknown; isPrefix?: u
           deleted.push(a.key);
         }
       }
-    } catch (e) {
+    } catch {
       errors.push(`${a.key}`);
     }
   }

@@ -5,6 +5,7 @@ jest.mock('@/lib/server/tiers', () => ({ detectUserTier: jest.fn() }));
 
 import handler from '@/pages/api/storage-stats';
 import httpMocks from 'node-mocks-http';
+import type { RequestMethod } from 'node-mocks-http';
 
 const { getServerSession } = require('next-auth');
 const { detectUserTier } = require('@/lib/server/tiers');
@@ -16,7 +17,7 @@ function setNodeEnv(value: string) {
   Object.defineProperty(process.env, 'NODE_ENV', { value, configurable: true, writable: true, enumerable: true });
 }
 
-function run(method = 'GET') {
+function run(method: RequestMethod = 'GET') {
   const req = httpMocks.createRequest({ method });
   const res = httpMocks.createResponse();
   return handler(req as any, res as any).then(() => res);

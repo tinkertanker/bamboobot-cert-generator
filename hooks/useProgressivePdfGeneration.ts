@@ -176,8 +176,6 @@ export function useProgressivePdfGeneration({
         templateFilename = uploadedFile.name;
       }
 
-      console.log('Starting progressive generation with filename:', templateFilename);
-
       const response = await fetch('/api/generate-progressive', {
         method: 'POST',
         headers: {

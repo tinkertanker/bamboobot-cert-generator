@@ -167,12 +167,6 @@ export default function HomePage() {
 
   // Switch away from email tab if no email column detected
   useEffect(() => {
-    console.log(
-      "👀 Email tab visibility check - detectedEmailColumn:",
-      detectedEmailColumn,
-      "activeTab:",
-      activeTab
-    );
     if (!detectedEmailColumn && activeTab === "email") {
       setActiveTab("data");
     }
@@ -393,10 +387,6 @@ export default function HomePage() {
     certificateImageUrl: uploadedFileUrl,
     certificateFilename: uploadedFile as string | null,
     tableData,
-    onAutosave: () => {
-      // Silent autosave - no toast notification
-      console.log("Project autosaved");
-    },
     enabled: false, // Base hook is disabled, only used for manual save
     currentProjectId: null,
     currentProjectName: null
@@ -456,10 +446,6 @@ export default function HomePage() {
     certificateImageUrl: uploadedFileUrl,
     certificateFilename: uploadedFile as string | null,
     tableData,
-    onAutosave: () => {
-      // Silent autosave - no toast notification
-      console.log("Project autosaved");
-    },
     enabled: hasManuallySaved,
     currentProjectId,
     currentProjectName
@@ -897,10 +883,7 @@ export default function HomePage() {
             )}
             {detectedEmailColumn && (
               <button
-                onClick={() => {
-                  console.log("📧 Email tab clicked");
-                  setActiveTab("email");
-                }}
+                onClick={() => setActiveTab("email")}
                 className="px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center"
                 data-tour="email-tab"
                 style={{
@@ -1076,13 +1059,11 @@ export default function HomePage() {
           // Ensure file is uploaded to server before saving project
           // Check if we're using a blob URL (local file not yet uploaded)
           if (uploadedFileUrl?.startsWith('blob:')) {
-            console.log('Uploading file to server before saving project...');
             try {
               const uploadResult = await uploadToServer();
               if (uploadResult) {
                 finalUrl = uploadResult.image;
                 finalFilename = uploadResult.filename;
-                console.log("File uploaded, using server URL:", finalUrl);
               }
             } catch (error) {
               console.error('Failed to upload file before saving:', error);

@@ -5,6 +5,7 @@
 
 import { PDFDocument, PDFPage, PDFFont, rgb, StandardFonts } from 'pdf-lib';
 import { splitTextIntoLines, calculateShrinkToFitFontSize } from '@/utils/pdf-text-utils';
+import type { FontFamily } from '@/types/certificate';
 
 const FONT_SIZE_MULTIPLIER = 1;
 
@@ -12,8 +13,7 @@ const FONT_SIZE_MULTIPLIER = 1;
 // This value ensures text appears at the same visual position in PDFs as in the UI preview
 const FONT_BASELINE_ADJUSTMENT = 0.38;
 
-export type FontFamily = 'Times' | 'Courier' | 'Helvetica' | 'Montserrat' | 'Poppins' | 
-  'SourceSansPro' | 'Nunito' | 'GreatVibes' | 'Archivo' | 'Rubik';
+export type { FontFamily };
 
 export interface Position {
   fontSize?: number;
@@ -78,7 +78,7 @@ export async function embedStandardFonts(pdf: PDFDocument): Promise<FontSet> {
 /**
  * Select the appropriate font based on family and style
  */
-export function selectFont(
+function selectFont(
   fonts: FontSet,
   fontFamily: FontFamily,
   isBold: boolean,
@@ -286,33 +286,4 @@ export function addTextToPage(
       });
     }
   }
-}
-
-/**
- * Generate a single PDF certificate
- */
-export async function generateSingleCertificate(
-  templateData: ArrayBuffer,
-  entryData: Entry,
-  positions: Record<string, Position>,
-  uiContainerDimensions: { width: number; height: number },
-  fonts?: FontSet
-): Promise<Uint8Array> {
-  const templateDoc = await PDFDocument.load(templateData);
-  const pdf = await PDFDocument.create();
-  
-  const [templatePage] = await pdf.copyPages(templateDoc, [0]);
-  pdf.addPage(templatePage);
-
-  // Embed fonts if not provided
-  if (!fonts) {
-    fonts = await embedStandardFonts(pdf);
-  }
-
-  const page = pdf.getPages()[0];
-  
-  // Add text to the page with all optimizations
-  addTextToPage(page, entryData, positions, fonts, uiContainerDimensions);
-
-  return await pdf.save();
 }

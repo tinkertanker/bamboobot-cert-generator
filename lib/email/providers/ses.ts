@@ -1,6 +1,6 @@
 import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
-import type { EmailParams, EmailResult, RateLimitInfo, EmailProvider } from '../types';
-import { providerRejectedError } from '../provider-errors';
+import type { EmailParams, EmailResult, RateLimitInfo, EmailProvider } from '@/lib/email/types';
+import { providerRejectedError } from '@/lib/email/provider-errors';
 import {
   assertPdfBuffer,
   getMaxPdfSourceBytes,

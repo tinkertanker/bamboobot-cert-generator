@@ -5,6 +5,7 @@ import {
   PdfSourceError,
 } from '@/lib/security/trusted-pdf-source';
 import handler from '@/pages/api/zip-pdfs';
+import { silenceConsole } from '../helpers/silence-console';
 
 jest.mock('@/pages/api/auth/[...nextauth]', () => ({
   __esModule: true,
@@ -47,6 +48,8 @@ const mockedLoadTrustedPdf = loadTrustedPdf as jest.MockedFunction<typeof loadTr
 const originalEnv = process.env;
 
 describe('/api/zip-pdfs', () => {
+  silenceConsole();
+
   beforeEach(() => {
     jest.clearAllMocks();
     process.env = { ...originalEnv };

@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Auth + rate limit (after validation)
   const session = await requireAuth(req, res);
   if (!session) return;
-  const userId = (session.user as any).id as string;
+  const userId = session.user.id;
   const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
   const key = buildKey({ userId, ip, route: 'zip-pdfs', category: 'zip' });
   const rl = rateLimit(key, 'zip');

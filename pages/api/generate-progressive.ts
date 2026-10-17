@@ -36,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Require auth for all methods (middleware also enforces when enabled)
   const session = await requireAuth(req, res);
   if (!session) return;
-  const userId = (session.user as any).id as string;
+  const userId = session.user.id;
 
   try {
     switch (req.method) {

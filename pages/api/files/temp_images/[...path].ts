@@ -12,7 +12,7 @@ import { getS3SignedUrl } from '@/lib/s3-client';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await requireAuth(req, res);
   if (!session) return;
-  const userId = (session.user as any).id as string;
+  const userId = session.user.id;
 
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });

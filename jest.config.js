@@ -19,6 +19,7 @@ const customJestConfig = {
     '<rootDir>/.next/',
     '<rootDir>/node_modules/',
     '<rootDir>/__tests__/__mocks__/', // Exclude mock files from test discovery
+    '<rootDir>/__tests__/helpers/', // Shared test helpers, not suites
     '<rootDir>/e2e/', // Exclude Playwright tests from Jest
     '<rootDir>/.conductor/', // Exclude all conductor directory tests
     '<rootDir>/.code/', // Exclude agent worktrees to avoid duplicate tests/mocks

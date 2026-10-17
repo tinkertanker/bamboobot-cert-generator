@@ -7,7 +7,7 @@ import type { Prisma } from '@prisma/client';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await requireAuth(req, res);
   if (!session) return;
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');

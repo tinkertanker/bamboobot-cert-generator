@@ -2,10 +2,19 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import prisma from '@/lib/server/prisma';
 
+/** The subset of stored project data read to build list summaries. */
+interface ProjectSummarySource {
+  columns?: unknown;
+  positions?: Record<string, unknown>;
+  tableData?: unknown;
+  emailConfig?: { isConfigured?: boolean };
+  certificateImage?: { isCloudStorage?: boolean; url?: string };
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await requireAuth(req, res);
   if (!session) return;
-  const userId = (session.user as any).id as string;
+  const userId = session.user.id;
 
   if (req.method === 'GET') {
     // List current user's projects with derived summary
@@ -15,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       select: { id: true, name: true, createdAt: true, updatedAt: true, data: true },
     });
     const projects = items.map((p) => {
-      const data: any = p.data || {};
+      const data = (p.data || {}) as ProjectSummarySource;
       const columnsCount = Array.isArray(data?.columns)
         ? data.columns.length
         : (data?.positions ? Object.keys(data.positions || {}).length : 0);
@@ -51,7 +60,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       res.status(201).json({ project: created });
       return;
-    } catch (e: any) {
+    } catch (err) {
+      const e = err as { code?: string } | null;
       // unique constraint on (ownerId, name)
       if (e?.code === 'P2002') { res.status(409).json({ error: 'Project name already exists' }); return; }
       console.error('Create project error:', e);

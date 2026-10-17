@@ -1,34 +1,13 @@
 import { SessionStorage } from '@/lib/session-storage';
 import type { SessionData } from '@/lib/session-storage';
+import { installMockLocalStorage } from '../helpers/mock-local-storage';
+import { silenceConsole } from '../helpers/silence-console';
 
-// Mock localStorage
-const mockLocalStorage = {
-  store: {} as Record<string, string>,
-  getItem: jest.fn((key: string) => mockLocalStorage.store[key] || null),
-  setItem: jest.fn((key: string, value: string) => {
-    mockLocalStorage.store[key] = value;
-  }),
-  removeItem: jest.fn((key: string) => {
-    delete mockLocalStorage.store[key];
-  }),
-  clear: jest.fn(() => {
-    mockLocalStorage.store = {};
-  }),
-  key: jest.fn((index: number) => {
-    const keys = Object.keys(mockLocalStorage.store);
-    return keys[index] || null;
-  }),
-  get length() {
-    return Object.keys(mockLocalStorage.store).length;
-  }
-};
-
-Object.defineProperty(window, 'localStorage', {
-  value: mockLocalStorage,
-  writable: true
-});
+const mockLocalStorage = installMockLocalStorage();
 
 describe('SessionStorage', () => {
+  silenceConsole();
+
   beforeEach(() => {
     mockLocalStorage.clear();
     jest.clearAllMocks();

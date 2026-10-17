@@ -4,7 +4,8 @@ import { EmailQueueManager } from '@/lib/email/email-queue';
 import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
+import { buildPdfAttachments } from '@/utils/email-utils';
+import { parseRecipientsDetailed } from '@/utils/email-validation';
 import { getMaxPdfSourceBytes, PdfSourceError } from '@/lib/security/trusted-pdf-source';
 import { markGeneratedFileAsEmailed } from '@/lib/storage/mark-generated';
 import { buildAttachmentEmail, buildLinkEmail } from '@/lib/email-templates';
@@ -272,18 +273,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Require auth for all bulk email operations
   const session = await requireAuth(req, res);
   if (!session) return;
-  const userId = (session.user as any).id as string;
-  // Pass to subhandlers
-  (req as any).__uid = userId;
+  const userId = session.user.id;
 
   if (req.method === 'POST') {
-    await handlePost(req, res);
+    await handlePost(req, res, userId);
     return;
   } else if (req.method === 'GET') {
-    await handleGet(req, res);
+    await handleGet(req, res, userId);
     return;
   } else if (req.method === 'PUT') {
-    await handlePut(req, res);
+    await handlePut(req, res, userId);
     return;
   } else {
     res.status(405).json({ error: 'Method not allowed' });
@@ -291,7 +290,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 }
 
-async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: string): Promise<void> {
   try {
     const { emails, config, sessionId, deferProcessing = false } = req.body;
 
@@ -322,7 +321,6 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
     const safeMessage = requireBoundedEmailText(config.message, 'message', MAX_EMAIL_MESSAGE_LENGTH);
 
     // Rate limit after validation
-    const userId = (req as any).__uid as string | undefined;
     const rl = enforceRateLimit(req, res, {
       userId,
       route: 'send-bulk-email:POST',
@@ -654,12 +652,11 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse): Promise<vo
   }
 }
 
-async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: string): Promise<void> {
   try {
     const { sessionId } = req.query;
 
     // Light rate limit for status checks
-    const userId = (req as any).__uid as string | undefined;
     const rl = enforceRateLimit(req, res, {
       userId,
       route: 'send-bulk-email:GET',
@@ -716,12 +713,11 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse): Promise<voi
   }
 }
 
-async function handlePut(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: string): Promise<void> {
   try {
     const { action, sessionId } = req.body;
 
     // Rate limit control actions
-    const userId = (req as any).__uid as string | undefined;
     const rl = enforceRateLimit(req, res, {
       userId,
       route: 'send-bulk-email:PUT',

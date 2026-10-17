@@ -11,7 +11,7 @@ import {
   FontFamily,
   embedStandardFonts,
   addTextToPage
-} from '../../shared/pdf-generation-core';
+} from '@/lib/pdf/shared/pdf-generation-core';
 import { UniquePdfFilenameAllocator } from '@/utils/pdf-filenames';
 
 // Dynamic import of fontkit to handle bundling issues
@@ -22,9 +22,7 @@ let fontkitModule: any = null;
 async function initializeFontkit() {
   if (!fontkitModule) {
     try {
-      // Dynamic import for better webpack handling
       fontkitModule = await import('@pdf-lib/fontkit');
-      console.log('Fontkit initialized successfully');
     } catch (error: unknown) {
       let reason = 'Unknown error';
       let errorCode = 'UNKNOWN';
@@ -85,13 +83,7 @@ self.addEventListener('message', async (event) => {
     }
     switch (type) {
       case 'generate':
-        console.log('Worker: Starting PDF generation', { mode: payload.mode, entries: payload.entries?.length });
         const result = await generatePdf(payload, id);
-        console.log('Worker: PDF generation complete', {
-          mode: result.mode,
-          hasData: !!result.pdfData,
-          fileCount: result.fileCount
-        });
         self.postMessage({
           type: 'complete',
           id,
@@ -177,7 +169,6 @@ async function loadFontBytes(fontFamily: FontFamily): Promise<Record<string, Arr
       // Check cache first
       if (fontBytesCache.has(cacheKey)) {
         fontFiles[variant] = fontBytesCache.get(cacheKey)!;
-        console.log(`Using cached font: ${cacheKey}`);
       } else {
         // Fetch and cache
         const response = await fetch(url);
@@ -188,7 +179,6 @@ async function loadFontBytes(fontFamily: FontFamily): Promise<Record<string, Arr
         const fontBytes = await response.arrayBuffer();
         fontBytesCache.set(cacheKey, fontBytes);
         fontFiles[variant] = fontBytes;
-        console.log(`Loaded font: ${cacheKey}`);
       }
     } catch (error) {
       console.warn(`Failed to load font ${url}:`, error);
@@ -197,6 +187,14 @@ async function loadFontBytes(fontFamily: FontFamily): Promise<Record<string, Arr
   
   return fontFiles;
 }
+
+// Font file variant -> suffix of the FontSet key it is embedded under
+const EMBED_VARIANTS = [
+  ['Regular', ''],
+  ['Bold', 'Bold'],
+  ['Italic', 'Italic'],
+  ['BoldItalic', 'BoldItalic'],
+] as const;
 
 /**
  * Embed custom fonts into a PDF document
@@ -215,49 +213,18 @@ async function embedCustomFonts(
     // Initialize and register fontkit
     const fontkit = await initializeFontkit();
     pdf.registerFontkit(fontkit);
-    console.log('Fontkit registered with PDF document');
     
     // Load and embed each needed font
     for (const fontFamily of neededFonts) {
       const fontBytes = await loadFontBytes(fontFamily);
       
-      // Embed regular variant
-      if (fontBytes.Regular) {
+      for (const [variant, suffix] of EMBED_VARIANTS) {
+        const bytes = fontBytes[variant];
+        if (!bytes) continue;
         try {
-          customFonts[fontFamily] = await pdf.embedFont(new Uint8Array(fontBytes.Regular));
-          console.log(`Embedded font: ${fontFamily}-Regular`);
+          customFonts[`${fontFamily}${suffix}`] = await pdf.embedFont(new Uint8Array(bytes));
         } catch (e) {
-          console.warn(`Failed to embed ${fontFamily}-Regular:`, e);
-        }
-      }
-      
-      // Embed bold variant
-      if (fontBytes.Bold) {
-        try {
-          customFonts[`${fontFamily}Bold`] = await pdf.embedFont(new Uint8Array(fontBytes.Bold));
-          console.log(`Embedded font: ${fontFamily}-Bold`);
-        } catch (e) {
-          console.warn(`Failed to embed ${fontFamily}-Bold:`, e);
-        }
-      }
-      
-      // Embed italic variant
-      if (fontBytes.Italic) {
-        try {
-          customFonts[`${fontFamily}Italic`] = await pdf.embedFont(new Uint8Array(fontBytes.Italic));
-          console.log(`Embedded font: ${fontFamily}-Italic`);
-        } catch (e) {
-          console.warn(`Failed to embed ${fontFamily}-Italic:`, e);
-        }
-      }
-      
-      // Embed bold-italic variant
-      if (fontBytes.BoldItalic) {
-        try {
-          customFonts[`${fontFamily}BoldItalic`] = await pdf.embedFont(new Uint8Array(fontBytes.BoldItalic));
-          console.log(`Embedded font: ${fontFamily}-BoldItalic`);
-        } catch (e) {
-          console.warn(`Failed to embed ${fontFamily}-BoldItalic:`, e);
+          console.warn(`Failed to embed ${fontFamily}-${variant}:`, e);
         }
       }
     }

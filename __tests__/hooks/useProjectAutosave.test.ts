@@ -3,6 +3,8 @@ import { useProjectAutosave } from '@/hooks/useProjectAutosave';
 import { ProjectStorage } from '@/lib/project-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
+type AutosaveProps = Parameters<typeof useProjectAutosave>[0];
+
 // Mock ProjectStorage
 jest.mock('@/lib/project-storage', () => ({
   ProjectStorage: {
@@ -28,13 +30,14 @@ describe('useProjectAutosave', () => {
   ];
   
   const mockEmailConfig: EmailConfig = {
+    senderName: 'Test Sender',
     subject: 'Test Certificate',
-    body: 'Your certificate is attached',
-    fromEmail: 'sender@example.com',
-    fromName: 'Test Sender',
+    message: 'Your certificate is attached',
+    deliveryMethod: 'download',
+    isConfigured: true,
   };
 
-  const defaultProps = {
+  const defaultProps: AutosaveProps = {
     positions: mockPositions,
     columns: mockColumns,
     tableData: mockTableData,

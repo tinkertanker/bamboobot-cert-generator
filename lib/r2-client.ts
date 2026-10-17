@@ -274,5 +274,3 @@ export async function markAsEmailed(key: string): Promise<void> {
     console.error('Error marking file as emailed:', error);
   }
 }
-
-export { r2Client };

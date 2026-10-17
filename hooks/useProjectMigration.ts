@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { ProjectStorage } from '@/lib/project-storage';
+import { ProjectStorage, type SavedProject } from '@/lib/project-storage';
 
 export function useProjectMigration() {
   const { status } = useSession();
@@ -26,7 +26,7 @@ export function useProjectMigration() {
           setChecked(true);
           return;
         }
-        const payload = [] as any[];
+        const payload: SavedProject[] = [];
         for (const item of list) {
           const p = ProjectStorage.loadProject(item.id);
           if (p) payload.push(p);

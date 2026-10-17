@@ -51,12 +51,15 @@ import handler, { cleanupExpiredEmailQueues } from '../../pages/api/send-bulk-em
 import { getEmailProvider } from '@/lib/email/provider-factory';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
+import { silenceConsole } from '../helpers/silence-console';
 
 const mockGetEmailProvider = getEmailProvider as jest.MockedFunction<typeof getEmailProvider>;
 const mockedRequireAuth = requireAuth as jest.MockedFunction<typeof requireAuth>;
 const certificateUrl = createSignedGeneratedFileUrl('u_u1/test/certificate.pdf');
 
 describe('/api/send-bulk-email', () => {
+  silenceConsole();
+
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.MAX_ACTIVE_EMAIL_QUEUES_PER_USER = '20';

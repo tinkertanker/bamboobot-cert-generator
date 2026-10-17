@@ -83,7 +83,6 @@ export function withFeatureGate(
       
       // Check feature limits
       let canProceed = false;
-      let limitReached = false;
       let currentUsage = 0;
       let limit: number | null = null;
       
@@ -92,14 +91,12 @@ export function withFeatureGate(
           limit = limits.dailyPdfLimit;
           currentUsage = userWithTier.dailyPdfCount;
           canProceed = limit === null || currentUsage < limit;
-          limitReached = !canProceed;
           break;
           
         case 'email':
           limit = limits.dailyEmailLimit;
           currentUsage = userWithTier.dailyEmailCount;
           canProceed = limit === null || currentUsage < limit;
-          limitReached = !canProceed;
           break;
           
         case 'project':
@@ -107,7 +104,6 @@ export function withFeatureGate(
           limit = limits.projectLimit;
           currentUsage = projectCount;
           canProceed = limit === null || projectCount < limit;
-          limitReached = !canProceed;
           break;
       }
       

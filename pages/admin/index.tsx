@@ -5,7 +5,6 @@ import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/lib/server/prisma';
 import { getTierLimits } from '@/types/user';
 import type { UserTier } from '@/types/user';
-import { useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 
 interface AdminDashboardProps {

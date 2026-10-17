@@ -16,7 +16,7 @@ export function LocalStorageMonitor() {
   const { showToast } = useToast();
 
   function hasNameString(data: unknown): data is { name: string } {
-    return typeof data === 'object' && data !== null && 'name' in data && typeof (data as any).name === 'string';
+    return typeof data === 'object' && data !== null && 'name' in data && typeof data.name === 'string';
   }
 
   // Derived values declared before early returns for hook rules

@@ -3,7 +3,8 @@ import { getEmailProvider } from '@/lib/email/provider-factory';
 import { EmailParams } from '@/lib/email/types';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { parseRecipientsDetailed, buildPdfAttachments } from '@/utils/email-utils';
+import { buildPdfAttachments } from '@/utils/email-utils';
+import { parseRecipientsDetailed } from '@/utils/email-validation';
 import { PdfSourceError } from '@/lib/security/trusted-pdf-source';
 import { buildAttachmentEmail, buildLinkEmail } from '@/lib/email-templates';
 import { checkEmailUsageAvailability, releaseEmailUsageReservation, reserveEmailUsage } from '@/lib/server/tiers';
@@ -41,7 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Require auth
   const session = await requireAuth(req, res);
   if (!session) return;
-  const sessionUser = session.user as { id: string; email?: string | null };
+  const sessionUser = session.user;
   const userId = sessionUser.id;
 
   // Rate limit test emails
