@@ -31,15 +31,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Enforce the tier's project limit for the whole batch. Rejecting (rather
-    // than importing a subset) keeps the client's local copies, which it only
-    // clears after a successful import.
-    const remaining = await getRemainingProjectAllowance(userId);
-    if (remaining !== null && projects.length > remaining) {
-      res.status(403).json({ error: 'Project limit reached for your plan', code: 'LIMIT_REACHED' });
-      return;
-    }
-
     const inputs = projects.map((p: unknown) => {
       const project = p as Record<string, unknown>;
       const rawName = typeof project.name === 'string' ? project.name.trim() : '';
@@ -51,9 +42,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return { name, data, clientProjectId };
     });
 
+    // Projects imported by an earlier attempt are confirmed without being
+    // created again, so a retry after a partial failure makes no duplicates.
+    const importedIds: string[] = [];
+    const toCreate: typeof inputs = [];
+    for (const input of inputs) {
+      if (input.clientProjectId) {
+        const existing = await prisma.project.findFirst({
+          where: { ownerId: userId, clientProjectId: input.clientProjectId },
+          select: { id: true },
+        });
+        if (existing) {
+          importedIds.push(input.clientProjectId);
+          continue;
+        }
+      }
+      toCreate.push(input);
+    }
+
+    // Enforce the tier's project limit for the whole batch. Rejecting (rather
+    // than importing a subset) keeps the client's local copies, which it only
+    // clears once the server confirms them.
+    const remaining = await getRemainingProjectAllowance(userId);
+    if (remaining !== null && toCreate.length > remaining) {
+      res.status(403).json({ error: 'Project limit reached for your plan', code: 'LIMIT_REACHED', importedIds });
+      return;
+    }
+
     // Create in sequence to honor unique (ownerId, name)
     let imported = 0;
-    for (const input of inputs) {
+    for (const input of toCreate) {
       const create = (name: string) =>
         prisma.project.create({
           data: { ownerId: userId, name, data: input.data, clientProjectId: input.clientProjectId, importSource: 'localStorage' },
@@ -67,9 +85,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         await create(`${input.name} (Imported ${new Date().toISOString().slice(0, 10)})`);
       }
       imported++;
+      if (input.clientProjectId) importedIds.push(input.clientProjectId);
     }
 
-    res.status(200).json({ imported });
+    // importedIds lists the client ids now stored on the server; the client
+    // deletes only those browser copies.
+    res.status(200).json({ imported, importedIds });
     return;
   } catch (e) {
     console.error('Import projects error:', e);

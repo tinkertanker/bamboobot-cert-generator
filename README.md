@@ -32,7 +32,7 @@ Generate beautiful, personalised certificates from an image background with drag
 
 ### Persistence & Migration
 - **Projects in the browser by default**, stored in localStorage and scoped to the signed-in account
-- **Optional Server Persistence** with Prisma + SQLite when `NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=true` at build time; signed-in users are then offered an import of projects saved in the browser
+- **Optional Server Persistence** with Prisma + SQLite when `NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=true` at build time; signed-in users are then offered an import of projects saved in the browser, and each browser copy is removed only once the server confirms it was saved. In Docker the flag is passed as a build arg from `.env`, so rebuild after changing it
 
 ### Distribution & Delivery
 - **Multiple Download Options** - Individual PDFs, single combined PDF, or ZIP archives

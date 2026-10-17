@@ -25,6 +25,7 @@ const APP_EXACT_KEYS = [
   'bamboobot_current_session_v1',
   'bamboobot_onboarding_completed',
   'bamboobot_tour_completed',
+  'bamboobot_project_import_declined',
 ];
 
 function isAppOwnedKey(key: string): boolean {

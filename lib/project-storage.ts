@@ -215,6 +215,19 @@ export class ProjectStorage {
         // Legacy synchronous API is maintained for backward compatibility.
         return null;
       }
+      return this.loadLocalProject(id);
+    } catch (error) {
+      console.error('Error loading project:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Load a project from localStorage only (ignores server mode).
+   * Used to import browser-saved projects into an account.
+   */
+  static loadLocalProject(id: string): SavedProject | null {
+    try {
       // Try new key first
       let key = `${STORAGE_KEY_PREFIX}${id}`;
       let data = localStorage.getItem(key);
@@ -661,6 +674,16 @@ export class ProjectStorage {
     }
   }
   
+  /**
+   * Delete specific projects from localStorage only (ignores server mode).
+   */
+  static deleteLocalProjects(ids: string[]): void {
+    for (const id of ids) {
+      localStorage.removeItem(`${STORAGE_KEY_PREFIX}${id}`);
+      localStorage.removeItem(`${OLD_STORAGE_KEY_PREFIX}${id}`);
+    }
+  }
+
   /**
    * Clear all projects (use with caution)
    */
