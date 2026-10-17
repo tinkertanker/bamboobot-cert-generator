@@ -28,11 +28,18 @@ interface StorageStats {
   };
 }
 
+const DIRECTORY_LABELS: Record<string, string> = {
+  generated: 'Generated',
+  tempImages: 'Temp images',
+  dockerData: 'Docker data',
+};
+
 export function StorageMonitor() {
   const [stats, setStats] = useState<StorageStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const detailsRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const { showToast } = useToast();
@@ -47,6 +54,7 @@ export function StorageMonitor() {
 
   const fetchStats = async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const response = await fetch('/api/storage-stats');
       if (!response.ok) throw new Error('Failed to fetch stats');
@@ -54,6 +62,7 @@ export function StorageMonitor() {
       setStats(data);
     } catch (error) {
       console.error('Error fetching storage stats:', error);
+      setLoadFailed(true);
       showToast({ message: 'Failed to fetch storage stats', type: 'error', duration: 5000 });
     } finally {
       setLoading(false);
@@ -61,6 +70,7 @@ export function StorageMonitor() {
   };
 
   const cleanup = async (target: string, label: string) => {
+    if (!window.confirm(`${label}: this permanently deletes data. Continue?`)) return;
     setCleaning(true);
     try {
       const response = await fetch('/api/dev-cleanup', {
@@ -92,12 +102,38 @@ export function StorageMonitor() {
   // Click outside to close details
   useClickOutside([detailsRef, buttonRef], () => setShowDetails(false), showDetails);
 
+  // Move focus into the breakdown when it opens; Escape closes it from anywhere
+  // and hands focus back to the toggle.
+  useEffect(() => {
+    if (!showDetails) return;
+    detailsRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowDetails(false);
+        buttonRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [showDetails]);
+
   if (!stats) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 rounded-lg border">
-        <HardDrive className="w-4 h-4" />
-        <span className="text-sm">Loading storage...</span>
-        {loading && <RefreshCw className="w-3 h-3 animate-spin" />}
+      <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 text-gray-700 rounded-lg border" role="status">
+        <HardDrive className="w-4 h-4" aria-hidden="true" />
+        {loadFailed && !loading ? (
+          <>
+            <span className="text-sm">Couldn&apos;t load storage stats</span>
+            <button type="button" onClick={fetchStats} className="text-xs text-blue-600 hover:text-blue-800 underline">
+              Retry
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-sm">Loading storage…</span>
+            <RefreshCw className="w-3 h-3 animate-spin" aria-hidden="true" />
+          </>
+        )}
       </div>
     );
   }
@@ -105,17 +141,19 @@ export function StorageMonitor() {
   return (
     <div className="flex items-center gap-2">
       {/* Storage Summary */}
-      <div className={`relative flex items-center gap-2 px-3 py-1 rounded-lg border ${
+      <div className={`sm:relative flex items-center gap-2 px-3 py-1 rounded-lg border ${
         isHighUsage ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'
       }`}>
-        <HardDrive className={`w-4 h-4 ${isHighUsage ? 'text-amber-600' : 'text-gray-600'}`} />
+        <HardDrive className={`w-4 h-4 ${isHighUsage ? 'text-amber-600' : 'text-gray-600'}`} aria-hidden="true" />
+        <span className="sr-only">Server storage used:</span>
         <span className={`text-sm font-medium ${isHighUsage ? 'text-amber-800' : 'text-gray-700'}`}>
           {formatBytes(stats.totalSize)}
         </span>
-        {isHighUsage && <AlertTriangle className="w-3 h-3 text-amber-600" />}
+        {isHighUsage && <AlertTriangle className="w-3 h-3 text-amber-600" aria-label="High usage" />}
         
         <button
           ref={buttonRef}
+          type="button"
           onClick={() => setShowDetails(!showDetails)}
           className="text-xs text-blue-600 hover:text-blue-800 ml-1 w-12"
         aria-expanded={showDetails}
@@ -125,11 +163,14 @@ export function StorageMonitor() {
         </button>
         
         <button
+          type="button"
           onClick={fetchStats}
           disabled={loading}
-          className="text-xs text-gray-500 hover:text-gray-700 ml-1"
+          className="text-xs text-gray-600 hover:text-gray-800 ml-1"
+          aria-label="Refresh storage stats"
+          title="Refresh"
         >
-          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
         </button>
 
         {/* Detailed Breakdown */}
@@ -137,26 +178,21 @@ export function StorageMonitor() {
           <div
             ref={detailsRef}
             role="dialog"
-            aria-modal="true"
             aria-labelledby="storage-breakdown-title"
             tabIndex={-1}
             id="storage-breakdown"
-            className="absolute bottom-full right-0 mb-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg"
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setShowDetails(false);
-              }
-            }}
+            className="absolute bottom-full left-2 right-2 sm:left-auto sm:right-0 mb-2 bg-white text-gray-900 border rounded-lg shadow-lg p-4 z-50 sm:w-96 sm:max-w-lg max-h-[70vh] overflow-y-auto focus:outline-none"
           >
             <div className="space-y-3">
               <h3 id="storage-breakdown-title" className="font-semibold text-sm">Storage Breakdown</h3>
               
               {Object.entries(stats.directories).map(([key, dir]) => {
                 if (!dir) return null;
+                const dirLabel = DIRECTORY_LABELS[key] ?? key;
                 return (
                   <div key={key} className="flex justify-between items-center text-sm">
                     <div>
-                      <span className="font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+                      <span className="font-medium">{dirLabel}</span>
                       <span className="text-gray-500 ml-1">({dir.fileCount} items)</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -164,11 +200,13 @@ export function StorageMonitor() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => cleanup(key === 'dockerData' ? 'docker' : key, `${key} cleanup`)}
+                        onClick={() => cleanup(key === 'dockerData' ? 'docker' : key, `${dirLabel} cleanup`)}
                         disabled={cleaning}
                         className="h-6 px-2 text-xs"
+                        aria-label={`Delete all ${dirLabel.toLowerCase()} files`}
+                        title={`Delete all ${dirLabel.toLowerCase()} files`}
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3 h-3" aria-hidden="true" />
                       </Button>
                     </div>
                   </div>
@@ -212,7 +250,7 @@ export function StorageMonitor() {
               disabled={cleaning}
               className="text-xs h-7 px-2"
             >
-              <Trash2 className="w-3 h-3 mr-1" />
+              <Trash2 className="w-3 h-3 mr-1" aria-hidden="true" />
               Large PDFs ({largePdfs.length})
             </Button>
           )}
@@ -224,8 +262,8 @@ export function StorageMonitor() {
             disabled={cleaning}
             className="text-xs h-7 px-2"
           >
-            <Trash2 className="w-3 h-3 mr-1" />
-            Old Files
+            <Trash2 className="w-3 h-3 mr-1" aria-hidden="true" />
+            Old files
           </Button>
           
           <Button
@@ -235,8 +273,8 @@ export function StorageMonitor() {
             disabled={cleaning}
             className="text-xs h-7 px-2 text-red-600 hover:text-red-700"
           >
-            <Trash2 className="w-3 h-3 mr-1" />
-            Clear All
+            <Trash2 className="w-3 h-3 mr-1" aria-hidden="true" />
+            Clear all
           </Button>
         </div>
       )}

@@ -28,7 +28,7 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ stats, recentActivity }: AdminDashboardProps) {
   return (
-    <AdminLayout title="Dashboard">
+    <AdminLayout title="Overview">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <StatCard
@@ -46,7 +46,7 @@ export default function AdminDashboard({ stats, recentActivity }: AdminDashboard
           <StatCard
             title="Total Projects"
             value={stats.totalProjects}
-            description="Active projects"
+            description="All saved projects"
             color="purple"
           />
           <StatCard
@@ -64,7 +64,7 @@ export default function AdminDashboard({ stats, recentActivity }: AdminDashboard
           <StatCard
             title="User Tiers"
             value={`${stats.usersByTier.free} Free / ${stats.usersByTier.plus} Plus`}
-            description={`${stats.usersByTier.admin} Admin / ${stats.usersByTier.super_admin} Super`}
+            description={`${stats.usersByTier.admin} Admin / ${stats.usersByTier.super_admin} Super Admin`}
             color="pink"
           />
         </div>
@@ -74,7 +74,7 @@ export default function AdminDashboard({ stats, recentActivity }: AdminDashboard
           <div className="px-6 py-4 border-b">
             <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -102,14 +102,19 @@ export default function AdminDashboard({ stats, recentActivity }: AdminDashboard
                         activity.action === 'project_create' ? 'bg-green-100 text-green-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {activity.action.replace('_', ' ')}
+                        {activity.action.replace(/_/g, ' ')}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" suppressHydrationWarning>
                       {new Date(activity.createdAt).toLocaleString()}
                     </td>
                   </tr>
                 ))}
+                {recentActivity.length === 0 && (
+                  <tr>
+                    <td className="px-6 py-6 text-sm text-gray-500" colSpan={3}>No activity yet.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -136,11 +141,11 @@ function StatCard({ title, value, description, color }: {
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className={`inline-flex p-3 rounded-lg ${colorClasses[color as keyof typeof colorClasses]} mb-4`}>
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       </div>
-      <h3 className="text-sm font-medium text-gray-500">{title}</h3>
+      <h2 className="text-sm font-medium text-gray-500">{title}</h2>
       <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
       <p className="text-xs text-gray-500 mt-1">{description}</p>
     </div>

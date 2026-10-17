@@ -50,6 +50,8 @@ export default function StoragePage() {
     async function fetchData() {
       try {
         setLoading(true);
+        setError(null);
+        setSelected({});
         const res = await fetch(`/api/admin/storage/list?prefix=${scope}%2F`);
         if (!res.ok) throw new Error('Failed to load');
         const json = (await res.json()) as ListResponse;
@@ -127,6 +129,35 @@ export default function StoragePage() {
     setSelected(updates);
   }
 
+  const hasSelection = Object.values(selected).some(Boolean);
+
+  const allInViewSelected = (() => {
+    if (!data) return false;
+    const keys =
+      view === 'files' ? filteredFiles.map(it => it.key)
+      : view === 'folders' ? folderGroups.map(g => `prefix:${g.prefix}`)
+      : view === 'date' ? dateGroups.map(g => `date:${g.date}`)
+      : data.aggregates.largest.map(it => it.key);
+    return keys.length > 0 && keys.every(k => selected[k]);
+  })();
+
+  const selectAllCheckbox = (
+    <input
+      type="checkbox"
+      aria-label="Select all in this view"
+      checked={allInViewSelected}
+      onChange={e => toggleAllCurrentView(e.target.checked)}
+    />
+  );
+
+  const emptyRow = (colSpan: number) => (
+    <tr>
+      <td className="px-4 py-6 text-sm text-gray-500" colSpan={colSpan}>
+        {loading ? 'Loading…' : error ? error : 'Nothing to show.'}
+      </td>
+    </tr>
+  );
+
   function previewUrlFor(key: string): string {
     return `/api/admin/storage/get?key=${encodeURIComponent(key)}`;
   }
@@ -183,7 +214,7 @@ export default function StoragePage() {
       return;
     }
 
-    const confirmText = `Delete ${items.length} item(s)? This cannot be undone.`;
+    const confirmText = `Delete ${items.length} ${items.length === 1 ? 'item' : 'items'}? This cannot be undone.`;
     if (!window.confirm(confirmText)) return;
 
     try {
@@ -199,19 +230,20 @@ export default function StoragePage() {
       const fresh = await fetch(`/api/admin/storage/list?prefix=${scope}%2F`);
       const freshJson = (await fresh.json()) as ListResponse;
       setData(freshJson);
-      alert(`Deleted ${json.deleted?.length || 0} item(s).`);
+      const deletedCount = json.deleted?.length || 0;
+      alert(`Deleted ${deletedCount} ${deletedCount === 1 ? 'item' : 'items'}.`);
     } catch (e) {
       alert('Failed to delete selected items');
     }
   }
 
   const subNav = (
-    <div className="hidden md:flex items-center gap-4">
+    <div className="flex flex-wrap items-center gap-2 sm:gap-4">
       <Segmented
         ariaLabel="Scope"
         items={[
-          { label: 'generated', value: 'generated' },
-          { label: 'temp_images', value: 'temp_images' },
+          { label: 'Generated', value: 'generated' },
+          { label: 'Temp images', value: 'temp_images' },
         ]}
         value={scope}
         onChange={setScope}
@@ -251,40 +283,40 @@ export default function StoragePage() {
 
         {/* Controls */}
         <div className="bg-white rounded-lg shadow p-4 mb-4 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name/prefix" className="h-9 text-sm px-3 border rounded w-56" />
+          <div className="flex flex-wrap items-center gap-3">
+            <input type="search" aria-label="Search by name or prefix" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name/prefix" className="h-9 text-sm px-3 border rounded w-full sm:w-56" />
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">Min size (MB)</label>
-              <input type="number" min={0} value={minSizeMB} onChange={e=>setMinSizeMB(e.target.value===''?'':Number(e.target.value))} className="h-9 text-sm px-3 border rounded w-28" />
+              <label htmlFor="storage-min-size" className="text-sm text-gray-600">Min size (MB)</label>
+              <input id="storage-min-size" type="number" min={0} value={minSizeMB} onChange={e=>setMinSizeMB(e.target.value===''?'':Number(e.target.value))} className="h-9 text-sm px-3 border rounded w-28" />
             </div>
             <div className="flex items-center gap-2">
-              <select value={sortBy} onChange={e=>setSortBy(e.target.value as any)} className="h-9 text-sm px-2 border rounded">
+              <select aria-label="Sort by" value={sortBy} onChange={e=>setSortBy(e.target.value as any)} className="h-9 text-sm px-2 border rounded">
                 <option value="size">Sort: Size</option>
                 <option value="date">Sort: Date</option>
                 <option value="name">Sort: Name</option>
               </select>
-              <button className="h-9 text-sm px-3 border rounded" onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')}>{sortDir==='desc'?'Desc':'Asc'}</button>
+              <button type="button" className="h-9 text-sm px-3 border rounded" aria-label={`Sort direction: ${sortDir==='desc'?'descending':'ascending'}. Click to reverse.`} onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')}>{sortDir==='desc'?'Desc':'Asc'}</button>
             </div>
           </div>
         </div>
 
         {/* Bulk actions */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-sm text-gray-600">{loading ? 'Loading…' : error ? error : ''}</div>
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-1.5 text-sm border rounded" onClick={()=>toggleAllCurrentView(true)}>Select All in View</button>
-            <button className="px-3 py-1.5 text-sm border rounded" onClick={()=>toggleAllCurrentView(false)}>Clear Selection</button>
-            <button className="px-3 py-1.5 text-sm rounded bg-red-600 text-white" onClick={()=>executeDeletion()}>Delete Selected</button>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <div className={`text-sm ${error && !loading ? 'text-red-600' : 'text-gray-600'}`} role="status">{loading ? 'Loading…' : error ? error : ''}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className="px-3 py-1.5 text-sm border rounded bg-white" onClick={()=>toggleAllCurrentView(true)}>Select all in view</button>
+            <button type="button" className="px-3 py-1.5 text-sm border rounded bg-white disabled:opacity-50" disabled={!hasSelection} onClick={()=>setSelected({})}>Clear selection</button>
+            <button type="button" className="px-3 py-1.5 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:hover:bg-red-600" disabled={!hasSelection} onClick={()=>executeDeletion()}>Delete selected</button>
           </div>
         </div>
 
         {/* Tables */}
         {view === 'files' && (
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <div className="relative bg-white rounded-lg shadow overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2"><input type="checkbox" onChange={e=>toggleAllCurrentView(e.target.checked)} /></th>
+                  <th className="px-4 py-2">{selectAllCheckbox}</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Preview</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Key</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
@@ -294,90 +326,93 @@ export default function StoragePage() {
               <tbody className="divide-y divide-gray-100">
                 {filteredFiles.map((it) => (
                   <tr key={it.key} className="hover:bg-gray-50">
-                    <td className="px-4 py-2"><input type="checkbox" checked={!!selected[it.key]} onChange={e=>setSelected(s=>({ ...s, [it.key]: e.target.checked }))} /></td>
+                    <td className="px-4 py-2"><input type="checkbox" aria-label={`Select ${it.key}`} checked={!!selected[it.key]} onChange={e=>setSelected(s=>({ ...s, [it.key]: e.target.checked }))} /></td>
                     <td className="px-4 py-2 text-sm">
                       {/[.](png|jpg|jpeg)$/i.test(it.key) ? (
-                        <img src={previewUrlFor(it.key)} alt="preview" className="h-16 w-auto rounded border" />
+                        <img src={previewUrlFor(it.key)} alt="" loading="lazy" className="h-16 w-auto rounded border" />
                       ) : (/\.pdf$/i.test(it.key) ? (
-                        <a href={previewUrlFor(it.key)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Open PDF</a>
+                        <a href={previewUrlFor(it.key)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Open PDF<span className="sr-only"> (opens in a new tab)</span></a>
                       ) : (
                         <span className="text-gray-400">—</span>
                       ))}
                     </td>
-                    <td className="px-4 py-2 text-sm font-mono">{it.key}</td>
-                    <td className="px-4 py-2 text-sm">{formatBytes(it.size)}</td>
-                    <td className="px-4 py-2 text-sm">{it.lastModified ? new Date(it.lastModified).toLocaleString() : '—'}</td>
+                    <td className="px-4 py-2 text-sm font-mono break-all min-w-[12rem]">{it.key}</td>
+                    <td className="px-4 py-2 text-sm whitespace-nowrap">{formatBytes(it.size)}</td>
+                    <td className="px-4 py-2 text-sm whitespace-nowrap">{it.lastModified ? new Date(it.lastModified).toLocaleString() : '—'}</td>
                   </tr>
                 ))}
+                {filteredFiles.length === 0 && emptyRow(5)}
               </tbody>
             </table>
           </div>
         )}
 
         {view === 'folders' && (
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <div className="relative bg-white rounded-lg shadow overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2"><input type="checkbox" onChange={e=>toggleAllCurrentView(e.target.checked)} /></th>
+                  <th className="px-4 py-2">{selectAllCheckbox}</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Prefix</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Files</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Size</th>
-                  <th className="px-4 py-2"></th>
+                  <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {folderGroups.map((g) => (
                   <tr key={g.prefix} className="hover:bg-gray-50">
-                    <td className="px-4 py-2"><input type="checkbox" checked={!!selected[`prefix:${g.prefix}`]} onChange={e=>setSelected(s=>({ ...s, [`prefix:${g.prefix}`]: e.target.checked }))} /></td>
+                    <td className="px-4 py-2"><input type="checkbox" aria-label={`Select ${g.prefix}`} checked={!!selected[`prefix:${g.prefix}`]} onChange={e=>setSelected(s=>({ ...s, [`prefix:${g.prefix}`]: e.target.checked }))} /></td>
                     <td className="px-4 py-2 text-sm font-mono">{g.prefix}</td>
                     <td className="px-4 py-2 text-sm">{g.count}</td>
                     <td className="px-4 py-2 text-sm">{formatBytes(g.size)}</td>
                     <td className="px-4 py-2 text-right">
-                      <button className="px-3 py-1.5 text-sm rounded bg-red-600 text-white" onClick={()=>executeDeletion({ [`prefix:${g.prefix}`]: true })}>Delete</button>
+                      <button type="button" className="px-3 py-1.5 text-sm rounded bg-red-600 text-white hover:bg-red-700" onClick={()=>executeDeletion({ [`prefix:${g.prefix}`]: true })}>Delete<span className="sr-only"> {g.prefix}</span></button>
                     </td>
                   </tr>
                 ))}
+                {folderGroups.length === 0 && emptyRow(5)}
               </tbody>
             </table>
           </div>
         )}
 
         {view === 'date' && (
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <div className="relative bg-white rounded-lg shadow overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2"><input type="checkbox" onChange={e=>toggleAllCurrentView(e.target.checked)} /></th>
+                  <th className="px-4 py-2">{selectAllCheckbox}</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Files</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Size</th>
-                  <th className="px-4 py-2"></th>
+                  <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {dateGroups.map((g) => (
                   <tr key={g.date} className="hover:bg-gray-50">
-                    <td className="px-4 py-2"><input type="checkbox" checked={!!selected[`date:${g.date}`]} onChange={e=>setSelected(s=>({ ...s, [`date:${g.date}`]: e.target.checked }))} /></td>
+                    <td className="px-4 py-2"><input type="checkbox" aria-label={`Select files from ${g.date}`} checked={!!selected[`date:${g.date}`]} onChange={e=>setSelected(s=>({ ...s, [`date:${g.date}`]: e.target.checked }))} /></td>
                     <td className="px-4 py-2 text-sm">{g.date}</td>
                     <td className="px-4 py-2 text-sm">{g.count}</td>
                     <td className="px-4 py-2 text-sm">{formatBytes(g.size)}</td>
                     <td className="px-4 py-2 text-right">
-                      <button className="px-3 py-1.5 text-sm rounded bg-red-600 text-white" onClick={()=>executeDeletion({ [`date:${g.date}`]: true })}>Delete</button>
+                      <button type="button" className="px-3 py-1.5 text-sm rounded bg-red-600 text-white hover:bg-red-700" onClick={()=>executeDeletion({ [`date:${g.date}`]: true })}>Delete<span className="sr-only"> files from {g.date}</span></button>
                     </td>
                   </tr>
                 ))}
+                {dateGroups.length === 0 && emptyRow(5)}
               </tbody>
             </table>
           </div>
         )}
 
         {view === 'largest' && (
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <div className="relative bg-white rounded-lg shadow overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2"><input type="checkbox" onChange={e=>toggleAllCurrentView(e.target.checked)} /></th>
+                  <th className="px-4 py-2">{selectAllCheckbox}</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Key</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Last Modified</th>
@@ -386,21 +421,22 @@ export default function StoragePage() {
               <tbody className="divide-y divide-gray-100">
                 {data?.aggregates.largest.map((it) => (
                   <tr key={it.key} className="hover:bg-gray-50">
-                    <td className="px-4 py-2"><input type="checkbox" checked={!!selected[it.key]} onChange={e=>setSelected(s=>({ ...s, [it.key]: e.target.checked }))} /></td>
+                    <td className="px-4 py-2"><input type="checkbox" aria-label={`Select ${it.key}`} checked={!!selected[it.key]} onChange={e=>setSelected(s=>({ ...s, [it.key]: e.target.checked }))} /></td>
                     <td className="px-4 py-2 text-sm font-mono">
                       <div className="flex items-center gap-3">
                         {/[.](png|jpg|jpeg)$/i.test(it.key) ? (
-                          <img src={previewUrlFor(it.key)} alt="preview" className="h-10 w-auto rounded border" />
+                          <img src={previewUrlFor(it.key)} alt="" loading="lazy" className="h-10 w-auto rounded border" />
                         ) : (/\.pdf$/i.test(it.key) ? (
-                          <a href={previewUrlFor(it.key)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Open PDF</a>
+                          <a href={previewUrlFor(it.key)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Open PDF<span className="sr-only"> (opens in a new tab)</span></a>
                         ) : null)}
                         <span className="font-mono">{it.key}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-2 text-sm">{formatBytes(it.size)}</td>
-                    <td className="px-4 py-2 text-sm">{it.lastModified ? new Date(it.lastModified).toLocaleString() : '—'}</td>
+                    <td className="px-4 py-2 text-sm whitespace-nowrap">{formatBytes(it.size)}</td>
+                    <td className="px-4 py-2 text-sm whitespace-nowrap">{it.lastModified ? new Date(it.lastModified).toLocaleString() : '—'}</td>
                   </tr>
                 ))}
+                {(data?.aggregates.largest.length ?? 0) === 0 && emptyRow(4)}
               </tbody>
             </table>
           </div>

@@ -13,7 +13,7 @@ export function Skeleton({ className, ...props }: SkeletonProps) {
 
 export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200">
+    <div className="overflow-hidden rounded-lg border border-gray-200" aria-hidden="true">
       {/* Header */}
       <div className="bg-gray-100 px-4 py-3 border-b border-gray-200">
         <div className="flex gap-4">
@@ -39,11 +39,12 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
 
 export function PreviewSkeleton() {
   return (
-    <div className="relative w-full h-64 border-4 border-gray-700 rounded-lg overflow-hidden">
+    <div className="relative w-full h-64 border-4 border-gray-700 rounded-lg overflow-hidden" role="status">
+      <span className="sr-only">Loading preview…</span>
       <Skeleton className="absolute inset-0" />
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="text-gray-400">
-          <svg className="w-12 h-12 animate-spin" viewBox="0 0 24 24">
+          <svg className="w-12 h-12 animate-spin" viewBox="0 0 24 24" aria-hidden="true">
             <circle
               className="opacity-25"
               cx="12"
@@ -67,7 +68,7 @@ export function PreviewSkeleton() {
 
 export function FormattingPanelSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-hidden="true">
       {/* Field selector */}
       <div className="p-3 rounded-lg border">
         <Skeleton className="h-4 w-32" />

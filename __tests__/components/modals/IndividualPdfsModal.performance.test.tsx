@@ -127,3 +127,68 @@ describe('IndividualPdfsModal large result lists', () => {
     );
   });
 });
+
+describe('IndividualPdfsModal stopped progressive generation', () => {
+  const baseProps = {
+    individualPdfsData: null,
+    tableData: [{ Name: 'Ada' }],
+    selectedNamingColumn: 'Name',
+    setSelectedNamingColumn: jest.fn(),
+    emailSendingStatus: {},
+    hasEmailColumn: false,
+    emailConfig: {
+      senderName: '',
+      subject: '',
+      message: '',
+      deliveryMethod: 'download' as const,
+      isConfigured: false
+    },
+    sendCertificateEmail: jest.fn(),
+    setIndividualPdfsData: jest.fn(),
+    detectedEmailColumn: null
+  };
+
+  const progress = {
+    sessionId: 's1',
+    status: 'processing' as const,
+    processed: 3,
+    failed: 0,
+    total: 10,
+    currentBatch: 1,
+    totalBatches: 1,
+    timeElapsed: 1000,
+    errors: []
+  };
+
+  it('shows a closable cancelled state instead of an empty dialog', () => {
+    const onClose = jest.fn();
+    render(
+      <IndividualPdfsModal
+        {...baseProps}
+        isGeneratingIndividual={false}
+        isProgressiveMode
+        progressiveProgress={progress}
+        onClose={onClose}
+      />
+    );
+    expect(screen.getByText('Generation Cancelled')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the failure reason when generation fails', () => {
+    render(
+      <IndividualPdfsModal
+        {...baseProps}
+        isGeneratingIndividual={false}
+        isProgressiveMode
+        progressiveProgress={{ ...progress, status: 'error', errors: [{ index: 2, error: 'Bad font' }] }}
+        progressiveError="Template not found"
+        onClose={jest.fn()}
+      />
+    );
+    expect(screen.getByText('Generation Failed')).toBeInTheDocument();
+    expect(screen.getByText('Template not found')).toBeInTheDocument();
+    expect(screen.getByText('Entry 3: Bad font')).toBeInTheDocument();
+  });
+});

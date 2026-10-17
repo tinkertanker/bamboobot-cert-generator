@@ -109,7 +109,7 @@ describe('MainPage Component', () => {
     // Wait for the table to be rendered
     await waitFor(() => {
       const tables = screen.getAllByRole('table');
-      expect(tables).toHaveLength(2); // Header table and body table
+      expect(tables).toHaveLength(1); // Single table with sticky header for small datasets
       expect(screen.getByText('John Doe')).toBeInTheDocument();
       expect(screen.getByText('Jane Smith')).toBeInTheDocument();
       expect(screen.getByText('Developer')).toBeInTheDocument();

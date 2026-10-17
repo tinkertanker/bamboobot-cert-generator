@@ -63,6 +63,9 @@ import { guardLocalStorageForUser } from "@/lib/storage/account-scope";
 import { useUserTier } from "@/hooks/useUserTier";
 import { mapProgressivePdfFiles } from "@/lib/pdf/progressive-results";
 
+const TAB_BUTTON_CLASSES =
+  "px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-1";
+
 export default function HomePage() {
   // ============================================================================
   // MOBILE DETECTION
@@ -417,7 +420,8 @@ export default function HomePage() {
     handleSaveProjectSuccess,
     handleSaveToCurrentProject,
     handleNewProject,
-    confirmNewProject
+    confirmNewProject,
+    handleProjectDeleted
   } = useProjectManagement({
     setPositions,
     setEmailConfig,
@@ -484,6 +488,7 @@ export default function HomePage() {
       if (
         target?.tagName === 'INPUT' ||
         target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
         target?.getAttribute('contenteditable') === 'true'
       ) {
         setHasInputFocus(true);
@@ -495,6 +500,7 @@ export default function HomePage() {
       if (
         target?.tagName === 'INPUT' ||
         target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
         target?.getAttribute('contenteditable') === 'true'
       ) {
         setHasInputFocus(false);
@@ -566,7 +572,7 @@ export default function HomePage() {
 
   return (
     <div
-      className="flex flex-col h-screen"
+      className="flex flex-col min-h-screen"
       style={{ backgroundColor: COLORS.background }}>
       {/* Application Header */}
       <header
@@ -575,12 +581,12 @@ export default function HomePage() {
           background: GRADIENTS.primary,
           boxShadow: "0 2px 4px rgba(27, 67, 50, 0.1)"
         }}>
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-3">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3">
               <Image
                 src="/bamboobot-icon.png"
-                alt="Bamboobot"
+                alt=""
                 width={32}
                 height={32}
                 className="w-8 h-8"
@@ -592,7 +598,7 @@ export default function HomePage() {
               </h1>
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {/* User Avatar Dropdown */}
             {session && <UserAvatarDropdown />}
 
@@ -602,7 +608,7 @@ export default function HomePage() {
               variant="outline"
               className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20"
             >
-              <HelpCircle className="w-4 h-4" />
+              <HelpCircle className="w-4 h-4" aria-hidden="true" />
               Tutorial
             </Button>
             
@@ -621,6 +627,7 @@ export default function HomePage() {
               }
               disabled={false}
               variant="primary" // Always use primary variant to maintain consistent styling
+              menuLabel="More project options"
               menuItems={[
                 {
                   label: "New project",
@@ -630,7 +637,7 @@ export default function HomePage() {
                     !uploadedFileUrl && Object.keys(positions || {}).length === 0
                 },
                 {
-                  label: "Projects...",
+                  label: "Open project…",
                   icon: <FolderOpen className="h-4 w-4" />,
                   onClick: () => setShowLoadProjectModal(true)
                 },
@@ -653,6 +660,14 @@ export default function HomePage() {
             <SplitButton
               data-tour="generate-pdf"
               label="Generate"
+              menuLabel="More generate options"
+              title={
+                !uploadedFile
+                  ? "Upload a background image to generate certificates"
+                  : tableData.length === 0
+                    ? "Paste your data to generate certificates"
+                    : undefined
+              }
               onClick={() => {
                 handleGenerateIndividualPdfs();
               }}
@@ -681,9 +696,9 @@ export default function HomePage() {
                 // Server-side options only in dev mode
                 ...(isDevelopment && devMode ? [
                   {
-                    label: "──────────",
+                    label: "",
                     onClick: () => {},
-                    disabled: true
+                    separator: true
                   },
                   {
                     label: "Individual PDFs (Server)",
@@ -726,9 +741,9 @@ export default function HomePage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 grid grid-cols-[60%_40%] gap-6 p-6">
+      <main className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start gap-6 p-6">
         {/* Certificate Preview Section */}
-        <div className="bg-card p-4 rounded-lg shadow" data-tour="certificate-preview">
+        <div className="bg-card p-4 rounded-lg shadow min-w-0" data-tour="certificate-preview">
           <CertificatePreview
             uploadedFileUrl={uploadedFileUrl}
             isLoading={isLoading}
@@ -753,17 +768,18 @@ export default function HomePage() {
           {/* Toolbar */}
           {uploadedFileUrl && (
             <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap justify-between items-center gap-3">
                 <div className="flex gap-2">
                   <SplitButton
-                    label="Remove Background"
+                    label="Remove background"
+                    menuLabel="More background options"
                     onClick={() => {
                       clearFile();
                       clearDragState();
                     }}
                     menuItems={[
                       {
-                        label: "Replace Background",
+                        label: "Replace background",
                         icon: <RefreshCw className="h-4 w-4" />,
                         onClick: () => {
                           const fileInput = document.getElementById('replace-file-upload') as HTMLInputElement;
@@ -781,12 +797,14 @@ export default function HomePage() {
                     onChange={handleFileUpload}
                     accept="image/jpeg,image/png"
                     className="sr-only"
+                    tabIndex={-1}
+                    aria-hidden="true"
                   />
                 </div>
 
                 {/* Arrow key hint - center aligned */}
                 {selectedField && (
-                  <div className="flex items-center justify-center text-xs text-gray-500">
+                  <div className="hidden xl:flex flex-1 min-w-0 items-center justify-center text-center text-xs text-gray-500">
                     <span className={hasInputFocus ? "opacity-50" : ""}>
                       {hasInputFocus 
                         ? "Arrow key nudging disabled while editing"
@@ -797,8 +815,10 @@ export default function HomePage() {
 
                 {/* Navigation buttons - right aligned */}
                 {tableData.length > 0 && (
-                  <div className="flex items-center gap-2" data-tour="navigation">
-                    <span className="text-sm text-gray-600 font-medium">
+                  <div className="flex items-center gap-2 ml-auto" data-tour="navigation">
+                    <span
+                      className="text-sm text-gray-600 font-medium whitespace-nowrap tabular-nums"
+                      aria-live="polite">
                       {currentPreviewIndex + 1} of {tableData.length}
                     </span>
                     <div className="flex gap-1">
@@ -812,8 +832,9 @@ export default function HomePage() {
                             : "text-gray-700 border-gray-400 px-2 hover:bg-gray-50"
                         }
                         title="First entry"
+                        aria-label="First entry"
                         onClick={goToFirst}>
-                        <SkipBack className="h-4 w-4" />
+                        <SkipBack className="h-4 w-4" aria-hidden="true" />
                       </Button>
                       <Button
                         variant="outline"
@@ -825,8 +846,9 @@ export default function HomePage() {
                             : "text-gray-700 border-gray-400 px-2 hover:bg-gray-50"
                         }
                         title="Previous entry"
+                        aria-label="Previous entry"
                         onClick={goToPrevious}>
-                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                       </Button>
                       <Button
                         variant="outline"
@@ -838,8 +860,9 @@ export default function HomePage() {
                             : "text-gray-700 border-gray-400 px-2 hover:bg-gray-50"
                         }
                         title="Next entry"
+                        aria-label="Next entry"
                         onClick={goToNext}>
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-4 w-4" aria-hidden="true" />
                       </Button>
                       <Button
                         variant="outline"
@@ -851,8 +874,9 @@ export default function HomePage() {
                             : "text-gray-700 border-gray-400 px-2 hover:bg-gray-50"
                         }
                         title="Last entry"
+                        aria-label="Last entry"
                         onClick={goToLast}>
-                        <SkipForward className="h-4 w-4" />
+                        <SkipForward className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </div>
                   </div>
@@ -862,12 +886,20 @@ export default function HomePage() {
           )}
         </div>
         {/* Control Panel Section */}
-        <div className="bg-card p-4 rounded-lg shadow mr-6">
+        <div className="bg-card p-4 rounded-lg shadow min-w-0">
           {/* Tab Navigation */}
-          <div className="flex mb-4 bg-gray-100 rounded-lg p-1 gap-1">
+          <div
+            className="flex mb-4 bg-gray-100 rounded-lg p-1 gap-1"
+            role="tablist"
+            aria-label="Editor panels">
             <button
+              type="button"
+              role="tab"
+              id="tab-data"
+              aria-selected={activeTab === "data"}
+              aria-controls="panel-data"
               onClick={() => setActiveTab("data")}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
+              className={TAB_BUTTON_CLASSES}
               data-tour="data-tab"
               style={{
                 backgroundColor:
@@ -879,8 +911,13 @@ export default function HomePage() {
             </button>
             {tableData.length > 0 && (
               <button
+                type="button"
+                role="tab"
+                id="tab-formatting"
+                aria-selected={activeTab === "formatting"}
+                aria-controls="panel-formatting"
                 onClick={() => setActiveTab("formatting")}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center`}
+                className={TAB_BUTTON_CLASSES}
                 data-tour="formatting-tab"
                 style={{
                   backgroundColor:
@@ -897,11 +934,13 @@ export default function HomePage() {
             )}
             {detectedEmailColumn && (
               <button
-                onClick={() => {
-                  console.log("📧 Email tab clicked");
-                  setActiveTab("email");
-                }}
-                className="px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center"
+                type="button"
+                role="tab"
+                id="tab-email"
+                aria-selected={activeTab === "email"}
+                aria-controls="panel-email"
+                onClick={() => setActiveTab("email")}
+                className={TAB_BUTTON_CLASSES}
                 data-tour="email-tab"
                 style={{
                   backgroundColor:
@@ -919,9 +958,9 @@ export default function HomePage() {
                     detectedEmailColumn.toLowerCase()
                   ) && (
                     <span
-                      className={`ml-1 px-1.5 py-0.5 text-xs ${
+                      className={`ml-1 px-1.5 py-0.5 text-xs max-w-[8rem] truncate inline-block align-middle ${
                         activeTab === "email"
-                          ? "text-amber-600"
+                          ? "text-gray-900"
                           : "text-green-800"
                       }`}
                       style={{
@@ -940,6 +979,7 @@ export default function HomePage() {
 
           {/* Tab Content */}
           {activeTab === "data" && (
+            <div role="tabpanel" id="panel-data" aria-labelledby="tab-data">
             <DataPanelWithSearch
               tableInput={tableInput}
               handleTableDataChange={handleTableDataChange}
@@ -956,9 +996,11 @@ export default function HomePage() {
               setCurrentPreviewIndex={setCurrentPreviewIndex}
               isProcessing={isProcessingData}
             />
+            </div>
           )}
 
           {activeTab === "formatting" && (
+            <div role="tabpanel" id="panel-formatting" aria-labelledby="tab-formatting">
             <FormattingPanel
               selectedField={selectedField}
               setSelectedField={setSelectedField}
@@ -972,9 +1014,11 @@ export default function HomePage() {
               setShowClearAllModal={setShowClearAllModal}
               setShowCenterGuide={setShowCenterGuide}
             />
+            </div>
           )}
 
           {activeTab === "email" && (
+            <div role="tabpanel" id="panel-email" aria-labelledby="tab-email">
             <EmailConfigPanel
               detectedEmailColumn={detectedEmailColumn}
               emailConfig={emailConfig}
@@ -983,6 +1027,7 @@ export default function HomePage() {
               setSelectedField={setSelectedField}
               setShowCenterGuide={setShowCenterGuide}
             />
+            </div>
           )}
         </div>
       </main>
@@ -1003,7 +1048,8 @@ export default function HomePage() {
         isClientGeneratingIndividual ||
         !!individualPdfsData ||
         !!clientIndividualPdfsData ||
-        !!progressivePdfProgress) && (
+        !!progressivePdfProgress ||
+        !!progressivePdfError) && (
         <IndividualPdfsModal
         isGeneratingIndividual={
           isGeneratingIndividual || isProgressiveGenerating || isClientGeneratingIndividual
@@ -1033,7 +1079,7 @@ export default function HomePage() {
         onClose={() => {
           setIndividualPdfsData(null);
           setSelectedNamingColumn("");
-          if (isProgressiveGenerating || progressivePdfProgress) {
+          if (isProgressiveGenerating || progressivePdfProgress || progressivePdfError) {
             clearResults();
           }
           if (clientIndividualPdfsData) {
@@ -1099,6 +1145,7 @@ export default function HomePage() {
           isOpen
           onClose={() => setShowLoadProjectModal(false)}
           onLoadProject={handleLoadProject}
+          onProjectDeleted={handleProjectDeleted}
         />
       )}
 
@@ -1107,6 +1154,7 @@ export default function HomePage() {
           isOpen
           onClose={() => setShowNewProjectModal(false)}
           onConfirm={confirmNewProject}
+          isSavedProject={hasManuallySaved && !!currentProjectId}
           hasUnsavedWork={
             uploadedFileUrl !== null && Object.keys(positions || {}).length > 0
           }
@@ -1127,7 +1175,11 @@ export default function HomePage() {
           onClose={clearError}
           onRetry={() => {
             clearError();
-            document.getElementById("file-upload")?.click();
+            // The drop zone input only exists before an image is loaded
+            (
+              document.getElementById("file-upload") ??
+              document.getElementById("replace-file-upload")
+            )?.click();
           }}
         />
       )}

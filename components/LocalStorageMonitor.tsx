@@ -6,11 +6,19 @@ import { analyzeLocalStorage, cleanupLocalStorage, type LocalStorageStats, type 
 import { formatBytes } from '@/lib/format';
 import { useClickOutside } from '@/hooks/useClickOutside';
 
+const TYPE_LABELS: Record<string, string> = {
+  projects: 'Projects',
+  emailQueues: 'Email queues',
+  session: 'Session',
+  other: 'Other',
+};
+
 export function LocalStorageMonitor() {
   const [stats, setStats] = useState<LocalStorageStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const detailsRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const { showToast } = useToast();
@@ -40,18 +48,21 @@ export function LocalStorageMonitor() {
 
   const refreshStats = async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const newStats = await analyzeLocalStorage();
       setStats(newStats);
     } catch (error) {
       console.error('Error analyzing localStorage:', error);
-      showToast({ message: 'Failed to analyze localStorage', type: 'error', duration: 5000 });
+      setLoadFailed(true);
+      showToast({ message: 'Failed to analyse localStorage', type: 'error', duration: 5000 });
     } finally {
       setLoading(false);
     }
   };
 
   const cleanup = async (options: CleanupOptions, label: string) => {
+    if (!window.confirm(`${label}: this permanently deletes data. Continue?`)) return;
     setCleaning(true);
     try {
       const result = await cleanupLocalStorage(options);
@@ -79,12 +90,38 @@ export function LocalStorageMonitor() {
   // Click outside to close details
   useClickOutside([detailsRef, buttonRef], () => setShowDetails(false), showDetails);
 
+  // Move focus into the breakdown when it opens; Escape closes it from anywhere
+  // and hands focus back to the toggle.
+  useEffect(() => {
+    if (!showDetails) return;
+    detailsRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowDetails(false);
+        buttonRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [showDetails]);
+
   if (!stats) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 rounded-lg border">
-        <Database className="w-4 h-4" />
-        <span className="text-sm">Loading localStorage...</span>
-        {loading && <RefreshCw className="w-3 h-3 animate-spin" />}
+      <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 text-gray-700 rounded-lg border" role="status">
+        <Database className="w-4 h-4" aria-hidden="true" />
+        {loadFailed && !loading ? (
+          <>
+            <span className="text-sm">Couldn&apos;t load localStorage stats</span>
+            <button type="button" onClick={refreshStats} className="text-xs text-blue-600 hover:text-blue-800 underline">
+              Retry
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-sm">Loading localStorage…</span>
+            <RefreshCw className="w-3 h-3 animate-spin" aria-hidden="true" />
+          </>
+        )}
       </div>
     );
   }
@@ -92,7 +129,7 @@ export function LocalStorageMonitor() {
   return (
     <div className="flex items-center gap-2">
       {/* localStorage Summary */}
-      <div className={`relative flex items-center gap-2 px-3 py-1 rounded-lg border ${
+      <div className={`sm:relative flex items-center gap-2 px-3 py-1 rounded-lg border ${
         isHighUsage ? 'bg-red-50 border-red-200' : 
         stats.quotaUsage > 50 ? 'bg-amber-50 border-amber-200' : 
         'bg-gray-50 border-gray-200'
@@ -101,7 +138,8 @@ export function LocalStorageMonitor() {
           isHighUsage ? 'text-red-600' : 
           stats.quotaUsage > 50 ? 'text-amber-600' : 
           'text-gray-600'
-        }`} />
+        }`} aria-hidden="true" />
+        <span className="sr-only">Browser storage used:</span>
         <span className={`text-sm font-medium ${
           isHighUsage ? 'text-red-800' : 
           stats.quotaUsage > 50 ? 'text-amber-800' : 
@@ -109,10 +147,11 @@ export function LocalStorageMonitor() {
         }`}>
           {formatBytes(stats.totalSize)} ({stats.quotaUsage.toFixed(1)}%)
         </span>
-        {isHighUsage && <AlertTriangle className="w-3 h-3 text-red-600" />}
+        {isHighUsage && <AlertTriangle className="w-3 h-3 text-red-600" aria-label="High usage" />}
         
         <button
           ref={buttonRef}
+          type="button"
           onClick={() => setShowDetails(!showDetails)}
           className="text-xs text-blue-600 hover:text-blue-800 ml-1 w-12"
           aria-expanded={showDetails}
@@ -122,11 +161,14 @@ export function LocalStorageMonitor() {
         </button>
         
         <button
+          type="button"
           onClick={refreshStats}
           disabled={loading}
-          className="text-xs text-gray-500 hover:text-gray-700 ml-1"
+          className="text-xs text-gray-600 hover:text-gray-800 ml-1"
+          aria-label="Refresh localStorage stats"
+          title="Refresh"
         >
-          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
         </button>
 
         {/* Detailed Breakdown */}
@@ -134,16 +176,10 @@ export function LocalStorageMonitor() {
           <div
             ref={detailsRef}
             role="dialog"
-            aria-modal="true"
             aria-labelledby="localStorage-breakdown-title"
             tabIndex={-1}
             id="localStorage-breakdown"
-            className="absolute bottom-full right-0 mb-2 bg-white border rounded-lg shadow-lg p-4 z-50 min-w-[80vw] max-w-[95vw] sm:min-w-96 sm:max-w-lg"
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setShowDetails(false);
-              }
-            }}
+            className="absolute bottom-full left-2 right-2 sm:left-auto sm:right-0 mb-2 bg-white text-gray-900 border rounded-lg shadow-lg p-4 z-50 sm:w-96 sm:max-w-lg max-h-[70vh] overflow-y-auto focus:outline-none"
           >
             <div className="space-y-3">
               <h3 id="localStorage-breakdown-title" className="font-semibold text-sm">localStorage Breakdown</h3>
@@ -151,10 +187,11 @@ export function LocalStorageMonitor() {
               {/* Summary by Type */}
               {Object.entries(stats.byType).map(([type, data]) => {
                 if (data.count === 0) return null;
+                const typeLabel = TYPE_LABELS[type] ?? type;
                 return (
                   <div key={type} className="flex justify-between items-center text-sm">
                     <div>
-                      <span className="font-medium capitalize">{type.replace(/([A-Z])/g, ' $1')}</span>
+                      <span className="font-medium">{typeLabel}</span>
                       <span className="text-gray-500 ml-1">({data.count} items)</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -162,11 +199,13 @@ export function LocalStorageMonitor() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => cleanup({ target: type === 'emailQueues' ? 'email-queues' : type as 'projects' | 'session' | 'other' }, `${type} cleanup`)}
+                        onClick={() => cleanup({ target: type === 'emailQueues' ? 'email-queues' : type as 'projects' | 'session' | 'other' }, `${typeLabel} cleanup`)}
                         disabled={cleaning}
                         className="h-6 px-2 text-xs"
+                        aria-label={`Delete all ${typeLabel.toLowerCase()} entries`}
+                        title={`Delete all ${typeLabel.toLowerCase()} entries`}
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3 h-3" aria-hidden="true" />
                       </Button>
                     </div>
                   </div>
@@ -208,10 +247,17 @@ export function LocalStorageMonitor() {
               {/* Quota Information */}
               <div className="mt-3 pt-3 border-t">
                 <div className="flex justify-between text-xs text-gray-600">
-                  <span>Storage Quota Usage:</span>
+                  <span>Storage quota usage:</span>
                   <span>{stats.quotaUsage.toFixed(1)}%</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                <div
+                  className="w-full bg-gray-200 rounded-full h-2 mt-1"
+                  role="progressbar"
+                  aria-label="Storage quota usage"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(Math.min(stats.quotaUsage, 100))}
+                >
                   <div 
                     className={`h-2 rounded-full ${
                       stats.quotaUsage > 80 ? 'bg-red-500' : 
@@ -238,8 +284,8 @@ export function LocalStorageMonitor() {
               disabled={cleaning}
               className="text-xs h-7 px-2"
             >
-              <Archive className="w-3 h-3 mr-1" />
-              Old Projects
+              <Archive className="w-3 h-3 mr-1" aria-hidden="true" />
+              Old projects
             </Button>
           )}
           
@@ -251,8 +297,8 @@ export function LocalStorageMonitor() {
               disabled={cleaning}
               className="text-xs h-7 px-2"
             >
-              <Trash2 className="w-3 h-3 mr-1" />
-              Old Queues
+              <Trash2 className="w-3 h-3 mr-1" aria-hidden="true" />
+              Old queues
             </Button>
           )}
           
@@ -263,8 +309,8 @@ export function LocalStorageMonitor() {
             disabled={cleaning}
             className="text-xs h-7 px-2 text-red-600 hover:text-red-700"
           >
-            <Trash2 className="w-3 h-3 mr-1" />
-            Clear All
+            <Trash2 className="w-3 h-3 mr-1" aria-hidden="true" />
+            Clear all
           </Button>
         </div>
       )}

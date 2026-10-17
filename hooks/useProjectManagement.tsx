@@ -62,6 +62,8 @@ interface UseProjectManagementReturn {
   handleSaveToCurrentProject: () => Promise<void>;
   handleNewProject: () => void;
   confirmNewProject: () => void;
+  /** Forget the current project if it was deleted (id) or all projects were deleted (null) */
+  handleProjectDeleted: (projectId: string | null) => void;
 }
 
 export function useProjectManagement({
@@ -388,36 +390,6 @@ export function useProjectManagement({
     showToast
   ]);
 
-  // Handle new project
-  const handleNewProject = useCallback(() => {
-    // Check if there's any work to save
-    const hasWork = uploadedFileUrl && ((Object.keys(positions || {}).length > 0) || emailConfig);
-
-    if (hasWork) {
-      setShowNewProjectModal(true);
-    } else {
-      // No work to save, just clear everything
-      clearFile();
-      clearPositions();
-      clearDragState();
-      setEmailConfig({
-        senderName: "",
-        subject: "",
-        message: "",
-        deliveryMethod: "download",
-        isConfigured: false
-      });
-    }
-  }, [
-    uploadedFileUrl,
-    positions,
-    emailConfig,
-    clearFile,
-    clearPositions,
-    clearDragState,
-    setEmailConfig
-  ]);
-
   const confirmNewProject = useCallback(() => {
     clearFile();
     clearPositions();
@@ -449,6 +421,38 @@ export function useProjectManagement({
     showToast
   ]);
 
+  // Handle new project
+  const handleNewProject = useCallback(() => {
+    // Ask for confirmation only when there is something that would be lost.
+    // (emailConfig is always an object, so it cannot signal "work" on its own.)
+    const hasWork =
+      !!uploadedFileUrl ||
+      Object.keys(positions || {}).length > 0 ||
+      (tableData?.length ?? 0) > 0;
+
+    if (hasWork) {
+      setShowNewProjectModal(true);
+    } else {
+      // Nothing to lose: reset everything, including the current project
+      // reference, so autosave can't overwrite the previous project.
+      confirmNewProject();
+    }
+  }, [uploadedFileUrl, positions, tableData, confirmNewProject]);
+
+  // If the open project is deleted from the Projects modal, stop treating the
+  // work as saved: otherwise the header keeps offering "Save to <deleted>" and
+  // autosave targets a project that no longer exists.
+  const handleProjectDeleted = useCallback(
+    (projectId: string | null) => {
+      if (projectId === null || projectId === currentProjectId) {
+        setCurrentProjectId(null);
+        setCurrentProjectName(null);
+        setHasManuallySaved(false);
+      }
+    },
+    [currentProjectId]
+  );
+
   return {
     currentProjectName,
     currentProjectId,
@@ -463,6 +467,7 @@ export function useProjectManagement({
     handleSaveProjectSuccess,
     handleSaveToCurrentProject,
     handleNewProject,
-    confirmNewProject
+    confirmNewProject,
+    handleProjectDeleted
   };
 }

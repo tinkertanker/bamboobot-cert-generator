@@ -5,8 +5,9 @@ import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/lib/server/prisma';
 import { getTierLimits } from '@/types/user';
 import type { UserTier } from '@/types/user';
-import { useState } from 'react';
+import { useRouter } from 'next/router';
 import AdminLayout from '@/components/admin/AdminLayout';
+import Segmented from '@/components/admin/Segmented';
 
 interface UsageStats {
   daily: {
@@ -41,8 +42,26 @@ interface UsagePageProps {
   currentPeriod: 'week' | 'month';
 }
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Day keys are UTC (YYYY-MM-DD). Format them by hand in UTC so the label
+// neither shifts a day in negative-offset timezones nor differs between the
+// server's and the browser's Intl data (which caused hydration mismatches).
+function formatDayKey(key: string): string {
+  const d = new Date(`${key}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return key;
+  return `${WEEKDAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+}
+
 export default function UsagePage({ stats, currentPeriod }: UsagePageProps) {
-  const [period, setPeriod] = useState<'week' | 'month'>(currentPeriod);
+  const router = useRouter();
+  // The period is a query param so getServerSideProps refetches the data; the
+  // old local-state toggle only changed the button highlight.
+  const setPeriod = (next: 'week' | 'month') => {
+    if (next === currentPeriod) return;
+    router.push({ pathname: router.pathname, query: { ...router.query, period: next } });
+  };
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -60,38 +79,30 @@ export default function UsagePage({ stats, currentPeriod }: UsagePageProps) {
   }), { pdfs: 0, emails: 0, projects: 0, uniqueUsers: 0 });
   
   // Calculate average daily usage
+  const dayCount = Math.max(1, stats.daily.length);
   const avgDaily = {
-    pdfs: Math.round(totals.pdfs / stats.daily.length),
-    emails: Math.round(totals.emails / stats.daily.length),
-    projects: Math.round(totals.projects / stats.daily.length)
+    pdfs: Math.round(totals.pdfs / dayCount),
+    emails: Math.round(totals.emails / dayCount),
+    projects: Math.round(totals.projects / dayCount)
   };
   
   const subNav = (
-    <div className="inline-flex rounded-md shadow-sm">
-      <button
-        onClick={() => setPeriod('week')}
-        className={`px-3 py-1.5 text-sm font-medium rounded-l-md ${
-          period === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100'
-        }`}
-      >
-        Last 7 Days
-      </button>
-      <button
-        onClick={() => setPeriod('month')}
-        className={`px-3 py-1.5 text-sm font-medium rounded-r-md ${
-          period === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100'
-        }`}
-      >
-        Last 30 Days
-      </button>
-    </div>
+    <Segmented
+      ariaLabel="Period"
+      items={[
+        { label: 'Last 7 days', value: 'week' },
+        { label: 'Last 30 days', value: 'month' },
+      ]}
+      value={currentPeriod}
+      onChange={setPeriod}
+    />
   );
 
   return (
     <AdminLayout title="Usage Analytics" subNav={subNav}>
         
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm font-medium text-gray-500">Total PDFs</div>
             <div className="text-3xl font-bold text-gray-900">{totals.pdfs}</div>
@@ -108,16 +119,16 @@ export default function UsagePage({ stats, currentPeriod }: UsagePageProps) {
             <div className="text-xs text-gray-500 mt-1">~{avgDaily.projects}/day</div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Active Users</div>
+            <div className="text-sm font-medium text-gray-500">Peak Daily Users</div>
             <div className="text-3xl font-bold text-gray-900">{totals.uniqueUsers}</div>
-            <div className="text-xs text-gray-500 mt-1">unique this period</div>
+            <div className="text-xs text-gray-500 mt-1">busiest day this period</div>
           </div>
         </div>
         
         {/* Cost Estimate */}
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
-          <h3 className="text-lg font-semibold text-yellow-900 mb-4">Estimated Monthly Costs</h3>
-          <div className="grid grid-cols-3 gap-4">
+          <h2 className="text-lg font-semibold text-yellow-900 mb-4">Estimated Monthly Costs</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <div className="text-sm text-yellow-700">Email Service</div>
               <div className="text-xl font-bold text-yellow-900">{formatCurrency(stats.costEstimate.emailCost)}</div>
@@ -136,17 +147,20 @@ export default function UsagePage({ stats, currentPeriod }: UsagePageProps) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Daily Usage Chart */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Usage Trend</h3>
-            <div className="space-y-3">
-              {stats.daily.slice(-7).map((day) => (
-                <div key={day.date} className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Daily Usage Trend</h2>
+            <p className="text-xs text-gray-500 mb-4">
+              <span aria-hidden="true">📄</span> PDFs · <span aria-hidden="true">✉️</span> emails · <span aria-hidden="true">📁</span> new projects
+            </p>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {[...stats.daily].reverse().map((day) => (
+                <div key={day.date} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
                   <div className="text-sm text-gray-600">
-                    {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    {formatDayKey(day.date)}
                   </div>
                   <div className="flex space-x-4 text-sm">
-                    <span className="text-yellow-600">📄 {day.pdfs}</span>
-                    <span className="text-blue-600">✉️ {day.emails}</span>
-                    <span className="text-green-600">📁 {day.projects}</span>
+                    <span className="text-yellow-700" title="PDFs"><span aria-hidden="true">📄 </span><span className="sr-only">PDFs: </span>{day.pdfs}</span>
+                    <span className="text-blue-600" title="Emails"><span aria-hidden="true">✉️ </span><span className="sr-only">Emails: </span>{day.emails}</span>
+                    <span className="text-green-700" title="New projects"><span aria-hidden="true">📁 </span><span className="sr-only">New projects: </span>{day.projects}</span>
                   </div>
                 </div>
               ))}
@@ -155,12 +169,15 @@ export default function UsagePage({ stats, currentPeriod }: UsagePageProps) {
           
           {/* Top Users */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Users (Lifetime)</h3>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Users (Lifetime)</h2>
             <div className="space-y-3">
+              {stats.topUsers.length === 0 && (
+                <p className="text-sm text-gray-500">No users yet.</p>
+              )}
               {stats.topUsers.map((user, index) => (
-                <div key={user.id} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="text-sm font-medium text-gray-900">
+                <div key={user.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 break-all">
                       {index + 1}. {user.email}
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full ${
@@ -169,7 +186,7 @@ export default function UsagePage({ stats, currentPeriod }: UsagePageProps) {
                       user.tier === 'plus' ? 'bg-blue-100 text-blue-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
-                      {user.tier.replace('_', ' ')}
+                      {user.tier.replace(/_/g, ' ')}
                     </span>
                   </div>
                   <div className="text-sm text-gray-500">
@@ -184,9 +201,9 @@ export default function UsagePage({ stats, currentPeriod }: UsagePageProps) {
         {/* Tier Breakdown */}
         <div className="mt-8 bg-white rounded-lg shadow overflow-hidden">
           <div className="px-6 py-4 border-b">
-            <h3 className="text-lg font-semibold text-gray-900">Usage by Tier (Today)</h3>
+            <h2 className="text-lg font-semibold text-gray-900">Usage by Tier (Today)</h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -217,7 +234,7 @@ export default function UsagePage({ stats, currentPeriod }: UsagePageProps) {
                         tier.tier === 'plus' ? 'bg-blue-100 text-blue-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {tier.tier.replace('_', ' ')}
+                        {tier.tier.replace(/_/g, ' ')}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -271,11 +288,13 @@ export const getServerSideProps: GetServerSideProps<UsagePageProps> = async (con
     };
   }
   
-  const period = (context.query.period as 'week' | 'month') || 'week';
+  const period: 'week' | 'month' = context.query.period === 'month' ? 'month' : 'week';
   const daysToFetch = period === 'week' ? 7 : 30;
+  // Work in UTC days (log buckets below use UTC date keys) and include today,
+  // so "Last 7 days" is today plus the previous six days.
   const startDate = new Date();
-  startDate.setDate(startDate.getDate() - daysToFetch);
-  startDate.setHours(0, 0, 0, 0);
+  startDate.setUTCHours(0, 0, 0, 0);
+  startDate.setUTCDate(startDate.getUTCDate() - (daysToFetch - 1));
   
   // Fetch usage data for the period
   const usageLogs = await prisma.usageLog.findMany({
@@ -301,7 +320,7 @@ export const getServerSideProps: GetServerSideProps<UsagePageProps> = async (con
   
   for (let i = 0; i < daysToFetch; i++) {
     const date = new Date(startDate);
-    date.setDate(startDate.getDate() + i);
+    date.setUTCDate(startDate.getUTCDate() + i);
     const dateKey = date.toISOString().split('T')[0];
     dailyStats[dateKey] = {
       date: dateKey,

@@ -1,5 +1,5 @@
 const Spinner = () => (
-  <div className="spinner-overlay">
+  <div className="spinner-overlay" role="status" aria-live="polite">
     <style jsx>{`
       .spinner-overlay {
         position: absolute;
@@ -15,7 +15,8 @@ const Spinner = () => (
         opacity: 1; /* Default opacity */
       }
       .spinner {
-        border: 4px solid rgba(255, 255, 255, 0.3);
+        /* Visible track on the light overlay (white-on-white was invisible) */
+        border: 4px solid rgba(52, 152, 219, 0.2);
         border-top: 4px solid #3498db; /* Change color as needed */
         border-radius: 50%;
         width: 40px;
@@ -27,7 +28,8 @@ const Spinner = () => (
         100% { transform: rotate(360deg); }
       }
     `}</style>
-    <div className="spinner" />
+    <div className="spinner" aria-hidden="true" />
+    <span className="sr-only">Loading…</span>
   </div>
 );
 

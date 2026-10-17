@@ -1,6 +1,19 @@
 import { useEffect } from "react";
 import { FONT_CAPABILITIES } from "@/utils/constants";
 
+/** True when keyboard input belongs to a form control rather than the canvas. */
+function isEditableElement(element: Element | null): boolean {
+  if (!element) return false;
+  const tag = element.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    element.getAttribute("contenteditable") === "true" ||
+    element.closest('[role="menu"], [role="listbox"], [role="dialog"]') !== null
+  );
+}
+
 export interface UseKeyboardShortcutsProps {
   selectedField: string | null;
   isDragging: boolean;
@@ -19,15 +32,12 @@ export function useKeyboardShortcuts({
   // Arrow key nudging for selected field
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!selectedField || isDragging) return;
+      if (!selectedField || isDragging || event.defaultPrevented) return;
+      // Leave browser/OS shortcuts such as Alt+Left alone
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
 
-      // Don't nudge if an input, textarea, or contenteditable element has focus
-      const activeElement = document.activeElement;
-      if (
-        activeElement?.tagName === 'INPUT' ||
-        activeElement?.tagName === 'TEXTAREA' ||
-        activeElement?.getAttribute('contenteditable') === 'true'
-      ) {
+      // Don't nudge while a form control, menu or dialog has focus
+      if (isEditableElement(document.activeElement)) {
         return;
       }
 
@@ -40,7 +50,7 @@ export function useKeyboardShortcuts({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
-              y: Math.max(0, (prev[selectedField]?.y || 50) - nudgeAmount)
+              y: Math.max(0, (prev[selectedField]?.y ?? 50) - nudgeAmount)
             }
           }));
           break;
@@ -50,7 +60,7 @@ export function useKeyboardShortcuts({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
-              y: Math.min(100, (prev[selectedField]?.y || 50) + nudgeAmount)
+              y: Math.min(100, (prev[selectedField]?.y ?? 50) + nudgeAmount)
             }
           }));
           break;
@@ -60,7 +70,7 @@ export function useKeyboardShortcuts({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
-              x: Math.max(0, (prev[selectedField]?.x || 50) - nudgeAmount)
+              x: Math.max(0, (prev[selectedField]?.x ?? 50) - nudgeAmount)
             }
           }));
           break;
@@ -70,7 +80,7 @@ export function useKeyboardShortcuts({
             ...prev,
             [selectedField]: {
               ...prev[selectedField],
-              x: Math.min(100, (prev[selectedField]?.x || 50) + nudgeAmount)
+              x: Math.min(100, (prev[selectedField]?.x ?? 50) + nudgeAmount)
             }
           }));
           break;
@@ -86,7 +96,8 @@ export function useKeyboardShortcuts({
   // ESC key to dismiss all modals
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      // Modals handle Escape themselves and mark the event as handled
+      if (event.key === "Escape" && !event.defaultPrevented) {
         onEscapePressed();
       }
     };
@@ -104,6 +115,8 @@ export function useKeyboardShortcuts({
       const isCommandPressed = isMac ? event.metaKey : event.ctrlKey;
 
       if (!isCommandPressed) return;
+      // Let text fields keep their own Ctrl/Cmd+B/I behaviour
+      if (isEditableElement(document.activeElement)) return;
 
       const currentFont = positions[selectedField]?.fontFamily || "Helvetica";
       const fontCapabilities = FONT_CAPABILITIES[currentFont as keyof typeof FONT_CAPABILITIES];

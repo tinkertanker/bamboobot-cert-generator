@@ -10,7 +10,8 @@ interface VirtualizedTableProps {
   currentPreviewIndex: number;
   setCurrentPreviewIndex: (index: number) => void;
   height: number;
-  originalRows?: Row<TableData>[];
+  /** Maps a (possibly filtered) row back to its index in the full dataset */
+  getOriginalIndex?: (row: Row<TableData>) => number;
 }
 
 const ROW_HEIGHT = 41; // Height of each row in pixels (py-2 + border)
@@ -21,29 +22,38 @@ export function VirtualizedTable({
   currentPreviewIndex,
   setCurrentPreviewIndex,
   height,
-  originalRows
+  getOriginalIndex
 }: VirtualizedTableProps) {
   const Row = useCallback(
     ({ index, style }: { index: number; style: React.CSSProperties }) => {
       const row = rows[index];
       prepareRow(row);
-      // Find the original index if filtering is applied
-      const originalIndex = originalRows ? originalRows.indexOf(row) : index;
+      const originalIndex = getOriginalIndex ? getOriginalIndex(row) : index;
       const isCurrentRow = originalIndex === currentPreviewIndex;
 
       return (
         <div
+          aria-current={isCurrentRow ? "true" : undefined}
+          tabIndex={0}
           style={{
             ...style,
             display: "flex",
             alignItems: "center",
-            backgroundColor: isCurrentRow ? COLORS.highlightBg : "transparent",
+            backgroundColor: isCurrentRow ? COLORS.highlightBg : undefined,
             borderBottom: `1px solid ${COLORS.borderGray}`,
             cursor: "pointer",
             transition: "background-color 0.15s ease"
           }}
-          className={!isCurrentRow ? "hover:bg-gray-50" : ""}
+          className={`focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${
+            !isCurrentRow ? "hover:bg-gray-50" : ""
+          }`}
           onClick={() => setCurrentPreviewIndex(originalIndex)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setCurrentPreviewIndex(originalIndex);
+            }
+          }}
           title={
             isCurrentRow
               ? "Currently viewing this entry"
@@ -60,6 +70,7 @@ export function VirtualizedTable({
               }`}
               style={{
                 flex: `0 0 ${100 / row.cells.length}%`,
+                minWidth: 0,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap"
@@ -71,12 +82,12 @@ export function VirtualizedTable({
         </div>
       );
     },
-    [rows, prepareRow, currentPreviewIndex, setCurrentPreviewIndex, originalRows]
+    [rows, prepareRow, currentPreviewIndex, setCurrentPreviewIndex, getOriginalIndex]
   );
 
   return (
     <List
-      height={height}
+      height={Math.min(height, rows.length * ROW_HEIGHT)}
       itemCount={rows.length}
       itemSize={ROW_HEIGHT}
       width="100%"

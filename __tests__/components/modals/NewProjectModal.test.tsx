@@ -38,11 +38,18 @@ describe('NewProjectModal Component', () => {
       expect(icon).toHaveClass('text-amber-500');
     });
 
-    it('renders correct message when hasUnsavedWork is true', () => {
-      render(<NewProjectModal {...defaultProps} hasUnsavedWork={true} />);
+    it('renders autosave message when the work belongs to a saved project', () => {
+      render(<NewProjectModal {...defaultProps} hasUnsavedWork={true} isSavedProject={true} />);
       
       expect(screen.getByText(/Your current work has been autosaved/)).toBeInTheDocument();
-      expect(screen.getByText(/will remain accessible via Load Projects/)).toBeInTheDocument();
+      expect(screen.getByText(/can be reopened from Open project/)).toBeInTheDocument();
+    });
+
+    it('warns that unsaved work will be lost when the work was never saved', () => {
+      render(<NewProjectModal {...defaultProps} hasUnsavedWork={true} />);
+      
+      expect(screen.queryByText(/autosaved/)).not.toBeInTheDocument();
+      expect(screen.getByText(/haven't saved as a project will be lost/)).toBeInTheDocument();
     });
 
     it('renders correct message when hasUnsavedWork is false', () => {
@@ -195,7 +202,7 @@ describe('NewProjectModal Component', () => {
       
       expect(screen.getByText(/This will clear all current settings/)).toBeInTheDocument();
       
-      rerender(<NewProjectModal {...defaultProps} hasUnsavedWork={true} />);
+      rerender(<NewProjectModal {...defaultProps} hasUnsavedWork={true} isSavedProject={true} />);
       
       expect(screen.queryByText(/This will clear all current settings/)).not.toBeInTheDocument();
       expect(screen.getByText(/Your current work has been autosaved/)).toBeInTheDocument();
