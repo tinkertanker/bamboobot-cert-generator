@@ -196,8 +196,9 @@ export async function cleanupExpiredFiles(
       dryRun: options.dryRun,
     });
   } catch (error) {
+    // Rethrow so the endpoint reports a failed run instead of "0 deleted".
     console.error('Error in cleanup process:', error);
-    return { deleted: [], errors: [] };
+    throw error;
   }
 }
 

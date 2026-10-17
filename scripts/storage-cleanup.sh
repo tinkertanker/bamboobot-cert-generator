@@ -10,8 +10,11 @@
 #   CLEANUP_DRY_RUN=1   report what would be deleted without deleting
 
 # Load environment variables if .env exists
-if [ -f "$(dirname "$0")/../.env" ]; then
-  export $(cat "$(dirname "$0")/../.env" | grep -v '^#' | xargs)
+ENV_FILE="$(dirname "$0")/../.env"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  . "$ENV_FILE"
+  set +a
 fi
 
 case "${STORAGE_PROVIDER:-}" in
@@ -32,7 +35,11 @@ fi
 
 CURL_ARGS=(-s -X POST "$API_URL" -H "Content-Type: application/json" -w $'\n%{http_code}')
 if [ -n "${CLEANUP_SECRET_KEY:-}" ]; then
-  CURL_ARGS+=(-H "X-Cleanup-Key: $CLEANUP_SECRET_KEY")
+  # Pass the key via a private file so it does not show in process listings.
+  HEADER_FILE=$(umask 077 && mktemp)
+  trap 'rm -f "$HEADER_FILE"' EXIT
+  printf 'X-Cleanup-Key: %s\n' "$CLEANUP_SECRET_KEY" > "$HEADER_FILE"
+  CURL_ARGS+=(-H "@$HEADER_FILE")
 fi
 
 if ! output=$(curl "${CURL_ARGS[@]}"); then

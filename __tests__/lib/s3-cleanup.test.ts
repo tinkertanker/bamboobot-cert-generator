@@ -72,15 +72,32 @@ describe('cleanupExpiredS3Files', () => {
     expect(deletedKeys()).toEqual([]);
   });
 
-  it('skips objects whose metadata cannot be read', async () => {
+  it('skips objects that no longer exist', async () => {
     send.mockImplementation(async (cmd: Cmd) => {
-      if (cmd.name === 'Head' && cmd.input.Key === 'generated/preview_old.pdf') throw new Error('403');
+      if (cmd.name === 'Head' && cmd.input.Key === 'generated/preview_old.pdf') {
+        throw Object.assign(new Error('Not Found'), { name: 'NotFound' });
+      }
       return respond(cmd);
     });
 
     const result = await cleanupExpiredS3Files();
 
     expect(result.deleted).toEqual(['generated/individual_2/cert.pdf']);
+    expect(result.errors).toEqual([]);
+  });
+
+  it('reports objects whose metadata cannot be read as errors', async () => {
+    send.mockImplementation(async (cmd: Cmd) => {
+      if (cmd.name === 'Head' && cmd.input.Key === 'generated/preview_old.pdf') {
+        throw Object.assign(new Error('Access Denied'), { name: 'AccessDenied' });
+      }
+      return respond(cmd);
+    });
+
+    const result = await cleanupExpiredS3Files();
+
+    expect(result.deleted).toEqual(['generated/individual_2/cert.pdf']);
+    expect(result.errors).toEqual(['generated/preview_old.pdf']);
   });
 
   it('throws when the bucket cannot be listed', async () => {

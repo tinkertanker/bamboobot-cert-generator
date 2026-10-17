@@ -176,7 +176,9 @@ export async function getS3FileMetadata(key: string): Promise<FileMetadata | nul
     // S3 returns custom metadata keys lowercased.
     return readFileMetadata(response.Metadata);
   } catch (error) {
-    console.error(`Error getting S3 metadata for ${key}:`, error);
+    // A missing object is skipped; any other failure (e.g. access denied)
+    // propagates so the cleanup run reports it as an error.
+    if ((error as { name?: string } | null)?.name !== 'NotFound') throw error;
     return null;
   }
 }
