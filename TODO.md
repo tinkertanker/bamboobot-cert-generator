@@ -47,5 +47,4 @@ would choose this in the summary modal shown when they click Generate.
 
 ## Performance
 
-- [ ] Lazy font loading: load only Rubik + system fonts initially, other fonts when selected
 - [ ] Performance monitoring utility for measuring optimisations

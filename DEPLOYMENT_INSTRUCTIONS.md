@@ -1,159 +1,85 @@
-# Deployment Instructions for Breaking Changes
+# Deploying with Docker
 
-## Critical Updates Since Commit 82dfa9e
+Production runs as a single container behind an nginx-proxy on the external Docker network `devtksg`. See `docs/ENVIRONMENT_SETUP.md` for how `.env` is used and `docs/NGINX_CONFIGURATION.md` for upload size limits.
 
-### 1. Pre-deployment Server Setup
+## First-time server setup
 
-**IMPORTANT: Run these commands on your server BEFORE pulling the latest code:**
+The container runs as UID 1001 and mounts host directories from `./data`. Create them before the first start. The database file must exist as a file, or Docker creates a directory in its place.
 
 ```bash
-# Create data directories with correct permissions for UID 1001 (nextjs user in container)
 sudo mkdir -p data/{temp_images,generated,template_images}
-
-# Create empty database file (will be initialized by Prisma)
 sudo touch data/database.db
-
-# Set correct ownership for all data files
 sudo chown -R 1001:1001 data
+cp .env.example .env   # then edit
 ```
 
-### 2. Update .env File
-
-Update your server's `.env` file with these critical changes:
+Settings that matter for production (all documented in `.env.example`):
 
 ```bash
-# Database (resolved relative to prisma/schema.prisma)
-DATABASE_URL="file:./database.db"
+PRODUCTION_HOST=your-production-domain.com
+CERT_NAME=your-production-domain.com          # or a shared wildcard certificate name
 
-# Authentication (Required for production)
-NEXTAUTH_URL=https://your-production-domain.com  # NOT http://localhost:3000
-NEXTAUTH_SECRET=your_generated_secret  # Generate with: openssl rand -base64 32
+NEXTAUTH_URL=https://your-production-domain.com   # not http://localhost:3000
+NEXTAUTH_SECRET=...                           # openssl rand -base64 32
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
 
-# nginx-proxy certificate basename (use the wildcard name if certificates are shared)
-CERT_NAME=your-production-domain.com
-
-# Google OAuth (if enabling auth)
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-
-# Authentication (server-only and evaluated at runtime)
-# Production defaults to enabled when this is omitted or invalid.
-# Keep enabled in production. False removes the global wall, including from APIs;
-# only endpoints with their own checks remain protected.
-REQUIRE_AUTH=true
-
-# Feature Flags
-NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=false  # Enable server storage when ready
-
-# Admin Configuration (if using auth)
+REQUIRE_AUTH=true                             # runtime; defaults to on in production
 SUPER_ADMIN_EMAILS=admin@yourdomain.com
 ADMIN_DOMAINS=yourdomain.com
+
+CLEANUP_SECRET_KEY=...                        # needed for scheduled R2/S3 cleanup
 ```
 
-### 3. Google OAuth Configuration
+`DATABASE_URL` is set by `docker-compose.yml` (`file:./database.db`, resolved from `prisma/schema.prisma`, so the file is `/app/prisma/database.db`). You do not need it in `.env` for Docker.
 
-If enabling authentication, update Google Cloud Console:
-- **Authorized JavaScript origins**: `https://your-production-domain.com`
-- **Authorized redirect URIs**: `https://your-production-domain.com/api/auth/callback/google`
+`NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE` is inlined into the browser bundle at build time, and `.env` is excluded from the Docker build context, so setting it in `.env` does not switch on server persistence for projects. Projects stay in each user's browser.
 
-### 4. Deployment Commands
+In Google Cloud Console, set:
+- Authorised JavaScript origin: `https://your-production-domain.com`
+- Authorised redirect URI: `https://your-production-domain.com/api/auth/callback/google`
+
+## Deploying an update
 
 ```bash
-# Stop current container
-docker compose down
+./scripts/deploy.sh          # git pull, rebuild with --no-cache, restart
+./scripts/deploy.sh --logs   # same, then follow logs
+```
 
-# Pull latest code
-git pull
+`docker-entrypoint.sh` creates the database schema only when `database.db` is empty. **After any change to `prisma/schema.prisma`** (check `git log -- prisma/schema.prisma`), apply it to the existing database once the container is up:
 
-# Rebuild with no cache (important for Prisma)
-docker compose build --no-cache
-
-# Start the container
-docker compose up -d
-
-# Initialize database (run AFTER container starts)
+```bash
 docker compose exec bamboobot npx prisma db push
+```
 
-# Monitor logs
+## Scheduled cleanup
+
+With R2 or S3 storage, run `scripts/storage-cleanup.sh` daily from cron; see "Cloud Storage Cleanup" in `README.md`. Try it with `CLEANUP_DRY_RUN=1` first.
+
+## Checking a deployment
+
+```bash
+docker compose ps
 docker compose logs -f
+ls -la data/database.db            # owned by 1001:1001
+docker network inspect devtksg     # container is attached
 ```
 
-### 5. Verify Deployment
+Then open `https://your-domain.com/` (landing page), sign in, and check `/app` loads.
 
-1. **Check database creation:**
-   ```bash
-   ls -la data/database.db
-   # Should see database.db file owned by 1001:1001
-   ```
+## Troubleshooting
 
-2. **Check container is running:**
-   ```bash
-   docker ps | grep bamboobot
-   ```
+- **Permission errors in logs:** `sudo chown -R 1001:1001 data && docker compose restart`.
+- **Database not persisting:** check `data/database.db` is a file owned by 1001:1001, and `docker compose exec bamboobot ls -la /app/prisma/` shows it.
+- **Sign-in fails:** `NEXTAUTH_URL` must be HTTPS and match the domain exactly, and the Google redirect URI must match.
+- **Large uploads fail:** see `docs/UPLOAD_TROUBLESHOOTING.md`.
 
-3. **Check nginx-proxy network:**
-   ```bash
-   docker network inspect devtksg
-   ```
+## Rolling back
 
-4. **Test the application:**
-   - Navigate to `https://your-domain.com/` - should see landing page
-   - Navigate to `https://your-domain.com/app` - main application
-   - If auth enabled, test Google sign-in
-
-### 6. Troubleshooting
-
-**Permission Issues:**
 ```bash
-# If you see permission errors in logs
-sudo chown -R 1001:1001 data
-docker compose restart
-```
-
-**Database Issues:**
-```bash
-# If database isn't persisting
-docker compose exec bamboobot ls -la /app/prisma/
-# Should see database.db owned by nextjs user
-
-# Check that the host file exists
-ls -la data/database.db
-# Should be owned by 1001:1001
-```
-
-**Auth Issues:**
-- Ensure `NEXTAUTH_URL` uses HTTPS and matches your actual domain
-- Check Google OAuth console for correct redirect URIs
-- View auth logs: `docker compose logs -f | grep auth`
-
-### 7. Rollback Plan
-
-If issues occur:
-```bash
-# Stop new container
-docker compose down
-
-# Restore previous version
-git checkout 82dfa9e
-
-# Rebuild and restart
+git checkout <previous-good-commit>
 docker compose build --no-cache
 docker compose up -d
 ```
 
-## Summary of Breaking Changes
-
-1. **New Dependencies**: Prisma, NextAuth, SQLite database
-2. **Route Changes**: App moved from `/` to `/app`
-3. **Database Required**: SQLite database must be initialized
-4. **Volume Changes**: New volume mount for database.db file
-5. **Environment Variables**: Several new required variables
-6. **Permissions**: Data directories and database file must be owned by UID 1001
-
-## Notes
-
-- The worker file copy issue has been fixed (removed redundant COPY)
-- Database location fixed to use `./prisma/database.db` for persistence
-- Only the database file is mounted (not the entire prisma directory) to preserve schema.prisma from the image
-- All data directories and files must be created with UID 1001 ownership before first run
-- Uses service name `bamboobot` for docker compose exec commands
+Schema changes are additive so far, so an older build can usually run against a newer database. Check `prisma/migrations/` if unsure.

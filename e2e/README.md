@@ -2,6 +2,8 @@
 
 This directory contains end-to-end UI tests for the Bamboobot Certificate Generator application using Playwright.
 
+> **Status:** these specs are not run in CI and were written when the editor lived at `/`. The editor is now at `/app` (`/` is the landing page), and Dev Mode only appears when `NODE_ENV=development`, so specs that open `/` and click the Dev Mode checkbox need updating before they will pass. `capture-onboarding-screenshots.spec.ts` and `simple-screenshots.spec.ts` are screenshot helpers rather than tests.
+
 ## Test Structure
 
 ### Test Suites
@@ -81,14 +83,6 @@ The tests focus on:
 3. **PDF Generation**: Confirming that PDFs are generated with correct formatting
 4. **User Workflows**: Testing complete user journeys from start to finish
 
-## Using Playwright MCP
-
-These tests can also be run using the Playwright MCP (Model Context Protocol) for automated browser testing. The MCP provides direct browser control for:
-- Navigation
-- Element interaction
-- Screenshot capture
-- Accessibility testing
-
 ## Debugging Tips
 
 1. Use `--headed` mode to see what's happening
@@ -115,7 +109,7 @@ When adding new tests:
 2. Use the Page Object pattern for complex interactions:
    ```typescript
    test('my new test', async ({ page }) => {
-     await page.goto('/');
+     await page.goto('/app');
      await loadDevMode(page);
      
      const textField = await selectTextField(page, 0);
@@ -154,28 +148,14 @@ Tests are configured in `playwright.config.ts`:
 6. **Group related tests** using `test.describe()`
 7. **Use test fixtures** for common setup/teardown
 
-## Current Test Status
+## CI settings
 
-### Certificate Generator Tests (6/7 passing) ✅
-- ✅ Dev Mode - Load default templates
-- ✅ Text field interactions - no jumping
-- ✅ Text field resizing
-- ✅ Formatting changes
-- ❌ Generate single PDF and verify formatting (timeout waiting for modal)
-- ✅ Full workflow - Dev Mode formatting and navigation
-- ✅ Navigation between entries
-
-### Known Issues
-- PDF generation tests may timeout in the test environment due to modal appearance timing
-- Some tests are sensitive to the exact structure of UI elements (dropdowns, modals)
-
-## CI/CD Integration
-
-For CI environments:
-- Tests run with `CI=true` environment variable
-- Retries are enabled (2 attempts)
+`playwright.config.ts` changes behaviour when `CI` is set:
+- Failed tests are retried twice (up to 3 attempts)
 - Tests fail if `test.only` is left in code
-- Parallelization is disabled for consistency
+- An already running dev server is not reused
+
+Tests always run serially (`workers: 1`).
 
 ## Maintenance
 
