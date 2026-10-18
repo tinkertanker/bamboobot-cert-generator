@@ -1,6 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bamboobot",
+  // Tinkertanker Cloudflare account.
+  "account_id": "b8b1032c61d9475cd00229c74db7ec72",
   // worker.ts wraps the OpenNext build output and adds the cron handler and
   // the bulk email Durable Object.
   "main": "worker.ts",
@@ -34,7 +36,9 @@
   "r2_buckets": [
     {
       "binding": "FILES",
-      "bucket_name": "bamboobot-files"
+      // Existing bucket, also used by the old Docker deployment. Keys keep the
+      // same layout (generated/..., temp_images/...), so its files still work.
+      "bucket_name": "bamboobot-certificates"
     }
   ],
   "durable_objects": {

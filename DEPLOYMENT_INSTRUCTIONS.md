@@ -7,7 +7,7 @@ Everything the Worker uses is declared in `wrangler.jsonc`:
 | Binding | Resource | Used for |
 | --- | --- | --- |
 | `DB` | D1 database `bamboobot` | Users, sessions, tiers, usage, projects (Prisma) |
-| `FILES` | R2 bucket `bamboobot-files` | Uploaded templates, generated PDFs, queued email attachments |
+| `FILES` | R2 bucket `bamboobot-certificates` | Uploaded templates, generated PDFs, queued email attachments |
 | `EMAIL_QUEUE` | Durable Object `EmailQueueObject` | One bulk email queue per user |
 | `ASSETS` | Static assets | `public/` files, including the PDF fonts |
 | `RATE_LIMIT_*` | Workers rate limiting | Per-route request limits |
@@ -18,14 +18,13 @@ Everything the Worker uses is declared in `wrangler.jsonc`:
 
 Run these from the repository root after `npm install`, logged in with `npx wrangler login` (or with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` set).
 
-1. Create the database and bucket:
+1. Create the database. The R2 bucket `bamboobot-certificates` already exists in the Tinkertanker account (the Docker deployment used it), so only D1 is new:
 
    ```bash
    npx wrangler d1 create bamboobot
-   npx wrangler r2 bucket create bamboobot-files
    ```
 
-   Copy the `database_id` that `d1 create` prints into the `d1_databases` entry in `wrangler.jsonc`. (Recent Wrangler versions can also create both on the first deploy if the ID is left out.)
+   Copy the `database_id` that `d1 create` prints into the `d1_databases` entry in `wrangler.jsonc`. (Recent Wrangler versions can also create it on the first deploy if the ID is left out.)
 
 2. Create the tables:
 
@@ -76,7 +75,7 @@ If `prisma/schema.prisma` changed, the same change needs a new SQL file in `migr
 
 ## Moving from the Docker deployment
 
-Files on the old server are not carried over: templates and generated PDFs expire anyway, and users can re-upload a template. Links in emails sent from the old server stop working once its domain points at the Worker.
+The Worker uses the same R2 bucket as the Docker deployment, with the same key layout, so templates and certificates stored there carry over. Emailed download links keep working if `FILE_URL_SIGNING_SECRET` (or `NEXTAUTH_SECRET`, when that is what signed them) is set to the same value as on the old server. Files the old server kept on local disk are not carried over; they expire anyway, and users can re-upload a template. The daily cleanup applies the same retention rules to the files already in the bucket.
 
 The old SQLite database is also not imported. Users are recreated when they next sign in and admin tiers come back from `SUPER_ADMIN_EMAILS` and `ADMIN_DOMAINS`. Tiers set by hand in `/admin/users`, usage counts and server-saved projects (only used when server persistence was on) would need to be set again. If they matter, the rows can be exported with `sqlite3` and loaded with `npx wrangler d1 execute bamboobot --remote --file <dump.sql>`, but check the date columns first: Prisma's old SQLite engine and D1 may store them differently.
 
