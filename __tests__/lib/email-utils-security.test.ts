@@ -1,3 +1,12 @@
+// lib/cloudflare/env.ts and lib/server/prisma.ts load OpenNext and the D1
+// adapter, which are ESM-only and only usable inside a Worker.
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No Cloudflare context in tests');
+  }
+}));
+jest.mock('@prisma/adapter-d1', () => ({ PrismaD1: jest.fn() }));
+
 import { buildPdfAttachments } from '@/utils/email-utils';
 import { loadTrustedPdf, PdfSourceError } from '@/lib/security/trusted-pdf-source';
 
@@ -15,7 +24,7 @@ describe('email PDF attachment security', () => {
 
   it('loads URL attachments only through the trusted loader', async () => {
     const pdf = Buffer.from('%PDF-1.4\ntrusted');
-    mockedLoadTrustedPdf.mockResolvedValue({ buffer: pdf, source: 'remote' });
+    mockedLoadTrustedPdf.mockResolvedValue({ buffer: pdf, source: 'storage' });
 
     await expect(
       buildPdfAttachments({
@@ -47,8 +56,8 @@ describe('email PDF attachment security', () => {
     const first = Buffer.from('%PDF-123456789');
     const second = Buffer.from('%PDF-abcdefghi');
     mockedLoadTrustedPdf
-      .mockResolvedValueOnce({ buffer: first, source: 'remote' })
-      .mockResolvedValueOnce({ buffer: second, source: 'remote' });
+      .mockResolvedValueOnce({ buffer: first, source: 'storage' })
+      .mockResolvedValueOnce({ buffer: second, source: 'storage' });
 
     await expect(
       buildPdfAttachments({
@@ -151,7 +160,7 @@ describe('email PDF attachment security', () => {
 
   it('loads a single attachment.path through the trusted loader and sanitizes its filename', async () => {
     const pdf = Buffer.from('%PDF-1.4\nsingle');
-    mockedLoadTrustedPdf.mockResolvedValue({ buffer: pdf, source: 'remote' });
+    mockedLoadTrustedPdf.mockResolvedValue({ buffer: pdf, source: 'storage' });
 
     await expect(
       buildPdfAttachments({

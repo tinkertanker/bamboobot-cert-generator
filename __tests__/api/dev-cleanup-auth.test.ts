@@ -2,10 +2,17 @@
 jest.mock('@/pages/api/auth/[...nextauth]', () => ({ __esModule: true, authOptions: {}, default: jest.fn() }));
 jest.mock('next-auth', () => ({ __esModule: true, default: jest.fn(() => jest.fn()), getServerSession: jest.fn() }));
 jest.mock('@/lib/server/tiers', () => ({ detectUserTier: jest.fn() }));
+jest.mock('@prisma/adapter-d1', () => ({ PrismaD1: jest.fn() }));
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No OpenNext context in tests');
+  },
+}));
 
 import handler from '@/pages/api/dev-cleanup';
 import httpMocks from 'node-mocks-http';
 import type { Body, RequestMethod } from 'node-mocks-http';
+import { installCloudflareEnv, resetCloudflareEnv, type FakeR2Bucket } from '../helpers/cloudflare';
 
 const { getServerSession } = require('next-auth');
 const { detectUserTier } = require('@/lib/server/tiers');
@@ -24,10 +31,17 @@ function run(method: RequestMethod = 'POST', body: Body = { target: 'temp' }) {
 }
 
 describe('dev-cleanup authentication', () => {
+  let bucket: FakeR2Bucket;
+
   beforeEach(() => {
     jest.resetAllMocks();
     delete process.env.REQUIRE_AUTH;
+    ({ bucket } = installCloudflareEnv());
+    bucket.seed('temp_images/u_1/a.png', 'png');
+    bucket.seed('generated/u_1/b.pdf', '%PDF');
   });
+
+  afterEach(() => resetCloudflareEnv());
 
   afterAll(() => {
     Object.defineProperty(process.env, 'NODE_ENV', { value: ORIGINAL_NODE_ENV, configurable: true, writable: true, enumerable: true });
@@ -41,6 +55,7 @@ describe('dev-cleanup authentication', () => {
     const res = await run();
     expect(res.statusCode).toBe(401);
     expect(detectUserTier).not.toHaveBeenCalled();
+    expect(bucket.objects.size).toBe(2);
   });
 
   it('rejects a non-super-admin session in production with 403', async () => {
@@ -85,6 +100,21 @@ describe('dev-cleanup authentication', () => {
     expect(res.statusCode).not.toBe(401);
     expect(res.statusCode).not.toBe(403);
     expect(getServerSession).not.toHaveBeenCalled();
+  });
+
+  it('deletes only the targeted prefix from R2', async () => {
+    setNodeEnv('development');
+    const res = await run('POST', { target: 'temp' });
+    expect(res.statusCode).toBe(200);
+    expect(res._getJSONData()).toMatchObject({ success: true, deletedFiles: 1 });
+    expect([...bucket.objects.keys()]).toEqual(['generated/u_1/b.pdf']);
+  });
+
+  it('rejects an unknown target', async () => {
+    setNodeEnv('development');
+    const res = await run('POST', { target: 'everything' });
+    expect(res.statusCode).toBe(400);
+    expect(bucket.objects.size).toBe(2);
   });
 
   it('rejects non-POST methods', async () => {

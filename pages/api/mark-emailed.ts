@@ -15,8 +15,6 @@ export default async function handler(
     return;
   }
 
-  const storageProvider = process.env.STORAGE_PROVIDER || 'local';
-
   try {
     const { fileUrl } = req.body;
 
@@ -29,8 +27,7 @@ export default async function handler(
 
     res.status(200).json({ 
       success: true, 
-      message: 'File marked as emailed',
-      storageProvider
+      message: 'File marked as emailed'
     });
     return;
 

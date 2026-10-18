@@ -1,5 +1,14 @@
 /** @jest-environment node */
 
+// lib/cloudflare/env.ts and lib/server/prisma.ts load OpenNext and the D1
+// adapter, which are ESM-only and only usable inside a Worker.
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No Cloudflare context in tests');
+  }
+}));
+jest.mock('@prisma/adapter-d1', () => ({ PrismaD1: jest.fn() }));
+
 import { ResendProvider } from '@/lib/email/providers/resend';
 import { SESProvider } from '@/lib/email/providers/ses';
 import type { EmailParams } from '@/lib/email/types';

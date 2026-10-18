@@ -1,24 +1,13 @@
-import { createMocks } from 'node-mocks-http';
-import { getEmailProvider } from '@/lib/email/provider-factory';
-import { buildPdfAttachments } from '../../utils/email-utils';
-import handler from '@/pages/api/send-bulk-email';
+/** @jest-environment node */
 
-const mockAddToQueue = jest.fn();
-
-jest.mock('@/lib/email/email-queue', () => ({
-  EmailQueueManager: jest.fn(() => ({
-    addToQueue: mockAddToQueue,
-    isProcessing: jest.fn(() => true),
-    processQueue: jest.fn(),
-    getQueueLength: jest.fn(() => 0),
-    getRetainedAttachmentBytes: jest.fn(() => 0),
-    onItemCompleted: jest.fn(),
-    getStatus: jest.fn(() => ({ status: 'idle' })),
-    getLastActivity: jest.fn(() => Date.now())
-  }))
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No Cloudflare context in tests');
+  }
 }));
-
-jest.mock('@/lib/email/provider-factory');
+jest.mock('@prisma/adapter-d1', () => ({ PrismaD1: jest.fn() }));
+jest.mock('@/lib/email/provider-factory', () => ({ getEmailProvider: jest.fn() }));
+jest.mock('@/lib/email/queue-client', () => ({ callEmailQueue: jest.fn() }));
 jest.mock('@/pages/api/auth/[...nextauth]', () => ({
   __esModule: true,
   authOptions: {},
@@ -28,7 +17,7 @@ jest.mock('@/lib/auth/requireAuth', () => ({
   requireAuth: jest.fn(async () => ({ user: { id: 'u1' } }))
 }));
 jest.mock('@/lib/rate-limit', () => ({
-  enforceRateLimit: jest.fn(() => ({ allowed: true }))
+  enforceRateLimit: jest.fn(async () => ({ allowed: true }))
 }));
 jest.mock('@/lib/server/tiers', () => ({
   checkEmailUsageAvailability: jest.fn(async () => ({ allowed: true, limit: 100, current: 0 })),
@@ -44,6 +33,28 @@ jest.mock('../../utils/email-utils', () => {
   const actual = jest.requireActual('../../utils/email-utils');
   return { ...actual, buildPdfAttachments: jest.fn() };
 });
+
+import { createMocks } from 'node-mocks-http';
+import { getEmailProvider } from '@/lib/email/provider-factory';
+import { callEmailQueue } from '@/lib/email/queue-client';
+import { releaseEmailUsageReservation, reserveEmailUsage } from '@/lib/server/tiers';
+import { buildPdfAttachments } from '../../utils/email-utils';
+import handler from '@/pages/api/send-bulk-email';
+import { installCloudflareEnv, resetCloudflareEnv, type FakeR2Bucket } from '../helpers/cloudflare';
+import { createMockProvider, createQueueHarness, type QueueHarness } from '../helpers/email-queue-harness';
+import { silenceConsole } from '../helpers/silence-console';
+
+const mockCallEmailQueue = callEmailQueue as jest.MockedFunction<typeof callEmailQueue>;
+const mockRelease = releaseEmailUsageReservation as jest.MockedFunction<typeof releaseEmailUsageReservation>;
+const mockReserve = reserveEmailUsage as jest.MockedFunction<typeof reserveEmailUsage>;
+let bucket: FakeR2Bucket;
+let harness: QueueHarness;
+
+/** Emails currently held by the user's queue object, across sessions. */
+async function queuedTotal(sessionId: string) {
+  const response = await harness.callEmailQueue('u1', `/status?sessionId=${sessionId}`);
+  return ((await response.json()) as { total: number }).total;
+}
 
 const mockedGetEmailProvider = getEmailProvider as jest.MockedFunction<typeof getEmailProvider>;
 const mockedBuildPdfAttachments = buildPdfAttachments as jest.MockedFunction<typeof buildPdfAttachments>;
@@ -80,20 +91,34 @@ function requestFor(emails: ReturnType<typeof email>[], sessionId: string) {
 }
 
 describe('/api/send-bulk-email attachment resource limits', () => {
+  silenceConsole();
+
   beforeEach(() => {
     jest.clearAllMocks();
     process.env = { ...originalEnv };
-    mockedGetEmailProvider.mockReturnValue({
-      name: 'resend',
-      sendEmail: jest.fn(),
-      getRateLimit: jest.fn(),
-      isConfigured: jest.fn(() => true)
-    } as any);
-    mockAddToQueue.mockResolvedValue(undefined);
+    ({ bucket } = installCloudflareEnv());
+    harness = createQueueHarness({
+      FILES: bucket,
+      WORKER_SELF_REFERENCE: { fetch: jest.fn(async () => new Response('{}')) }
+    } as never);
+    mockCallEmailQueue.mockImplementation(harness.callEmailQueue);
+    mockedGetEmailProvider.mockReturnValue(createMockProvider() as never);
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    resetCloudflareEnv();
+  });
+
+  it('releases the upload slot when a request fails before queueing', async () => {
+    process.env.MAX_CONCURRENT_EMAIL_INGESTIONS_PER_USER = '1';
+    mockedBuildPdfAttachments.mockRejectedValue(new Error('storage down'));
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const { req, res } = requestFor([email(attempt)], `slot-test-${attempt}`);
+      await handler(req, res);
+      // A leaked lease would turn the second attempt into a 429.
+      expect(res._getStatusCode()).toBe(500);
+    }
   });
 
   it('limits attachment construction concurrency to four emails', async () => {
@@ -138,11 +163,14 @@ describe('/api/send-bulk-email attachment resource limits', () => {
     await handler(req, res);
 
     expect(res._getStatusCode()).toBe(413);
-    expect(mockAddToQueue).not.toHaveBeenCalled();
+    expect(mockReserve).not.toHaveBeenCalled();
+    expect(await queuedTotal('aggregate-test')).toBe(0);
+    // Attachments already written for the rejected request are removed.
+    expect(bucket.objects.size).toBe(0);
   });
 
-  it('enforces the attachment budget across deferred requests', async () => {
-    process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES = '20';
+  it('enforces the per-account retained attachment budget across requests', async () => {
+    process.env.MAX_RETAINED_EMAIL_ATTACHMENT_BYTES_PER_USER = '20';
     mockedBuildPdfAttachments.mockResolvedValue([
       {
         filename: 'certificate.pdf',
@@ -159,11 +187,14 @@ describe('/api/send-bulk-email attachment resource limits', () => {
 
     expect(first.res._getStatusCode()).toBe(200);
     expect(second.res._getStatusCode()).toBe(413);
-    expect(mockAddToQueue).toHaveBeenCalledTimes(1);
+    expect(await queuedTotal('deferred-budget-test')).toBe(1);
+    // The rejected request's quota and stored attachment are given back.
+    expect(mockRelease).toHaveBeenCalledWith('u1', 1, new Date('2026-07-11T00:00:00Z'));
+    expect(bucket.objects.size).toBe(1);
   });
 
-  it('serializes concurrent requests against the session attachment budget', async () => {
-    process.env.MAX_BULK_EMAIL_ATTACHMENT_BYTES = '20';
+  it('serialises concurrent requests against the retained attachment budget', async () => {
+    process.env.MAX_RETAINED_EMAIL_ATTACHMENT_BYTES_PER_USER = '20';
     mockedBuildPdfAttachments.mockImplementation(async () => {
       await new Promise(resolve => setTimeout(resolve, 5));
       return [
@@ -182,7 +213,8 @@ describe('/api/send-bulk-email attachment resource limits', () => {
     await Promise.all([handler(first.req, first.res), handler(second.req, second.res)]);
 
     expect([first.res._getStatusCode(), second.res._getStatusCode()].sort()).toEqual([200, 413]);
-    expect(mockAddToQueue).toHaveBeenCalledTimes(1);
+    expect(await queuedTotal('concurrent-budget-test')).toBe(1);
+    expect(mockRelease).toHaveBeenCalledTimes(1);
   });
 
   it('rejects more than 500 emails before loading attachments', async () => {
@@ -195,5 +227,6 @@ describe('/api/send-bulk-email attachment resource limits', () => {
 
     expect(res._getStatusCode()).toBe(413);
     expect(mockedBuildPdfAttachments).not.toHaveBeenCalled();
+    expect(mockCallEmailQueue).not.toHaveBeenCalled();
   });
 });

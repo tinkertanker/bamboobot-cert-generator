@@ -1,8 +1,13 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs';
 import path from 'path';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { getPublicDir } from '@/lib/paths';
+import { readStaticAsset } from '@/lib/cloudflare/assets';
+
+const CONTENT_TYPES: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   const session = await requireAuth(req, res);
@@ -23,46 +28,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(404).json({ error: 'File not found' });
     return;
   }
-  const filePath = path.join(getPublicDir(), 'template_images', filename);
 
   try {
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
+    const bytes = await readStaticAsset(`/template_images/${filename}`);
+    if (!bytes) {
       res.status(404).json({ error: 'File not found' });
       return;
     }
 
-    // Read file
-    const fileBuffer = fs.readFileSync(filePath);
-    
-    // Determine content type based on file extension
-    const ext = path.extname(filename).toLowerCase();
-    let contentType = 'application/octet-stream';
-    
-    switch (ext) {
-      case '.pdf':
-        contentType = 'application/pdf';
-        break;
-      case '.png':
-        contentType = 'image/png';
-        break;
-      case '.jpg':
-      case '.jpeg':
-        contentType = 'image/jpeg';
-        break;
-    }
-
-    // Set appropriate headers
-    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Type', CONTENT_TYPES[path.extname(filename).toLowerCase()] ?? 'application/octet-stream');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Length', fileBuffer.length.toString());
+    res.setHeader('Content-Length', bytes.length.toString());
     res.setHeader('Cache-Control', 'private, no-store');
-    
-    // Send file
-    res.send(fileBuffer);
+    res.send(Buffer.from(bytes));
   } catch (error) {
     console.error('Error serving template file:', error);
     res.status(500).json({ error: 'Error serving file' });
-    return;
   }
 }

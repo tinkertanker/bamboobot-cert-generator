@@ -19,7 +19,7 @@ With client-side PDF generation, email attachments work but download links do
 not, because the PDFs never reach cloud storage. To support links:
 
 1. When "Download Link" is selected with client-side PDFs
-2. Upload each PDF to cloud storage (R2/S3) via a new API endpoint
+2. Upload each PDF to R2 via a new API endpoint
 3. Get back the URL
 4. Send that URL in the email
 

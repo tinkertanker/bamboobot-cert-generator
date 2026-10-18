@@ -5,6 +5,8 @@ import { prisma } from '@/lib/server/prisma';
 import { logAudit } from '@/lib/server/tiers';
 import type { AuthenticatedRequest } from '@/types/api';
 
+const D1_ID_CHUNK = 90;
+
 async function deleteProjectsHandler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -29,33 +31,25 @@ async function deleteProjectsHandler(
   }
   
   try {
-    // Delete projects in a transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Get project details for audit log
-      const projectsToDelete = await tx.project.findMany({
-        where: {
-          id: {
-            in: projectIds
-          }
-        },
-        select: {
-          id: true,
-          name: true,
-          ownerId: true
-        }
+    // D1 has no transactions and allows at most 100 bound values per query.
+    // Read the details for the audit log, then delete only those rows, in
+    // chunks, so the log never names a project that was not deleted.
+    const projectsToDelete: Array<{ id: string; name: string; ownerId: string }> = [];
+    let deleted = 0;
+    for (let offset = 0; offset < projectIds.length; offset += D1_ID_CHUNK) {
+      const chunk = projectIds.slice(offset, offset + D1_ID_CHUNK);
+      const found = await prisma.project.findMany({
+        where: { id: { in: chunk } },
+        select: { id: true, name: true, ownerId: true }
       });
-      
-      // Delete the projects
-      const deleteResult = await tx.project.deleteMany({
-        where: {
-          id: {
-            in: projectIds
-          }
-        }
+      if (found.length === 0) continue;
+      const deleteResult = await prisma.project.deleteMany({
+        where: { id: { in: found.map(project => project.id) } }
       });
-      
-      return { deleted: deleteResult.count, projects: projectsToDelete };
-    });
+      projectsToDelete.push(...found);
+      deleted += deleteResult.count;
+    }
+    const result = { deleted, projects: projectsToDelete };
     
     // Log audit for each deleted project
     for (const project of result.projects) {

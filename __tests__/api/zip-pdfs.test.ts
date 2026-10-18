@@ -1,248 +1,183 @@
-import { createMocks } from 'node-mocks-http';
-import { requireAuth } from '@/lib/auth/requireAuth';
-import {
-  loadTrustedPdf,
-  PdfSourceError,
-} from '@/lib/security/trusted-pdf-source';
-import handler from '@/pages/api/zip-pdfs';
-import { silenceConsole } from '../helpers/silence-console';
+/** @jest-environment node */
+import httpMocks from 'node-mocks-http';
+import JSZip from 'jszip';
 
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No Cloudflare context in tests');
+  },
+}));
 jest.mock('@/pages/api/auth/[...nextauth]', () => ({
   __esModule: true,
   authOptions: {},
   default: jest.fn(),
 }));
-
 jest.mock('@/lib/auth/requireAuth', () => ({
   requireAuth: jest.fn(),
 }));
-
 jest.mock('@/lib/rate-limit', () => ({
-  buildKey: jest.fn(() => 'zip:test'),
-  rateLimit: jest.fn(() => ({
-    allowed: true,
-    limit: 5,
-    remaining: 4,
-    resetAt: Date.now() + 60_000,
-  })),
+  enforceRateLimit: jest.fn(async () => ({ allowed: true, limit: 5, remaining: 4, resetAt: Date.now() + 60_000 })),
 }));
-
 jest.mock('@/lib/security/trusted-pdf-source', () => {
   const actual = jest.requireActual('@/lib/security/trusted-pdf-source');
-  return { ...actual, loadTrustedPdf: jest.fn() };
+  return { ...actual, loadTrustedPdf: jest.fn(actual.loadTrustedPdf) };
 });
 
-const mockArchive = {
-  pipe: jest.fn(),
-  append: jest.fn(),
-  abort: jest.fn(),
-  finalize: jest.fn<Promise<void>, []>(),
-  on: jest.fn(),
-  pointer: jest.fn(() => 1024),
-};
-
-jest.mock('archiver', () => jest.fn(() => mockArchive));
+import { requireAuth } from '@/lib/auth/requireAuth';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import { loadTrustedPdf, PdfSourceError } from '@/lib/security/trusted-pdf-source';
+import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
+import handler from '@/pages/api/zip-pdfs';
+import { silenceConsole } from '../helpers/silence-console';
+import { installCloudflareEnv, resetCloudflareEnv, type FakeR2Bucket } from '../helpers/cloudflare';
 
 const mockedRequireAuth = requireAuth as jest.MockedFunction<typeof requireAuth>;
 const mockedLoadTrustedPdf = loadTrustedPdf as jest.MockedFunction<typeof loadTrustedPdf>;
+const actualLoadTrustedPdf = jest.requireActual('@/lib/security/trusted-pdf-source').loadTrustedPdf;
 const originalEnv = process.env;
+let bucket: FakeR2Bucket;
+
+function seedPdf(relativePath: string, text: string): string {
+  bucket.seed(`generated/${relativePath}`, `%PDF-1.4\n${text}`, {}, 'application/pdf');
+  return createSignedGeneratedFileUrl(relativePath);
+}
+
+/** A response that collects the streamed ZIP bytes. */
+function zipResponse() {
+  const res = httpMocks.createResponse();
+  const chunks: Buffer[] = [];
+  res.write = ((chunk: Buffer) => {
+    chunks.push(Buffer.from(chunk));
+    return true;
+  }) as typeof res.write;
+  return { res, body: () => Buffer.concat(chunks) };
+}
+
+async function call(body: unknown, method: 'GET' | 'POST' = 'POST') {
+  const req = httpMocks.createRequest({ method, body: body as Record<string, unknown> });
+  const response = zipResponse();
+  await handler(req as never, response.res as never);
+  return response;
+}
 
 describe('/api/zip-pdfs', () => {
   silenceConsole();
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedLoadTrustedPdf.mockImplementation(actualLoadTrustedPdf);
     process.env = { ...originalEnv };
-    mockedRequireAuth.mockResolvedValue({ user: { id: 'u1' } } as any);
-    mockArchive.finalize.mockResolvedValue(undefined);
+    delete process.env.NEXTAUTH_URL;
+    mockedRequireAuth.mockResolvedValue({ user: { id: 'u1' } } as never);
+    ({ bucket } = installCloudflareEnv());
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    resetCloudflareEnv();
   });
 
   it('returns 405 for non-POST requests', async () => {
-    const { req, res } = createMocks({ method: 'GET' });
-
-    await handler(req, res);
-
+    const { res } = await call(undefined, 'GET');
     expect(res._getStatusCode()).toBe(405);
     expect(mockedRequireAuth).not.toHaveBeenCalled();
   });
 
   it('validates the file list before authentication', async () => {
-    const { req, res } = createMocks({ method: 'POST', body: {} });
-
-    await handler(req, res);
-
+    const { res, body } = await call({});
     expect(res._getStatusCode()).toBe(400);
-    expect(JSON.parse(res._getData())).toEqual({ error: 'No files provided' });
+    expect(JSON.parse(body().toString() || res._getData())).toEqual({ error: 'No files provided' });
     expect(mockedRequireAuth).not.toHaveBeenCalled();
   });
 
   it('rejects oversized and malformed file lists', async () => {
-    const tooMany = Array.from({ length: 501 }, (_, index) => ({
-      url: `/generated/${index}.pdf`,
-      filename: `${index}.pdf`,
-    }));
-    const first = createMocks({ method: 'POST', body: { files: tooMany } });
-    await handler(first.req, first.res);
-    expect(first.res._getStatusCode()).toBe(413);
-
-    const second = createMocks({
-      method: 'POST',
-      body: { files: [{ url: '/generated/a.pdf' }] },
-    });
-    await handler(second.req, second.res);
-    expect(second.res._getStatusCode()).toBe(400);
+    const tooMany = Array.from({ length: 501 }, (_, index) => ({ url: `/x/${index}.pdf`, filename: `${index}.pdf` }));
+    expect((await call({ files: tooMany })).res._getStatusCode()).toBe(413);
+    expect((await call({ files: [{ url: '/x/a.pdf' }] })).res._getStatusCode()).toBe(400);
     expect(mockedLoadTrustedPdf).not.toHaveBeenCalled();
   });
 
   it('does not load sources when authentication fails', async () => {
     mockedRequireAuth.mockResolvedValue(null);
-    const { req, res } = createMocks({
-      method: 'POST',
-      body: { files: [{ url: '/generated/a.pdf', filename: 'a.pdf' }] },
-    });
-
-    await handler(req, res);
-
+    await call({ files: [{ url: '/x/a.pdf', filename: 'a.pdf' }] });
     expect(mockedLoadTrustedPdf).not.toHaveBeenCalled();
   });
 
-  it('loads every PDF through the trusted loader and sanitizes ZIP entry names', async () => {
-    const firstPdf = Buffer.from('%PDF-1.4\nfirst');
-    const secondPdf = Buffer.from('%PDF-1.4\nsecond');
-    mockedLoadTrustedPdf
-      .mockResolvedValueOnce({ buffer: firstPdf, source: 'local' })
-      .mockResolvedValueOnce({ buffer: secondPdf, source: 'remote' });
-    const files = [
-      { url: '/generated/one.pdf', filename: '../../one\r\n.pdf' },
-      { url: 'https://certs.example.com/generated/two.pdf', filename: 'two.pdf' },
-    ];
-    const { req, res } = createMocks({ method: 'POST', body: { files } });
-
-    await handler(req, res);
-
-    expect(mockedLoadTrustedPdf).toHaveBeenCalledTimes(2);
-    expect(mockedLoadTrustedPdf).toHaveBeenNthCalledWith(
-      1,
-      '/generated/one.pdf',
-      expect.any(Number),
-      expect.objectContaining({ timeoutMs: expect.any(Number) })
-    );
-    expect(mockArchive.append).toHaveBeenNthCalledWith(
-      1,
-      firstPdf,
-      { name: 'one__.pdf' }
-    );
-    expect(mockArchive.append).toHaveBeenNthCalledWith(
-      2,
-      secondPdf,
-      { name: 'two.pdf' }
-    );
-    expect(mockArchive.finalize).toHaveBeenCalledTimes(1);
-    expect(res._getHeaders()['content-type']).toBe('application/zip');
-    expect(res._getHeaders()['cache-control']).toBe('private, no-store');
+  it('returns 429 when the ZIP rate limit is exceeded', async () => {
+    (enforceRateLimit as jest.Mock).mockResolvedValueOnce({ allowed: false });
+    const { res } = await call({ files: [{ url: '/x/a.pdf', filename: 'a.pdf' }] });
+    expect(res._getStatusCode()).toBe(429);
+    expect(mockedLoadTrustedPdf).not.toHaveBeenCalled();
   });
 
-  it('skips rejected sources without adding them to the archive', async () => {
-    mockedLoadTrustedPdf
-      .mockRejectedValueOnce(new PdfSourceError('INVALID_SOURCE', 'Rejected', 403))
-      .mockResolvedValueOnce({
-        buffer: Buffer.from('%PDF-1.4\ngood'),
-        source: 'local',
-      });
-    const { req, res } = createMocks({
-      method: 'POST',
-      body: {
-        files: [
-          { url: 'https://attacker.example/a.pdf', filename: 'bad.pdf' },
-          { url: '/generated/good.pdf', filename: 'good.pdf' },
-        ],
-      },
-    });
+  it('streams a valid ZIP of signed PDFs from R2 with sanitised entry names', async () => {
+    const files = [
+      { url: seedPdf('u_u1/individual_1/one.pdf', 'first'), filename: '../../one\r\n.pdf' },
+      { url: seedPdf('u_u1/individual_1/two.pdf', 'second'), filename: 'two.pdf' },
+    ];
+    const { res, body } = await call({ files });
 
-    await handler(req, res);
+    expect(res._getStatusCode()).toBe(200);
+    expect(res._getHeaders()['content-type']).toBe('application/zip');
+    expect(res._getHeaders()['cache-control']).toBe('private, no-store');
+    expect(res._isEndCalled()).toBe(true);
 
-    expect(mockedLoadTrustedPdf).toHaveBeenCalledTimes(2);
-    expect(mockArchive.append).toHaveBeenCalledTimes(1);
-    expect(mockArchive.finalize).toHaveBeenCalledTimes(1);
+    const zip = await JSZip.loadAsync(body());
+    expect(Object.keys(zip.files)).toEqual(['one__.pdf', 'two.pdf']);
+    await expect(zip.file('one__.pdf')!.async('string')).resolves.toBe('%PDF-1.4\nfirst');
+    await expect(zip.file('two.pdf')!.async('string')).resolves.toBe('%PDF-1.4\nsecond');
+  });
+
+  it('skips unsigned, remote and missing sources without fetching anything', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    const files = [
+      { url: 'https://attacker.example/a.pdf', filename: 'remote.pdf' },
+      { url: '/api/files/download?path=u_other%2Fa.pdf&expires=9999999999&signature=forged', filename: 'forged.pdf' },
+      { url: createSignedGeneratedFileUrl('u_u1/missing.pdf'), filename: 'missing.pdf' },
+      { url: seedPdf('u_u1/good.pdf', 'good'), filename: 'good.pdf' },
+    ];
+    const { res, body } = await call({ files });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+    expect(res._getStatusCode()).toBe(200);
+    const zip = await JSZip.loadAsync(body());
+    expect(Object.keys(zip.files)).toEqual(['good.pdf']);
   });
 
   it('stops after a too-large source to bound rejected input reads', async () => {
-    mockedLoadTrustedPdf.mockRejectedValue(
-      new PdfSourceError('PDF_TOO_LARGE', 'Too large', 413)
-    );
-    const { req, res } = createMocks({
-      method: 'POST',
-      body: {
-        files: [
-          { url: '/generated/large.pdf', filename: 'large.pdf' },
-          { url: '/generated/never-read.pdf', filename: 'other.pdf' },
-        ],
-      },
+    mockedLoadTrustedPdf.mockRejectedValue(new PdfSourceError('PDF_TOO_LARGE', 'Too large', 413));
+    const { res, body } = await call({
+      files: [
+        { url: '/x/large.pdf', filename: 'large.pdf' },
+        { url: '/x/never-read.pdf', filename: 'other.pdf' },
+      ],
     });
-
-    await handler(req, res);
 
     expect(mockedLoadTrustedPdf).toHaveBeenCalledTimes(1);
-    expect(mockArchive.finalize).toHaveBeenCalledTimes(1);
+    expect(res._getStatusCode()).toBe(200);
+    expect(Object.keys((await JSZip.loadAsync(body())).files)).toEqual([]);
   });
 
-  it('turns asynchronous archive errors into a handled 500 response', async () => {
-    mockedLoadTrustedPdf.mockResolvedValue({
-      buffer: Buffer.from('%PDF-1.4\ngood'),
-      source: 'local',
-    });
-    mockArchive.finalize.mockImplementationOnce(async () => {
-      const errorHandler = mockArchive.on.mock.calls.find(([event]) => event === 'error')?.[1];
-      errorHandler?.(new Error('archive failed'));
-    });
-    const { req, res } = createMocks({
-      method: 'POST',
-      body: { files: [{ url: '/generated/a.pdf', filename: 'a.pdf' }] },
-    });
-
-    await handler(req, res);
-
-    expect(res._getStatusCode()).toBe(500);
-    expect(JSON.parse(res._getData())).toEqual({ error: 'Failed to create ZIP file' });
+  it('stops after repeated source failures', async () => {
+    mockedLoadTrustedPdf.mockRejectedValue(new PdfSourceError('NOT_FOUND', 'Missing', 404));
+    const files = Array.from({ length: 10 }, (_, index) => ({ url: `/x/${index}.pdf`, filename: `${index}.pdf` }));
+    await call({ files });
+    expect(mockedLoadTrustedPdf).toHaveBeenCalledTimes(5);
   });
 
-  it('handles an archive error emitted during an awaited source load', async () => {
-    mockedLoadTrustedPdf.mockImplementationOnce(async () => {
-      const errorHandler = mockArchive.on.mock.calls.find(([event]) => event === 'error')?.[1];
-      errorHandler?.(new Error('early archive failure'));
-      return { buffer: Buffer.from('%PDF-1.4\ngood'), source: 'local' };
-    });
-    const { req, res } = createMocks({
-      method: 'POST',
-      body: { files: [{ url: '/generated/a.pdf', filename: 'a.pdf' }] },
-    });
-
-    await handler(req, res);
-
-    expect(res._getStatusCode()).toBe(500);
-    expect(mockArchive.append).not.toHaveBeenCalled();
-    expect(mockArchive.finalize).not.toHaveBeenCalled();
-  });
-
-  it('aborts work that exceeds the whole ZIP deadline', async () => {
+  it('stops reading sources once the whole ZIP deadline has passed', async () => {
     process.env.MAX_ZIP_DURATION_MS = '5';
-    mockedLoadTrustedPdf.mockImplementationOnce(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      return { buffer: Buffer.from('%PDF-1.4\nlate'), source: 'remote' };
+    const url = seedPdf('u_u1/late.pdf', 'late');
+    mockedLoadTrustedPdf.mockImplementationOnce(async (...args) => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      return actualLoadTrustedPdf(...args);
     });
-    const { req, res } = createMocks({
-      method: 'POST',
-      body: { files: [{ url: '/generated/a.pdf', filename: 'a.pdf' }] },
-    });
+    const { res } = await call({ files: [{ url, filename: 'a.pdf' }, { url, filename: 'b.pdf' }] });
 
-    await handler(req, res);
-
-    expect(mockArchive.abort).toHaveBeenCalledTimes(1);
-    expect(mockArchive.append).not.toHaveBeenCalled();
+    // The deadline is checked before each source, so the second is never read
+    // and the archive is not finished.
+    expect(mockedLoadTrustedPdf).toHaveBeenCalledTimes(1);
     expect(res._getStatusCode()).toBe(500);
   });
 });

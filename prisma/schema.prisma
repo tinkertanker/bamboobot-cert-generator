@@ -1,7 +1,10 @@
-// Prisma schema for NextAuth + Project persistence (SQLite)
+// Prisma schema for NextAuth + Project persistence (Cloudflare D1, which is SQLite)
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // Rust-free client: queries are compiled in WebAssembly and run through the
+  // D1 driver adapter, which is what Cloudflare Workers can load.
+  engineType      = "client"
 }
 
 datasource db {

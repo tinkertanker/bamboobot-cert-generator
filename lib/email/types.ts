@@ -39,6 +39,14 @@ export interface EmailProvider {
   isConfigured(): boolean;
 }
 
+/** An attachment held in object storage until the email is sent. */
+export interface StoredAttachmentRef {
+  key: string;
+  filename: string;
+  contentType: string;
+  size: number;
+}
+
 export interface EmailQueueItem {
   id: string;
   to: string[];
@@ -47,6 +55,8 @@ export interface EmailQueueItem {
   html?: string;
   text?: string;
   attachments?: EmailAttachment[];
+  attachmentKeys?: StoredAttachmentRef[];
+  attachmentBytes?: number;
   certificateUrl?: string;
   certificatePath?: string;
   status: 'pending' | 'sending' | 'sent' | 'failed';

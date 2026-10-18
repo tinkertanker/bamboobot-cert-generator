@@ -3,10 +3,17 @@ import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { isAuthenticationRequired } from '@/lib/auth/runtime-policy';
 import { CLEANUP_KEY_HEADER, secretMatches } from '@/lib/storage/cleanup-handler';
+import { INTERNAL_KEY_HEADER, isInternalRequestKey } from '@/lib/server/internal-request';
 
 // Scheduled storage cleanup runs from cron with no user session. It may skip
 // the session check only when it presents the configured cleanup secret.
-const CLEANUP_ENDPOINTS = new Set(['/api/cleanup-r2', '/api/cleanup-s3']);
+const CLEANUP_ENDPOINTS = new Set(['/api/cleanup-r2']);
+// Requests the Worker makes to itself (from the email queue Durable Object).
+const INTERNAL_ENDPOINTS = new Set(['/api/internal/email-quota-refund']);
+
+function isAuthorisedInternalRequest(req: NextRequest, pathname: string): boolean {
+  return INTERNAL_ENDPOINTS.has(pathname) && isInternalRequestKey(req.headers.get(INTERNAL_KEY_HEADER));
+}
 
 function isAuthorisedCleanupRequest(req: NextRequest, pathname: string): boolean {
   const secret = process.env.CLEANUP_SECRET_KEY;
@@ -32,6 +39,7 @@ export async function middleware(req: NextRequest) {
     isPathOrDescendant(pathname, '/api/auth') ||
     pathname === '/api/files/download' ||
     isAuthorisedCleanupRequest(req, pathname) ||
+    isAuthorisedInternalRequest(req, pathname) ||
     isPathOrDescendant(pathname, '/_next') ||
     (!isPathOrDescendant(pathname, '/api') && STATIC_ASSET_PATTERN.test(pathname))
   ) {

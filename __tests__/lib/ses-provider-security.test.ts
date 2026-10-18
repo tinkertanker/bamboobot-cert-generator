@@ -1,3 +1,12 @@
+// lib/cloudflare/env.ts and lib/server/prisma.ts load OpenNext and the D1
+// adapter, which are ESM-only and only usable inside a Worker.
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No Cloudflare context in tests');
+  }
+}));
+jest.mock('@prisma/adapter-d1', () => ({ PrismaD1: jest.fn() }));
+
 import { SESProvider } from '@/lib/email/providers/ses';
 import { SESClient } from '@aws-sdk/client-ses';
 import { loadTrustedPdf, PdfSourceError } from '@/lib/security/trusted-pdf-source';
@@ -43,7 +52,7 @@ describe('SES attachment source security', () => {
 
   it('routes a direct provider path through the trusted PDF loader', async () => {
     const pdf = Buffer.from('%PDF-1.4\ntrusted');
-    mockedLoadTrustedPdf.mockResolvedValue({ buffer: pdf, source: 'remote' });
+    mockedLoadTrustedPdf.mockResolvedValue({ buffer: pdf, source: 'storage' });
     const provider = new SESProvider();
 
     const result = await provider.sendEmail({

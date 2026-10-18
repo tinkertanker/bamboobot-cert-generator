@@ -3,6 +3,17 @@ import { DEFAULT_FONT_SIZE, PROGRESSIVE_PDF } from '@/utils/constants';
 import type { TableData, Positions } from '@/types/certificate';
 import type { PdfGenerationProgress, PdfGenerationResult } from '@/lib/pdf/types';
 import { getFontReferenceDimensions } from '@/utils/fontScale';
+import { MAX_PROGRESSIVE_BATCH_SIZE } from '@/lib/pdf/server-limits';
+import { getPdfBaseFilename, UniquePdfFilenameAllocator } from '@/utils/pdf-filenames';
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function createBatchId(): string {
+  const random = globalThis.crypto?.randomUUID?.().replace(/-/g, '');
+  return random || `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+}
 
 export interface UseProgressivePdfGenerationProps {
   tableData: TableData[];
@@ -17,7 +28,7 @@ export interface UseProgressivePdfGenerationReturn {
   progress: PdfGenerationProgress | null;
   results: PdfGenerationResult | null;
   error: string | null;
-  startProgressiveGeneration: (mode: 'individual' | 'bulk', batchSize?: number) => Promise<void>;
+  startProgressiveGeneration: (mode: 'individual' | 'bulk', batchSize?: number, overrideFilename?: string) => Promise<void>;
   pauseGeneration: () => Promise<void>;
   resumeGeneration: () => Promise<void>;
   cancelGeneration: () => Promise<void>;
@@ -35,10 +46,6 @@ export function useProgressivePdfGeneration({
   const [progress, setProgress] = useState<PdfGenerationProgress | null>(null);
   const [results, setResults] = useState<PdfGenerationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  // Session currently being polled; responses for any other session are stale.
-  const activePollSessionRef = useRef<string | null>(null);
 
   // Helper function to convert hex color to RGB array
   const hexToRgb = useCallback((hex: string): [number, number, number] => {
@@ -106,119 +113,164 @@ export function useProgressivePdfGeneration({
   // Font sizes are relative to a fixed reference width, not the live preview
   const getContainerDimensions = useCallback(() => getFontReferenceDimensions(), []);
 
-  // Poll for progress updates
-  const pollProgress = useCallback(async (sessionId: string) => {
-    try {
-      const response = await fetch(`/api/generate-progressive?sessionId=${sessionId}`);
-      if (activePollSessionRef.current !== sessionId) return;
-      if (!response.ok) {
-        throw new Error('Failed to get progress');
-      }
+  // Run state lives in a ref so pause/resume/cancel reach the loop below
+  // without re-rendering it. Each run gets a fresh object.
+  const runRef = useRef<{
+    id: string;
+    paused: boolean;
+    cancelled: boolean;
+    wake: (() => void) | null;
+    controller: AbortController | null;
+  } | null>(null);
 
-      const data = await response.json();
-      if (activePollSessionRef.current !== sessionId) return;
-      setProgress(data);
-
-      // If generation is complete or errored, stop polling and set results
-      if (data.status === 'completed' || data.status === 'error') {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-        setIsGenerating(false);
-        
-        if (data.results) {
-          setResults(data.results);
-        }
-        
-        if (data.status === 'error') {
-          setError('PDF generation failed');
-        }
-      }
-    } catch (err) {
-      if (activePollSessionRef.current !== sessionId) return;
-      console.error('Error polling progress:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setIsGenerating(false);
-      
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    }
-  }, []);
-
-  // Start progressive generation
+  // Start progressive generation: the browser sends one batch per request to
+  // /api/generate-batch, so no job state is kept on the server.
   const startProgressiveGeneration = useCallback(async (
     mode: 'individual' | 'bulk',
-    batchSize = 20,
+    batchSize: number = PROGRESSIVE_PDF.DEFAULT_BATCH_SIZE,
     overrideFilename?: string
   ) => {
-    setIsGenerating(true);
     setError(null);
     setProgress(null);
     setResults(null);
 
-    try {
-      const containerDimensions = getContainerDimensions();
-
-      // Determine the filename to use
-      let templateFilename: string | undefined;
-      if (overrideFilename) {
-        templateFilename = overrideFilename;
-      } else if (typeof uploadedFile === 'string') {
-        templateFilename = uploadedFile;
-      } else if (uploadedFile) {
-        console.warn('Using File object name for progressive generation - this may cause template not found errors if file is not uploaded to server yet');
-        templateFilename = uploadedFile.name;
-      }
-
-      const response = await fetch('/api/generate-progressive', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          mode,
-          templateFilename,
-          uiContainerDimensions: containerDimensions,
-          namingColumn: selectedNamingColumn,
-          data: prepareDataForApi(),
-          positions: preparePositionsForApi(),
-          batchSize
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to start PDF generation');
-      }
-
-      const data = await response.json();
-      setSessionId(data.sessionId);
-
-      // Set initial naming column if needed
-      if (mode === 'individual' && tableData.length > 0 && !selectedNamingColumn) {
-        setSelectedNamingColumn(Object.keys(tableData[0])[0]);
-      }
-
-      // Start polling for progress (replacing any interval from an earlier run,
-      // which would otherwise keep polling forever)
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-      activePollSessionRef.current = data.sessionId;
-      pollIntervalRef.current = setInterval(() => {
-        pollProgress(data.sessionId);
-      }, PROGRESSIVE_PDF.POLL_INTERVAL_MS);
-
-      // Do initial poll immediately
-      pollProgress(data.sessionId);
-    } catch (err) {
-      console.error('Error starting progressive generation:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setIsGenerating(false);
+    if (mode !== 'individual') {
+      setError('Batch generation only supports individual PDFs');
+      return;
     }
+
+    let templateFilename: string | undefined;
+    if (overrideFilename) {
+      templateFilename = overrideFilename;
+    } else if (typeof uploadedFile === 'string') {
+      templateFilename = uploadedFile;
+    }
+    if (!templateFilename) {
+      setError('Upload the certificate template before generating');
+      return;
+    }
+
+    // Set initial naming column if needed
+    let namingColumn = selectedNamingColumn;
+    if (tableData.length > 0 && !namingColumn) {
+      namingColumn = Object.keys(tableData[0])[0];
+      setSelectedNamingColumn(namingColumn);
+    }
+
+    const rows = prepareDataForApi();
+    const apiPositions = preparePositionsForApi();
+    const containerDimensions = getContainerDimensions();
+    const allocator = new UniquePdfFilenameAllocator();
+    const filenames = tableData.map((row, index) =>
+      allocator.allocate(getPdfBaseFilename(namingColumn ? row[namingColumn] : undefined, `certificate_${index + 1}`))
+    );
+
+    const size = Math.min(Math.max(Math.floor(batchSize) || 1, 1), MAX_PROGRESSIVE_BATCH_SIZE);
+    const total = rows.length;
+    const totalBatches = Math.ceil(total / size);
+    const runId = createBatchId();
+    const run = { id: runId, paused: false, cancelled: false, wake: null as (() => void) | null, controller: null as AbortController | null };
+    runRef.current = run;
+    const startedAt = Date.now();
+
+    const files: PdfGenerationResult['files'] = [];
+    const errors: PdfGenerationResult['errors'] = [];
+    let processed = 0;
+    let failed = 0;
+
+    const report = (status: PdfGenerationProgress['status'], currentBatch: number) => {
+      if (runRef.current !== run) return;
+      const timeElapsed = Date.now() - startedAt;
+      const done = processed + failed;
+      setProgress({
+        sessionId: runId,
+        status,
+        processed,
+        failed,
+        total,
+        currentBatch,
+        totalBatches,
+        timeElapsed,
+        estimatedTimeRemaining: done > 0 ? Math.round((timeElapsed / done) * (total - done)) : undefined,
+        errors: [...errors]
+      });
+    };
+
+    setIsGenerating(true);
+    report('processing', 0);
+
+    for (let batch = 0; batch < totalBatches; batch += 1) {
+      while (run.paused && !run.cancelled) {
+        await new Promise<void>(resolve => { run.wake = resolve; });
+      }
+      if (run.cancelled) return;
+
+      const startIndex = batch * size;
+      const batchRows = rows.slice(startIndex, startIndex + size);
+      report('processing', batch + 1);
+
+      let lastError = 'PDF generation failed';
+      let succeeded = false;
+      for (let attempt = 0; attempt < PROGRESSIVE_PDF.MAX_RETRIES && !run.cancelled; attempt += 1) {
+        run.controller = new AbortController();
+        try {
+          const response = await fetch('/api/generate-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: run.controller.signal,
+            body: JSON.stringify({
+              batchId: runId,
+              startIndex,
+              templateFilename,
+              uiContainerDimensions: containerDimensions,
+              data: batchRows,
+              filenames: filenames.slice(startIndex, startIndex + size),
+              positions: apiPositions
+            })
+          });
+          if (response.ok) {
+            const body = await response.json() as { files: PdfGenerationResult['files'] };
+            files.push(...body.files);
+            processed += batchRows.length;
+            succeeded = true;
+            break;
+          }
+          const body = await response.json().catch(() => ({})) as { error?: string };
+          lastError = body.error || `Server returned ${response.status}`;
+          // Only rate limits and server errors are worth retrying.
+          if (response.status !== 429 && response.status < 500) break;
+          const retryAfter = Number(response.headers.get('Retry-After'));
+          await delay(response.status === 429 && retryAfter > 0 ? retryAfter * 1000 : 1000 * 2 ** attempt);
+        } catch (err) {
+          if (run.cancelled) return;
+          lastError = err instanceof Error ? err.message : 'Network error';
+          await delay(1000 * 2 ** attempt);
+        } finally {
+          run.controller = null;
+        }
+      }
+      if (run.cancelled) return;
+
+      if (!succeeded) {
+        failed += batchRows.length;
+        batchRows.forEach((_, offset) => errors.push({ index: startIndex + offset, error: lastError }));
+      }
+      report(run.paused ? 'paused' : 'processing', batch + 1);
+    }
+
+    if (runRef.current !== run) return;
+    const finalStatus = processed === 0 && failed > 0 ? 'error' : 'completed';
+    report(finalStatus, totalBatches);
+    setResults({
+      sessionId: runId,
+      status: failed > 0 ? 'partial' : 'completed',
+      files,
+      errors,
+      totalProcessed: processed,
+      totalFailed: failed
+    });
+    if (finalStatus === 'error') setError(errors[0]?.error || 'PDF generation failed');
+    setIsGenerating(false);
   }, [
     uploadedFile,
     selectedNamingColumn,
@@ -226,119 +278,57 @@ export function useProgressivePdfGeneration({
     setSelectedNamingColumn,
     getContainerDimensions,
     prepareDataForApi,
-    preparePositionsForApi,
-    pollProgress
+    preparePositionsForApi
   ]);
 
-  // Pause generation
   const pauseGeneration = useCallback(async () => {
-    if (!sessionId) return;
+    const run = runRef.current;
+    if (!run || run.cancelled) return;
+    run.paused = true;
+    setProgress(prev => (prev ? { ...prev, status: 'paused' } : prev));
+  }, []);
 
-    try {
-      const response = await fetch(`/api/generate-progressive?sessionId=${sessionId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action: 'pause' })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to pause generation');
-      }
-
-      // Stop polling while paused
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    } catch (err) {
-      console.error('Error pausing generation:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    }
-  }, [sessionId]);
-
-  // Resume generation
   const resumeGeneration = useCallback(async () => {
-    if (!sessionId) return;
+    const run = runRef.current;
+    if (!run || run.cancelled) return;
+    run.paused = false;
+    run.wake?.();
+    run.wake = null;
+    setProgress(prev => (prev ? { ...prev, status: 'processing' } : prev));
+  }, []);
 
-    try {
-      const response = await fetch(`/api/generate-progressive?sessionId=${sessionId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action: 'resume' })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to resume generation');
-      }
-
-      // Resume polling
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-      activePollSessionRef.current = sessionId;
-      pollIntervalRef.current = setInterval(() => {
-        pollProgress(sessionId);
-      }, PROGRESSIVE_PDF.POLL_INTERVAL_MS);
-    } catch (err) {
-      console.error('Error resuming generation:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    }
-  }, [sessionId, pollProgress]);
-
-  // Cancel generation
   const cancelGeneration = useCallback(async () => {
-    if (!sessionId) return;
+    const run = runRef.current;
+    if (!run) return;
+    run.cancelled = true;
+    run.controller?.abort();
+    run.wake?.();
+    runRef.current = null;
+    setIsGenerating(false);
+  }, []);
 
-    try {
-      const response = await fetch(`/api/generate-progressive?sessionId=${sessionId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action: 'cancel' })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to cancel generation');
-      }
-
-      // Stop polling
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-
-      setIsGenerating(false);
-      setSessionId(null);
-    } catch (err) {
-      console.error('Error cancelling generation:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    }
-  }, [sessionId]);
-
-  // Clear results
   const clearResults = useCallback(() => {
+    const run = runRef.current;
+    if (run) {
+      run.cancelled = true;
+      run.controller?.abort();
+      run.wake?.();
+      runRef.current = null;
+    }
     setProgress(null);
     setResults(null);
     setError(null);
-    setSessionId(null);
     setIsGenerating(false);
-    
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
   }, []);
 
-  // Cleanup on unmount
+  // Stop any running batch loop on unmount
   useEffect(() => {
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
+      const run = runRef.current;
+      if (run) {
+        run.cancelled = true;
+        run.controller?.abort();
+        run.wake?.();
       }
     };
   }, []);

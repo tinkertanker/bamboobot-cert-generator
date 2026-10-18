@@ -47,7 +47,7 @@ async function sendEmailHandler(req: AuthenticatedRequest, res: NextApiResponse)
   const userId = user.id;
 
   // Apply rate limiting
-  const rl = enforceRateLimit(req, res, { userId, route: 'send-email', category: 'email' });
+  const rl = await enforceRateLimit(req, res, { userId, route: 'send-email', category: 'email' });
   if (!rl.allowed) {
     res.status(429).json({ error: 'Too many emails sent. Please wait before sending more.' });
     return;

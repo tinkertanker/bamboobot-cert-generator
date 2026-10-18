@@ -1,18 +1,19 @@
 /** @jest-environment node */
 
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No Cloudflare context in tests');
+  }
+}));
+jest.mock('@prisma/adapter-d1', () => ({ PrismaD1: jest.fn() }));
 jest.mock('@/lib/storage/mark-generated', () => ({
   markGeneratedFileAsEmailed: jest.fn(),
 }));
 
-import {
-  cleanupEmailQueueInterval,
-  markGeneratedRetentionInBatches,
-} from '@/pages/api/send-bulk-email';
+import { markGeneratedRetentionInBatches } from '@/pages/api/send-bulk-email';
 import { markGeneratedFileAsEmailed } from '@/lib/storage/mark-generated';
 
 describe('bulk retention metadata updates', () => {
-  afterAll(() => cleanupEmailQueueInterval());
-
   it('limits concurrent cloud object rewrites', async () => {
     let active = 0;
     let peak = 0;

@@ -4,7 +4,7 @@ import { withAdminAccess } from '@/lib/server/middleware/featureGate';
 import { getProvider, listAllObjects, StorageItem } from '@/lib/storage-manager';
 
 type ListResponse = {
-  provider: 'local' | 'cloudflare-r2' | 'amazon-s3';
+  provider: 'cloudflare-r2';
   total: { count: number; size: number };
   items: StorageItem[];
   aggregates: {
