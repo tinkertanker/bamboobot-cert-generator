@@ -1,86 +1,107 @@
-# Deploying with Docker
+# Deploying to Cloudflare Workers
 
-Production runs as a single container behind an nginx-proxy on the external Docker network `devtksg`. See `docs/ENVIRONMENT_SETUP.md` for how `.env` is used and `docs/NGINX_CONFIGURATION.md` for upload size limits.
+Bamboobot runs as a single Cloudflare Worker built with [OpenNext](https://opennext.js.org/cloudflare). It needs the Workers Paid plan (Durable Objects, the 5-minute CPU limit and the bundle size).
 
-## First-time server setup
+Everything the Worker uses is declared in `wrangler.jsonc`:
 
-The container runs as UID 1001 and mounts host directories from `./data`. Create them before the first start. The database file must exist as a file, or Docker creates a directory in its place.
+| Binding | Resource | Used for |
+| --- | --- | --- |
+| `DB` | D1 database `bamboobot` | Users, sessions, tiers, usage, projects (Prisma) |
+| `FILES` | R2 bucket `bamboobot-files` | Uploaded templates, generated PDFs, queued email attachments |
+| `EMAIL_QUEUE` | Durable Object `EmailQueueObject` | One bulk email queue per user |
+| `ASSETS` | Static assets | `public/` files, including the PDF fonts |
+| `RATE_LIMIT_*` | Workers rate limiting | Per-route request limits |
+| `WORKER_SELF_REFERENCE` | This Worker | OpenNext, and quota refunds from the email queue |
+| cron `0 2 * * *` | Scheduled trigger | Daily deletion of expired R2 files |
 
-```bash
-sudo mkdir -p data/{temp_images,generated,template_images}
-sudo touch data/database.db
-sudo chown -R 1001:1001 data
-cp .env.example .env   # then edit
-```
+## First deployment
 
-Settings that matter for production (all documented in `.env.example`):
+Run these from the repository root after `npm install`, logged in with `npx wrangler login` (or with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` set).
 
-```bash
-PRODUCTION_HOST=your-production-domain.com
-CERT_NAME=your-production-domain.com          # or a shared wildcard certificate name
+1. Create the database and bucket:
 
-NEXTAUTH_URL=https://your-production-domain.com   # not http://localhost:3000
-NEXTAUTH_SECRET=...                           # openssl rand -base64 32
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
+   ```bash
+   npx wrangler d1 create bamboobot
+   npx wrangler r2 bucket create bamboobot-files
+   ```
 
-REQUIRE_AUTH=true                             # runtime; defaults to on in production
-NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=false  # build time; see below
-SUPER_ADMIN_EMAILS=admin@yourdomain.com
-ADMIN_DOMAINS=yourdomain.com
+   Copy the `database_id` that `d1 create` prints into the `d1_databases` entry in `wrangler.jsonc`. (Recent Wrangler versions can also create both on the first deploy if the ID is left out.)
 
-CLEANUP_SECRET_KEY=...                        # needed for scheduled R2/S3 cleanup
-```
+2. Create the tables:
 
-`DATABASE_URL` is set by `docker-compose.yml` (`file:./database.db`, resolved from `prisma/schema.prisma`, so the file is `/app/prisma/database.db`). You do not need it in `.env` for Docker.
+   ```bash
+   npm run db:migrate:remote
+   ```
 
-`NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE` is inlined into the browser bundle at build time. `.env` is excluded from the Docker build context, so `docker-compose.yml` passes this one value from `.env` as a build arg. After changing it, rebuild (`docker compose up -d --build`, or `./scripts/deploy.sh`); restarting is not enough. When it is `true`, projects are stored in the database and signed-in users are offered an import of projects saved in their browser; each browser copy is deleted only after the server confirms it was saved.
+3. Set secrets (each command prompts for the value):
 
-In Google Cloud Console, set:
-- Authorised JavaScript origin: `https://your-production-domain.com`
-- Authorised redirect URI: `https://your-production-domain.com/api/auth/callback/google`
+   ```bash
+   npx wrangler secret put NEXTAUTH_SECRET        # openssl rand -base64 32
+   npx wrangler secret put NEXTAUTH_URL           # https://your-domain.com
+   npx wrangler secret put GOOGLE_CLIENT_ID
+   npx wrangler secret put GOOGLE_CLIENT_SECRET
+   npx wrangler secret put CLEANUP_SECRET_KEY     # any long random string
+   npx wrangler secret put SUPER_ADMIN_EMAILS
+   npx wrangler secret put ADMIN_DOMAINS
+   # Email: either Resend...
+   npx wrangler secret put RESEND_API_KEY
+   # ...or Amazon SES
+   npx wrangler secret put AWS_ACCESS_KEY_ID
+   npx wrangler secret put AWS_SECRET_ACCESS_KEY
+   npx wrangler secret put AWS_SES_REGION
+   npx wrangler secret put EMAIL_FROM
+   ```
+
+   `NEXTAUTH_SECRET` is required: besides signing sessions and download links, it derives the key the email queue uses to call back into the Worker. Other optional settings are listed in `.env.example`.
+
+4. Build and deploy:
+
+   ```bash
+   NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=false npm run deploy
+   ```
+
+   `NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE` is inlined into the browser bundle, so it must be set in the environment that runs the build (or in `.env`). Changing it needs a rebuild and redeploy. When it is `true`, projects are stored in D1 and signed-in users are offered an import of projects saved in their browser; each browser copy is deleted only after the server confirms it was saved.
+
+5. Point the domain at the Worker: in the dashboard, Workers > bamboobot > Settings > Domains & Routes > add a custom domain. Then, in Google Cloud Console, set:
+   - Authorised JavaScript origin: `https://your-domain.com`
+   - Authorised redirect URI: `https://your-domain.com/api/auth/callback/google`
 
 ## Deploying an update
 
 ```bash
-./scripts/deploy.sh          # git pull, rebuild with --no-cache, restart
-./scripts/deploy.sh --logs   # same, then follow logs
+npm run deploy
 ```
 
-`docker-entrypoint.sh` creates the database schema only when `database.db` is empty. **After any change to `prisma/schema.prisma`** (check `git log -- prisma/schema.prisma`), apply it to the existing database once the container is up:
+If `prisma/schema.prisma` changed, the same change needs a new SQL file in `migrations/`, applied with `npm run db:migrate:remote` before deploying. `npx wrangler d1 migrations list bamboobot --remote` shows what has been applied.
 
-```bash
-docker compose exec bamboobot npx prisma db push
-```
+## Moving from the Docker deployment
 
-## Scheduled cleanup
+Files on the old server are not carried over: templates and generated PDFs expire anyway, and users can re-upload a template. Links in emails sent from the old server stop working once its domain points at the Worker.
 
-With R2 or S3 storage, run `scripts/storage-cleanup.sh` daily from cron; see "Cloud Storage Cleanup" in `README.md`. Try it with `CLEANUP_DRY_RUN=1` first.
+The old SQLite database is also not imported. Users are recreated when they next sign in and admin tiers come back from `SUPER_ADMIN_EMAILS` and `ADMIN_DOMAINS`. Tiers set by hand in `/admin/users`, usage counts and server-saved projects (only used when server persistence was on) would need to be set again. If they matter, the rows can be exported with `sqlite3` and loaded with `npx wrangler d1 execute bamboobot --remote --file <dump.sql>`, but check the date columns first: Prisma's old SQLite engine and D1 may store them differently.
 
 ## Checking a deployment
 
 ```bash
-docker compose ps
-docker compose logs -f
-ls -la data/database.db            # owned by 1001:1001
-docker network inspect devtksg     # container is attached
+npx wrangler tail                      # live logs
+npx wrangler d1 execute bamboobot --remote --command "SELECT count(*) FROM User"
+curl -X POST -H "X-Cleanup-Key: $CLEANUP_SECRET_KEY" "https://your-domain.com/api/cleanup-r2?dryRun=1"
 ```
 
-Then open `https://your-domain.com/` (landing page), sign in, and check `/app` loads.
+Then open `https://your-domain.com/` (landing page), sign in, and check `/app` loads. `/admin/system` shows D1 and R2 status.
 
 ## Troubleshooting
 
-- **Permission errors in logs:** `sudo chown -R 1001:1001 data && docker compose restart`.
-- **Database not persisting:** check `data/database.db` is a file owned by 1001:1001, and `docker compose exec bamboobot ls -la /app/prisma/` shows it.
 - **Sign-in fails:** `NEXTAUTH_URL` must be HTTPS and match the domain exactly, and the Google redirect URI must match.
-- **Large uploads fail:** see `docs/UPLOAD_TROUBLESHOOTING.md`.
+- **Bulk emails send but quota is never returned for failures:** check `NEXTAUTH_SECRET` is set and the `WORKER_SELF_REFERENCE` service name matches the Worker name.
+- **Expired files are not deleted:** check `CLEANUP_SECRET_KEY` is set; the cron logs "Skipping storage cleanup" without it. Cron runs appear in `wrangler tail` and in the dashboard under Logs.
+- **Uploads over 10 MB fail:** raise `MAX_UPLOAD_SIZE`. Workers accept request bodies up to 100 MB on the Paid plan.
 
 ## Rolling back
 
 ```bash
-git checkout <previous-good-commit>
-docker compose build --no-cache
-docker compose up -d
+npx wrangler deployments list
+npx wrangler rollback <deployment-id>
 ```
 
-Schema changes are additive so far, so an older build can usually run against a newer database. Check `prisma/migrations/` if unsure.
+Rolling back the code does not undo D1 migrations. Migrations so far only add tables and columns, so an older build can run against a newer database.

@@ -1,10 +1,16 @@
+// The OpenNext context only exists inside a Worker request.
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No Cloudflare context in tests');
+  }
+}));
+
 describe('rate-limit utility', () => {
   beforeEach(() => {
     jest.resetModules();
     process.env.RATE_LIMIT_WINDOW_SECONDS = '1';
     process.env.RATE_LIMIT_API_PER_MIN = '3';
     delete process.env.TRUST_PROXY_HEADERS;
-    delete process.env.VERCEL;
     delete process.env.RATE_LIMIT_MAX_BUCKETS;
   });
 
@@ -16,10 +22,10 @@ describe('rate-limit utility', () => {
       route: 'test',
       category: 'api'
     });
-    const r1 = rateLimit(key, 'api');
-    const r2 = rateLimit(key, 'api');
-    const r3 = rateLimit(key, 'api');
-    const r4 = rateLimit(key, 'api');
+    const r1 = await rateLimit(key, 'api');
+    const r2 = await rateLimit(key, 'api');
+    const r3 = await rateLimit(key, 'api');
+    const r4 = await rateLimit(key, 'api');
     expect(r1.allowed).toBe(true);
     expect(r2.allowed).toBe(true);
     expect(r3.allowed).toBe(true);
@@ -44,15 +50,38 @@ describe('rate-limit utility', () => {
     expect(getClientIp(request)).toBe('1.1.1.1');
   });
 
-  it('trusts platform-overwritten proxy headers on Vercel', async () => {
-    process.env.VERCEL = '1';
+  it('trusts the CF-Connecting-IP header that the Cloudflare edge overwrites', async () => {
     const { getClientIp } = await import('@/lib/rate-limit');
     expect(
       getClientIp({
-        headers: { 'x-real-ip': '1.1.1.1' },
+        headers: { 'cf-connecting-ip': ' 1.1.1.1 ', 'x-real-ip': '2.2.2.2', 'x-forwarded-for': '3.3.3.3' },
         socket: { remoteAddress: '127.0.0.1' }
       })
     ).toBe('1.1.1.1');
+    expect(
+      getClientIp({
+        headers: { 'cf-connecting-ip': ['4.4.4.4'] },
+        socket: { remoteAddress: '127.0.0.1' }
+      })
+    ).toBe('4.4.4.4');
+  });
+
+  it('uses the Workers Rate Limiting binding when one is registered', async () => {
+    const { setWorkerEnv } = await import('@/lib/cloudflare/env');
+    const limit = jest.fn().mockResolvedValueOnce({ success: true }).mockResolvedValueOnce({ success: false });
+    setWorkerEnv({ RATE_LIMIT_EMAIL: { limit } } as never);
+    try {
+      const { rateLimit, buildKey } = await import('@/lib/rate-limit');
+      const key = buildKey({ userId: 'u1', route: 'test', category: 'email' });
+      expect((await rateLimit(key, 'email')).allowed).toBe(true);
+      expect((await rateLimit(key, 'email')).allowed).toBe(false);
+      expect(limit).toHaveBeenCalledWith({ key });
+      // Categories without a binding still use the in-memory limiter.
+      expect((await rateLimit(buildKey({ userId: 'u1', route: 'test', category: 'api' }), 'api')).allowed).toBe(true);
+      expect(limit).toHaveBeenCalledTimes(2);
+    } finally {
+      setWorkerEnv(null);
+    }
   });
 
   it('uses the trusted proxy-appended address rather than a spoofed X-Forwarded-For prefix', async () => {
@@ -71,13 +100,13 @@ describe('rate-limit utility', () => {
     try {
       const { rateLimit, buildKey } = await import('@/lib/rate-limit');
       const key = buildKey({ userId: 'reset-user', ip: null, route: 'test', category: 'api' });
-      for (let i = 0; i < 3; i++) expect(rateLimit(key, 'api').allowed).toBe(true);
-      expect(rateLimit(key, 'api').allowed).toBe(false);
+      for (let i = 0; i < 3; i++) expect((await rateLimit(key, 'api')).allowed).toBe(true);
+      expect((await rateLimit(key, 'api')).allowed).toBe(false);
       // One millisecond before the reset boundary the caller is still blocked.
       jest.advanceTimersByTime(999);
-      expect(rateLimit(key, 'api').allowed).toBe(false);
+      expect((await rateLimit(key, 'api')).allowed).toBe(false);
       jest.advanceTimersByTime(1);
-      const afterReset = rateLimit(key, 'api');
+      const afterReset = await rateLimit(key, 'api');
       expect(afterReset.allowed).toBe(true);
       expect(afterReset.remaining).toBe(2);
     } finally {
@@ -111,17 +140,17 @@ describe('rate-limit utility', () => {
     const req = { headers: {}, socket: { remoteAddress: '203.0.113.9' } };
 
     let res = makeRes();
-    const first = enforceRateLimit(req, res, { userId: 'enforce-user', route: 'r', category: 'api' });
+    const first = await enforceRateLimit(req, res, { userId: 'enforce-user', route: 'r', category: 'api' });
     expect(first.allowed).toBe(true);
     expect(res.headers['X-RateLimit-Limit']).toBe('3');
     expect(res.headers['X-RateLimit-Remaining']).toBe('2');
     expect(Number(res.headers['X-RateLimit-Reset'])).toBeGreaterThan(0);
     expect(res.headers['Retry-After']).toBeUndefined();
 
-    enforceRateLimit(req, makeRes(), { userId: 'enforce-user', route: 'r', category: 'api' });
-    enforceRateLimit(req, makeRes(), { userId: 'enforce-user', route: 'r', category: 'api' });
+    await enforceRateLimit(req, makeRes(), { userId: 'enforce-user', route: 'r', category: 'api' });
+    await enforceRateLimit(req, makeRes(), { userId: 'enforce-user', route: 'r', category: 'api' });
     res = makeRes();
-    const blocked = enforceRateLimit(req, res, { userId: 'enforce-user', route: 'r', category: 'api' });
+    const blocked = await enforceRateLimit(req, res, { userId: 'enforce-user', route: 'r', category: 'api' });
     expect(blocked.allowed).toBe(false);
     expect(blocked.remaining).toBe(0);
     expect(Number(res.headers['Retry-After'])).toBeGreaterThanOrEqual(0);
@@ -132,14 +161,14 @@ describe('rate-limit utility', () => {
     process.env.RATE_LIMIT_MAX_BUCKETS = '2';
     const { rateLimit, buildKey } = await import('@/lib/rate-limit');
     const key = (ip: string) => buildKey({ ip, route: 'test', category: 'api' });
-    rateLimit(key('1.1.1.1'), 'api');
-    rateLimit(key('2.2.2.2'), 'api');
-    expect(rateLimit(key('3.3.3.3'), 'api').allowed).toBe(true);
+    await rateLimit(key('1.1.1.1'), 'api');
+    await rateLimit(key('2.2.2.2'), 'api');
+    expect((await rateLimit(key('3.3.3.3'), 'api')).allowed).toBe(true);
 
     const authenticated = (userId: string) => buildKey({ userId, route: 'test', category: 'api' });
-    rateLimit(authenticated('user-1'), 'api');
-    rateLimit(authenticated('user-2'), 'api');
-    expect(rateLimit(authenticated('user-3'), 'api').allowed).toBe(true);
-    expect(rateLimit(authenticated('user-1'), 'api').remaining).toBe(2);
+    await rateLimit(authenticated('user-1'), 'api');
+    await rateLimit(authenticated('user-2'), 'api');
+    expect((await rateLimit(authenticated('user-3'), 'api')).allowed).toBe(true);
+    expect((await rateLimit(authenticated('user-1'), 'api')).remaining).toBe(2);
   });
 });

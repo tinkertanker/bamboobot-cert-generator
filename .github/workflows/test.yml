@@ -34,3 +34,9 @@ jobs:
       
     - name: Run linting
       run: npm run lint
+
+    - name: Build Cloudflare Worker
+      run: npm run build:cloudflare
+
+    - name: Check Worker bundle
+      run: npx wrangler deploy --dry-run --outdir /tmp/worker-bundle

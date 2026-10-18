@@ -1,5 +1,14 @@
 import { UserTier } from '@/types/user';
 
+// lib/server/prisma.ts loads the D1 adapter and OpenNext context, which are
+// ESM-only and only usable inside a Worker. These tests never reach the DB.
+jest.mock('@prisma/adapter-d1', () => ({ PrismaD1: jest.fn() }));
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No Cloudflare context in tests');
+  }
+}));
+
 // Mock environment variables
 const originalEnv = process.env;
 

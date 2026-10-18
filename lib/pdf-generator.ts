@@ -1,16 +1,7 @@
-import { PDFDocument } from 'pdf-lib';
-import fsPromises from 'fs/promises';
-import path from 'path';
+import type { PDFDocument } from 'pdf-lib';
 import * as fontkit from '@pdf-lib/fontkit';
-import {
-  Entry,
-  Position,
-  FontSet,
-  FontFamily,
-  embedStandardFonts,
-  addTextToPage,
-  collectUsedFontKeys
-} from '@/lib/pdf/shared/pdf-generation-core';
+import { readStaticAsset } from '@/lib/cloudflare/assets';
+import type { Entry, Position, FontSet, FontFamily } from '@/lib/pdf/shared/pdf-generation-core';
 
 // Re-export types for backward compatibility
 export type { Entry, Position };
@@ -59,14 +50,17 @@ const CUSTOM_FONT_FILES: Record<string, Array<[keyof FontSet & string, string]>>
   ],
 };
 
-// Font files are static assets: read each from disk once per process instead of
-// once per certificate. Failed reads are evicted so a later request can retry.
-const fontBytesCache = new Map<string, Promise<Buffer>>();
+// Font files are static assets: fetch each once per isolate instead of once
+// per certificate. Failed reads are evicted so a later request can retry.
+const fontBytesCache = new Map<string, Promise<Uint8Array>>();
 
-function readFontFile(file: string): Promise<Buffer> {
+function readFontFile(file: string): Promise<Uint8Array> {
   let cached = fontBytesCache.get(file);
   if (!cached) {
-    cached = fsPromises.readFile(path.join(process.cwd(), 'public/fonts', file));
+    cached = readStaticAsset(`/fonts/${file}`).then(bytes => {
+      if (!bytes) throw new Error(`Font file ${file} is missing`);
+      return bytes;
+    });
     cached.catch(() => fontBytesCache.delete(file));
     fontBytesCache.set(file, cached);
   }
@@ -123,62 +117,4 @@ export async function embedCustomFonts(
     }
   }
   return embedded;
-}
-
-/**
- * Render a single PDF certificate and return its bytes.
- * `template` may be a file path or the already-loaded template bytes/document
- * (pass a pre-loaded PDFDocument when rendering many certificates from one template).
- */
-export async function renderSinglePdf(
-  template: string | Uint8Array | PDFDocument,
-  entryData: Entry,
-  positions: Record<string, Position>,
-  uiContainerDimensions: { width: number; height: number }
-): Promise<Uint8Array> {
-  const templateDoc =
-    template instanceof PDFDocument
-      ? template
-      : await PDFDocument.load(typeof template === 'string' ? await fsPromises.readFile(template) : template);
-
-  // Create new PDF for this entry
-  const pdf = await PDFDocument.create();
-
-  // Copy template page
-  const [templatePage] = await pdf.copyPages(templateDoc, [0]);
-  pdf.addPage(templatePage);
-
-  // Embed standard fonts
-  const standardFonts = await embedStandardFonts(pdf);
-
-  // Only register fontkit and embed custom fonts if needed
-  const customFontsEmbedded = await embedCustomFonts(
-    pdf,
-    getNeededCustomFontFamilies(positions, [entryData]),
-    collectUsedFontKeys([entryData], positions)
-  );
-
-  // Combine standard and custom fonts
-  const fonts: FontSet = { ...standardFonts, ...customFontsEmbedded } as FontSet;
-
-  const page = pdf.getPages()[0];
-
-  // Use shared core function to add text to page
-  addTextToPage(page, entryData, positions, fonts, uiContainerDimensions);
-
-  return pdf.save();
-}
-
-/**
- * Generate a single PDF certificate and write it to `outputPath`.
- */
-export async function generateSinglePdf(
-  template: string | Uint8Array | PDFDocument,
-  entryData: Entry,
-  positions: Record<string, Position>,
-  uiContainerDimensions: { width: number; height: number },
-  outputPath: string
-): Promise<void> {
-  const pdfBytes = await renderSinglePdf(template, entryData, positions, uiContainerDimensions);
-  await fsPromises.writeFile(outputPath, pdfBytes);
 }

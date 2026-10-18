@@ -1,11 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs';
 import path from 'path';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { getTempImagesDir, resolvePathWithin } from '@/lib/paths';
-import storageConfig from '@/lib/storage-config';
-import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
-import { getS3SignedUrl } from '@/lib/s3-client';
+import { getObject } from '@/lib/storage/bucket';
+import { sendStoredObject } from '@/lib/storage/serve';
 
 const SERVED_TYPES: Record<string, string> = {
   '.png': 'image/png',
@@ -14,7 +11,8 @@ const SERVED_TYPES: Record<string, string> = {
   '.pdf': 'application/pdf',
 };
 
-// Serve nested temp_images paths, e.g. temp_images/u_<userId>/<filename>
+// Serve nested temp_images paths, e.g. temp_images/u_<userId>/<filename>.
+// Served same-origin so browser PDF generation needs no bucket CORS setup.
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await requireAuth(req, res);
   if (!session) return;
@@ -31,7 +29,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  // Enforce user folder prefix
   const expectedPrefix = `u_${userId}`;
   if (segments[0] !== expectedPrefix) {
     res.status(403).json({ error: 'Forbidden' });
@@ -54,36 +51,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(404).json({ error: 'File not found' });
     return;
   }
-  const baseDir = getTempImagesDir();
-  const fullPath = resolvePathWithin(baseDir, relativePath);
-  if (!fullPath) {
-    res.status(403).json({ error: 'Access denied' });
-    return;
-  }
-
-  // Uploads are always retained locally. Prefer that same-origin copy so browser
-  // PDF generation does not depend on cross-origin bucket CORS configuration.
-  if (!fs.existsSync(fullPath)) {
-    if (storageConfig.isR2Enabled) {
-      res.redirect(302, await getR2SignedUrl(`temp_images/${relativePath}`));
-      return;
-    }
-    if (storageConfig.isS3Enabled) {
-      res.redirect(302, await getS3SignedUrl(`temp_images/${relativePath}`));
-      return;
-    }
-    res.status(404).json({ error: 'File not found' });
-    return;
-  }
 
   try {
-    const buf = fs.readFileSync(fullPath);
-    res.setHeader('Content-Type', mimeType);
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Cache-Control', 'private, no-store');
-    res.send(buf);
+    const object = await getObject(`temp_images/${relativePath}`);
+    if (!object) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+    await sendStoredObject(res, object, { contentType: mimeType });
   } catch (e) {
     console.error('Error serving nested temp image:', e);
-    res.status(500).json({ error: 'Error serving file' });
+    if (!res.headersSent) res.status(500).json({ error: 'Error serving file' });
   }
 }

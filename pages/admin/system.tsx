@@ -7,14 +7,10 @@ import { isAuthenticationRequired } from '@/lib/auth/runtime-policy';
 import { getTierLimits } from '@/types/user';
 import type { UserTier } from '@/types/user';
 import AdminLayout from '@/components/admin/AdminLayout';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
-import { getGeneratedDir, getTempImagesDir } from '@/lib/paths';
+import { listObjects } from '@/lib/storage/bucket';
 
 interface SystemInfo {
   database: {
-    size: number;
     tables: {
       name: string;
       count: number;
@@ -22,27 +18,13 @@ interface SystemInfo {
     isHealthy: boolean;
   };
   storage: {
-    local: {
-      tempImages: number;
-      tempImagesCount: number;
-      generated: number;
-      generatedCount: number;
-    };
-    r2: {
-      enabled: boolean;
-      bucket: string | null;
-    };
-  };
-  environment: {
-    nodeVersion: string;
-    platform: string;
-    uptime: number;
-    memory: {
-      total: number;
-      free: number;
-      used: number;
-      percentage: number;
-    };
+    tempImages: number;
+    tempImagesCount: number;
+    generated: number;
+    generatedCount: number;
+    emailAttachments: number;
+    emailAttachmentsCount: number;
+    isHealthy: boolean;
   };
   emailProviders: {
     resend: boolean;
@@ -75,16 +57,6 @@ export default function SystemPage({ system }: SystemPageProps) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
   
-  const formatUptime = (seconds: number) => {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    
-    if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
-  
   const getStatusColor = (healthy: boolean) => healthy ? 'text-green-600' : 'text-red-600';
   const getStatusIcon = (healthy: boolean) => healthy ? '✅' : '❌';
   
@@ -102,8 +74,8 @@ export default function SystemPage({ system }: SystemPageProps) {
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Size</span>
-                <span className="font-medium">{formatBytes(system.database.size)}</span>
+                <span className="text-gray-500">Engine</span>
+                <span className="font-medium">Cloudflare D1</span>
               </div>
               {system.database.tables.map(table => (
                 <div key={table.name} className="flex justify-between text-sm">
@@ -116,83 +88,29 @@ export default function SystemPage({ system }: SystemPageProps) {
           
           {/* Storage */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Storage</h2>
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Local Storage</h3>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Temp Images</span>
-                    <span>{system.storage.local.tempImagesCount} files ({formatBytes(system.storage.local.tempImages)})</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Generated PDFs</span>
-                    <span>{system.storage.local.generatedCount} files ({formatBytes(system.storage.local.generated)})</span>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Cloud Storage (R2/S3)</h3>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Enabled</span>
-                    <span className={system.storage.r2.enabled ? 'text-green-600' : 'text-gray-400'}>
-                      {system.storage.r2.enabled ? 'Yes' : 'No'}
-                    </span>
-                  </div>
-                  {system.storage.r2.bucket && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Bucket</span>
-                      <span className="break-all text-right">{system.storage.r2.bucket}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">File storage (R2)</h2>
+              <span className={getStatusColor(system.storage.isHealthy)}>
+                <span aria-hidden="true">{getStatusIcon(system.storage.isHealthy)}</span>
+                <span className="sr-only">{system.storage.isHealthy ? 'Healthy' : 'Unreachable'}</span>
+              </span>
             </div>
-          </div>
-          
-          {/* Environment */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Environment</h2>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-1 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500">Node Version</span>
-                <span>{system.environment.nodeVersion}</span>
+                <span className="text-gray-500">Templates and images</span>
+                <span>{system.storage.tempImagesCount} files ({formatBytes(system.storage.tempImages)})</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Platform</span>
-                <span className="break-all text-right">{system.environment.platform}</span>
+                <span className="text-gray-500">Generated PDFs</span>
+                <span>{system.storage.generatedCount} files ({formatBytes(system.storage.generated)})</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Uptime</span>
-                <span>{formatUptime(system.environment.uptime)}</span>
+                <span className="text-gray-500">Queued email attachments</span>
+                <span>{system.storage.emailAttachmentsCount} files ({formatBytes(system.storage.emailAttachments)})</span>
               </div>
-              <div className="pt-2 border-t">
-                <div className="flex justify-between mb-1">
-                  <span className="text-gray-500">Memory Usage</span>
-                  <span>{system.environment.memory.percentage.toFixed(1)}%</span>
-                </div>
-                <div
-                  className="w-full bg-gray-200 rounded-full h-2"
-                  role="progressbar"
-                  aria-label="Memory usage"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(system.environment.memory.percentage)}
-                >
-                  <div 
-                    className={`h-2 rounded-full ${
-                      system.environment.memory.percentage > 80 ? 'bg-red-500' :
-                      system.environment.memory.percentage > 60 ? 'bg-yellow-500' :
-                      'bg-green-500'
-                    }`}
-                    style={{ width: `${system.environment.memory.percentage}%` }}
-                  />
-                </div>
-                <div className="flex justify-between mt-1 text-xs text-gray-500">
-                  <span>Used: {formatBytes(system.environment.memory.used)}</span>
-                  <span>Free: {formatBytes(system.environment.memory.free)}</span>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Runtime</span>
+                <span>Cloudflare Workers</span>
               </div>
             </div>
           </div>
@@ -312,14 +230,6 @@ export const getServerSideProps: GetServerSideProps<SystemPageProps> = async (co
     };
   }
   
-  // Gather system information
-  const dbPath = path.join(process.cwd(), 'database.db');
-  let dbSize = 0;
-  try {
-    const stats = fs.statSync(dbPath);
-    dbSize = stats.size;
-  } catch {}
-  
   // Get table counts
   const [userCount, projectCount, sessionCount, usageLogCount, auditLogCount] = await Promise.all([
     prisma.user.count(),
@@ -329,40 +239,25 @@ export const getServerSideProps: GetServerSideProps<SystemPageProps> = async (co
     prisma.auditLog.count()
   ]);
   
-  // Check local storage
-  const tempImagesDir = getTempImagesDir();
-  const generatedDir = getGeneratedDir();
-  
-  const getDirectorySize = (dir: string) => {
-    let size = 0;
-    let count = 0;
-    try {
-      const files = fs.readdirSync(dir);
-      files.forEach(file => {
-        const filePath = path.join(dir, file);
-        try {
-          const stats = fs.statSync(filePath);
-          if (stats.isFile()) {
-            size += stats.size;
-            count++;
-          }
-        } catch {}
-      });
-    } catch {}
-    return { size, count };
+  // Summarise R2 usage by prefix. A listing failure is reported, not fatal.
+  const summarise = async (prefix: string) => {
+    const objects = await listObjects(prefix);
+    return { size: objects.reduce((sum, object) => sum + object.size, 0), count: objects.length };
   };
-  
-  const tempImages = getDirectorySize(tempImagesDir);
-  const generated = getDirectorySize(generatedDir);
-  
-  // Memory info
-  const totalMem = os.totalmem();
-  const freeMem = os.freemem();
-  const usedMem = totalMem - freeMem;
+  let storageHealthy = true;
+  const empty = { size: 0, count: 0 };
+  const [tempImages, generated, emailAttachments] = await Promise.all([
+    summarise('temp_images/'),
+    summarise('generated/'),
+    summarise('email_queue/')
+  ]).catch((err) => {
+    console.error('Failed to list R2 objects:', err);
+    storageHealthy = false;
+    return [empty, empty, empty];
+  });
   
   const systemInfo: SystemInfo = {
     database: {
-      size: dbSize,
       tables: [
         { name: 'Users', count: userCount },
         { name: 'Projects', count: projectCount },
@@ -373,27 +268,13 @@ export const getServerSideProps: GetServerSideProps<SystemPageProps> = async (co
       isHealthy: true
     },
     storage: {
-      local: {
-        tempImages: tempImages.size,
-        tempImagesCount: tempImages.count,
-        generated: generated.size,
-        generatedCount: generated.count
-      },
-      r2: {
-        enabled: !!process.env.R2_BUCKET_NAME,
-        bucket: process.env.R2_BUCKET_NAME || null
-      }
-    },
-    environment: {
-      nodeVersion: process.version,
-      platform: `${os.platform()} ${os.release()}`,
-      uptime: process.uptime(),
-      memory: {
-        total: totalMem,
-        free: freeMem,
-        used: usedMem,
-        percentage: (usedMem / totalMem) * 100
-      }
+      tempImages: tempImages.size,
+      tempImagesCount: tempImages.count,
+      generated: generated.size,
+      generatedCount: generated.count,
+      emailAttachments: emailAttachments.size,
+      emailAttachmentsCount: emailAttachments.count,
+      isHealthy: storageHealthy
     },
     emailProviders: {
       resend: !!process.env.RESEND_API_KEY,

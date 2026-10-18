@@ -1,8 +1,5 @@
 /** @jest-environment node */
 
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
 import httpMocks from 'node-mocks-http';
 import type { RequestMethod } from 'node-mocks-http';
 import { PDFDocument } from 'pdf-lib';
@@ -15,31 +12,30 @@ jest.mock('@/lib/server/middleware/featureGate', () => ({
       return handler(req, res);
     },
 }));
-jest.mock('@/lib/rate-limit', () => ({
-  buildKey: jest.fn(() => 'generate:test'),
-  rateLimit: jest.fn(() => ({ allowed: true, limit: 10, remaining: 9, resetAt: Date.now() + 60_000 })),
-}));
-jest.mock('@/lib/storage-config', () => ({
-  __esModule: true,
-  default: {
-    isR2Enabled: false,
-    isS3Enabled: false,
-    getFileUrl: (filename: string, subdirectory?: string) => `/files/${subdirectory}/${filename}`,
+// The OpenNext package is ESM-only; there is no request context under Jest,
+// so getEnv() falls back to the env registered by installCloudflareEnv().
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No Cloudflare context in tests');
   },
 }));
-jest.mock('@/lib/r2-client', () => ({ uploadToR2: jest.fn() }));
-jest.mock('@/lib/s3-client', () => ({ uploadToS3: jest.fn() }));
+jest.mock('@/lib/rate-limit', () => ({
+  enforceRateLimit: jest.fn(async () => ({ allowed: true, limit: 10, remaining: 9, resetAt: Date.now() + 60_000 })),
+}));
 
 import handler from '@/pages/api/generate';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { MAX_SINGLE_REQUEST_PDF_ROWS } from '@/lib/pdf/server-limits';
+import { verifySignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
 import { silenceConsole } from '../helpers/silence-console';
+import { installCloudflareEnv, resetCloudflareEnv, type FakeR2Bucket } from '../helpers/cloudflare';
 
-let storageDir: string;
+let bucket: FakeR2Bucket;
 
 const body = (overrides: Record<string, unknown> = {}) => ({
   templateFilename: 'u_u1/template.pdf',
   data: [{ name: { text: 'Ada Lovelace' } }, { name: { text: 'Grace Hopper' } }],
-  positions: { name: { x: 50, y: 50, fontSize: 24 } },
+  positions: { name: { x: 0.5, y: 0.5, fontSize: 24 } },
   uiContainerDimensions: { width: 800, height: 600 },
   ...overrides,
 });
@@ -51,32 +47,48 @@ async function call(method: RequestMethod, payload: Record<string, unknown> = {}
   return res;
 }
 
+function pathFromSignedUrl(url: string): string {
+  const params = new URL(url, 'http://localhost').searchParams;
+  // Throws unless the URL carries a valid signature for that path.
+  return verifySignedGeneratedFileUrl(
+    params.get('path') as string,
+    params.get('expires') as string,
+    params.get('signature') as string
+  );
+}
+
 describe('/api/generate', () => {
   silenceConsole();
 
   beforeEach(async () => {
-    storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bamboobot-generate-'));
-    process.env.LOCAL_STORAGE_DIR = storageDir;
-    const templateDir = path.join(storageDir, 'temp_images', 'u_u1');
-    fs.mkdirSync(templateDir, { recursive: true });
+    ({ bucket } = installCloudflareEnv());
     const template = await PDFDocument.create();
     template.addPage([800, 600]);
-    fs.writeFileSync(path.join(templateDir, 'template.pdf'), await template.save());
+    bucket.seed('temp_images/u_u1/template.pdf', await template.save(), {}, 'application/pdf');
   });
 
-  afterEach(() => {
-    delete process.env.LOCAL_STORAGE_DIR;
-    fs.rmSync(storageDir, { recursive: true, force: true });
-  });
+  afterEach(() => resetCloudflareEnv());
 
   it('returns 405 for non-POST requests', async () => {
     const res = await call('GET');
     expect(res.statusCode).toBe(405);
   });
 
+  it('returns 429 when the generate rate limit is exceeded', async () => {
+    (enforceRateLimit as jest.Mock).mockResolvedValueOnce({ allowed: false });
+    const res = await call('POST', body());
+    expect(res.statusCode).toBe(429);
+  });
+
   it("refuses another user's template", async () => {
+    bucket.seed('temp_images/u_other/template.pdf', 'x');
     const res = await call('POST', body({ templateFilename: 'u_other/template.pdf' }));
     expect(res.statusCode).toBe(403);
+  });
+
+  it('returns 404 when the template does not exist', async () => {
+    const res = await call('POST', body({ templateFilename: 'u_u1/missing.pdf' }));
+    expect(res.statusCode).toBe(404);
   });
 
   it('rejects datasets over the single-request row limit', async () => {
@@ -90,9 +102,11 @@ describe('/api/generate', () => {
 
     expect(res.statusCode).toBe(200);
     const { outputPath } = res._getJSONData();
-    expect(outputPath).toMatch(/^\/files\/u_u1\/certificates_\d+\.pdf$/);
-    const filename = path.basename(outputPath);
-    const merged = await PDFDocument.load(fs.readFileSync(path.join(storageDir, 'generated', 'u_u1', filename)));
+    const storedPath = pathFromSignedUrl(outputPath);
+    expect(storedPath).toMatch(/^u_u1\/certificates_\d+\.pdf$/);
+    const stored = await bucket.get(`generated/${storedPath}`);
+    expect(stored).not.toBeNull();
+    const merged = await PDFDocument.load(new Uint8Array(await stored!.arrayBuffer()));
     expect(merged.getPageCount()).toBe(2);
   });
 
@@ -111,6 +125,11 @@ describe('/api/generate', () => {
     for (const name of [first, second]) {
       expect(name).toMatch(/^___Ada_Lovelace.*\.pdf$/);
       expect(name).not.toContain('/');
+    }
+    for (const file of files as Array<{ url: string; filename: string }>) {
+      const storedPath = pathFromSignedUrl(file.url);
+      expect(storedPath).toMatch(new RegExp(`^u_u1/individual_\\d+/${file.filename.replace(/[.]/g, '\\.')}$`));
+      expect(bucket.objects.has(`generated/${storedPath}`)).toBe(true);
     }
   });
 });

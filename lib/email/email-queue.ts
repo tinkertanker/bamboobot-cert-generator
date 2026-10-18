@@ -1,7 +1,54 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { EmailQueue, EmailQueueItem, EmailParams, BulkEmailProgress, EmailProvider } from './types';
+import type {
+  EmailQueue,
+  EmailQueueItem,
+  EmailParams,
+  BulkEmailProgress,
+  EmailProvider,
+  StoredAttachmentRef
+} from './types';
 import { formatRecipients } from '@/utils/email-validation';
 import { isDefinitelyUnsentProviderError, publicProviderError } from './provider-errors';
+
+/**
+ * Hooks that let a host other than a long-lived Node process run the queue.
+ * The Cloudflare Durable Object uses them to drive processing from alarms and
+ * to load each email's content and attachments from storage at send time.
+ */
+export interface EmailQueueManagerOptions {
+  /** Replaces setTimeout-based scheduling of the next processing step. */
+  scheduler?: {
+    schedule(delayMs: number): void;
+    cancel(): void;
+  };
+  /** Builds the message to send. Defaults to the content held on the item. */
+  prepareSend?: (item: EmailQueueItem) => Promise<EmailParams>;
+}
+
+export interface EmailQueueItemCompletion {
+  /** Stored attachment objects that the completed item no longer needs. */
+  attachmentKeys: StoredAttachmentRef[];
+}
+
+/** Queue state that can be written to storage and restored later. */
+export interface SerializedEmailQueue {
+  status: EmailQueue['status'];
+  processed: number;
+  failed: number;
+  lastActivity: number;
+  items: Array<
+    Omit<EmailQueueItem, 'createdAt' | 'sentAt' | 'nextRetryAt' | 'quotaReservationDay' | 'attachments'> & {
+      createdAt: string;
+      sentAt?: string;
+      nextRetryAt?: string;
+      quotaReservationDay?: string;
+    }
+  >;
+}
+
+function toDate(value: string | undefined): Date | undefined {
+  return value ? new Date(value) : undefined;
+}
 
 export class EmailQueueManager {
   private queue: EmailQueue;
@@ -9,12 +56,14 @@ export class EmailQueueManager {
   private processInterval: NodeJS.Timeout | null = null;
   private workerPromise: Promise<void> | null = null;
   private onProgress?: (progress: BulkEmailProgress) => void;
-  private onItemComplete?: (item: EmailQueueItem) => void;
+  private onItemComplete?: (item: EmailQueueItem, completion: EmailQueueItemCompletion) => void;
   private lastActivity: number = Date.now();
   private consecutiveProviderCapacityDeferrals = 0;
+  private readonly options: EmailQueueManagerOptions;
 
-  constructor(provider: EmailProvider) {
+  constructor(provider: EmailProvider, options: EmailQueueManagerOptions = {}) {
     this.provider = provider;
+    this.options = options;
     this.queue = {
       items: [],
       status: 'idle',
@@ -28,15 +77,26 @@ export class EmailQueueManager {
   /**
    * Add emails to the queue
    */
-  async addToQueue(emails: (EmailParams & { certificateUrl?: string; quotaReservationDay?: Date })[]): Promise<void> {
+  async addToQueue(
+    emails: (Partial<EmailParams> &
+      Pick<EmailParams, 'to'> & {
+        id?: string;
+        certificateUrl?: string;
+        quotaReservationDay?: Date;
+        attachmentKeys?: StoredAttachmentRef[];
+        attachmentBytes?: number;
+      })[]
+  ): Promise<void> {
     const newItems: EmailQueueItem[] = emails.map(email => ({
-      id: uuidv4(),
+      id: email.id || uuidv4(),
       to: email.to,
       from: email.from,
       subject: email.subject,
       html: email.html,
       text: email.text,
       attachments: email.attachments,
+      attachmentKeys: email.attachmentKeys,
+      attachmentBytes: email.attachmentBytes,
       certificateUrl: email.certificateUrl,
       quotaReservationDay: email.quotaReservationDay,
       quotaRefundSafe: !!email.quotaReservationDay,
@@ -53,7 +113,7 @@ export class EmailQueueManager {
   /**
    * Start processing the queue
    */
-  async processQueue(): Promise<void> {
+  async processQueue(options: { deferred?: boolean } = {}): Promise<void> {
     if (this.queue.status === 'processing') {
       console.log('Queue already processing');
       return;
@@ -62,6 +122,10 @@ export class EmailQueueManager {
     this.queue.status = 'processing';
     this.consecutiveProviderCapacityDeferrals = 0;
     this.lastActivity = Date.now();
+    if (options.deferred) {
+      this.scheduleWorker(0);
+      return;
+    }
     await this.runWorker();
   }
 
@@ -71,16 +135,13 @@ export class EmailQueueManager {
   async pause(): Promise<void> {
     this.queue.status = 'paused';
     this.lastActivity = Date.now();
-    if (this.processInterval) {
-      clearTimeout(this.processInterval);
-      this.processInterval = null;
-    }
+    this.cancelScheduledWorker();
   }
 
   /**
    * Resume queue processing
    */
-  async resume(): Promise<void> {
+  async resume(options: { deferred?: boolean } = {}): Promise<void> {
     if (this.queue.status !== 'paused') {
       return;
     }
@@ -90,7 +151,16 @@ export class EmailQueueManager {
       if (item.status === 'pending') item.backpressureDeferrals = 0;
     }
     this.lastActivity = Date.now();
+    if (options.deferred) {
+      this.scheduleWorker(0);
+      return;
+    }
     await this.runWorker();
+  }
+
+  /** Runs one processing step now. Hosts with their own scheduler call this. */
+  runNow(): Promise<void> {
+    return this.runWorker();
   }
 
   private runWorker(): Promise<void> {
@@ -102,7 +172,19 @@ export class EmailQueueManager {
     return worker;
   }
 
+  private cancelScheduledWorker(): void {
+    this.options.scheduler?.cancel();
+    if (this.processInterval) {
+      clearTimeout(this.processInterval);
+      this.processInterval = null;
+    }
+  }
+
   private scheduleWorker(delay: number): void {
+    if (this.options.scheduler) {
+      this.options.scheduler.schedule(Math.max(0, delay));
+      return;
+    }
     if (this.processInterval) clearTimeout(this.processInterval);
     this.processInterval = setTimeout(
       () => {
@@ -133,14 +215,17 @@ export class EmailQueueManager {
     item.html = undefined;
     item.text = undefined;
     item.attachments = undefined;
+    item.attachmentKeys = undefined;
+    item.attachmentBytes = undefined;
     item.certificateUrl = undefined;
     item.certificatePath = undefined;
   }
 
   private completeItem(item: EmailQueueItem): void {
+    const attachmentKeys = item.attachmentKeys || [];
     this.releaseItemPayload(item);
     try {
-      this.onItemComplete?.(item);
+      this.onItemComplete?.(item, { attachmentKeys });
     } catch (error) {
       // Accounting/telemetry callbacks must never resurrect a delivered item.
       console.error('Email queue completion callback failed:', error);
@@ -214,24 +299,7 @@ export class EmailQueueManager {
       pendingItem.sentAt = new Date();
       this.queue.processed++;
       this.consecutiveProviderCapacityDeferrals = 0;
-
-      // Mark as emailed in R2 if using cloud storage
-      if (
-        pendingItem.certificateUrl &&
-        (pendingItem.certificateUrl.includes('r2.cloudflarestorage.com') ||
-          pendingItem.certificateUrl.includes('r2-public'))
-      ) {
-        try {
-          await fetch('/api/mark-emailed', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fileUrl: pendingItem.certificateUrl })
-          });
-        } catch (error) {
-          console.warn('Failed to mark file as emailed:', error);
-        }
-      }
-
+      // Retention of linked certificates is extended when the email is queued.
       this.completeItem(pendingItem);
     } catch (error) {
       console.error(`Failed to send email to ${pendingItem.to}:`, error);
@@ -331,6 +399,14 @@ export class EmailQueueManager {
    * Send individual email
    */
   private async sendEmail(item: EmailQueueItem): Promise<void> {
+    if (this.options.prepareSend) {
+      const prepared = await this.options.prepareSend(item);
+      const preparedResult = await this.provider.sendEmail(prepared);
+      if (!preparedResult.success) {
+        throw new Error(preparedResult.error || 'Failed to send email');
+      }
+      return;
+    }
     const params: EmailParams = {
       to: item.to,
       from: item.from || process.env.EMAIL_FROM || 'noreply@certificates.com',
@@ -429,7 +505,7 @@ export class EmailQueueManager {
   /**
    * Set item complete callback
    */
-  onItemCompleted(callback: (item: EmailQueueItem) => void): void {
+  onItemCompleted(callback: (item: EmailQueueItem, completion: EmailQueueItemCompletion) => void): void {
     this.onItemComplete = callback;
   }
 
@@ -472,18 +548,77 @@ export class EmailQueueManager {
     return this.queue.items.reduce(
       (total, item) =>
         total +
+        (item.attachmentBytes || 0) +
         (item.attachments?.reduce(
-          (itemTotal, attachment) =>
-            itemTotal +
-            (Buffer.isBuffer(attachment.content)
-              ? attachment.content.length
-              : typeof attachment.content === 'string'
-                ? Buffer.byteLength(attachment.content)
-                : 0),
+          (itemTotal, attachment) => {
+            const content = attachment.content;
+            if (typeof content === 'string') return itemTotal + Buffer.byteLength(content);
+            return itemTotal + (content ? content.length : 0);
+          },
           0
         ) || 0),
       0
     );
+  }
+
+  /**
+   * Fails items left mid-send by an interrupted host. Their outcome is
+   * unknown, so they are neither retried nor refunded.
+   */
+  recoverInterruptedSends(): number {
+    let recovered = 0;
+    for (const item of this.queue.items) {
+      if (item.status !== 'sending') continue;
+      item.status = 'failed';
+      item.quotaRefundSafe = false;
+      item.lastError = 'Delivery outcome unknown: the queue was interrupted while sending';
+      this.queue.failed++;
+      this.completeItem(item);
+      recovered++;
+    }
+    if (recovered > 0 && this.queue.status === 'processing') this.scheduleWorker(0);
+    return recovered;
+  }
+
+  serialize(): SerializedEmailQueue {
+    return {
+      status: this.queue.status,
+      processed: this.queue.processed,
+      failed: this.queue.failed,
+      lastActivity: this.lastActivity,
+      items: this.queue.items.map(item => {
+        // Attachment content is never serialised; hosts store it separately.
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { attachments, createdAt, sentAt, nextRetryAt, quotaReservationDay, ...rest } = item;
+        return {
+          ...rest,
+          createdAt: createdAt.toISOString(),
+          sentAt: sentAt?.toISOString(),
+          nextRetryAt: nextRetryAt?.toISOString(),
+          quotaReservationDay: quotaReservationDay?.toISOString()
+        };
+      })
+    };
+  }
+
+  static restore(
+    provider: EmailProvider,
+    state: SerializedEmailQueue,
+    options: EmailQueueManagerOptions = {}
+  ): EmailQueueManager {
+    const manager = new EmailQueueManager(provider, options);
+    manager.queue.status = state.status;
+    manager.queue.processed = state.processed;
+    manager.queue.failed = state.failed;
+    manager.lastActivity = state.lastActivity;
+    manager.queue.items = state.items.map(item => ({
+      ...item,
+      createdAt: new Date(item.createdAt),
+      sentAt: toDate(item.sentAt),
+      nextRetryAt: toDate(item.nextRetryAt),
+      quotaReservationDay: toDate(item.quotaReservationDay)
+    }));
+    return manager;
   }
 
   /**

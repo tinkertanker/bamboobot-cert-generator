@@ -3,6 +3,7 @@
 import { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { middleware } from '@/middleware';
+import { getInternalRequestKey, INTERNAL_KEY_HEADER } from '@/lib/server/internal-request';
 
 jest.mock('next-auth/jwt', () => ({
   getToken: jest.fn(),
@@ -135,29 +136,70 @@ describe('authentication middleware', () => {
       delete process.env.CLEANUP_SECRET_KEY;
     });
 
-    it.each(['/api/cleanup-r2', '/api/cleanup-s3'])(
-      'lets %s through without a session when the cleanup key matches',
-      async pathname => {
-        const response = await middleware(cleanupRequest(pathname, 'cleanup-secret'));
-        expect(response.status).toBe(200);
-        expect(mockedGetToken).not.toHaveBeenCalled();
-      },
-    );
+    it('lets /api/cleanup-r2 through without a session when the cleanup key matches', async () => {
+      const response = await middleware(cleanupRequest('/api/cleanup-r2', 'cleanup-secret'));
+      expect(response.status).toBe(200);
+      expect(mockedGetToken).not.toHaveBeenCalled();
+    });
 
     it('requires a session when the cleanup key is wrong or missing', async () => {
-      expect((await middleware(cleanupRequest('/api/cleanup-s3', 'wrong'))).status).toBe(401);
-      expect((await middleware(cleanupRequest('/api/cleanup-s3'))).status).toBe(401);
+      expect((await middleware(cleanupRequest('/api/cleanup-r2', 'wrong'))).status).toBe(401);
+      expect((await middleware(cleanupRequest('/api/cleanup-r2'))).status).toBe(401);
     });
 
     it('does not let the cleanup key open other API routes', async () => {
-      for (const pathname of ['/api/storage/list', '/api/cleanup-s3/extra', '/api/cleanup-s3x']) {
+      for (const pathname of [
+        '/api/storage/list',
+        '/api/cleanup-s3',
+        '/api/cleanup-r2/extra',
+        '/api/cleanup-r2x',
+        '/api/internal/email-quota-refund',
+      ]) {
         expect((await middleware(cleanupRequest(pathname, 'cleanup-secret'))).status).toBe(401);
       }
     });
 
     it('requires a session when no cleanup secret is configured', async () => {
       delete process.env.CLEANUP_SECRET_KEY;
-      expect((await middleware(cleanupRequest('/api/cleanup-s3', ''))).status).toBe(401);
+      expect((await middleware(cleanupRequest('/api/cleanup-r2', ''))).status).toBe(401);
+    });
+  });
+
+  describe('internal requests from the email queue', () => {
+    function internalRequest(pathname: string, key?: string | null): NextRequest {
+      return new NextRequest(`https://internal${pathname}`, {
+        method: 'POST',
+        headers: key ? { [INTERNAL_KEY_HEADER]: key } : {},
+      });
+    }
+
+    beforeEach(() => {
+      mockedGetToken.mockResolvedValue(null);
+    });
+
+    it('lets the quota refund route through with the derived internal key', async () => {
+      const response = await middleware(internalRequest('/api/internal/email-quota-refund', getInternalRequestKey()));
+      expect(response.status).toBe(200);
+      expect(mockedGetToken).not.toHaveBeenCalled();
+    });
+
+    it('requires a session without a valid internal key', async () => {
+      expect((await middleware(internalRequest('/api/internal/email-quota-refund'))).status).toBe(401);
+      expect((await middleware(internalRequest('/api/internal/email-quota-refund', 'wrong'))).status).toBe(401);
+      expect((await middleware(internalRequest('/api/internal/email-quota-refund', 'test-secret'))).status).toBe(401);
+    });
+
+    it('does not let the internal key open any other route', async () => {
+      const key = getInternalRequestKey();
+      for (const pathname of ['/api/projects', '/api/internal/other', '/api/internal/email-quota-refund/extra']) {
+        expect((await middleware(internalRequest(pathname, key))).status).toBe(401);
+      }
+    });
+
+    it('rejects the internal route when NEXTAUTH_SECRET is not set', async () => {
+      const key = getInternalRequestKey();
+      delete process.env.NEXTAUTH_SECRET;
+      expect((await middleware(internalRequest('/api/internal/email-quota-refund', key))).status).toBe(401);
     });
   });
 

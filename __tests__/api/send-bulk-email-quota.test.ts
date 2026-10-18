@@ -1,58 +1,73 @@
 /** @jest-environment node */
 
-const addToQueue = jest.fn(async (_emails: any[]) => undefined);
-let mockItemCompleted: ((item: any) => void) | undefined;
-jest.mock('@/lib/email/email-queue', () => ({
-  EmailQueueManager: jest.fn(() => ({
-    addToQueue,
-    isProcessing: jest.fn(() => true),
-    processQueue: jest.fn(),
-    getQueueLength: jest.fn(() => 0),
-    getRetainedAttachmentBytes: jest.fn(() => 0),
-    onItemCompleted: jest.fn(callback => {
-      mockItemCompleted = callback;
-    }),
-    getStatus: jest.fn(() => ({ status: 'idle' })),
-    getLastActivity: jest.fn(() => Date.now()),
-    clear: jest.fn()
-  }))
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No Cloudflare context in tests');
+  }
 }));
+jest.mock('@prisma/adapter-d1', () => ({ PrismaD1: jest.fn() }));
+jest.mock('@/lib/email/queue-client', () => ({ callEmailQueue: jest.fn() }));
 jest.mock('@/lib/auth/requireAuth', () => ({
   requireAuth: jest.fn(async () => ({ user: { id: 'u1' } }))
 }));
-jest.mock('@/lib/email/provider-factory', () => ({
-  getEmailProvider: jest.fn(() => ({ name: 'resend' }))
-}));
+jest.mock('@/lib/email/provider-factory', () => ({ getEmailProvider: jest.fn() }));
 jest.mock('@/lib/server/tiers', () => ({
-  checkEmailUsageAvailability: jest.fn(async () => ({ allowed: true, limit: 100, current: 0 })),
+  checkEmailUsageAvailability: jest.fn(async () => ({ allowed: true, limit: 1000, current: 0 })),
   reserveEmailUsage: jest.fn(async () => ({
     allowed: true,
-    limit: 100,
+    limit: 1000,
     current: 2,
     reservationDay: new Date('2026-07-11T00:00:00Z')
   })),
   releaseEmailUsageReservation: jest.fn(async () => undefined)
 }));
 jest.mock('@/lib/rate-limit', () => ({
-  enforceRateLimit: jest.fn(() => ({ allowed: true }))
+  enforceRateLimit: jest.fn(async () => ({ allowed: true }))
 }));
 jest.mock('@/lib/storage/mark-generated', () => ({
   markGeneratedFileAsEmailed: jest.fn(async () => undefined)
 }));
 
 import httpMocks from 'node-mocks-http';
-import handler, { cleanupEmailQueueInterval } from '@/pages/api/send-bulk-email';
+import handler from '@/pages/api/send-bulk-email';
 import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
 import { releaseEmailUsageReservation, reserveEmailUsage } from '@/lib/server/tiers';
+import { getEmailProvider } from '@/lib/email/provider-factory';
+import { callEmailQueue } from '@/lib/email/queue-client';
+import { installCloudflareEnv, resetCloudflareEnv } from '../helpers/cloudflare';
+import { createMockProvider, createQueueHarness, type QueueHarness } from '../helpers/email-queue-harness';
+import { silenceConsole } from '../helpers/silence-console';
 
 const mockReserveEmailUsage = reserveEmailUsage as jest.MockedFunction<typeof reserveEmailUsage>;
 const mockReleaseEmailUsage = releaseEmailUsageReservation as jest.MockedFunction<typeof releaseEmailUsageReservation>;
+const mockCallEmailQueue = callEmailQueue as jest.MockedFunction<typeof callEmailQueue>;
+const mockGetEmailProvider = getEmailProvider as jest.MockedFunction<typeof getEmailProvider>;
+let harness: QueueHarness;
+let provider: ReturnType<typeof createMockProvider>;
+let selfFetch: jest.Mock;
+
+async function queuedTotal(sessionId: string) {
+  const response = await harness.callEmailQueue('u1', `/status?sessionId=${sessionId}`);
+  return ((await response.json()) as { total: number }).total;
+}
 
 describe('bulk email quota and content controls', () => {
+  silenceConsole();
+
   beforeEach(() => {
     jest.clearAllMocks();
-    mockItemCompleted = undefined;
     process.env.FILE_URL_SIGNING_SECRET = 'test-file-signing-secret';
+    process.env.NEXTAUTH_SECRET = 'quota-test-secret';
+    const { bucket } = installCloudflareEnv();
+    selfFetch = jest.fn(async () => new Response('{"success":true}'));
+    harness = createQueueHarness({ FILES: bucket, WORKER_SELF_REFERENCE: { fetch: selfFetch } } as never);
+    mockCallEmailQueue.mockImplementation(harness.callEmailQueue);
+    provider = createMockProvider();
+    mockGetEmailProvider.mockReturnValue(provider as never);
+  });
+  afterEach(() => {
+    resetCloudflareEnv();
+    delete process.env.NEXTAUTH_SECRET;
   });
 
   it('coalesces terminal definitely-unsent bulk refunds by reservation day', async () => {
@@ -69,26 +84,28 @@ describe('bulk email quota and content controls', () => {
     });
     const res = httpMocks.createResponse();
 
-    await handler(req, res);
-    mockItemCompleted?.({
-      status: 'failed',
-      to: ['one@example.com'],
-      lastError: 'PROVIDER_REJECTED: identity not verified',
-      quotaReservationDay: new Date('2026-07-11T00:00:00Z')
-    });
-    mockItemCompleted?.({
-      status: 'failed',
-      to: ['two@example.com'],
-      lastError: 'PROVIDER_REJECTED: identity not verified',
-      quotaReservationDay: new Date('2026-07-11T00:00:00Z')
-    });
-    await Promise.resolve();
+    provider.sendEmail.mockResolvedValue({
+      id: '',
+      success: false,
+      error: 'PROVIDER_REJECTED: identity not verified',
+      provider: 'resend'
+    } as never);
 
-    expect(mockReleaseEmailUsage).toHaveBeenCalledTimes(1);
-    expect(mockReleaseEmailUsage).toHaveBeenCalledWith('u1', 2, new Date('2026-07-11T00:00:00Z'));
+    await handler(req, res);
+    expect(res.statusCode).toBe(200);
+    await harness.drain('u1');
+
+    // Both rejections are refunded together through the internal route.
+    const refundCalls = selfFetch.mock.calls.filter(([url]) => String(url).endsWith('/email-quota-refund'));
+    expect(refundCalls).toHaveLength(1);
+    expect(JSON.parse(refundCalls[0][1].body)).toEqual({
+      userId: 'u1',
+      refunds: [{ reservationDay: '2026-07-11T00:00:00.000Z', recipientCount: 2 }]
+    });
+    // The route itself only returns quota for emails it failed to queue.
+    expect(mockReleaseEmailUsage).not.toHaveBeenCalled();
   });
-  afterAll(() => cleanupEmailQueueInterval());
-  afterEach(() => delete process.env.FILE_URL_SIGNING_SECRET);
+  afterAll(() => delete process.env.FILE_URL_SIGNING_SECRET);
 
   it('counts actual recipients and ignores client-supplied HTML', async () => {
     const req = httpMocks.createRequest({
@@ -112,7 +129,8 @@ describe('bulk email quota and content controls', () => {
 
     expect(res.statusCode).toBe(200);
     expect(mockReserveEmailUsage).toHaveBeenCalledWith('u1', 2);
-    const queued = addToQueue.mock.calls[0][0][0];
+    await harness.drain('u1');
+    const queued = provider.sendEmail.mock.calls[0][0] as unknown as { subject: string; html: string };
     expect(queued.subject).toBe('Certificate');
     expect(queued.html).toContain('&lt;b&gt;Hello&lt;/b&gt;');
     expect(queued.html).not.toContain('evil.example');
@@ -138,7 +156,8 @@ describe('bulk email quota and content controls', () => {
     await handler(req, res);
 
     expect(res.statusCode).toBe(403);
-    expect(addToQueue).not.toHaveBeenCalled();
+    expect(await queuedTotal('email-session-denied')).toBe(0);
+    expect(mockCallEmailQueue).not.toHaveBeenCalledWith('u1', '/enqueue', expect.anything());
   });
 
   it('does not expose unexpected bulk queue diagnostics', async () => {
@@ -180,7 +199,7 @@ describe('bulk email quota and content controls', () => {
     await handler(req, res);
 
     expect(res.statusCode).toBe(400);
-    expect(addToQueue).not.toHaveBeenCalled();
+    expect(await queuedTotal('email-session-empty-attachment')).toBe(0);
   });
 
   it('enforces the recipient cap cumulatively across deferred batches', async () => {
@@ -219,6 +238,7 @@ describe('bulk email quota and content controls', () => {
     await handler(overflow.req, overflow.res);
 
     expect(overflow.res.statusCode).toBe(413);
-    expect(addToQueue).toHaveBeenCalledTimes(1);
+    expect(await queuedTotal('email-session-recipient-cap')).toBe(50);
+    expect(mockReleaseEmailUsage).toHaveBeenCalledWith('u1', 1, new Date('2026-07-11T00:00:00Z'));
   });
 });

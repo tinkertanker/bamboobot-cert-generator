@@ -3,8 +3,12 @@ type Bucket = {
   resetAt: number; // epoch ms when window resets
 };
 
-// Simple in-memory sliding window limiter per key.
-// Good enough for single-instance Node; swap to Redis for multi-instance.
+import { getEnv, type AppBindings } from '@/lib/cloudflare/env';
+import type { RateLimit } from '@/lib/cloudflare/types';
+
+// In-memory fixed-window limiter per key. On Cloudflare each isolate has its
+// own copy, so it is only the fallback for `next dev` and tests; deployed
+// Workers use the Rate Limiting bindings declared in wrangler.jsonc.
 class RateLimiter {
   private buckets = new Map<string, Bucket>();
   private readonly windowMs: number;
@@ -86,8 +90,37 @@ const DEFAULTS: Record<LimitCategory, number> = {
   email: parseInt(process.env.RATE_LIMIT_EMAIL_PER_MIN || '60', 10)
 };
 
-export function rateLimit(key: string, category: LimitCategory) {
+const RATE_LIMIT_BINDINGS: Record<LimitCategory, keyof AppBindings> = {
+  api: 'RATE_LIMIT_API',
+  upload: 'RATE_LIMIT_UPLOAD',
+  generate: 'RATE_LIMIT_GENERATE',
+  download: 'RATE_LIMIT_DOWNLOAD',
+  zip: 'RATE_LIMIT_ZIP',
+  email: 'RATE_LIMIT_EMAIL'
+};
+
+function rateLimitBinding(category: LimitCategory): RateLimit | null {
+  try {
+    const binding = getEnv()[RATE_LIMIT_BINDINGS[category]] as RateLimit | undefined;
+    return binding && typeof binding.limit === 'function' ? binding : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check and count one request against `key`. Uses the category's Workers Rate
+ * Limiting binding when present (limits are set in wrangler.jsonc) and the
+ * in-memory limiter otherwise.
+ */
+export async function rateLimit(key: string, category: LimitCategory) {
   const limit = DEFAULTS[category] ?? DEFAULTS.api;
+  const binding = rateLimitBinding(category);
+  if (binding) {
+    const { success } = await binding.limit({ key });
+    // The binding reports only allow/deny; its windows are 60 seconds.
+    return { allowed: success, remaining: success ? 1 : 0, resetAt: Date.now() + 60_000, limit };
+  }
   const limiter = key.includes(':u:anon:') ? anonymousLimiter : authenticatedLimiter;
   const result = limiter.check(key, limit);
   return { ...result, limit };
@@ -102,18 +135,21 @@ export function buildKey(opts: { userId?: string | null; ip?: string | null; rou
   return `${opts.category}:${opts.route}:u:anon:${ip}`;
 }
 
-// Extract IP from request headers
-// When exactly one trusted reverse proxy appends X-Forwarded-For, the
-// right-most value is the peer address it observed and cannot be supplied by
-// the client. Prefer an overwritten X-Real-IP when available.
+// Extract the client IP. Behind Cloudflare, CF-Connecting-IP is set by the
+// edge and overwrites anything the client sends. Elsewhere (`next dev`) the
+// socket address is used unless TRUST_PROXY_HEADERS allows proxy headers;
+// then an overwritten X-Real-IP is preferred, else the right-most
+// X-Forwarded-For value (the peer the single trusted proxy observed).
 // Headers can be string | string[] in Next.js, handle both cases
 export function getClientIp(req: {
   headers: Record<string, string | string[] | undefined>;
   socket?: { remoteAddress?: string };
 }): string | null {
-  const trustProxyHeaders =
-    process.env.TRUST_PROXY_HEADERS === 'true' ||
-    (process.env.TRUST_PROXY_HEADERS === undefined && process.env.VERCEL === '1');
+  const cfConnectingIp = req.headers['cf-connecting-ip'];
+  const cfIp = Array.isArray(cfConnectingIp) ? cfConnectingIp[0] : cfConnectingIp;
+  if (cfIp && cfIp.trim()) return cfIp.trim();
+
+  const trustProxyHeaders = process.env.TRUST_PROXY_HEADERS === 'true';
   if (!trustProxyHeaders) {
     return req.socket?.remoteAddress || null;
   }
@@ -143,14 +179,14 @@ export interface RateLimitResult {
  * Enforce rate limiting on an API route
  * Sets appropriate headers and returns whether request is allowed
  */
-export function enforceRateLimit(
+export async function enforceRateLimit(
   req: {
     headers: Record<string, string | string[] | undefined>;
     socket?: { remoteAddress?: string };
   },
   res: { setHeader: (name: string, value: string) => void },
   opts: { userId?: string | null; route: string; category: LimitCategory }
-): RateLimitResult {
+): Promise<RateLimitResult> {
   const ip = getClientIp(req);
   const key = buildKey({
     userId: opts.userId,
@@ -158,7 +194,7 @@ export function enforceRateLimit(
     route: opts.route,
     category: opts.category
   });
-  const rl = rateLimit(key, opts.category);
+  const rl = await rateLimit(key, opts.category);
 
   res.setHeader('X-RateLimit-Limit', String(rl.limit));
   res.setHeader('X-RateLimit-Remaining', String(rl.remaining));

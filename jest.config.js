@@ -29,9 +29,9 @@ const customJestConfig = {
     '^@/components/(.*)$': '<rootDir>/components/$1',
     '^@/pages/(.*)$': '<rootDir>/pages/$1',
     '^@/lib/(.*)$': '<rootDir>/lib/$1',
-    // Mock AWS SDK modules for testing
-    '^@aws-sdk/client-s3$': '<rootDir>/__tests__/__mocks__/@aws-sdk/client-s3.ts',
-    '^@aws-sdk/s3-request-presigner$': '<rootDir>/__tests__/__mocks__/@aws-sdk/s3-request-presigner.ts',
+    // ESM-only packages that Jest cannot load; see the stubs for details.
+    '^@opennextjs/cloudflare$': '<rootDir>/__tests__/__mocks__/opennextjs-cloudflare.ts',
+    '^@prisma/adapter-d1$': '<rootDir>/__tests__/__mocks__/prisma-adapter-d1.ts',
   },
 };
 

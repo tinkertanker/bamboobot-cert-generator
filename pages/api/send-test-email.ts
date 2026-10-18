@@ -46,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const userId = sessionUser.id;
 
   // Rate limit test emails
-  const rl = enforceRateLimit(req, res, { userId, route: 'send-test-email', category: 'email' });
+  const rl = await enforceRateLimit(req, res, { userId, route: 'send-test-email', category: 'email' });
   if (!rl.allowed) {
     res.status(429).json({ error: 'Rate limit exceeded. Please try again later.' });
     return;

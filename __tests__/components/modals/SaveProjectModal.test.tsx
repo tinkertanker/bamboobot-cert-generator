@@ -32,15 +32,6 @@ jest.mock('@/lib/project-storage', () => ({
   }
 }));
 
-// Mock storage config
-jest.mock('@/lib/storage-config', () => ({
-  __esModule: true,
-  default: {
-    isR2Enabled: false,
-    isS3Enabled: false
-  }
-}));
-
 describe('SaveProjectModal', () => {
   const mockPositions: Positions = {
     name: { x: 100, y: 200, fontSize: 16, fontFamily: 'Helvetica', color: '#000000', alignment: 'center', isVisible: true }

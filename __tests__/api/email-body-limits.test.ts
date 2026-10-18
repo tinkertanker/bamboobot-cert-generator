@@ -1,3 +1,12 @@
+// lib/cloudflare/env.ts and lib/server/prisma.ts load OpenNext and the D1
+// adapter, which are ESM-only and only usable inside a Worker.
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No Cloudflare context in tests');
+  }
+}));
+jest.mock('@prisma/adapter-d1', () => ({ PrismaD1: jest.fn() }));
+
 jest.mock('@/lib/server/middleware/featureGate', () => ({
   withFeatureGate: (_options: unknown, handler: unknown) => handler
 }));

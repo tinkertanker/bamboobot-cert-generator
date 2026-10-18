@@ -310,20 +310,20 @@ export async function releaseEmailUsageReservation(
     Date.UTC(reservedAt.getUTCFullYear(), reservedAt.getUTCMonth(), reservedAt.getUTCDate())
   );
   const reservationDayEnd = new Date(reservationDayStart.getTime() + 24 * 60 * 60 * 1000);
-  await prisma.$transaction([
-    prisma.user.updateMany({
-      where: {
-        id: userId,
-        dailyEmailCount: { gte: recipientCount },
-        lastUsageReset: { gte: reservationDayStart, lt: reservationDayEnd }
-      },
-      data: { dailyEmailCount: { decrement: recipientCount } }
-    }),
-    prisma.user.updateMany({
-      where: { id: userId, lifetimeEmailCount: { gte: recipientCount } },
-      data: { lifetimeEmailCount: { decrement: recipientCount } }
-    })
-  ]);
+  // D1 has no transactions, so these run as two guarded statements. Each is
+  // atomic on its own and neither depends on the other's result.
+  await prisma.user.updateMany({
+    where: {
+      id: userId,
+      dailyEmailCount: { gte: recipientCount },
+      lastUsageReset: { gte: reservationDayStart, lt: reservationDayEnd }
+    },
+    data: { dailyEmailCount: { decrement: recipientCount } }
+  });
+  await prisma.user.updateMany({
+    where: { id: userId, lifetimeEmailCount: { gte: recipientCount } },
+    data: { lifetimeEmailCount: { decrement: recipientCount } }
+  });
 }
 
 /**

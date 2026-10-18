@@ -1,8 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import archiver from 'archiver';
-import { debug, error } from '@/lib/log';
+import { error } from '@/lib/log';
 import { requireAuth } from '@/lib/auth/requireAuth';
-import { rateLimit, buildKey } from '@/lib/rate-limit';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import { StoreZipWriter } from '@/lib/zip/store-zip-writer';
 import {
   getMaxPdfSourceBytes,
   loadTrustedPdf,
@@ -57,106 +57,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const session = await requireAuth(req, res);
   if (!session) return;
   const userId = session.user.id;
-  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
-  const key = buildKey({ userId, ip, route: 'zip-pdfs', category: 'zip' });
-  const rl = rateLimit(key, 'zip');
-  res.setHeader('X-RateLimit-Limit', String(rl.limit));
-  res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
-  res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
+  const rl = await enforceRateLimit(req, res, { userId, route: 'zip-pdfs', category: 'zip' });
   if (!rl.allowed) {
-    res.setHeader('Retry-After', String(Math.max(0, Math.ceil((rl.resetAt - Date.now()) / 1000))));
     res.status(429).json({ error: 'Too many ZIP downloads. Please wait and try again.' });
     return;
   }
 
-  let archiveTimeout: NodeJS.Timeout | undefined;
+  // The archive is streamed one PDF at a time, so memory stays bounded by the
+  // largest single source rather than the whole ZIP.
+  const writeChunk = (chunk: Uint8Array): Promise<void> =>
+    new Promise((resolve, reject) => {
+      if (res.writableEnded || res.destroyed) {
+        reject(new Error('Client closed the ZIP download'));
+        return;
+      }
+      if (res.write(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength))) resolve();
+      else res.once('drain', () => resolve());
+    });
 
   try {
-    // Set headers for ZIP download
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', 'attachment; filename="certificates.zip"');
     res.setHeader('Cache-Control', 'private, no-store');
 
-    // Create archive
-    const archive = archiver('zip', {
-      zlib: { level: 9 } // Maximum compression
-    });
-
-    let archiveFailure: Error | null = null;
-    let resolveArchiveError!: (reason: Error) => void;
-    const archiveError = new Promise<Error>((resolve) => {
-      resolveArchiveError = resolve;
-    });
-
-    const failArchive = (reason: unknown) => {
-      if (archiveFailure) return;
-      archiveFailure = reason instanceof Error ? reason : new Error('ZIP archive failed');
-      resolveArchiveError(archiveFailure);
-    };
-
-    // Resolve (rather than reject) immediately on archive errors so an event
-    // emitted during an awaited source load cannot become an unhandled
-    // rejection before finalization attaches its race handler.
-    archive.on('error', (err) => {
-      error('Archive error:', err);
-      failArchive(err);
-    });
-
-    // Log when archive is finalized
-    archive.on('end', () => {
-      debug('Archive wrote %d bytes', archive.pointer());
-    });
-
-    // Pipe the archive to the response
-    archive.pipe(res);
-
+    const archive = new StoreZipWriter(writeChunk);
     let totalBytes = 0;
     let sourceFailures = 0;
-    const maxZipDurationMs = getMaxZipDurationMs();
-    const deadlineAt = Date.now() + maxZipDurationMs;
-
-    archiveTimeout = setTimeout(() => {
-      const timeoutError = new Error('ZIP generation timed out');
-      failArchive(timeoutError);
-      try {
-        archive.abort();
-      } catch {
-        // The failure is already recorded and will be surfaced below.
-      }
-    }, maxZipDurationMs);
+    const deadlineAt = Date.now() + getMaxZipDurationMs();
 
     // Add each validated PDF to the archive. Each source and the aggregate
     // archive input are bounded to avoid turning this endpoint into a memory
     // or bandwidth amplifier.
     for (const file of files) {
-      if (archiveFailure) throw archiveFailure;
-
-      const remainingDurationMs = deadlineAt - Date.now();
-      if (remainingDurationMs <= 0) {
-        const timeoutError = new Error('ZIP generation timed out');
-        failArchive(timeoutError);
-        throw timeoutError;
+      if (Date.now() >= deadlineAt) {
+        throw new Error('ZIP generation timed out');
       }
 
+      const remainingBytes = MAX_ZIP_BYTES - totalBytes;
+      if (remainingBytes <= 0) {
+        error('ZIP input limit reached; remaining files were skipped');
+        break;
+      }
+
+      let buffer: Buffer;
       try {
-        const remainingBytes = MAX_ZIP_BYTES - totalBytes;
-        if (remainingBytes <= 0) {
-          error('ZIP input limit reached; remaining files were skipped');
-          break;
-        }
-
-        const { buffer } = await loadTrustedPdf(
-          file.url,
-          Math.min(getMaxPdfSourceBytes(), remainingBytes),
-          { timeoutMs: remainingDurationMs }
-        );
-        if (archiveFailure) throw archiveFailure;
-
-        totalBytes += buffer.length;
-        archive.append(buffer, { name: sanitizePdfFilename(file.filename, 'certificate.pdf') });
+        ({ buffer } = await loadTrustedPdf(file.url, Math.min(getMaxPdfSourceBytes(), remainingBytes)));
       } catch (fileError) {
-        if (archiveFailure) throw archiveFailure;
-
         if (fileError instanceof PdfSourceError) {
           error(`Skipped unsafe or unavailable PDF source (${fileError.code})`);
           sourceFailures += 1;
@@ -172,18 +118,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           sourceFailures += 1;
           if (sourceFailures >= MAX_SOURCE_FAILURES) break;
         }
-        // Continue with other files
+        continue;
       }
+
+      totalBytes += buffer.length;
+      await archive.addFile(sanitizePdfFilename(file.filename, 'certificate.pdf'), buffer);
     }
 
-    // Finalize the archive
-    if (archiveFailure) throw archiveFailure;
-    const finalization = await Promise.race([
-      archiveError.then((failure) => ({ failure })),
-      archive.finalize().then(() => ({ failure: null as Error | null })),
-    ]);
-    if (finalization.failure) throw finalization.failure;
-
+    await archive.finish();
+    res.end();
   } catch (err) {
     error('ZIP creation error:', err);
     if (!res.headersSent) {
@@ -191,8 +134,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } else if (!res.writableEnded && typeof res.destroy === 'function') {
       res.destroy(err instanceof Error ? err : undefined);
     }
-    return;
-  } finally {
-    if (archiveTimeout) clearTimeout(archiveTimeout);
   }
 }

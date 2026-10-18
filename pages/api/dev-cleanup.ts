@@ -1,12 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs';
 import path from 'path';
-import { getTempImagesDir, getGeneratedDir } from '@/lib/paths';
-import { formatBytes } from '@/lib/format';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { detectUserTier } from '@/lib/server/tiers';
 import { isAuthenticationRequired } from '@/lib/auth/runtime-policy';
+import { formatBytes } from '@/lib/format';
+import { deleteObjectKeys, listObjects } from '@/lib/storage/bucket';
 
 interface CleanupResult {
   deletedFiles: number;
@@ -14,136 +13,42 @@ interface CleanupResult {
   deletedItems: string[];
 }
 
-// using shared formatBytes
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-function getFileAge(filePath: string): number {
-  try {
-    const stats = fs.statSync(filePath);
-    const now = new Date();
-    const fileDate = new Date(stats.mtime);
-    const diffTime = Math.abs(now.getTime() - fileDate.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  } catch {
-    // If the file does not exist or cannot be accessed, treat as infinitely old
-    return Infinity;
-  }
-}
-
-function getDirSize(dirPath: string): number {
-  let size = 0;
-  
-  if (!fs.existsSync(dirPath)) return 0;
-  
-  const items = fs.readdirSync(dirPath);
-  
-  for (const item of items) {
-    const itemPath = path.join(dirPath, item);
-    const stats = fs.statSync(itemPath);
-    
-    if (stats.isFile()) {
-      size += stats.size;
-    } else if (stats.isDirectory()) {
-      size += getDirSize(itemPath);
+/**
+ * Delete objects under `prefix`, optionally only those older than
+ * `olderThanDays` or matching `extensions` larger than 1 MB.
+ */
+async function cleanupPrefix(
+  prefix: 'generated/' | 'temp_images/',
+  olderThanDays?: number,
+  largeExtensions?: string[]
+): Promise<CleanupResult> {
+  const now = Date.now();
+  const objects = (await listObjects(prefix)).filter(object => {
+    if (olderThanDays !== undefined) {
+      if (!object.lastModified || now - object.lastModified.getTime() < olderThanDays * DAY_MS) return false;
     }
-  }
-  
-  return size;
-}
-
-function deleteDirectory(dirPath: string): number {
-  if (!fs.existsSync(dirPath)) return 0;
-  
-  const size = getDirSize(dirPath);
-  fs.rmSync(dirPath, { recursive: true, force: true });
-  return size;
-}
-
-function cleanupDirectory(dirPath: string, maxAge?: number, targetTypes?: string[]): CleanupResult {
-  const result: CleanupResult = {
-    deletedFiles: 0,
-    freedSpace: 0,
-    deletedItems: []
+    if (largeExtensions) {
+      const ext = path.posix.extname(object.key).toLowerCase().slice(1);
+      if (!largeExtensions.includes(ext) || object.size <= 1024 * 1024) return false;
+    }
+    return true;
+  });
+  await deleteObjectKeys(objects.map(object => object.key));
+  return {
+    deletedFiles: objects.length,
+    freedSpace: objects.reduce((total, object) => total + object.size, 0),
+    deletedItems: objects.map(object => `${object.key} (${formatBytes(object.size)})`)
   };
-
-  if (!fs.existsSync(dirPath)) {
-    return result;
-  }
-
-  const items = fs.readdirSync(dirPath);
-
-  for (const item of items) {
-    const itemPath = path.join(dirPath, item);
-    
-    let stats: fs.Stats;
-    try {
-      stats = fs.statSync(itemPath);
-    } catch {
-      // File may have been deleted between readdir and statSync; skip this item
-      continue;
-    }
-    
-    const age = getFileAge(itemPath);
-    
-    let shouldDelete = false;
-    
-    // If no criteria specified, delete all files
-    if (!maxAge && !targetTypes) {
-      shouldDelete = true;
-    } else {
-      // Apply age criteria if specified
-      if (maxAge && age > maxAge) {
-        shouldDelete = true;
-      }
-      
-      // Apply type criteria if specified
-      if (targetTypes) {
-        const ext = path.extname(item).toLowerCase();
-        const isProgressiveDir = item.startsWith('progressive_pdf-');
-        const matchesType = targetTypes.some(type => {
-          switch (type) {
-            case 'pdf': return ext === '.pdf' || isProgressiveDir;
-            case 'image': return ['.png', '.jpg', '.jpeg'].includes(ext);
-            case 'progressive': return isProgressiveDir;
-            default: return false;
-          }
-        });
-        if (matchesType) shouldDelete = true;
-      }
-    }
-    
-    if (shouldDelete) {
-      let size = 0;
-      
-      if (stats.isFile()) {
-        size = stats.size;
-        fs.unlinkSync(itemPath);
-      } else if (stats.isDirectory()) {
-        size = deleteDirectory(itemPath);
-      }
-      
-      result.deletedFiles++;
-      result.freedSpace += size;
-      result.deletedItems.push(`${item} (${formatBytes(size)})`);
-    }
-  }
-
-  return result;
 }
 
-// The Docker data directory also holds the SQLite database (data/database.db)
-// and permanent template images, so only its disposable subdirectories are
-// ever cleaned.
-const DOCKER_DISPOSABLE_SUBDIRS = ['generated', 'temp_images'];
-
-function cleanupDockerData(dockerDataDir: string): CleanupResult {
-  const result: CleanupResult = { deletedFiles: 0, freedSpace: 0, deletedItems: [] };
-  for (const subdir of DOCKER_DISPOSABLE_SUBDIRS) {
-    const subResult = cleanupDirectory(path.join(dockerDataDir, subdir));
-    result.deletedFiles += subResult.deletedFiles;
-    result.freedSpace += subResult.freedSpace;
-    result.deletedItems.push(...subResult.deletedItems);
-  }
-  return result;
+function combine(...results: CleanupResult[]): CleanupResult {
+  return {
+    deletedFiles: results.reduce((total, result) => total + result.deletedFiles, 0),
+    freedSpace: results.reduce((total, result) => total + result.freedSpace, 0),
+    deletedItems: results.flatMap(result => result.deletedItems)
+  };
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
@@ -178,58 +83,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { target } = req.body;
     
-    let result: CleanupResult = {
-      deletedFiles: 0,
-      freedSpace: 0,
-      deletedItems: []
-    };
-
-    const generatedDir = getGeneratedDir();
-    const tempImagesDir = getTempImagesDir();
-    const dockerDataDir = path.join(process.cwd(), 'data');
-
+    let result: CleanupResult;
     switch (target) {
       case 'all':
-        const generatedResult = cleanupDirectory(generatedDir);
-        const tempResult = cleanupDirectory(tempImagesDir);
-        const dockerResult = cleanupDockerData(dockerDataDir);
-        
-        result = {
-          deletedFiles: generatedResult.deletedFiles + tempResult.deletedFiles + dockerResult.deletedFiles,
-          freedSpace: generatedResult.freedSpace + tempResult.freedSpace + dockerResult.freedSpace,
-          deletedItems: [...generatedResult.deletedItems, ...tempResult.deletedItems, ...dockerResult.deletedItems]
-        };
+        result = combine(await cleanupPrefix('generated/'), await cleanupPrefix('temp_images/'));
         break;
-        
       case 'generated':
-        result = cleanupDirectory(generatedDir);
+        result = await cleanupPrefix('generated/');
         break;
-        
       case 'temp':
-        result = cleanupDirectory(tempImagesDir);
+      case 'tempImages':
+        result = await cleanupPrefix('temp_images/');
         break;
-        
-      case 'docker':
-        result = cleanupDockerData(dockerDataDir);
-        break;
-        
       case 'old':
-        // Clean old files (7+ days for generated, 30+ days for temp)
-        const oldGeneratedResult = cleanupDirectory(generatedDir, 7);
-        const oldTempResult = cleanupDirectory(tempImagesDir, 30);
-        
-        result = {
-          deletedFiles: oldGeneratedResult.deletedFiles + oldTempResult.deletedFiles,
-          freedSpace: oldGeneratedResult.freedSpace + oldTempResult.freedSpace,
-          deletedItems: [...oldGeneratedResult.deletedItems, ...oldTempResult.deletedItems]
-        };
+        // Old files: 7+ days for generated, 30+ days for temp images
+        result = combine(await cleanupPrefix('generated/', 7), await cleanupPrefix('temp_images/', 30));
         break;
-        
       case 'large-pdfs':
-        // Target large single PDF files (> 1MB)
-        result = cleanupDirectory(generatedDir, undefined, ['pdf']);
+        result = await cleanupPrefix('generated/', undefined, ['pdf']);
         break;
-        
       default:
         res.status(400).json({ error: 'Invalid target' });
         return;

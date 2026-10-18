@@ -9,7 +9,6 @@ export const MAX_PROGRESSIVE_PDF_ROWS = 5000;
 export const MAX_PDF_FIELDS = 100;
 export const MAX_PDF_FIELD_TEXT_LENGTH = 2000;
 export const MAX_PROGRESSIVE_BATCH_SIZE = 50;
-export const MAX_ACTIVE_PROGRESSIVE_SESSIONS_PER_USER = 3;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

@@ -1,3 +1,4 @@
+/** @jest-environment node */
 import { createMocks } from 'node-mocks-http';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
@@ -6,6 +7,14 @@ import {
   PdfSourceError,
 } from '@/lib/security/trusted-pdf-source';
 import handler from '@/pages/api/force-download';
+import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
+import { installCloudflareEnv, resetCloudflareEnv } from '../helpers/cloudflare';
+
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No OpenNext context in tests');
+  },
+}));
 
 jest.mock('@/pages/api/auth/[...nextauth]', () => ({
   __esModule: true,
@@ -34,7 +43,7 @@ describe('/api/force-download', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedRequireAuth.mockResolvedValue({ user: { id: 'u1' } } as any);
-    mockedEnforceRateLimit.mockReturnValue({
+    mockedEnforceRateLimit.mockResolvedValue({
       allowed: true,
       retryAfter: 0,
       limit: 30,
@@ -55,7 +64,7 @@ describe('/api/force-download', () => {
     mockedRequireAuth.mockResolvedValue(null);
     const { req, res } = createMocks({
       method: 'GET',
-      query: { url: 'https://certs.example.com/generated/a.pdf' },
+      query: { url: '/api/files/download?path=u_1%2Fa.pdf&expires=1&signature=x' },
     });
 
     await handler(req, res);
@@ -76,7 +85,7 @@ describe('/api/force-download', () => {
   });
 
   it('rate-limits downloads before loading the source', async () => {
-    mockedEnforceRateLimit.mockReturnValue({
+    mockedEnforceRateLimit.mockResolvedValue({
       allowed: false,
       retryAfter: 60,
       limit: 30,
@@ -95,11 +104,11 @@ describe('/api/force-download', () => {
 
   it('loads only through the trusted source loader and sanitizes the filename', async () => {
     const pdf = Buffer.from('%PDF-1.4\ntrusted');
-    mockedLoadTrustedPdf.mockResolvedValue({ buffer: pdf, source: 'remote' });
+    mockedLoadTrustedPdf.mockResolvedValue({ buffer: pdf, source: 'storage' });
     const { req, res } = createMocks({
       method: 'GET',
       query: {
-        url: 'https://certs.example.com/generated/a.pdf',
+        url: '/api/files/download?path=u_1%2Fa.pdf&expires=1&signature=x',
         filename: '../../custom\r\n".pdf',
       },
     });
@@ -107,7 +116,7 @@ describe('/api/force-download', () => {
     await handler(req, res);
 
     expect(mockedLoadTrustedPdf).toHaveBeenCalledWith(
-      'https://certs.example.com/generated/a.pdf'
+      '/api/files/download?path=u_1%2Fa.pdf&expires=1&signature=x'
     );
     expect(res._getStatusCode()).toBe(200);
     expect(res.getHeader('Content-Type')).toBe('application/pdf');
@@ -121,7 +130,7 @@ describe('/api/force-download', () => {
   it('uses a safe default filename', async () => {
     mockedLoadTrustedPdf.mockResolvedValue({
       buffer: Buffer.from('%PDF-1.4\ntrusted'),
-      source: 'local',
+      source: 'storage',
     });
     const { req, res } = createMocks({
       method: 'GET',
@@ -139,7 +148,7 @@ describe('/api/force-download', () => {
     mockedLoadTrustedPdf.mockRejectedValue(
       new PdfSourceError(
         'INVALID_SOURCE',
-        'PDF source is not an approved storage origin',
+        'A signed generated PDF source is required',
         403
       )
     );
@@ -152,8 +161,29 @@ describe('/api/force-download', () => {
 
     expect(res._getStatusCode()).toBe(403);
     expect(JSON.parse(res._getData())).toEqual({
-      error: 'PDF source is not an approved storage origin',
+      error: 'A signed generated PDF source is required',
     });
     expect(res.getHeader('Content-Disposition')).toBeUndefined();
+  });
+
+  it('streams a signed generated PDF from R2 through the real loader', async () => {
+    const actual = jest.requireActual('@/lib/security/trusted-pdf-source');
+    mockedLoadTrustedPdf.mockImplementation(actual.loadTrustedPdf);
+    const { bucket } = installCloudflareEnv();
+    const pdf = Buffer.from('%PDF-1.4\nfrom r2');
+    bucket.seed('generated/u1/session/cert.pdf', pdf);
+    try {
+      const { req, res } = createMocks({
+        method: 'GET',
+        query: { url: createSignedGeneratedFileUrl('u1/session/cert.pdf'), filename: 'cert.pdf' },
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(200);
+      expect(Buffer.from(res._getData()).equals(pdf)).toBe(true);
+    } finally {
+      resetCloudflareEnv();
+    }
   });
 });

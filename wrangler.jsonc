@@ -1,0 +1,64 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bamboobot",
+  // worker.ts wraps the OpenNext build output and adds the cron handler and
+  // the bulk email Durable Object.
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": { "enabled": true },
+  "limits": {
+    // Server-side PDF batches and ZIP downloads are CPU-heavy.
+    "cpu_ms": 300000
+  },
+  "services": [
+    {
+      // Self-reference used by OpenNext, and by the email queue Durable Object
+      // to return quota for unsent emails. Must match "name" above.
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "bamboobot"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bamboobot",
+      // Filled in by the first `wrangler deploy` (or `wrangler d1 create bamboobot`).
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "bamboobot-files"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "EMAIL_QUEUE", "class_name": "EmailQueueObject" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EmailQueueObject"] }],
+  // Per-minute limits. The RATE_LIMIT_*_PER_MIN variables only affect the
+  // in-memory fallback used by `next dev`, so keep these in step with them.
+  "ratelimits": [
+    { "name": "RATE_LIMIT_API", "namespace_id": "1001", "simple": { "limit": 120, "period": 60 } },
+    { "name": "RATE_LIMIT_UPLOAD", "namespace_id": "1002", "simple": { "limit": 6, "period": 60 } },
+    { "name": "RATE_LIMIT_GENERATE", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } },
+    { "name": "RATE_LIMIT_DOWNLOAD", "namespace_id": "1004", "simple": { "limit": 30, "period": 60 } },
+    { "name": "RATE_LIMIT_ZIP", "namespace_id": "1005", "simple": { "limit": 5, "period": 60 } },
+    { "name": "RATE_LIMIT_EMAIL", "namespace_id": "1006", "simple": { "limit": 60, "period": 60 } }
+  ],
+  "triggers": {
+    // Daily at 02:00 UTC: delete expired files from R2.
+    "crons": ["0 2 * * *"]
+  },
+  // Secrets (NEXTAUTH_SECRET, GOOGLE_CLIENT_SECRET, RESEND_API_KEY and so on)
+  // are set with `wrangler secret put`. NEXT_PUBLIC_* values are inlined at
+  // build time, so they belong in the build environment, not here.
+  "vars": {
+    "REQUIRE_AUTH": "true"
+  }
+}

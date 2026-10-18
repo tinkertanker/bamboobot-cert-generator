@@ -1,59 +1,54 @@
+/** @jest-environment node */
+jest.mock('@opennextjs/cloudflare', () => ({
+  getCloudflareContext: () => {
+    throw new Error('No OpenNext context in tests');
+  },
+}));
+
 import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
 import { markGeneratedFileAsEmailed } from '@/lib/storage/mark-generated';
-import { markAsEmailed } from '@/lib/r2-client';
-
-jest.mock('@/lib/r2-client', () => ({
-  isR2Configured: jest.fn(() => true),
-  markAsEmailed: jest.fn(async () => undefined),
-}));
-jest.mock('@/lib/s3-client', () => ({
-  isS3Configured: jest.fn(() => false),
-  markAsEmailedS3: jest.fn(async () => undefined),
-}));
+import { installCloudflareEnv, resetCloudflareEnv, type FakeR2Bucket } from '../helpers/cloudflare';
 
 describe('generated file retention ownership', () => {
+  let bucket: FakeR2Bucket;
+
   beforeEach(() => {
-    process.env.STORAGE_PROVIDER = 'cloudflare-r2';
     process.env.FILE_URL_SIGNING_SECRET = 'test-file-signing-secret';
-    jest.clearAllMocks();
+    ({ bucket } = installCloudflareEnv());
+    bucket.seed(
+      'generated/u_user/session/certificate.pdf',
+      '%PDF-1.4',
+      { type: 'individual', retention: '90d', created: '2026-01-01T00:00:00.000Z', emailsent: 'false' },
+      'application/pdf'
+    );
+    bucket.seed('generated/u_victim/session/certificate.pdf', '%PDF-1.4');
   });
 
   afterEach(() => {
-    delete process.env.STORAGE_PROVIDER;
     delete process.env.FILE_URL_SIGNING_SECRET;
+    resetCloudflareEnv();
   });
 
-  it('persists a 90-day retention marker for local emailed files', async () => {
-    const storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bamboobot-mark-local-'));
-    process.env.STORAGE_PROVIDER = 'local';
-    process.env.LOCAL_STORAGE_DIR = storageDir;
-    const relativePath = 'u_user/session/certificate.pdf';
-    const filePath = path.join(storageDir, 'generated', relativePath);
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, '%PDF-1.4\ntest');
-
-    await markGeneratedFileAsEmailed(createSignedGeneratedFileUrl(relativePath), 'user');
-
-    expect(fs.existsSync(`${filePath}.retention-90d`)).toBe(true);
-    fs.rmSync(storageDir, { recursive: true, force: true });
-    delete process.env.LOCAL_STORAGE_DIR;
-  });
-
-  it('marks the verified user-scoped object key', async () => {
+  it('marks the verified user-scoped object and keeps its content type', async () => {
     const url = createSignedGeneratedFileUrl('u_user/session/certificate.pdf');
 
     await markGeneratedFileAsEmailed(url, 'user');
 
-    expect(markAsEmailed).toHaveBeenCalledWith('generated/u_user/session/certificate.pdf');
+    const stored = bucket.objects.get('generated/u_user/session/certificate.pdf');
+    expect(stored?.customMetadata).toMatchObject({
+      emailsent: 'true',
+      retention: '90d',
+      type: 'individual',
+      created: '2026-01-01T00:00:00.000Z',
+    });
+    expect(stored?.httpMetadata.contentType).toBe('application/pdf');
+    expect(Buffer.from(stored?.data ?? []).toString()).toBe('%PDF-1.4');
   });
 
   it('rejects a capability owned by another user', async () => {
     const url = createSignedGeneratedFileUrl('u_victim/session/certificate.pdf');
 
     await expect(markGeneratedFileAsEmailed(url, 'attacker')).rejects.toMatchObject({ statusCode: 403 });
-    expect(markAsEmailed).not.toHaveBeenCalled();
+    expect(bucket.objects.get('generated/u_victim/session/certificate.pdf')?.customMetadata).toEqual({});
   });
 });
-import fs from 'fs';
-import os from 'os';
-import path from 'path';

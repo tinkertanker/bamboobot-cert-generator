@@ -9,7 +9,7 @@ interface FileInfo {
   name: string;
   size: number;
   age: number;
-  type: 'pdf' | 'image' | 'progressive' | 'other';
+  type: 'pdf' | 'image' | 'folder' | 'other';
 }
 
 interface DirectoryStats {
@@ -24,14 +24,12 @@ interface StorageStats {
   directories: {
     generated: DirectoryStats;
     tempImages: DirectoryStats;
-    dockerData?: DirectoryStats;
   };
 }
 
 const DIRECTORY_LABELS: Record<string, string> = {
   generated: 'Generated',
   tempImages: 'Temp images',
-  dockerData: 'Docker data',
 };
 
 export function StorageMonitor() {
@@ -210,7 +208,7 @@ export function StorageMonitor() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => cleanup(key === 'dockerData' ? 'docker' : key, `${dirLabel} cleanup`)}
+                        onClick={() => cleanup(key, `${dirLabel} cleanup`)}
                         disabled={cleaning}
                         className="h-6 px-2 text-xs"
                         aria-label={`Delete all ${dirLabel.toLowerCase()} files`}

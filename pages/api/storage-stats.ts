@@ -1,18 +1,16 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs';
-import fsPromises from 'fs/promises';
 import path from 'path';
-import { getTempImagesDir, getGeneratedDir } from '@/lib/paths';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { detectUserTier } from '@/lib/server/tiers';
 import { isAuthenticationRequired } from '@/lib/auth/runtime-policy';
+import { listObjects, type StoredObjectInfo } from '@/lib/storage/bucket';
 
 interface FileInfo {
   name: string;
   size: number;
   age: number;
-  type: 'pdf' | 'image' | 'progressive' | 'other';
+  type: 'pdf' | 'image' | 'folder' | 'other';
 }
 
 interface DirectoryStats {
@@ -27,123 +25,43 @@ interface StorageStats {
   directories: {
     generated: DirectoryStats;
     tempImages: DirectoryStats;
-    dockerData?: DirectoryStats;
   };
 }
 
-
-function getAgeInDays(mtime: Date): number {
-  const diffTime = Math.abs(Date.now() - mtime.getTime());
+function getAgeInDays(date: Date | undefined): number {
+  if (!date) return 0;
+  const diffTime = Math.abs(Date.now() - date.getTime());
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
 function getFileType(filename: string): FileInfo['type'] {
-  const ext = path.extname(filename).toLowerCase();
-  if (filename.startsWith('progressive_pdf-')) return 'progressive';
+  const ext = path.posix.extname(filename).toLowerCase();
   if (ext === '.pdf') return 'pdf';
   if (['.png', '.jpg', '.jpeg'].includes(ext)) return 'image';
   return 'other';
 }
 
-function isMissing(err: unknown): boolean {
-  return (err as NodeJS.ErrnoException)?.code === 'ENOENT';
-}
-
-// Async (non-blocking) directory walk: storage can hold thousands of files and a
-// synchronous scan would stall every other request on this server while it runs.
-async function analyzeDirectory(dirPath: string): Promise<DirectoryStats> {
-  let items: string[];
-  try {
-    items = await fsPromises.readdir(dirPath);
-  } catch (err) {
-    if (!isMissing(err)) throw err;
-    return {
-      path: dirPath,
-      totalSize: 0,
-      fileCount: 0,
-      files: []
-    };
-  }
-
-  const files: FileInfo[] = [];
+/** Summarise one namespace (`generated/` or `temp_images/`) by its first-level entries. */
+function summarise(prefix: string, objects: StoredObjectInfo[]): DirectoryStats {
+  const entries = new Map<string, { size: number; newest?: Date; isFolder: boolean }>();
   let totalSize = 0;
-  let fileCount = 0;
-
-  for (const item of items) {
-    const itemPath = path.join(dirPath, item);
-    
-    let stats: fs.Stats;
-    try {
-      stats = await fsPromises.stat(itemPath);
-    } catch {
-      // File may have been deleted between readdir and stat; skip this item
-      continue;
-    }
-
-    if (stats.isFile()) {
-      files.push({
-        name: item,
-        size: stats.size,
-        age: getAgeInDays(stats.mtime),
-        type: getFileType(item)
-      });
-      totalSize += stats.size;
-      fileCount++;
-    } else if (stats.isDirectory()) {
-      // For directories (like progressive PDF folders), get the total size
-      const subDirSize = await getDirSize(itemPath);
-      files.push({
-        name: item,
-        size: subDirSize,
-        age: getAgeInDays(stats.mtime),
-        type: getFileType(item)
-      });
-      totalSize += subDirSize;
-      fileCount++;
-    }
+  for (const object of objects) {
+    const rest = object.key.slice(prefix.length);
+    const slash = rest.indexOf('/');
+    const name = slash === -1 ? rest : rest.slice(0, slash);
+    const entry = entries.get(name) ?? { size: 0, isFolder: slash !== -1 };
+    entry.size += object.size;
+    if (object.lastModified && (!entry.newest || object.lastModified > entry.newest)) entry.newest = object.lastModified;
+    entries.set(name, entry);
+    totalSize += object.size;
   }
-
-  // Sort files by size (largest first)
-  files.sort((a, b) => b.size - a.size);
-
-  return {
-    path: dirPath,
-    totalSize,
-    fileCount,
-    files
-  };
-}
-
-async function getDirSize(dirPath: string): Promise<number> {
-  let size = 0;
-  
-  let items: string[];
-  try {
-    items = await fsPromises.readdir(dirPath);
-  } catch (err) {
-    if (isMissing(err)) return 0;
-    throw err;
-  }
-  
-  for (const item of items) {
-    const itemPath = path.join(dirPath, item);
-    let stats;
-    try {
-      stats = await fsPromises.stat(itemPath);
-    } catch (err) {
-      // Entry was deleted between readdir and stat
-      if (isMissing(err)) continue;
-      throw err;
-    }
-    
-    if (stats.isFile()) {
-      size += stats.size;
-    } else if (stats.isDirectory()) {
-      size += await getDirSize(itemPath);
-    }
-  }
-  
-  return size;
+  const files: FileInfo[] = Array.from(entries, ([name, entry]) => ({
+    name,
+    size: entry.size,
+    age: getAgeInDays(entry.newest),
+    type: entry.isFolder ? 'folder' : getFileType(name)
+  })).sort((a, b) => b.size - a.size);
+  return { path: prefix, totalSize, fileCount: files.length, files };
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
@@ -152,7 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  // This endpoint discloses filesystem storage details. Allow unauthenticated
+  // This endpoint discloses storage details. Allow unauthenticated
   // access ONLY in a local development setup that is not enforcing
   // authentication (the app's open dev mode, where the in-app StorageMonitor
   // tool runs without a session). In every other case — any deployment that
@@ -176,20 +94,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const generatedDir = getGeneratedDir();
-    const tempImagesDir = getTempImagesDir();
-    const dockerDataDir = path.join(process.cwd(), 'data');
-
-    const dockerDataExists = await fsPromises.stat(dockerDataDir).then(() => true, () => false);
-    const [generated, tempImages, dockerData] = await Promise.all([
-      analyzeDirectory(generatedDir),
-      analyzeDirectory(tempImagesDir),
-      dockerDataExists ? analyzeDirectory(dockerDataDir) : undefined,
+    const [generatedObjects, tempImageObjects] = await Promise.all([
+      listObjects('generated/'),
+      listObjects('temp_images/'),
     ]);
     const directories = {
-      generated,
-      tempImages,
-      ...(dockerData && { dockerData })
+      generated: summarise('generated/', generatedObjects),
+      tempImages: summarise('temp_images/', tempImageObjects),
     };
 
     const totalSize = Object.values(directories).reduce((sum, dir) => sum + dir.totalSize, 0);

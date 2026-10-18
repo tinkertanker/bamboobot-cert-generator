@@ -22,6 +22,14 @@ const securityHeaders = [
 
 module.exports = {
   poweredByHeader: false,
+  // Left out of the Next.js bundle so Wrangler resolves Prisma's Workers build
+  // (the "workerd" export condition) instead of the Node.js engine.
+  serverExternalPackages: ['@prisma/client', '.prisma/client'],
+  // Workers resolve these packages through their "workerd" export condition,
+  // which Next.js file tracing does not follow, so the files are added here.
+  outputFileTracingIncludes: {
+    '*': ['./node_modules/jose/dist/browser/**/*', './node_modules/@panva/hkdf/dist/web/**/*'],
+  },
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -33,4 +41,11 @@ module.exports = {
       },
     ];
   },
+}
+
+// Gives `next dev` access to the Cloudflare bindings (D1, R2, Durable Objects)
+// declared in wrangler.jsonc, using local emulation.
+if (process.env.NODE_ENV === 'development' && !process.env.JEST_WORKER_ID) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('@opennextjs/cloudflare').initOpenNextCloudflareForDev();
 }
