@@ -83,6 +83,8 @@ function cleanDirectory(dirConfig) {
       // Never follow symlinks while traversing cleanup roots.
       if (entry.isSymbolicLink()) return;
       if (entry.isDirectory()) {
+        // Durable agent jobs own snapshot/attempt expiry through their DB state.
+        if (currentDir === dirPath && entry.name === 'agent_jobs') return;
         pendingDirectories.push(filePath);
         return;
       }

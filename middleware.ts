@@ -30,6 +30,9 @@ export async function middleware(req: NextRequest) {
   if (
     pathname === '/' ||
     isPathOrDescendant(pathname, '/api/auth') ||
+    // These routes independently enforce session/PAT authentication even when
+    // REQUIRE_AUTH is off. NextAuth JWT middleware cannot authenticate PATs.
+    isPathOrDescendant(pathname, '/api/agent') ||
     pathname === '/api/files/download' ||
     isAuthorisedCleanupRequest(req, pathname) ||
     isPathOrDescendant(pathname, '/_next') ||

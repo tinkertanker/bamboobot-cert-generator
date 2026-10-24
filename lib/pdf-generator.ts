@@ -1,7 +1,9 @@
 import { PDFDocument } from 'pdf-lib';
 import fsPromises from 'fs/promises';
 import path from 'path';
-import * as fontkit from '@pdf-lib/fontkit';
+import fontkit from '@pdf-lib/fontkit';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { readWorkerAsset } from '@/lib/server/worker-files';
 import {
   Entry,
   Position,
@@ -64,6 +66,8 @@ const CUSTOM_FONT_FILES: Record<string, Array<[keyof FontSet & string, string]>>
 const fontBytesCache = new Map<string, Promise<Buffer>>();
 
 function readFontFile(file: string): Promise<Buffer> {
+  // Do not share an in-flight binding request between Worker requests.
+  if (isWorkers) return readWorkerAsset(`fonts/${file}`);
   let cached = fontBytesCache.get(file);
   if (!cached) {
     cached = fsPromises.readFile(path.join(process.cwd(), 'public/fonts', file));
@@ -102,7 +106,8 @@ export function getNeededCustomFontFamilies(
 export async function embedCustomFonts(
   pdf: PDFDocument,
   families: FontFamily[],
-  usedKeys?: Set<string>
+  usedKeys?: Set<string>,
+  strict = false
 ): Promise<Partial<FontSet>> {
   const embedded: Partial<FontSet> = {};
   if (families.length === 0) return embedded;
@@ -116,9 +121,12 @@ export async function embedCustomFonts(
         // Skip variants nothing draws with (selectFont only falls back to
         // standard fonts, never to another custom variant).
         if (usedKeys && !usedKeys.has(key)) continue;
-        embedded[key] = await pdf.embedFont(await readFontFile(file));
+        embedded[key] = await pdf.embedFont(strict
+          ? await (isWorkers ? readWorkerAsset(`fonts/${file}`) : fsPromises.readFile(path.join(process.cwd(), 'public/fonts', file)))
+          : await readFontFile(file));
       }
     } catch (e) {
+      if (strict) throw new Error(`Required font ${family} could not be loaded`);
       console.warn(`Failed to load ${family} fonts:`, e);
     }
   }
@@ -134,7 +142,8 @@ export async function renderSinglePdf(
   template: string | Uint8Array | PDFDocument,
   entryData: Entry,
   positions: Record<string, Position>,
-  uiContainerDimensions: { width: number; height: number }
+  uiContainerDimensions: { width: number; height: number },
+  strict = false
 ): Promise<Uint8Array> {
   const templateDoc =
     template instanceof PDFDocument
@@ -155,7 +164,8 @@ export async function renderSinglePdf(
   const customFontsEmbedded = await embedCustomFonts(
     pdf,
     getNeededCustomFontFamilies(positions, [entryData]),
-    collectUsedFontKeys([entryData], positions)
+    collectUsedFontKeys([entryData], positions),
+    strict
   );
 
   // Combine standard and custom fonts
@@ -164,7 +174,7 @@ export async function renderSinglePdf(
   const page = pdf.getPages()[0];
 
   // Use shared core function to add text to page
-  addTextToPage(page, entryData, positions, fonts, uiContainerDimensions);
+  addTextToPage(page, entryData, positions, fonts, uiContainerDimensions, strict);
 
   return pdf.save();
 }

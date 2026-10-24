@@ -6,6 +6,8 @@ import { getTempImagesDir, resolvePathWithin } from '@/lib/paths';
 import storageConfig from '@/lib/storage-config';
 import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
 import { getS3SignedUrl } from '@/lib/s3-client';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { serveWorkerObject } from '@/lib/server/worker-files';
 
 const SERVED_TYPES: Record<string, string> = {
   '.png': 'image/png',
@@ -52,6 +54,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const mimeType = SERVED_TYPES[path.posix.extname(relativePath).toLowerCase()];
   if (!mimeType) {
     res.status(404).json({ error: 'File not found' });
+    return;
+  }
+  if (isWorkers) {
+    await serveWorkerObject(`temp_images/${relativePath}`, mimeType, res);
     return;
   }
   const baseDir = getTempImagesDir();

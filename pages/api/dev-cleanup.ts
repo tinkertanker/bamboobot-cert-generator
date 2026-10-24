@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { detectUserTier } from '@/lib/server/tiers';
 import { isAuthenticationRequired } from '@/lib/auth/runtime-policy';
+import { cloudflare, isWorkers } from '@/lib/server/cloudflare';
 
 interface CleanupResult {
   deletedFiles: number;
@@ -177,6 +178,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { target } = req.body;
+    if (isWorkers) {
+      if (!['all', 'generated', 'temp', 'docker', 'old', 'large-pdfs'].includes(target)) {
+        res.status(400).json({ error: 'Invalid target' });
+        return;
+      }
+      const files = cloudflare().env.FILES;
+      const prefix = target === 'temp' ? 'temp_images/' : target === 'generated' || target === 'large-pdfs' ? 'generated/' : undefined;
+      const page = await files.list({ prefix, limit: 1000, cursor: typeof req.body.cursor === 'string' ? req.body.cursor : undefined });
+      const candidates = page.objects.filter(object => {
+        if (!object.key.startsWith('generated/') && !object.key.startsWith('temp_images/')) return false;
+        if (target === 'docker') return false; // There is no Docker data volume on Workers.
+        if (target === 'large-pdfs') return object.key.endsWith('.pdf');
+        if (target !== 'old') return true;
+        return Date.now() - object.uploaded.getTime() > (object.key.startsWith('generated/') ? 7 : 30) * 86400000;
+      });
+      if (candidates.length) await files.delete(candidates.map(object => object.key));
+      const freedSpace = candidates.reduce((sum, object) => sum + object.size, 0);
+      res.status(200).json({ success: true, deletedFiles: candidates.length, freedSpace,
+        deletedItems: candidates.map(object => object.key), cursor: page.truncated ? page.cursor : null,
+        message: `Deleted ${candidates.length} items, freed ${formatBytes(freedSpace)}${page.truncated ? '; more pages remain (continue with cursor)' : ''}` });
+      return;
+    }
     
     let result: CleanupResult = {
       deletedFiles: 0,

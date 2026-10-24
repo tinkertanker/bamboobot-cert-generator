@@ -5,9 +5,11 @@ import { lookup } from 'mime-types';
 import type { AuthenticatedRequest } from '@/types/api';
 import { withAdminAccess } from '@/lib/server/middleware/featureGate';
 import { getLocalStorageDir, resolvePathWithin } from '@/lib/paths';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { serveWorkerObject } from '@/lib/server/worker-files';
 
 function isSafe(rel: string): boolean {
-  return rel.startsWith('generated/') || rel.startsWith('temp_images/');
+  return rel.startsWith('generated/') || rel.startsWith('temp_images/') || (isWorkers && rel.startsWith('archive/recovery-20261019/'));
 }
 
 export async function adminFilesHandler(req: AuthenticatedRequest, res: NextApiResponse) {
@@ -23,6 +25,12 @@ export async function adminFilesHandler(req: AuthenticatedRequest, res: NextApiR
   const rel = segments.join('/');
   if (path.posix.normalize(rel) !== rel || rel.includes('\\') || !isSafe(rel)) {
     res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+  if (isWorkers) {
+    const archive = rel.startsWith('archive/');
+    if (archive) res.setHeader('Content-Disposition', 'attachment');
+    await serveWorkerObject(rel, archive ? 'application/octet-stream' : lookup(path.basename(rel)) || 'application/octet-stream', res);
     return;
   }
   const base = getLocalStorageDir();

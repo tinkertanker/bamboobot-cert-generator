@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
-import { LogOut, Settings, ChevronDown, Shield } from 'lucide-react';
+import { LogOut, Settings, ChevronDown, Shield, KeyRound } from 'lucide-react';
 import { useClickOutside } from '@/hooks/useClickOutside';
 
 export function UserAvatarDropdown() {
@@ -206,6 +206,17 @@ export function UserAvatarDropdown() {
                 Admin
               </Link>
             )}
+
+            <Link
+              href="/agent"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => setIsOpen(false)}
+              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none flex items-center gap-3 transition-colors"
+            >
+              <KeyRound className="w-4 h-4" aria-hidden="true" />
+              Agent access
+            </Link>
 
             {/* Sign out */}
             <button

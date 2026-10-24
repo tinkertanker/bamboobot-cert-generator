@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import { getPublicDir } from '@/lib/paths';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { readWorkerAsset } from '@/lib/server/worker-files';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   const session = await requireAuth(req, res);
@@ -27,13 +29,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Check if file exists
-    if (!fs.existsSync(filePath)) {
+    if (!isWorkers && !fs.existsSync(filePath)) {
       res.status(404).json({ error: 'File not found' });
       return;
     }
 
     // Read file
-    const fileBuffer = fs.readFileSync(filePath);
+    const fileBuffer = isWorkers ? await readWorkerAsset(`template_images/${filename}`) : fs.readFileSync(filePath);
     
     // Determine content type based on file extension
     const ext = path.extname(filename).toLowerCase();

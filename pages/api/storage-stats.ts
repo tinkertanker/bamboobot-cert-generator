@@ -7,6 +7,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { detectUserTier } from '@/lib/server/tiers';
 import { isAuthenticationRequired } from '@/lib/auth/runtime-policy';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { listAllObjects } from '@/lib/storage-manager';
 
 interface FileInfo {
   name: string;
@@ -176,6 +178,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    if (isWorkers) {
+      const generated: DirectoryStats = { path: 'R2:generated/', totalSize: 0, fileCount: 0, files: [] };
+      const tempImages: DirectoryStats = { path: 'R2:temp_images/', totalSize: 0, fileCount: 0, files: [] };
+      for (const object of await listAllObjects()) {
+        const isGenerated = object.key.startsWith('generated/');
+        const directory = isGenerated ? generated : tempImages;
+        const prefix = isGenerated ? 'generated/' : 'temp_images/';
+        directory.totalSize += object.size;
+        directory.fileCount += 1;
+        directory.files.push({ name: object.key.slice(prefix.length), size: object.size,
+          age: object.lastModified ? getAgeInDays(new Date(object.lastModified)) : 0,
+          type: getFileType(path.basename(object.key)) });
+      }
+      generated.files.sort((a, b) => b.size - a.size);
+      tempImages.files.sort((a, b) => b.size - a.size);
+      res.status(200).json({ totalSize: generated.totalSize + tempImages.totalSize,
+        directories: { generated, tempImages } } satisfies StorageStats);
+      return;
+    }
     const generatedDir = getGeneratedDir();
     const tempImagesDir = getTempImagesDir();
     const dockerDataDir = path.join(process.cwd(), 'data');

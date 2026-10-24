@@ -6,6 +6,20 @@ are implemented. The items below are still open.
 
 ## Top priority
 
+- [x] Approval-gated agent API with scoped keys, unattended jobs and individual/ZIP downloads (see docs/AGENT_CERTIFICATES.md)
+- [ ] Complete post-launch verification of the [Cloudflare migration](docs/CLOUDFLARE_PRODUCTION.md)
+  - [x] Local OpenNext/D1/private R2 target, recovery export and hash-verified R2 backup
+  - [x] Local restore checks for upload, projects, PDF/ZIP, durable PDF progress and HTTP rate limits
+  - [x] Durable email dispatch, provider-wide limits and exactly-once quota refunds
+  - [x] Workers cleanup adaptation and bounded object-expiry scheduling
+  - [x] Approved admin-only archive: 4 scoped orphans and 2,591 historical-unscoped assets, copied and hash verified
+  - [x] Approved isolated staging resources; copied D1 restore and remote upload/project/PDF/ZIP/admin checks
+  - [x] Remote redeployment recovery for 50 PDFs, preview mail and rate limits; 500-row PDF and mail-admission boundary checks
+  - [x] Browser startup restore regression fixed and deployed reload/generation verified
+  - [x] Authorised production cutover with clean recovered-data import, TLS/auth gates and recorded rollback plan
+  - [x] Compare all 400 original cutover source inventory files; runtime hashes match, five later documentation/comment differences recorded
+  - [ ] Human production Google sign-in/code exchange, original-browser project recovery and authorised mail-delivery verification
+  - [ ] Worst-case CPU/memory headroom beyond the measured 500-row case (owner confirms Workers Paid)
 - [ ] Email download links for client-side PDFs (see below)
 - [ ] Settings page, reachable from the avatar dropdown (currently a disabled "coming soon" item)
   - [ ] Default PDF generation method (client/server)

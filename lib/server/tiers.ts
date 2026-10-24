@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/server/prisma';
 import { getTierLimits, type UserTier } from '@/types/user';
 import { isValidEmail, normaliseEmail } from '@/utils/email-validation';
+import { cloudflare, isWorkers } from '@/lib/server/cloudflare';
 
 // Get admin configuration from environment variables
 // These are optional - if not set, admin features are disabled
@@ -310,6 +311,23 @@ export async function releaseEmailUsageReservation(
     Date.UTC(reservedAt.getUTCFullYear(), reservedAt.getUTCMonth(), reservedAt.getUTCDate())
   );
   const reservationDayEnd = new Date(reservationDayStart.getTime() + 24 * 60 * 60 * 1000);
+  if (isWorkers) {
+    // A single statement is atomic on D1; Prisma's transaction adapter is not.
+    await cloudflare().env.DB.prepare(`
+      UPDATE "User" SET
+        "dailyEmailCount" = CASE
+          WHEN "dailyEmailCount" >= ? AND "lastUsageReset" >= ? AND "lastUsageReset" < ?
+          THEN "dailyEmailCount" - ? ELSE "dailyEmailCount" END,
+        "lifetimeEmailCount" = CASE WHEN "lifetimeEmailCount" >= ?
+          THEN "lifetimeEmailCount" - ? ELSE "lifetimeEmailCount" END
+      WHERE "id" = ?
+    `).bind(
+      recipientCount, reservationDayStart.toISOString().replace('Z', '+00:00'),
+      reservationDayEnd.toISOString().replace('Z', '+00:00'), recipientCount,
+      recipientCount, recipientCount, userId
+    ).run();
+    return;
+  }
   await prisma.$transaction([
     prisma.user.updateMany({
       where: {

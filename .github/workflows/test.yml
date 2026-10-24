@@ -34,3 +34,11 @@ jobs:
       
     - name: Run linting
       run: npm run lint
+
+    # Package locally without credentials. This does not create resources or
+    # publish a Worker; deployment remains a separately authorised operation.
+    - name: Build Cloudflare Worker
+      run: npm run build:cloudflare
+
+    - name: Validate Cloudflare package
+      run: npx wrangler deploy --dry-run --outdir /tmp/bamboobot-worker

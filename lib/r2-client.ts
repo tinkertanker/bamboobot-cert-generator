@@ -9,6 +9,8 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { readFileMetadata } from '@/lib/storage/file-metadata';
 import { cleanupExpiredObjects } from '@/lib/storage/expiry-cleanup';
+import { cloudflare, isWorkers } from '@/lib/server/cloudflare';
+import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
 
 // Initialize R2 client (S3-compatible)
 const r2Client = new S3Client({
@@ -76,6 +78,14 @@ export async function uploadToR2(
     ...metadata
   };
 
+  if (isWorkers) {
+    await cloudflare().env.FILES.put(key, new Uint8Array(buffer), {
+      httpMetadata: { contentType },
+      customMetadata: fullMetadata as unknown as Record<string, string>,
+    });
+    return { key, url: await getPublicUrl(key) };
+  }
+
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
@@ -98,6 +108,11 @@ export async function uploadToR2(
  * an unsigned custom-domain URL, even when R2_PUBLIC_URL is configured.
  */
 export async function getPublicUrl(key: string, forceDownload: boolean = false): Promise<string> {
+  if (isWorkers) {
+    if (key.startsWith('generated/')) return createSignedGeneratedFileUrl(key.slice('generated/'.length));
+    if (key.startsWith('temp_images/')) return `/api/files/${key.split('/').map(encodeURIComponent).join('/')}`;
+    throw new Error('No public URL for this private object type');
+  }
   const command = new GetObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
@@ -112,6 +127,10 @@ export async function getPublicUrl(key: string, forceDownload: boolean = false):
  * Delete a file from R2
  */
 export async function deleteFromR2(key: string): Promise<void> {
+  if (isWorkers) {
+    await cloudflare().env.FILES.delete(key);
+    return;
+  }
   const command = new DeleteObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
@@ -124,6 +143,7 @@ export async function deleteFromR2(key: string): Promise<void> {
  * Check if R2 is configured
  */
 export function isR2Configured(): boolean {
+  if (isWorkers) return true;
   return !!(
     process.env.R2_ENDPOINT &&
     process.env.R2_ACCESS_KEY_ID &&
@@ -137,6 +157,10 @@ export function isR2Configured(): boolean {
  */
 export async function getFileMetadata(key: string): Promise<FileMetadata | null> {
   try {
+    if (isWorkers) {
+      const object = await cloudflare().env.FILES.head(key);
+      return object ? readFileMetadata(object.customMetadata) : null;
+    }
     const command = new HeadObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
@@ -157,6 +181,15 @@ export async function getFileMetadata(key: string): Promise<FileMetadata | null>
  */
 export async function listFiles(prefix?: string): Promise<Array<{key: string, lastModified?: Date, size?: number}>> {
   const files: Array<{key: string, lastModified?: Date, size?: number}> = [];
+  if (isWorkers) {
+    let cursor: string | undefined;
+    do {
+      const page = await cloudflare().env.FILES.list({ prefix, cursor });
+      files.push(...page.objects.map(object => ({ key: object.key, lastModified: object.uploaded, size: object.size })));
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+    return files;
+  }
   let continuationToken: string | undefined;
   
   do {
@@ -190,7 +223,8 @@ export async function cleanupExpiredFiles(
 ): Promise<{deleted: string[], errors: string[]}> {
   try {
     const files = await listFiles();
-    return await cleanupExpiredObjects(files, {
+    // Recovery archives and mail payloads have separate retention contracts.
+    return await cleanupExpiredObjects(files.filter(file => file.key.startsWith('generated/') || file.key.startsWith('temp_images/')), {
       getMetadata: getFileMetadata,
       deleteObject: deleteFromR2,
       dryRun: options.dryRun,
@@ -215,6 +249,14 @@ export async function markAsEmailed(key: string): Promise<void> {
     metadata.emailSent = 'true';
     metadata.retention = '90d'; // Extend retention for emailed files
     
+    if (isWorkers) {
+      const object = await cloudflare().env.FILES.get(key);
+      if (object) {
+        await uploadToR2(Buffer.from(await object.arrayBuffer()), key, object.httpMetadata?.contentType || 'application/pdf', undefined, metadata);
+      }
+      return;
+    }
+
     // Copy object with new metadata (R2 doesn't support metadata update without copy)
     const getCommand = new GetObjectCommand({
       Bucket: BUCKET_NAME,

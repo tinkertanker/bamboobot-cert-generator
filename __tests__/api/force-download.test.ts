@@ -34,7 +34,7 @@ describe('/api/force-download', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedRequireAuth.mockResolvedValue({ user: { id: 'u1' } } as any);
-    mockedEnforceRateLimit.mockReturnValue({
+    mockedEnforceRateLimit.mockResolvedValue({
       allowed: true,
       retryAfter: 0,
       limit: 30,
@@ -76,7 +76,7 @@ describe('/api/force-download', () => {
   });
 
   it('rate-limits downloads before loading the source', async () => {
-    mockedEnforceRateLimit.mockReturnValue({
+    mockedEnforceRateLimit.mockResolvedValue({
       allowed: false,
       retryAfter: 60,
       limit: 30,

@@ -22,7 +22,7 @@ import { debug, error } from '@/lib/log';
 import { rateLimit, buildKey } from '@/lib/rate-limit';
 import { withFeatureGate } from '@/lib/server/middleware/featureGate';
 import { getGeneratedDir } from '@/lib/paths';
-import { getAuthorizedTemplateCandidates, PrivateFileAccessError } from '@/lib/security/private-file-access';
+import { readAuthorizedTemplate, PrivateFileAccessError } from '@/lib/security/private-file-access';
 import {
   Entry,
   Position,
@@ -46,9 +46,9 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
   const userId = user.id;
   
   // Apply existing rate limiting (separate from tier limits)
-  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket?.remoteAddress || null;
   const key = buildKey({ userId, ip, route: 'generate', category: 'generate' });
-  const rl = rateLimit(key, 'generate');
+  const rl = await rateLimit(key, 'generate');
   res.setHeader('X-RateLimit-Limit', String(rl.limit));
   res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
   res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
@@ -85,24 +85,15 @@ async function generateHandler(req: AuthenticatedRequest, res: NextApiResponse):
     }
     
     debug('Looking for template:', templateFilename);
-    let templateCandidates: string[];
+    let templatePdfBytes: Buffer | null;
     try {
-      templateCandidates = getAuthorizedTemplateCandidates(templateFilename, userId);
+      templatePdfBytes = await readAuthorizedTemplate(templateFilename, userId);
     } catch (accessError) {
       if (accessError instanceof PrivateFileAccessError) {
         res.status(accessError.statusCode).json({ error: accessError.message });
         return;
       }
       throw accessError;
-    }
-    let templatePdfBytes: Buffer | undefined;
-    for (const candidate of templateCandidates) {
-      try {
-        templatePdfBytes = await fsPromises.readFile(candidate);
-        break;
-      } catch (readError) {
-        if ((readError as NodeJS.ErrnoException).code !== 'ENOENT') throw readError;
-      }
     }
     if (!templatePdfBytes) {
       res.status(404).json({ error: 'Template not found' });

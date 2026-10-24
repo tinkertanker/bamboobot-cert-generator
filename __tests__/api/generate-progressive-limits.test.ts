@@ -9,7 +9,15 @@ jest.mock('@/lib/storage-config', () => ({
 }));
 jest.mock('@/lib/r2-client', () => ({ uploadToR2: jest.fn() }));
 jest.mock('@/lib/s3-client', () => ({ uploadToS3: jest.fn() }));
-jest.mock('fs/promises', () => ({ __esModule: true, default: { mkdir: jest.fn(async () => undefined) } }));
+jest.mock('fs/promises', () => ({
+  __esModule: true,
+  default: {
+    mkdir: jest.fn(async () => undefined),
+    // Keep the real processing loop waiting, rather than failing template
+    // reads and scheduling retries after this resource-limit test finishes.
+    readFile: jest.fn(() => new Promise(() => undefined)),
+  },
+}));
 jest.mock('fs', () => ({ __esModule: true, default: { existsSync: jest.fn(() => true) }, existsSync: jest.fn(() => true) }));
 // Never finish, so started sessions stay active.
 jest.mock('@/lib/pdf-generator', () => ({ generateSinglePdf: jest.fn(() => new Promise(() => undefined)) }));
@@ -38,7 +46,12 @@ async function post(payload: Record<string, unknown>) {
   return res;
 }
 
-afterAll(() => PdfSessionManager.getInstance().destroy());
+beforeAll(() => jest.useFakeTimers());
+afterAll(() => {
+  PdfSessionManager.getInstance().destroy();
+  jest.clearAllTimers();
+  jest.useRealTimers();
+});
 
 describe('/api/generate-progressive resource limits', () => {
   it('rejects datasets over the row limit', async () => {

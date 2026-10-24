@@ -23,6 +23,8 @@ import {
   requireSafeEmailHeader
 } from '@/lib/email/abuse-controls';
 import { SignedFileUrlError, verifySignedGeneratedFileCapabilityUrl } from '@/lib/security/signed-generated-url';
+import { cloudflare, isWorkers } from '@/lib/server/cloudflare';
+import { enqueueWorkerEmails, getWorkerEmailStatus, controlWorkerEmails, processWorkerEmails, withWorkerEmailIngestion } from '@/lib/email/worker-queue';
 
 const MAX_BULK_EMAILS = 500;
 const BULK_ATTACHMENT_CONCURRENCY = 4;
@@ -252,6 +254,7 @@ async function withBulkIngestionSlot<T>(userId: string, operation: () => Promise
 }
 
 async function withBulkQueueIngestion<T>(userId: string, key: string, operation: () => Promise<T>): Promise<T> {
+  if (isWorkers) return withWorkerEmailIngestion(userId, getMaxConcurrentIngestionsPerUser(), getMaxConcurrentIngestionsGlobal(), operation);
   return withBulkIngestionSlot(userId, () => withQueueIngestionLock(key, operation));
 }
 
@@ -326,7 +329,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
     const safeMessage = requireBoundedEmailText(config.message, 'message', MAX_EMAIL_MESSAGE_LENGTH);
 
     // Rate limit after validation
-    const rl = enforceRateLimit(req, res, {
+    const rl = await enforceRateLimit(req, res, {
       userId,
       route: 'send-bulk-email:POST',
       category: 'email'
@@ -519,6 +522,19 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
         emailParams.push(...builtBatch);
       }
 
+      if (isWorkers) {
+        const result = await enqueueWorkerEmails(userId, safeSessionId, emailParams, deferProcessing, {
+          activePerUser: getMaxActiveQueuesPerUser(), activeGlobal: getMaxActiveQueuesGlobal(),
+          queueBytes: maxBulkAttachmentBytes, userBytes: getMaxRetainedAttachmentBytesPerUser(),
+          globalBytes: getMaxRetainedAttachmentBytesGlobal(), pausedPerUser: getMaxPausedQueuesPerUser(),
+          pausedGlobal: getMaxPausedQueuesGlobal(), pausedBytes: getMaxPausedAttachmentBytes(),
+        });
+        await markGeneratedRetentionInBatches(emailParams.map(email => email.certificateUrl).filter((url): url is string => Boolean(url)), userId);
+        if (!deferProcessing) cloudflare().ctx.waitUntil(processWorkerEmails());
+        successPayload = { ...result, skippedCount };
+        return;
+      }
+
       const isNewQueue = !queueManager;
       let queueCommitted = false;
       await withQueueIngestionLock(GLOBAL_INGESTION_LOCK, async () => {
@@ -638,7 +654,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
       };
     });
     if (!successPayload) return;
-    void enforcePausedQueueLimits().catch(error => {
+    if (!isWorkers) void enforcePausedQueueLimits().catch(error => {
       console.error('Paused queue pressure cleanup failed:', error);
     });
     res.status(200).json(successPayload);
@@ -662,7 +678,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: stri
     const { sessionId } = req.query;
 
     // Light rate limit for status checks
-    const rl = enforceRateLimit(req, res, {
+    const rl = await enforceRateLimit(req, res, {
       userId,
       route: 'send-bulk-email:GET',
       category: 'api'
@@ -673,6 +689,10 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: stri
     }
     const safeSessionId = requireSessionId(sessionId);
 
+    if (isWorkers) {
+      res.status(200).json(await getWorkerEmailStatus(userId, safeSessionId));
+      return;
+    }
     const key = userId ? queueKey(userId, safeSessionId) : '';
     let status: QueueStatus | null = null;
     if (key) {
@@ -723,7 +743,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: stri
     const { action, sessionId } = req.body;
 
     // Rate limit control actions
-    const rl = enforceRateLimit(req, res, {
+    const rl = await enforceRateLimit(req, res, {
       userId,
       route: 'send-bulk-email:PUT',
       category: 'api'
@@ -739,6 +759,12 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: stri
     }
     const safeSessionId = requireSessionId(sessionId);
 
+    if (isWorkers) {
+      await controlWorkerEmails(userId, safeSessionId, action);
+      if (action === 'resume' || action === 'start') cloudflare().ctx.waitUntil(processWorkerEmails());
+      res.status(200).json({ success: true });
+      return;
+    }
     const key = queueKey(userId, safeSessionId);
     let actionSucceeded = false;
     await withQueueIngestionLock(key, async () => {
@@ -863,7 +889,7 @@ export async function cleanupExpiredEmailQueues(now = Date.now()): Promise<void>
 }
 
 // Only set up the interval if it hasn't been set up already
-if (!cleanupInterval) {
+if (!isWorkers && !cleanupInterval) {
   cleanupInterval = setInterval(() => {
     cleanupExpiredEmailQueues().catch(console.error);
   }, 600000); // Every 10 minutes

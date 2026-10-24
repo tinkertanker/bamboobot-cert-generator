@@ -23,6 +23,8 @@ import {
   requireSafeEmailHeader
 } from '@/lib/email/abuse-controls';
 import { SignedFileUrlError, verifySignedGeneratedFileCapabilityUrl } from '@/lib/security/signed-generated-url';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { sendWorkerEmail } from '@/lib/email/worker-queue';
 
 export const config = {
   api: {
@@ -46,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const userId = sessionUser.id;
 
   // Rate limit test emails
-  const rl = enforceRateLimit(req, res, { userId, route: 'send-test-email', category: 'email' });
+  const rl = await enforceRateLimit(req, res, { userId, route: 'send-test-email', category: 'email' });
   if (!rl.allowed) {
     res.status(429).json({ error: 'Rate limit exceeded. Please try again later.' });
     return;
@@ -138,8 +140,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new EmailRequestError('Invalid PDF attachment data');
     }
 
-    const quota = await reserveEmailUsage(userId, 1);
-    if (!quota.allowed) {
+    const quota = isWorkers ? undefined : await reserveEmailUsage(userId, 1);
+    if (quota && !quota.allowed) {
       res.status(403).json({
         error: 'email limit reached',
         code: 'LIMIT_REACHED',
@@ -148,7 +150,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       return;
     }
-    if (!quota.reservationDay) throw new Error('Email quota reservation is missing its accounting epoch');
+    if (quota && !quota.reservationDay) throw new Error('Email quota reservation is missing its accounting epoch');
 
     // Send the test email
     const emailParams: EmailParams = {
@@ -162,14 +164,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     let result;
     try {
-      result = await provider.sendEmail(emailParams);
+      result = isWorkers ? await sendWorkerEmail(userId, emailParams) : await provider.sendEmail(emailParams);
     } catch (error) {
       // Retain quota for ambiguous transport failures that may have delivered.
       throw error;
     }
 
     if (!result.success) {
-      if (isDefinitelyUnsentProviderError(result.error)) {
+      if (quota?.reservationDay && isDefinitelyUnsentProviderError(result.error)) {
         await releaseEmailUsageReservation(userId, 1, quota.reservationDay).catch(refundError => {
           console.error('Failed to release email quota reservation:', refundError);
         });

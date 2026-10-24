@@ -1,6 +1,8 @@
 import { ResendProvider } from './providers/resend';
 import { SESProvider } from './providers/ses';
 import type { EmailProvider } from './types';
+import { PreviewEmailProvider } from './providers/preview';
+import { isWorkers } from '@/lib/server/cloudflare';
 
 let cachedProvider: EmailProvider | null = null;
 
@@ -9,6 +11,8 @@ let cachedProvider: EmailProvider | null = null;
  * Priority: SES > Resend
  */
 export function getEmailProvider(): EmailProvider {
+  // Explicit staging mode wins even if mail credentials were accidentally bound.
+  if (isWorkers && process.env.EMAIL_DELIVERY_MODE === 'preview') return new PreviewEmailProvider();
   if (cachedProvider) {
     return cachedProvider;
   }

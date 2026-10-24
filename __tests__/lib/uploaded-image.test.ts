@@ -33,4 +33,10 @@ describe('detectUploadedImage', () => {
     expect(detectUploadedImage(pngHeader(MAX_IMAGE_PIXELS, 2))).toBeNull();
     expect(detectUploadedImage(pngHeader(0, 100))).toBeNull();
   });
+
+  it('supports a stricter decode budget without changing the default upload limit', () => {
+    expect(detectUploadedImage(pngHeader(4000, 3000), 12_000_000)).not.toBeNull();
+    expect(detectUploadedImage(pngHeader(4001, 3000), 12_000_000)).toBeNull();
+    expect(detectUploadedImage(pngHeader(4001, 3000))).not.toBeNull();
+  });
 });

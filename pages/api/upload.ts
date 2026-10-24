@@ -11,6 +11,8 @@ import { requireAuth } from '@/lib/auth/requireAuth';
 import { debug, error } from '@/lib/log';
 import { rateLimit, buildKey } from '@/lib/rate-limit';
 import { detectUploadedImage } from '@/lib/security/uploaded-image';
+import { randomUUID } from 'crypto';
+import { isWorkers } from '@/lib/server/cloudflare';
 
 export const config = {
   api: {
@@ -28,9 +30,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session) return;
   const userId = session.user.id;
   // Rate limit uploads
-  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket?.remoteAddress || null;
   const key = buildKey({ userId, ip, route: 'upload', category: 'upload' });
-  const rl = rateLimit(key, 'upload');
+  const rl = await rateLimit(key, 'upload');
   res.setHeader('X-RateLimit-Limit', String(rl.limit));
   res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
   res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));
@@ -45,10 +47,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Ensure directories exist before processing upload
-  ensureAllDirectoriesExist();
+  if (!isWorkers) ensureAllDirectoriesExist();
 
-  const baseTempDir = getTempImagesDir();
-  const userTempDir = `${baseTempDir}/u_${userId}`;
+  // Workers /tmp is request-scoped scratch, never persistent user storage.
+  const baseTempDir = isWorkers ? '/tmp/bamboobot-uploads' : getTempImagesDir();
+  const userTempDir = isWorkers ? `${baseTempDir}/${randomUUID()}` : `${baseTempDir}/u_${userId}`;
 
   // Ensure user-scoped temp dir exists (both dev/prod)
   try {
@@ -61,7 +64,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Create a dedicated temp directory for formidable; default to user temp dir
   let formidableTempDir = userTempDir;
-  if (process.env.NODE_ENV === 'production' || UPLOAD_TEMP_DIR) {
+  if (!isWorkers && (process.env.NODE_ENV === 'production' || UPLOAD_TEMP_DIR)) {
     formidableTempDir = UPLOAD_TEMP_DIR ? `${UPLOAD_TEMP_DIR}/u_${userId}` : `/app/tmp/uploads/u_${userId}`;
   }
   try {
@@ -163,9 +166,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // User uploads always go to temp_images/user (they're temporary)
     // Only dev-mode templates go to template_images (permanent storage)
-    await fsPromises.mkdir(userTempDir, { recursive: true });
-    const pdfFilepath = path.join(userTempDir, pdfFilename);
-    await fsPromises.writeFile(pdfFilepath, pdfBytes);
+    if (!isWorkers) {
+      await fsPromises.mkdir(userTempDir, { recursive: true });
+      const pdfFilepath = path.join(userTempDir, pdfFilename);
+      await fsPromises.writeFile(pdfFilepath, pdfBytes);
+    }
     
     if (storageConfig.isR2Enabled) {
       debug('Uploading to R2...');
@@ -179,9 +184,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
       imageUrl = storageConfig.getFileUrl(`u_${userId}/${imageName}`, undefined, 'temp_images');
       
-      // Also save image locally as backup
-      const imageFilepath = path.join(userTempDir, imageName);
-      await fsPromises.copyFile(filepath, imageFilepath);
+      if (isWorkers) {
+        // The template PDF must survive the request too, not just its image.
+        await uploadToR2(Buffer.from(pdfBytes), `temp_images/u_${userId}/${pdfFilename}`, 'application/pdf', pdfFilename);
+      } else {
+        // Keep the existing Node backup/rollback path.
+        const imageFilepath = path.join(userTempDir, imageName);
+        await fsPromises.copyFile(filepath, imageFilepath);
+      }
       
       debug('R2 upload successful:', imageUrl);
     } else if (storageConfig.isS3Enabled) {
@@ -256,5 +266,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } finally {
     // Formidable's randomly named temp copy is never served; always remove it.
     await Promise.all(uploadedTempFiles.map(tempFile => fsPromises.unlink(tempFile).catch(() => undefined)));
+    if (isWorkers) await fsPromises.rm(userTempDir, { recursive: true, force: true });
   }
 }

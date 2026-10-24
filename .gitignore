@@ -64,3 +64,11 @@ test-results/
 # Prisma / SQLite database
 prisma/*.db
 prisma/*.db-journal
+
+# Cloudflare generated clients, builds and local binding/secret state
+/.open-next/
+/.wrangler/
+/public/agent-renderer-version.json
+.dev.vars
+.dev.vars.*
+/.amp/

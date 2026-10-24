@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false
+  },
+  "include": ["cloudflare-worker.ts", "types/cloudflare.d.ts"],
+  "exclude": ["node_modules", ".open-next", ".wrangler"]
+}

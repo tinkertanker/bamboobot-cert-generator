@@ -4,6 +4,7 @@ import storageConfig from './storage-config';
 import { listFiles as listR2Files, deleteFromR2 } from './r2-client';
 import { listAllS3Objects, deleteFromS3 } from './s3-client';
 import { getGeneratedDir, getLocalStorageDir, getTempImagesDir, resolvePathWithin } from './paths';
+import { isWorkers } from './server/cloudflare';
 
 export type StorageProvider = 'local' | 'cloudflare-r2' | 'amazon-s3';
 
@@ -125,7 +126,7 @@ export async function listAllObjects(prefix?: string): Promise<StorageItem[]> {
   if (provider === 'cloudflare-r2' && storageConfig.isR2Enabled) {
     const files = await listR2Files(prefix);
     return files
-      .filter(f => f.key && ensureSafeStorageKey(f.key))
+      .filter(f => f.key && ((isWorkers && f.key.startsWith('archive/recovery-20261019/')) || ensureSafeStorageKey(f.key)))
       .map(f => ({ key: f.key, size: f.size || 0, lastModified: f.lastModified?.toISOString() }));
   }
 

@@ -177,6 +177,18 @@ S3_REGION=us-east-1
 
 ## Development
 
+### Cloudflare Workers
+
+The Workers targets use OpenNext, D1 and private R2 bindings, with durable
+PDF/email jobs and scheduled expiry. Production at `https://bamboobot.tk.sg` uses
+explicit `--config wrangler.production.jsonc` for both OpenNext build and Wrangler
+deploy; see [the production record and rollback](docs/CLOUDFLARE_PRODUCTION.md).
+Default `wrangler.jsonc` remains staging-only. Staging email writes private previews and
+never contacts a mail service. Recovered assets remain in an admin-only archive;
+unknown owners are not reassigned. See [the staging validation record](docs/CLOUDFLARE_MIGRATION.md)
+for the migration evidence and remaining verification limits. Server project persistence
+must be enabled at build time with `NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE=true`.
+
 ### Commands
 ```bash
 # Development

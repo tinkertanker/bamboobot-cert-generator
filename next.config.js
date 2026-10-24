@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Next.js loads this configuration as CommonJS. */
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Conservative security headers applied to every response. A full script/style
@@ -22,8 +23,18 @@ const securityHeaders = [
 
 module.exports = {
   poweredByHeader: false,
-  eslint: {
-    ignoreDuringBuilds: true,
+  // Only non-secret runtime/rendering selectors are inlined. Secrets remain runtime
+  // bindings; never put recovered configuration in Next's `env` option.
+  env: {
+    BAMBOOBOT_RUNTIME: process.env.BAMBOOBOT_RUNTIME || 'node',
+  },
+  // OpenNext selects Prisma's workerd/WASM entrypoint after the Next build.
+  serverExternalPackages: ['@prisma/client', '.prisma/client'],
+  transpilePackages: ['@opennextjs/cloudflare', 'ky'],
+  // Next traces Node's conditional exports, but OpenNext bundles workerd's
+  // exports. Include the web variants used by NextAuth/openid-client too.
+  outputFileTracingIncludes: {
+    '/*': ['./node_modules/jose/dist/browser/**/*', './node_modules/@panva/hkdf/dist/web/**/*'],
   },
   async headers() {
     return [

@@ -73,16 +73,22 @@ export function StorageMonitor() {
     if (!window.confirm(`${label}: this permanently deletes data. Continue?`)) return;
     setCleaning(true);
     try {
-      const response = await fetch('/api/dev-cleanup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target })
-      });
-      
-      if (!response.ok) throw new Error('Cleanup failed');
-      
-      const result = await response.json();
-      showToast({ message: `${label}: ${result.message}`, type: 'success', duration: 5000 });
+      let cursor: string | undefined;
+      let deletedFiles = 0;
+      let freedSpace = 0;
+      do {
+        const response = await fetch('/api/dev-cleanup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target, cursor })
+        });
+        if (!response.ok) throw new Error('Cleanup failed');
+        const result = await response.json();
+        deletedFiles += result.deletedFiles;
+        freedSpace += result.freedSpace;
+        cursor = result.cursor || undefined;
+      } while (cursor);
+      showToast({ message: `${label}: Deleted ${deletedFiles} items, freed ${formatBytes(freedSpace)}`, type: 'success', duration: 5000 });
       
       // Refresh stats after cleanup
       await fetchStats();
@@ -210,7 +216,7 @@ export function StorageMonitor() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => cleanup(key === 'dockerData' ? 'docker' : key, `${dirLabel} cleanup`)}
+                        onClick={() => cleanup(key === 'dockerData' ? 'docker' : key === 'tempImages' ? 'temp' : key, `${dirLabel} cleanup`)}
                         disabled={cleaning}
                         className="h-6 px-2 text-xs"
                         aria-label={`Delete all ${dirLabel.toLowerCase()} files`}
