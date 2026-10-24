@@ -129,6 +129,37 @@ describe('certificate contract with real D1 and R2', () => {
     expect(await db.prepare('SELECT dailyPdfCount FROM User').first()).toEqual({ dailyPdfCount: 0 });
   });
 
+  it.each([1, 4])('stops after three interrupted executions without rendering another %i-row batch slice', async count => {
+    const { job: draft } = await createWorkerDraft('owner', payload(count), `exhausted-${count}`);
+    await db.prepare(`UPDATE CertificateJob SET attempts=2,attemptToken='third-interrupted-worker',leaseUntil='2000-01-01T00:00:00Z' WHERE id=?`).bind(draft.id).run();
+    await processWorkerCertificateJobs(0);
+    const exhausted = await job(draft.id);
+    expect(exhausted.status).toBe('failed');
+    expect(exhausted.attempts).toBe(3);
+    expect(exhausted.progress).toBe(0);
+    expect(exhausted.manifest).toBeNull();
+  });
+
+  it('releases unused reservations so tiny completed and exhausted jobs cannot block another owner', async () => {
+    await db.prepare(`INSERT OR IGNORE INTO User(id,tier,lastUsageReset) VALUES ('other-owner','free',?)`).bind(new Date().toISOString()).run();
+    const input = payload(1);
+    input.positions.name.fontFamily = 'Helvetica';
+    for (let i = 0; i < 9; i++) {
+      const { job: draft } = await createWorkerDraft('owner', input, `tiny-complete-${i}`);
+      await prepare(draft.id);
+      await approveWorkerJob('owner', draft.id, draft.inputHash);
+      await processWorkerCertificateJobs();
+      expect((await job(draft.id)).status).toBe('completed');
+    }
+    for (let i = 0; i < 3; i++) {
+      const { job: draft } = await createWorkerDraft('owner', input, `tiny-exhausted-${i}`);
+      await db.prepare(`UPDATE CertificateJob SET attempts=2,attemptToken='interrupted',leaseUntil='2000-01-01T00:00:00Z' WHERE id=?`).bind(draft.id).run();
+      await processWorkerCertificateJobs(0);
+      expect((await job(draft.id)).status).toBe('failed');
+    }
+    expect((await createWorkerDraft('other-owner', input, 'other-owner-draft')).job.status).toBe('preparing');
+  }, 30000);
+
   it('reserves capacity atomically, replays input keys, and revokes access immediately on delete', async () => {
     const results = await Promise.allSettled(Array.from({ length: 5 }, (_, i) => createWorkerDraft('owner', payload(1), `admission-${i}`)));
     expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(3);

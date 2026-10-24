@@ -13,7 +13,8 @@ import { logAgentError } from './log';
 const DAY = 86400000;
 const MAX_BYTES = 250 * 1024 * 1024;
 const MAX_PDF = 8 * 1024 * 1024;
-// Includes immutable inputs/samples and at most three interrupted object writes.
+// Preparation headroom for immutable inputs/samples and interrupted writes.
+// Ready and terminal jobs charge retained bytes, not this unused reservation.
 const OVERHEAD = 160 * 1024 * 1024;
 const RESERVATION = 2 * MAX_BYTES + OVERHEAD;
 const LEASE = 5 * 60_000;
@@ -24,6 +25,7 @@ export interface WorkerCheckpoint {
   sampleKey?: string;
   files: Array<Artifact & { objectKey: string }>;
   bytes: number;
+  auxiliaryBytes: number;
 }
 const checkpoint = (job: CertificateJob) => job.checkpoint as unknown as WorkerCheckpoint;
 
@@ -77,7 +79,8 @@ export async function createWorkerDraft(ownerId: string, value: unknown, idempot
     await cloudflare().env.DB.prepare(`INSERT INTO CertificateJob
       (id,ownerId,label,idempotencyKey,inputHash,rendererVersion,input,sampleHash,total,status,checkpoint,storageBytes,createdAt,expiresAt)
       VALUES(?,?,?,?,?,?,?,?,?,'ingesting',?,?,?,?)`).bind(id, ownerId, input.label, idempotencyKey, inputHash, version,
-      JSON.stringify(frozen), '', input.rows.length, JSON.stringify({ requestKey, files: [], bytes: 0 }), RESERVATION, iso(), iso(Date.now() + DAY)).run();
+      JSON.stringify(frozen), '', input.rows.length, JSON.stringify({ requestKey, files: [], bytes: 0,
+        auxiliaryBytes: Buffer.byteLength(JSON.stringify({ base64: option?.base64 })) }), RESERVATION, iso(), iso(Date.now() + DAY)).run();
   } catch (error) {
     // A lost successful response must not delete possibly committed inputs.
     const prior = await replay();
@@ -126,17 +129,22 @@ export async function expireWorkerJob(ownerId: string, id: string) {
 }
 
 /** One persisted lease across web isolates and cron invocations bounds decoding. */
-export async function processWorkerCertificateJobs(budgetMs = 2_000) {
+export async function processWorkerCertificateJobs(budgetMs = 20_000) {
   if (process.env.AGENT_CERTIFICATES_ENABLED !== 'true') return;
   const { DB: db, FILES: files } = cloudflare().env;
   const token = randomUUID();
   const now = iso();
-  await db.prepare(`UPDATE CertificateJob SET status='failed',attemptToken=NULL,error='Retry budget exhausted'
-    WHERE status IN ('preparing','queued','running') AND attempts>=3 AND (leaseUntil IS NULL OR julianday(leaseUntil)<=julianday(?))`).bind(now).run();
+  await db.prepare(`UPDATE CertificateJob SET status='failed',
+    attempts=attempts+CASE WHEN attemptToken IS NOT NULL THEN 1 ELSE 0 END,
+    attemptToken=NULL,error='Retry budget exhausted',
+    storageBytes=coalesce(json_extract(checkpoint,'$.bytes'),0)+coalesce(json_extract(checkpoint,'$.auxiliaryBytes'),0)
+    WHERE status IN ('preparing','queued','running') AND attempts+CASE WHEN attemptToken IS NOT NULL THEN 1 ELSE 0 END>=3
+      AND (leaseUntil IS NULL OR julianday(leaseUntil)<=julianday(?))`).bind(now).run();
   const claimed = await db.prepare(`UPDATE CertificateJob SET attemptToken=?,leaseUntil=?,
     attempts=attempts+CASE WHEN attemptToken IS NOT NULL THEN 1 ELSE 0 END,
     status=CASE WHEN status='queued' THEN 'running' ELSE status END
-    WHERE id=(SELECT id FROM CertificateJob WHERE status IN ('preparing','queued','running') AND attempts<3
+    WHERE id=(SELECT id FROM CertificateJob WHERE status IN ('preparing','queued','running')
+      AND attempts+CASE WHEN attemptToken IS NOT NULL THEN 1 ELSE 0 END<3
       AND julianday(expiresAt)>julianday(?) AND (leaseUntil IS NULL OR julianday(leaseUntil)<=julianday(?))
       AND (retryAt IS NULL OR julianday(retryAt)<=julianday(?))
       AND NOT EXISTS(SELECT 1 FROM CertificateJob WHERE status IN ('preparing','running') AND julianday(leaseUntil)>julianday(?))
@@ -150,16 +158,21 @@ export async function processWorkerCertificateJobs(budgetMs = 2_000) {
   const fence = `id=? AND attemptToken=? AND status IN ('preparing','running') AND julianday(expiresAt)>julianday(?)`;
   const save = async (status: string, sampleHash = job.sampleHash) => db.prepare(`UPDATE CertificateJob SET input=?,checkpoint=?,
     status=?,progress=?,sampleHash=?,storageBytes=?,attemptToken=NULL,leaseUntil=? WHERE ${fence}`).bind(JSON.stringify(input), JSON.stringify(state), status,
-    state.files.length, sampleHash, status === 'preparing' ? RESERVATION : 2 * state.bytes + OVERHEAD, iso(), job.id, token, iso()).run();
-  const persist = async () => {
-    const result = await db.prepare(`UPDATE CertificateJob SET input=?,checkpoint=?,progress=? WHERE ${fence}`)
-      .bind(JSON.stringify(input), JSON.stringify(state), state.files.length, job.id, token, iso()).run();
+    state.files.length, sampleHash, status === 'preparing' ? RESERVATION : 2 * state.bytes + state.auxiliaryBytes, iso(), job.id, token, iso()).run();
+  const persist = async (inputChanged = false) => {
+    const result = await db.prepare(`UPDATE CertificateJob SET ${inputChanged ? 'input=?,' : ''}checkpoint=?,progress=? WHERE ${fence}`)
+      .bind(...(inputChanged ? [JSON.stringify(input)] : []), JSON.stringify(state), state.files.length, job.id, token, iso()).run();
     if (!result.meta.changes) throw new AgentError('Job cancelled or attempt superseded', 409);
   };
   try {
+    // Preserve resumability of checkpoints created before byte accounting.
+    if (typeof state.auxiliaryBytes !== 'number') {
+      const objects = await Promise.all([state.requestKey, state.templateKey, state.sampleKey]
+        .flatMap(key => key ? [key] : []).map(key => files.head(key)));
+      state.auxiliaryBytes = objects.reduce((sum, object) => sum + (object?.size ?? 0), 0);
+    }
     if (job.rendererVersion !== await rendererVersion()) throw new AgentError('Renderer changed; create and approve a new draft');
     if (job.status === 'preparing') {
-      const deadline = Date.now() + budgetMs;
       if (!state.templateKey) {
         const source = JSON.parse((await bytes(state.requestKey, 6 * 1024 * 1024)).toString()) as { base64?: string };
         const rawInput = { label: input.label, rows: input.rows, positions: input.positions };
@@ -169,11 +182,14 @@ export async function processWorkerCertificateJobs(budgetMs = 2_000) {
         input.templateHash = digest(template);
         state.templateKey = `${prefix}/template.pdf`;
         await files.put(state.templateKey, template);
-        await persist();
+        state.auxiliaryBytes += template.length;
+        await persist(true);
       }
       const templateBytes = await bytes(state.templateKey, MAX_PDF);
       if (digest(templateBytes) !== input.templateHash) throw new AgentError('Template integrity check failed');
       const template = await PDFDocument.load(templateBytes);
+      // Storage/template setup must not consume the whole rendering slice.
+      const deadline = Date.now() + budgetMs;
       // Keep ALL preflight PDFs: after approval we publish these exact bytes,
       // not a second rendering that might differ from the approved revision.
       for (let count = 0; state.files.length < job.total; count++) {
@@ -204,6 +220,7 @@ export async function processWorkerCertificateJobs(budgetMs = 2_000) {
       const output = await sample.save();
       state.sampleKey = `${prefix}/sample.pdf`;
       await files.put(state.sampleKey, output);
+      state.auxiliaryBytes += output.length;
       await save('awaiting_approval', digest(output));
       return;
     }
@@ -217,14 +234,15 @@ export async function processWorkerCertificateJobs(budgetMs = 2_000) {
     // No download path can observe partial/missing outputs. Expiry/DELETE and a
     // newer attempt fence this final publication even if R2 writes finished.
     await db.prepare(`UPDATE CertificateJob SET status='completed',manifest=?,progress=total,storageBytes=?,attemptToken=NULL,leaseUntil=NULL
-      WHERE ${fence}`).bind(JSON.stringify(manifest), state.bytes + zip.size + OVERHEAD, job.id, token, iso()).run();
+      WHERE ${fence}`).bind(JSON.stringify(manifest), state.bytes + zip.size + state.auxiliaryBytes, job.id, token, iso()).run();
   } catch (error) {
     logAgentError('Agent Worker slice failed', error);
     const terminal = error instanceof AgentError || job.attempts + 1 >= 3;
     await db.prepare(`UPDATE CertificateJob SET status=?,error=?,attempts=attempts+1,attemptToken=NULL,leaseUntil=NULL,retryAt=?,storageBytes=?
       WHERE ${fence}`).bind(terminal ? 'failed' : job.approvedAt ? 'queued' : 'preparing', error instanceof AgentError ? error.message
       : terminal ? 'Storage or rendering failed; retry budget exhausted' : 'Storage or rendering failed; retry scheduled',
-      iso(Date.now() + 60_000), terminal ? state.bytes + OVERHEAD : job.storageBytes, job.id, token, iso()).run();
+      iso(Date.now() + 60_000), terminal && typeof state.auxiliaryBytes === 'number'
+        ? state.bytes + state.auxiliaryBytes : job.storageBytes, job.id, token, iso()).run();
   }
 }
 

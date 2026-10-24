@@ -37,10 +37,14 @@ Workers templates are limited to **4 MB / 4 megapixels**, individual PDFs 8 MiB,
 and the individual-output sum and ZIP each 250 MiB. These bounds protect the
 128 MB isolate; representative resource acceptance is still required. Three
 pending jobs per owner, eight globally and 2 GiB reserved/published storage apply
-atomically; large-job reservations can reduce the effective pending count.
+atomically. Each preparing job reserves 660 MiB, so at most three can be in
+preparation globally at once, regardless of size. Ready jobs release unused
+headroom and reserve their retained inputs/PDFs plus the future ZIP; completed
+and failed jobs charge retained bytes rather than unused preparation capacity.
 One persisted lease bounds agent decoding across all isolates. Preparation uses
-a two-second work slice plus its final indivisible render. Minute scheduling
-means preparation can take several minutes; the browser is not the scheduler.
+a twenty-second wall-clock slice after template loading, plus its final
+indivisible render. Minute scheduling and storage latency affect batch duration;
+the browser is not the scheduler.
 Transient failures retry on a later cron, up to three failures/interrupted
 leases. Expiry/DELETE revokes downloads immediately. A bounded R2 sweep performs
 retryable physical deletion, including unreferenced old attempts; it is not an
