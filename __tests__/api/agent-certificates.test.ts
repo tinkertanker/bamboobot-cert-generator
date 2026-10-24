@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import http from 'http';
-import { execFileSync } from 'child_process';
+import { execFileSync, spawn } from 'child_process';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
@@ -289,3 +289,28 @@ it('does not enqueue or charge a draft that expires while approval verifies the 
   expect((await prisma.user.findUniqueOrThrow({ where: { id: 'owner' } })).dailyPdfCount).toBe(before);
   await cleanupJobs();
 }, 30000);
+
+it('processes approved jobs when an expired directory cannot be cleaned', async () => {
+  const expired = (await call('/jobs', 'POST', { ...owner, 'idempotency-key': 'cleanup-unwritable' }, payload(1))).data.job;
+  const ready = (await call('/jobs', 'POST', { ...owner, 'idempotency-key': 'cleanup-independent' }, payload(1))).data.job;
+  await call(`/jobs/${ready.id}`, 'POST', owner, { action: 'approve', inputHash: ready.inputHash });
+  await prisma.certificateJob.update({ where: { id: expired.id }, data: { expiresAt: new Date(0) } });
+  await fs.chmod(jobDir(expired.id), 0);
+  const worker = spawn(process.execPath, ['--import', 'tsx', 'scripts/agent-worker.ts'], { env: process.env, stdio: 'ignore' });
+  const stopped = new Promise<void>(resolve => worker.once('exit', () => resolve()));
+  try {
+    const deadline = Date.now() + 10000;
+    let status;
+    do {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      status = (await prisma.certificateJob.findUniqueOrThrow({ where: { id: ready.id } })).status;
+    } while (status !== 'completed' && Date.now() < deadline);
+    expect(status).toBe('completed');
+    expect((await call(`/jobs/${ready.id}?artifact=zip`, 'GET', owner)).status).toBe(200);
+  } finally {
+    worker.kill('SIGTERM');
+    await stopped;
+    await fs.chmod(jobDir(expired.id), 0o700);
+    await cleanupJobs();
+  }
+}, 20000);

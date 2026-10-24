@@ -57,7 +57,7 @@ CI (`.github/workflows/test.yml`) runs `npm ci`, `npm run build:worker`, `npm te
 
 **User files never go in `public/`.** Uploads and generated PDFs live under `storage/` locally (or `LOCAL_STORAGE_DIR`, `/app/storage` in Docker), resolved through `lib/paths.ts`. Download links are signed and expire (`lib/security/signed-generated-url.ts`); file access checks are in `lib/security/private-file-access.ts`.
 
-**Auth is enforced in middleware.** `middleware.ts` gates every page except `/` and every API except `/api/auth/*`, `/api/files/download` and cleanup calls carrying `CLEANUP_SECRET_KEY`. `REQUIRE_AUTH` is read at runtime (`lib/auth/runtime-policy.ts`) and defaults to on in production and off in development. New API routes still need their own authorisation and rate limits (`lib/rate-limit.ts`, `lib/pdf/server-limits.ts`, `lib/email/abuse-controls.ts`), because the middleware only checks that someone is signed in.
+**Auth is enforced in middleware.** `middleware.ts` gates every page except `/` and every API except `/api/auth/*`, `/api/agent` and its descendants (which authenticate sessions/PATs within each route), `/api/files/download` and cleanup calls carrying `CLEANUP_SECRET_KEY`. `REQUIRE_AUTH` is read at runtime (`lib/auth/runtime-policy.ts`) and defaults to on in production and off in development. New API routes still need their own authorisation and rate limits (`lib/rate-limit.ts`, `lib/pdf/server-limits.ts`, `lib/email/abuse-controls.ts`), because the middleware only checks that someone is signed in.
 
 **Dev Mode** (the checkbox in the editor) only exists when `NODE_ENV=development`. It loads a preset certificate and data and shows the storage monitors.
 

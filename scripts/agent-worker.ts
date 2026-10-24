@@ -13,7 +13,11 @@ async function main() {
   let lastCleanup = 0;
   while (!stopping) {
     try {
-      if (Date.now() - lastCleanup > 60_000) { await cleanupJobs(); lastCleanup = Date.now(); }
+      if (Date.now() - lastCleanup > 60_000) {
+        lastCleanup = Date.now();
+        try { await cleanupJobs(); }
+        catch (e) { logAgentError('Agent cleanup failed; continuing job processing', e); }
+      }
       if (await runOneJob()) continue;
     } catch (e) { logAgentError('Agent worker operation failed; retrying', e); }
     await new Promise(resolve => setTimeout(resolve, 1000));
