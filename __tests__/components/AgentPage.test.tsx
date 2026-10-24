@@ -62,7 +62,7 @@ describe('AgentPage', () => {
     expect(await screen.findByText('secret-once')).toBeInTheDocument();
     expect(fetch).toHaveBeenCalledWith('/api/agent/keys', expect.objectContaining({
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label: 'My agent', scopes: ['certificates:write', 'certificates:read'] }),
+      body: JSON.stringify({ label: 'My agent', scopes: ['certificates:write', 'certificates:read'], expiresInDays: 30 }),
     }));
     fireEvent.click(screen.getByRole('button', { name: /dismiss token/i }));
     expect(screen.queryByText('secret-once')).not.toBeInTheDocument();

@@ -72,10 +72,12 @@ your **local** database with `npx prisma db push`. Set `DATABASE_URL`,
 Authentication is required on agent routes even if `REQUIRE_AUTH=false`.
 
 Open **Agent access** in the account menu (`/agent`) to create a key. Tokens are
-shown once, stored only as hashes, expire after 30 days and can be revoked. Keys
-have `certificates:read` and/or `certificates:write` scope. Neither scope permits
-approval or key management. Keep tokens in the agent's secret store, never in
-prompts, source, URLs or logs. No Google access token is accepted as an API key.
+shown once, stored only as hashes and can be revoked. Keys expire after their
+chosen lifetime: `expiresInDays` (a whole number, 30 by default, at most 3650).
+Keys have `certificates:read` and/or `certificates:write` scope. Neither scope
+permits approval or key management. Keep tokens in the agent's secret store,
+never in prompts, source, URLs or logs. No Google access token is accepted as an
+API key.
 
 ## External-agent workflow
 

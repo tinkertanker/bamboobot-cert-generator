@@ -10,6 +10,8 @@ import { logAgentError } from './log';
 
 export const SCOPES = ['certificates:read', 'certificates:write'] as const;
 export type AgentScope = typeof SCOPES[number];
+export const DEFAULT_KEY_LIFETIME_DAYS = 30;
+export const MAX_KEY_LIFETIME_DAYS = 3650;
 
 export async function principal(req: NextApiRequest, res: NextApiResponse, scope: AgentScope, sessionOnly = false): Promise<string> {
   if (process.env.AGENT_CERTIFICATES_ENABLED !== 'true') throw new AgentError('Agent certificates are disabled', 404);
@@ -41,11 +43,13 @@ export async function principal(req: NextApiRequest, res: NextApiResponse, scope
   return ownerId;
 }
 
-export async function createKey(ownerId: string, label: unknown, scopes: unknown) {
+export async function createKey(ownerId: string, label: unknown, scopes: unknown, expiresInDays: unknown) {
   if (typeof label !== 'string' || !label.trim() || label.length > 100 || /[\u0000-\u001f\u007f\p{Cf}]/u.test(label) || !Array.isArray(scopes) || !scopes.length || scopes.some(s => !SCOPES.includes(s))) throw new AgentError('Supply a label and supported scopes');
+  if (expiresInDays !== undefined && (typeof expiresInDays !== 'number' || !Number.isInteger(expiresInDays) || expiresInDays < 1 || expiresInDays > MAX_KEY_LIFETIME_DAYS)) throw new AgentError(`Key lifetime must be a whole number of days, at most ${MAX_KEY_LIFETIME_DAYS}`);
   if (await prisma.agentKey.count({ where: { ownerId, revokedAt: null, expiresAt: { gt: new Date() } } }) >= 10) throw new AgentError('At most 10 active API keys are allowed', 429);
   const token = `bb_${crypto.randomBytes(32).toString('base64url')}`;
-  const key = await prisma.agentKey.create({ data: { ownerId, label, scopes, tokenHash: digest(token), expiresAt: new Date(Date.now() + 30 * 86400000) } });
+  const days = typeof expiresInDays === 'number' ? expiresInDays : DEFAULT_KEY_LIFETIME_DAYS;
+  const key = await prisma.agentKey.create({ data: { ownerId, label, scopes, tokenHash: digest(token), expiresAt: new Date(Date.now() + days * 86400000) } });
   return { token, key: { id: key.id, label: key.label, scopes: key.scopes, expiresAt: key.expiresAt, revokedAt: key.revokedAt, lastUsedAt: key.lastUsedAt } };
 }
 

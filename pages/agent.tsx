@@ -61,6 +61,7 @@ export default function AgentPage() {
   const [jobs, setJobs] = useState<AgentJob[]>([]);
   const [job, setJob] = useState<AgentJob | null>(null);
   const [label, setLabel] = useState('');
+  const [lifetime, setLifetime] = useState('30');
   const [token, setToken] = useState('');
   const [keyError, setKeyError] = useState('');
   const [jobError, setJobError] = useState('');
@@ -131,7 +132,7 @@ export default function AgentPage() {
     setToken('');
     try {
       const data = await request<{ token: string }>('/api/agent/keys', 'POST', {
-        label: label.trim(), scopes: ['certificates:write', 'certificates:read'],
+        label: label.trim(), scopes: ['certificates:write', 'certificates:read'], expiresInDays: Number(lifetime),
       });
       setToken(data.token);
       setLabel('');
@@ -185,9 +186,15 @@ export default function AgentPage() {
 
         <section aria-labelledby="keys-heading" className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
           <h2 id="keys-heading" className="text-lg font-semibold">API keys</h2>
-          <p className="text-sm text-gray-600">Keys can read and prepare certificate jobs, but cannot approve samples. Only you, signed in here, can approve a job. New keys expire after 30 days by default.</p>
+          <p className="text-sm text-gray-600">Keys can read and prepare certificate jobs, but cannot approve samples. Only you, signed in here, can approve a job. Keys expire after their chosen lifetime — 30 days by default, up to 10 years.</p>
           <form onSubmit={createKey} className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-0"><label htmlFor="key-label" className="block text-sm font-medium mb-1">Key label</label><input id="key-label" value={label} onChange={event => setLabel(event.target.value)} required maxLength={100} placeholder="e.g. Certificate assistant" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" /></div>
+            <div><label htmlFor="key-lifetime" className="block text-sm font-medium mb-1">Expires after</label><select id="key-lifetime" value={lifetime} onChange={event => setLifetime(event.target.value)} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <option value="30">30 days</option>
+              <option value="90">90 days</option>
+              <option value="365">1 year</option>
+              <option value="3650">10 years</option>
+            </select></div>
             <button type="submit" disabled={!!busy || !label.trim()} className={button}>{busy === 'create-key' ? 'Creating…' : 'Create API key'}</button>
           </form>
           {token && <div className="rounded-md border border-amber-300 bg-amber-50 p-4 space-y-2" role="status">

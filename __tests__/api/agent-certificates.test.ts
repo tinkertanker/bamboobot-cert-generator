@@ -149,6 +149,17 @@ it('requires owner approval, then delivers every individual PDF and identical ZI
   expect(expiredReplay.data.error).toMatch(/new idempotency key/i);
 }, 30000);
 
+it('creates keys with a chosen lifetime up to ten years', async () => {
+  const decade = await call('/keys', 'POST', owner, { label: 'Long lived', scopes: ['certificates:read'], expiresInDays: 3650 });
+  expect(decade.status).toBe(201);
+  expect(Math.abs(new Date(decade.data.key.expiresAt).getTime() - (Date.now() + 3650 * 86400000))).toBeLessThan(60000);
+  const fallback = await call('/keys', 'POST', owner, { label: 'Default', scopes: ['certificates:read'] });
+  expect(Math.abs(new Date(fallback.data.key.expiresAt).getTime() - (Date.now() + 30 * 86400000))).toBeLessThan(60000);
+  for (const bad of [0, -1, 3651, 1.5, 'forever']) {
+    expect((await call('/keys', 'POST', owner, { label: 'Bad', scopes: ['certificates:read'], expiresInDays: bad })).status).toBe(400);
+  }
+});
+
 it('recovers an abandoned attempt, refuses template drift and cleans expired inputs', async () => {
   const created = await call('/jobs', 'POST', { ...owner, 'idempotency-key': 'recovery' }, payload());
   expect(created.status).toBe(201);
