@@ -36,7 +36,7 @@ interface AgentJob {
 
 const button = 'rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-700 disabled:opacity-50 disabled:cursor-not-allowed';
 const link = 'text-sm text-gray-700 underline underline-offset-2 hover:text-gray-950';
-const isActive = (job: AgentJob) => job.status === 'queued' || job.status === 'running';
+const isActive = (job: AgentJob) => ['preparing', 'queued', 'running'].includes(job.status);
 const date = (value: string | null | undefined) => value ? new Date(value).toLocaleString() : '—';
 
 async function request<T>(url: string, method?: string, body?: unknown): Promise<T> {
@@ -47,7 +47,7 @@ async function request<T>(url: string, method?: string, body?: unknown): Promise
   } : undefined);
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(typeof data?.error === 'string' ? data.error : `Request failed (${response.status}). Please refresh and try again.`);
+    throw Object.assign(new Error(typeof data?.error === 'string' ? data.error : `Request failed (${response.status}). Please refresh and try again.`), { status: response.status });
   }
   return data as T;
 }
@@ -112,7 +112,9 @@ export default function AgentPage() {
       } catch (error) {
         if (!cancelled) {
           setJobError(error instanceof Error ? error.message : 'Could not load jobs.');
-          timer = setTimeout(load, 3000);
+          // Expired/deleted jobs and authentication failures need user action,
+          // not an indefinite poll. Network errors, throttling and 5xx retry.
+          if (!(error instanceof Error) || !('status' in error) || error.status === 429 || (typeof error.status === 'number' && error.status >= 500)) timer = setTimeout(load, 3000);
         }
       } finally {
         if (!cancelled) setJobsLoading(false);
@@ -206,7 +208,7 @@ export default function AgentPage() {
 
         <section aria-labelledby="jobs-heading" className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
           <div className="flex items-center justify-between gap-3"><h2 id="jobs-heading" className="text-lg font-semibold">Certificate jobs</h2><button type="button" className={button} disabled={jobsLoading || !!busy} onClick={() => setJobsVersion(value => value + 1)}>Refresh jobs</button></div>
-          <p className="text-sm text-gray-600">Queued and running jobs refresh every 3 seconds. Approval locks the inputs; the agent can then collect generated files without further approval.</p>
+          <p className="text-sm text-gray-600">Preparing, queued and running jobs refresh every 3 seconds. Preparation and approved jobs continue without this browser; the agent can collect files once the whole batch is complete.</p>
           {jobError && <p role="alert" className="text-sm text-red-700">{jobError}</p>}
           {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
           {jobsLoading && <p role="status" className="text-sm text-gray-500">Loading jobs…</p>}
@@ -214,14 +216,14 @@ export default function AgentPage() {
           <ul className="divide-y divide-gray-100">
             {jobs.map(item => <li key={item.id} className="py-3 flex flex-wrap justify-between gap-2">
               <div className="min-w-0"><Link href={{ pathname: '/agent', query: { job: item.id } }} aria-current={jobId === item.id ? 'page' : undefined} className={`${link} font-medium break-words`}>{item.label || item.id}</Link><p className="text-xs text-gray-500">{item.total} recipients · Created {date(item.createdAt)} · Expires {date(item.expiresAt)}</p></div>
-              <div className="text-sm text-gray-600"><span>{item.status.replace(/_/g, ' ')}</span>{isActive(item) && typeof item.progress === 'number' && <p>Progress: {item.progress}/{item.total}</p>}</div>
+              <div className="text-sm text-gray-600" aria-live="polite"><span>{item.status.replace(/_/g, ' ')}</span>{isActive(item) && typeof item.progress === 'number' && <p>Progress: {item.progress}/{item.total}</p>}</div>
             </li>)}
           </ul>
         </section>
 
         {job && job.id === jobId && <section aria-labelledby="sample-heading" className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3"><h2 id="sample-heading" className="text-lg font-semibold break-words">{job.label || job.id}</h2><span className="text-sm text-gray-600">{job.status.replace(/_/g, ' ')}</span></div>
-          {isActive(job) && typeof job.progress === 'number' && <p className="text-sm text-gray-600">Progress: {job.progress}/{job.total}</p>}
+          {isActive(job) && typeof job.progress === 'number' && <p className="text-sm text-gray-600" role="status">Progress: {job.progress}/{job.total}</p>}
           <dl className="space-y-2 text-sm">
             <div><dt className="font-medium">Recipients</dt><dd>{job.total}</dd></div>
             <div><dt className="font-medium">Mapped fields</dt><dd>{job.fields?.length ? <ul>{job.fields.map(field => <li key={field}>{field}</li>)}</ul> : 'No mapped fields supplied.'}</dd></div>

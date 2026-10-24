@@ -22,6 +22,11 @@ module.exports = {
       compilation.hooks.processAssets.tap({ name: 'RendererVersion', stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL }, () => {
         const version = hash(sources.map(file => hash(fs.readFileSync(path.join(__dirname, file)))).join(''));
         compilation.emitAsset('agent-renderer-version', new compiler.webpack.sources.RawSource(version));
+        const fonts = path.join(__dirname, 'public/fonts');
+        const fontHashes = fs.readdirSync(fonts).filter(file => file.endsWith('.ttf')).sort()
+          .map(file => hash(fs.readFileSync(path.join(fonts, file))));
+        // Both the Next handler and separate cron bundle read this deploy's asset.
+        fs.writeFileSync(path.join(__dirname, 'public/agent-renderer-version.json'), JSON.stringify(hash(version + fontHashes.join(''))));
       });
     });
   } }],

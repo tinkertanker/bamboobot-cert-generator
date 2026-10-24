@@ -22,7 +22,7 @@ export interface EmailResult {
   id: string;
   success: boolean;
   error?: string;
-  provider: 'resend' | 'ses';
+  provider: 'resend' | 'ses' | 'preview';
 }
 
 export interface RateLimitInfo {
@@ -33,7 +33,7 @@ export interface RateLimitInfo {
 }
 
 export interface EmailProvider {
-  name: 'resend' | 'ses';
+  name: 'resend' | 'ses' | 'preview';
   sendEmail(params: EmailParams): Promise<EmailResult>;
   getRateLimit(): RateLimitInfo;
   isConfigured(): boolean;
@@ -59,7 +59,7 @@ export interface EmailQueueItem {
   quotaReservationDay?: Date;
   /** Monotonic: once false, a prior attempt may have delivered and quota must not be refunded. */
   quotaRefundSafe?: boolean;
-  provider?: 'resend' | 'ses';
+  provider?: 'resend' | 'ses' | 'preview';
 }
 
 export interface EmailQueue {
@@ -67,7 +67,7 @@ export interface EmailQueue {
   status: 'idle' | 'processing' | 'paused' | 'completed';
   processed: number;
   failed: number;
-  provider: 'resend' | 'ses';
+  provider: 'resend' | 'ses' | 'preview';
   rateLimit: RateLimitInfo;
 }
 

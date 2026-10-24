@@ -57,9 +57,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const session = await requireAuth(req, res);
   if (!session) return;
   const userId = session.user.id;
-  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  const ip = (req.headers['x-real-ip'] as string) || (req.headers['x-forwarded-for'] as string) || req.socket?.remoteAddress || null;
   const key = buildKey({ userId, ip, route: 'zip-pdfs', category: 'zip' });
-  const rl = rateLimit(key, 'zip');
+  const rl = await rateLimit(key, 'zip');
   res.setHeader('X-RateLimit-Limit', String(rl.limit));
   res.setHeader('X-RateLimit-Remaining', String(rl.remaining));
   res.setHeader('X-RateLimit-Reset', String(Math.ceil(rl.resetAt / 1000)));

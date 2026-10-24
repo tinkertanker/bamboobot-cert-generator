@@ -6,6 +6,8 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import storageConfig from '@/lib/storage-config';
 import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
 import { getS3SignedUrl } from '@/lib/s3-client';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { serveWorkerObject } from '@/lib/server/worker-files';
 import {
   SignedFileUrlError,
   verifySignedGeneratedFileUrl,
@@ -18,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  const rl = enforceRateLimit(req, res, { route: 'files:download', category: 'download' });
+  const rl = await enforceRateLimit(req, res, { route: 'files:download', category: 'download' });
   if (!rl.allowed) {
     res.status(429).json({ error: 'Too many download requests' });
     return;
@@ -36,6 +38,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const verifiedPath = verifySignedGeneratedFileUrl(relativePath, expires, signature);
     const objectKey = `generated/${verifiedPath}`;
+    if (isWorkers) {
+      await serveWorkerObject(objectKey, 'application/pdf', res);
+      return;
+    }
     if (storageConfig.isR2Enabled) {
       res.redirect(302, await getR2SignedUrl(objectKey));
       return;

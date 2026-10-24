@@ -54,6 +54,15 @@ export class PdfQueueManager {
     };
   }
 
+  /** Restore the durable queue without restarting its clock or losing attempts. */
+  static restore(queue: PdfQueue): PdfQueueManager {
+    const manager = new PdfQueueManager(queue.sessionId, queue.templateFile,
+      queue.positions, queue.uiContainerDimensions, queue.mode, { batchSize: queue.batchSize });
+    manager.queue = queue;
+    manager.startTime = queue.startedAt ? new Date(queue.startedAt).getTime() : 0;
+    return manager;
+  }
+
   /**
    * Initialize queue with certificate data
    */
@@ -105,11 +114,13 @@ export class PdfQueueManager {
    * Process next batch of PDFs
    */
   async processNextBatch(
-    generatePdfFunc: (item: PdfQueueItem) => Promise<{ path: string; filename: string }>
+    generatePdfFunc: (item: PdfQueueItem) => Promise<{ path: string; filename: string }>,
+    maxDurationMs = Infinity
   ): Promise<{ completed: PdfQueueItem[]; failed: PdfQueueItem[] }> {
     if (this.queue.status !== 'processing') {
       throw new Error('Queue is not in processing state');
     }
+    const deadline = Date.now() + maxDurationMs;
 
     // Get next batch of pending items
     const pendingItems = this.queue.items
@@ -139,6 +150,9 @@ export class PdfQueueManager {
 
     // Process items in the batch
     for (const item of pendingItems) {
+      // Yield between certificates so a durable runner can checkpoint before
+      // its invocation expires. Rendering one certificate is not interruptible.
+      if (Date.now() >= deadline) break;
       try {
         item.status = 'processing';
         item.attempts++;

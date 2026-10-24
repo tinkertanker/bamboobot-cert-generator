@@ -37,12 +37,12 @@ export async function principal(req: NextApiRequest, res: NextApiResponse, scope
     }
   }
   if (!await prisma.user.findUnique({ where: { id: ownerId }, select: { id: true } })) throw new AgentError('Account not found', 401);
-  if (!enforceRateLimit(req, res, { userId: ownerId, route: `agent:${req.method}`, category: req.method === 'GET' ? 'api' : 'generate' }).allowed) throw new AgentError('Too many requests', 429);
+  if (!(await enforceRateLimit(req, res, { userId: ownerId, route: `agent:${req.method}`, category: req.method === 'GET' ? 'api' : 'generate' })).allowed) throw new AgentError('Too many requests', 429);
   return ownerId;
 }
 
 export async function createKey(ownerId: string, label: unknown, scopes: unknown) {
-  if (typeof label !== 'string' || !label.trim() || label.length > 100 || !Array.isArray(scopes) || !scopes.length || scopes.some(s => !SCOPES.includes(s))) throw new AgentError('Supply a label and supported scopes');
+  if (typeof label !== 'string' || !label.trim() || label.length > 100 || /[\u0000-\u001f\u007f\p{Cf}]/u.test(label) || !Array.isArray(scopes) || !scopes.length || scopes.some(s => !SCOPES.includes(s))) throw new AgentError('Supply a label and supported scopes');
   if (await prisma.agentKey.count({ where: { ownerId, revokedAt: null, expiresAt: { gt: new Date() } } }) >= 10) throw new AgentError('At most 10 active API keys are allowed', 429);
   const token = `bb_${crypto.randomBytes(32).toString('base64url')}`;
   const key = await prisma.agentKey.create({ data: { ownerId, label, scopes, tokenHash: digest(token), expiresAt: new Date(Date.now() + 30 * 86400000) } });

@@ -4,13 +4,14 @@
 import { uploadToR2, getPublicUrl, isR2Configured } from './r2-client';
 import { uploadToS3, getS3PublicUrl, isS3Configured } from './s3-client';
 import { createSignedGeneratedFileUrl } from './security/signed-generated-url';
+import { isWorkers } from './server/cloudflare';
 
 const storageConfig = {
   // Check if R2 is configured
-  isR2Enabled: isR2Configured() && process.env.STORAGE_PROVIDER === 'cloudflare-r2',
+  isR2Enabled: isWorkers || (isR2Configured() && process.env.STORAGE_PROVIDER === 'cloudflare-r2'),
   
   // Check if S3 is configured
-  isS3Enabled: isS3Configured() && process.env.STORAGE_PROVIDER === 'amazon-s3',
+  isS3Enabled: !isWorkers && isS3Configured() && process.env.STORAGE_PROVIDER === 'amazon-s3',
   
   isDevelopment: process.env.NODE_ENV === 'development',
   

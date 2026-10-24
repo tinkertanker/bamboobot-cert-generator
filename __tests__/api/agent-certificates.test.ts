@@ -290,7 +290,8 @@ it('does not enqueue or charge a draft that expires while approval verifies the 
   await cleanupJobs();
 }, 30000);
 
-it('processes approved jobs when an expired directory cannot be cleaned', async () => {
+const permissionFailureTest = process.platform === 'win32' || typeof process.getuid !== 'function' || process.getuid() === 0 ? it.skip : it;
+permissionFailureTest('processes approved jobs when an expired directory cannot be cleaned', async () => {
   const expired = (await call('/jobs', 'POST', { ...owner, 'idempotency-key': 'cleanup-unwritable' }, payload(1))).data.job;
   const ready = (await call('/jobs', 'POST', { ...owner, 'idempotency-key': 'cleanup-independent' }, payload(1))).data.job;
   await call(`/jobs/${ready.id}`, 'POST', owner, { action: 'approve', inputHash: ready.inputHash });
@@ -307,10 +308,12 @@ it('processes approved jobs when an expired directory cannot be cleaned', async 
     } while (status !== 'completed' && Date.now() < deadline);
     expect(status).toBe('completed');
     expect((await call(`/jobs/${ready.id}?artifact=zip`, 'GET', owner)).status).toBe(200);
+    await expect(fs.stat(jobDir(expired.id))).resolves.toBeDefined();
   } finally {
     worker.kill('SIGTERM');
     await stopped;
-    await fs.chmod(jobDir(expired.id), 0o700);
+    try { await fs.chmod(jobDir(expired.id), 0o700); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     await cleanupJobs();
   }
 }, 20000);

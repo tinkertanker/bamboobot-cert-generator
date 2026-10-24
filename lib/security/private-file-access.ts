@@ -1,4 +1,7 @@
 import path from 'path';
+import fs from 'fs/promises';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { readWorkerAsset, readWorkerObject } from '@/lib/server/worker-files';
 import {
   getPublicDir,
   getTemplateImagesDir,
@@ -41,4 +44,26 @@ export function getAuthorizedTemplateCandidates(templateFilename: string, userId
     throw new PrivateFileAccessError('Invalid template path', 403);
   }
   return candidates;
+}
+
+export async function readAuthorizedTemplate(templateFilename: string, userId: string): Promise<Buffer | null> {
+  const candidates = getAuthorizedTemplateCandidates(templateFilename, userId);
+  if (isWorkers) {
+    if (/^dev-mode-template\.pdf$/i.test(templateFilename)) {
+      return readWorkerAsset(`template_images/${templateFilename}`);
+    }
+    for (const prefix of ['template_images', 'temp_images']) {
+      const bytes = await readWorkerObject(`${prefix}/${templateFilename}`, 25 * 1024 * 1024);
+      if (bytes) return bytes;
+    }
+    return null;
+  }
+  for (const candidate of candidates) {
+    try {
+      return await fs.readFile(candidate);
+    } catch (readError) {
+      if ((readError as NodeJS.ErrnoException).code !== 'ENOENT') throw readError;
+    }
+  }
+  return null;
 }

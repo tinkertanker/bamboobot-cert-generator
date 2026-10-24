@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bamboobot-staging",
+  "account_id": "b8b1032c61d9475cd00229c74db7ec72",
+  "main": "cloudflare-worker.ts",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "triggers": { "crons": ["* * * * *"] },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "bamboobot-staging",
+    "database_id": "218f9e7e-cbb6-4dfe-97b4-8746b5051afa",
+    "migrations_dir": "prisma/d1-migrations"
+  }],
+  "r2_buckets": [{
+    "binding": "FILES",
+    "bucket_name": "bamboobot-staging-files"
+  }],
+  "vars": {
+    "BAMBOOBOT_RUNTIME": "workers",
+    "AGENT_CERTIFICATES_ENABLED": "true",
+    "REQUIRE_AUTH": "true",
+    "STORAGE_PROVIDER": "cloudflare-r2",
+    "NEXTAUTH_URL": "https://bamboobot-staging.tinkertanker.workers.dev",
+    "NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE": "true",
+    "EMAIL_DELIVERY_MODE": "preview"
+  }
+}

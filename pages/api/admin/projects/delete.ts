@@ -4,6 +4,7 @@ import { withAdminAccess } from '@/lib/server/middleware/featureGate';
 import { prisma } from '@/lib/server/prisma';
 import { logAudit } from '@/lib/server/tiers';
 import type { AuthenticatedRequest } from '@/types/api';
+import { cloudflare, isWorkers } from '@/lib/server/cloudflare';
 
 async function deleteProjectsHandler(
   req: NextApiRequest,
@@ -29,6 +30,23 @@ async function deleteProjectsHandler(
   }
   
   try {
+    if (isWorkers) {
+      const db = cloudflare().env.DB;
+      // Native D1 batches roll back together. Never use Prisma's non-atomic
+      // transaction shim for a deletion and its audit trail.
+      // One JSON binding also keeps 1,000 IDs under D1's 100-parameter limit.
+      const ids = JSON.stringify(projectIds);
+      const result = await db.batch([
+        db.prepare(`INSERT INTO "AuditLog" ("id", "actorId", "action", "targetId", "targetType", "metadata", "createdAt")
+          SELECT lower(hex(randomblob(16))), ?, 'project_delete', "id", 'project',
+            json_object('projectName', "name", 'ownerId', "ownerId"), ?
+          FROM "Project" WHERE "id" IN (SELECT value FROM json_each(?))`)
+          .bind(actor.id, new Date().toISOString().replace('Z', '+00:00'), ids),
+        db.prepare('DELETE FROM "Project" WHERE "id" IN (SELECT value FROM json_each(?))').bind(ids),
+      ]);
+      res.status(200).json({ success: true, deleted: result[1].meta.changes });
+      return;
+    }
     // Delete projects in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Get project details for audit log

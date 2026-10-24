@@ -13,6 +13,8 @@ import { resetDailyUsageIfNeeded } from '@/lib/server/tiers';
 import { AgentError, validateAgentInput, type AgentInput } from './input';
 import { digest, makeTemplate, rendererVersion, renderRow } from './render';
 import { logAgentError } from './log';
+import { isWorkers } from '@/lib/server/cloudflare';
+import * as workerJobs from './worker-jobs';
 
 const DAY = 86400000;
 const MAX_BYTES = 250 * 1024 * 1024;
@@ -20,13 +22,13 @@ const LEASE_MS = 5 * 60_000;
 // v1 deploys one web process: bound decoding/rendering before allocating inputs.
 // Multiple web processes require a persisted preparation reservation instead.
 let preparing = false;
-interface Snapshot extends AgentInput {
+export interface Snapshot extends AgentInput {
   templateHash: string;
   filenames: string[];
   samples: number[];
   sampleHashes: string[];
 }
-export interface Artifact { filename: string; size: number; sha256: string; rowId?: string }
+export interface Artifact { filename: string; size: number; sha256: string; rowId?: string; objectKey?: string }
 export interface Manifest {
   jobId: string; inputHash: string; rendererVersion: string; total: number;
   files: Artifact[]; zip: Artifact; attempt: string; expiresAt: string;
@@ -59,7 +61,7 @@ export function describeJob(job: CertificateJob) {
     fields: Object.keys(input.positions ?? {}),
     ignoredFields: [...new Set((input.rows ?? []).flatMap(r => Object.keys(r.fields)))].filter(k => !input.positions?.[k]),
     sampleRowIds: input.samples?.map(i => input.rows[i].id) ?? [],
-    sampleUrl: `${base}?artifact=sample`, inputUrl: `${base}?artifact=input`, approvalUrl: `/agent?job=${job.id}`,
+    sampleUrl: job.sampleHash ? `${base}?artifact=sample` : null, inputUrl: `${base}?artifact=input`, approvalUrl: `/agent?job=${job.id}`,
     files: manifest?.files.map((file, index) => ({ ...file, url: `${base}?artifact=file&index=${index}` })) ?? [],
     zipUrl: manifest ? `${base}?artifact=zip` : null,
     manifestUrl: manifest ? `${base}?artifact=manifest` : null,
@@ -67,6 +69,7 @@ export function describeJob(job: CertificateJob) {
 }
 
 export async function createDraft(ownerId: string, value: unknown, idempotencyKey: string) {
+  if (isWorkers) return workerJobs.createWorkerDraft(ownerId, value, idempotencyKey);
   if (preparing) throw new AgentError('Another draft is being prepared; retry shortly', 429);
   preparing = true;
   try { return await prepareDraft(ownerId, value, idempotencyKey); }
@@ -150,6 +153,7 @@ async function prepareDraft(ownerId: string, value: unknown, idempotencyKey: str
 }
 
 export async function approveJob(ownerId: string, id: string, inputHash: unknown) {
+  if (isWorkers) return workerJobs.approveWorkerJob(ownerId, id, inputHash);
   const job = await ownedJob(ownerId, id);
   if (inputHash !== job.inputHash) throw new AgentError('The preview revision has changed; review the new sample', 409);
   if (job.rendererVersion !== await rendererVersion()) throw new AgentError('Renderer changed; create and approve a new draft', 409);
@@ -167,6 +171,7 @@ export async function approveJob(ownerId: string, id: string, inputHash: unknown
 }
 
 export async function retryJob(ownerId: string, id: string) {
+  if (isWorkers) return workerJobs.retryWorkerJob(ownerId, id);
   const job = await ownedJob(ownerId, id);
   if (!job.approvedAt || job.status !== 'failed' || job.attempts >= 3) throw new AgentError('This job cannot be retried; create a new draft', 409);
   if (job.rendererVersion !== await rendererVersion()) throw new AgentError('Renderer changed; a new sample approval is required', 409);
@@ -175,6 +180,7 @@ export async function retryJob(ownerId: string, id: string) {
 }
 
 export async function expireJob(ownerId: string, id: string) {
+  if (isWorkers) return workerJobs.expireWorkerJob(ownerId, id);
   await ownedJob(ownerId, id);
   await prisma.certificateJob.update({ where: { id }, data: { status: 'expired', input: {}, manifest: {}, attemptToken: null, expiresAt: new Date(), storageBytes: 0 } });
   await fs.rm(jobDir(id), { recursive: true, force: true });

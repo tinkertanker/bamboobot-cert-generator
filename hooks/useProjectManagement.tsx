@@ -165,6 +165,17 @@ export function useProjectManagement({
     // that could race with edits or change the project's modified timestamp.
   }, [setPositions]);
 
+  const loadProjectTableData = useCallback(async (project: SavedProject) => {
+    if (project.tableData?.length) {
+      const headers = project.columns;
+      const rows = project.tableData.map(row => headers.map(col => row[col] || "").join("\t"));
+      await loadSessionData([headers.join("\t"), ...rows].join("\n"), false, true);
+    } else if (project.columns.length > 0) {
+      const headers = project.columns;
+      await loadSessionData([headers.join("\t"), headers.map(() => "").join("\t")].join("\n"), false, true);
+    }
+  }, [loadSessionData]);
+
   // Load most recent project and session data on startup
   useEffect(() => {
     const loadStartupData = async () => {
@@ -172,6 +183,7 @@ export function useProjectManagement({
         ProjectStorage.migrateFromTemplateStorage();
 
         // Restore session table data if it is less than 24 hours old
+        let restoredWorkingSession = false;
         const session = SessionStorage.loadSession();
         if (session) {
           const sessionAge = SessionStorage.getSessionAge();
@@ -181,6 +193,7 @@ export function useProjectManagement({
               session.useCSVMode,
               session.isFirstRowHeader
             );
+            restoredWorkingSession = true;
 
             showToast({
               message: "Session data restored",
@@ -195,6 +208,10 @@ export function useProjectManagement({
         const project = await ProjectStorage.getMostRecentProject();
 
         if (project) {
+          // A different browser/origin has no working-session copy. Restore
+          // saved rows before enabling autosave, never persist an empty table
+          // over the recovered project. Keep the newer local working session.
+          if (!restoredWorkingSession) await loadProjectTableData(project);
           loadProjectPositions(project);
 
           if (project.emailConfig) {
@@ -240,6 +257,7 @@ export function useProjectManagement({
     loadSessionData,
     setEmailConfig,
     loadProjectPositions,
+    loadProjectTableData,
     setUploadedFile,
     setUploadedFileUrl,
     showToast
@@ -249,22 +267,7 @@ export function useProjectManagement({
   const handleLoadProject = useCallback(
     async (project: SavedProject) => {
       loadProjectPositions(project);
-
-      // Rebuild TSV from the saved rows so the table hook can re-parse it
-      if (project.tableData && project.tableData.length > 0) {
-        const headers = project.columns;
-        const rows = project.tableData.map(row => {
-          return headers.map(col => row[col] || "").join("\t");
-        });
-        const tsvData = [headers.join("\t"), ...rows].join("\n");
-        await loadSessionData(tsvData, /* csvMode */ false, /* headerRow */ true);
-      } else if (project.columns.length > 0) {
-        // No rows saved: load the columns with a single empty row
-        const headers = project.columns;
-        const emptyRow = headers.map(() => "").join("\t");
-        const tsvData = [headers.join("\t"), emptyRow].join("\n");
-        await loadSessionData(tsvData, /* csvMode */ false, /* headerRow */ true);
-      }
+      await loadProjectTableData(project);
 
       if (project.emailConfig) {
         setEmailConfig(withComputedIsConfigured(project.emailConfig));
@@ -288,7 +291,7 @@ export function useProjectManagement({
       setEmailConfig,
       setUploadedFileUrl,
       setUploadedFile,
-      loadSessionData
+      loadProjectTableData
     ]
   );
 

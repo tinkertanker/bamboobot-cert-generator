@@ -5,6 +5,7 @@ import { verifySignedGeneratedFileUrl } from '@/lib/security/signed-generated-ur
 import storageConfig from '@/lib/storage-config';
 import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
 import { getS3SignedUrl } from '@/lib/s3-client';
+import { cloudflare, isWorkers } from '@/lib/server/cloudflare';
 
 const DEFAULT_MAX_PDF_BYTES = 25 * 1024 * 1024;
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
@@ -336,6 +337,17 @@ export async function loadTrustedPdf(
       throw new PdfSourceError('INVALID_SOURCE', 'Invalid signed PDF source', 403);
     }
 
+    if (isWorkers) {
+      const object = await cloudflare().env.FILES.get(`generated/${verifiedPath}`);
+      if (!object) throw new PdfSourceError('NOT_FOUND', 'PDF source was not found', 404);
+      if (object.size > effectiveMaxBytes) {
+        await object.body.cancel();
+        throw new PdfSourceError('PDF_TOO_LARGE', 'PDF source exceeds the size limit', 413);
+      }
+      const buffer = Buffer.from(await object.arrayBuffer());
+      assertPdfBuffer(buffer);
+      return { buffer, source: 'remote' };
+    }
     if (storageConfig.isR2Enabled) {
       const providerUrl = await getR2SignedUrl(`generated/${verifiedPath}`);
       return { buffer: await fetchTrustedRemotePdf(providerUrl, effectiveMaxBytes, options.timeoutMs), source: 'remote' };

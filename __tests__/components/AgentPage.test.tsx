@@ -106,7 +106,7 @@ describe('AgentPage', () => {
     await screen.findByRole('button', { name: 'Retry generation' });
   });
 
-  it.each(['queued', 'running'])('shows %s progress, polls after 3 seconds and shows completed download links', async status => {
+  it.each(['preparing', 'queued', 'running'])('shows %s progress, polls after 3 seconds and shows completed download links', async status => {
     jest.useFakeTimers();
     try {
       let completed = false;

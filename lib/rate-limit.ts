@@ -1,3 +1,5 @@
+import { cloudflare, isWorkers } from '@/lib/server/cloudflare';
+
 type Bucket = {
   count: number;
   resetAt: number; // epoch ms when window resets
@@ -86,8 +88,20 @@ const DEFAULTS: Record<LimitCategory, number> = {
   email: parseInt(process.env.RATE_LIMIT_EMAIL_PER_MIN || '60', 10)
 };
 
-export function rateLimit(key: string, category: LimitCategory) {
+export async function rateLimit(key: string, category: LimitCategory) {
   const limit = DEFAULTS[category] ?? DEFAULTS.api;
+  if (isWorkers) {
+    const now = Date.now();
+    const bucket = await cloudflare().env.DB.prepare(`
+      INSERT INTO "RateLimit" ("key", "count", "resetAt") VALUES (?, 1, ?)
+      ON CONFLICT("key") DO UPDATE SET
+        "count" = CASE WHEN "resetAt" <= ? THEN 1 ELSE min("count" + 1, ?) END,
+        "resetAt" = CASE WHEN "resetAt" <= ? THEN excluded."resetAt" ELSE "resetAt" END
+      RETURNING "count", "resetAt"
+    `).bind(key, now + windowSeconds * 1000, now, limit + 1, now).first<Bucket>();
+    if (!bucket) throw new Error('Shared rate limiter did not return a result');
+    return { allowed: bucket.count <= limit, remaining: Math.max(0, limit - bucket.count), resetAt: bucket.resetAt, limit };
+  }
   const limiter = key.includes(':u:anon:') ? anonymousLimiter : authenticatedLimiter;
   const result = limiter.check(key, limit);
   return { ...result, limit };
@@ -111,6 +125,10 @@ export function getClientIp(req: {
   headers: Record<string, string | string[] | undefined>;
   socket?: { remoteAddress?: string };
 }): string | null {
+  if (isWorkers) {
+    const ip = req.headers['cf-connecting-ip'];
+    return typeof ip === 'string' ? ip : null;
+  }
   const trustProxyHeaders =
     process.env.TRUST_PROXY_HEADERS === 'true' ||
     (process.env.TRUST_PROXY_HEADERS === undefined && process.env.VERCEL === '1');
@@ -143,14 +161,14 @@ export interface RateLimitResult {
  * Enforce rate limiting on an API route
  * Sets appropriate headers and returns whether request is allowed
  */
-export function enforceRateLimit(
+export async function enforceRateLimit(
   req: {
     headers: Record<string, string | string[] | undefined>;
     socket?: { remoteAddress?: string };
   },
   res: { setHeader: (name: string, value: string) => void },
   opts: { userId?: string | null; route: string; category: LimitCategory }
-): RateLimitResult {
+): Promise<RateLimitResult> {
   const ip = getClientIp(req);
   const key = buildKey({
     userId: opts.userId,
@@ -158,7 +176,7 @@ export function enforceRateLimit(
     route: opts.route,
     category: opts.category
   });
-  const rl = rateLimit(key, opts.category);
+  const rl = await rateLimit(key, opts.category);
 
   res.setHeader('X-RateLimit-Limit', String(rl.limit));
   res.setHeader('X-RateLimit-Remaining', String(rl.remaining));

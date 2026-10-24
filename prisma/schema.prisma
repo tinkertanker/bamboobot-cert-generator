@@ -156,6 +156,7 @@ model CertificateJob {
   progress    Int @default(0)
   error       String?
   manifest    Json?
+  checkpoint  Json? // Workers: durable preflight/output cursor; never public until complete
   storageBytes Int @default(0)
   createdAt   DateTime @default(now())
   expiresAt   DateTime

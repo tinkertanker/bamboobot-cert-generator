@@ -1,7 +1,9 @@
 import { PDFDocument } from 'pdf-lib';
 import fsPromises from 'fs/promises';
 import path from 'path';
-import * as fontkit from '@pdf-lib/fontkit';
+import fontkit from '@pdf-lib/fontkit';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { readWorkerAsset } from '@/lib/server/worker-files';
 import {
   Entry,
   Position,
@@ -64,6 +66,8 @@ const CUSTOM_FONT_FILES: Record<string, Array<[keyof FontSet & string, string]>>
 const fontBytesCache = new Map<string, Promise<Buffer>>();
 
 function readFontFile(file: string): Promise<Buffer> {
+  // Do not share an in-flight binding request between Worker requests.
+  if (isWorkers) return readWorkerAsset(`fonts/${file}`);
   let cached = fontBytesCache.get(file);
   if (!cached) {
     cached = fsPromises.readFile(path.join(process.cwd(), 'public/fonts', file));
@@ -118,7 +122,7 @@ export async function embedCustomFonts(
         // standard fonts, never to another custom variant).
         if (usedKeys && !usedKeys.has(key)) continue;
         embedded[key] = await pdf.embedFont(strict
-          ? await fsPromises.readFile(path.join(process.cwd(), 'public/fonts', file))
+          ? await (isWorkers ? readWorkerAsset(`fonts/${file}`) : fsPromises.readFile(path.join(process.cwd(), 'public/fonts', file)))
           : await readFontFile(file));
       }
     } catch (e) {

@@ -4,9 +4,10 @@ import { withAdminAccess } from '@/lib/server/middleware/featureGate';
 import { getProvider } from '@/lib/storage-manager';
 import { getPublicUrl as getR2Url } from '@/lib/r2-client';
 import { getS3SignedUrl } from '@/lib/s3-client';
+import { isWorkers } from '@/lib/server/cloudflare';
 
 function safeKey(key: string): boolean {
-  return key.startsWith('generated/') || key.startsWith('temp_images/');
+  return key.startsWith('generated/') || key.startsWith('temp_images/') || (isWorkers && key.startsWith('archive/recovery-20261019/'));
 }
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
@@ -20,6 +21,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     return;
   }
   try {
+    if (isWorkers) {
+      // Keep private R2 objects behind the admin gate, including other users'
+      // templates. Their ordinary image URLs are owner-only.
+      res.redirect(302, `/api/admin/files/${encodeURIComponent(key)}`);
+      return;
+    }
     const provider = getProvider();
     if (provider === 'cloudflare-r2') {
       const url = await getR2Url(key);
@@ -39,4 +46,3 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 }
 
 export default withAdminAccess(handler);
-

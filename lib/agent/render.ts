@@ -4,6 +4,8 @@ import path from 'path';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { renderSinglePdf, type Entry, type Position } from '@/lib/pdf-generator';
 import { detectUploadedImage } from '@/lib/security/uploaded-image';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { readWorkerAsset } from '@/lib/server/worker-files';
 import { AgentError, type AgentInput } from './input';
 
 export const digest = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
@@ -12,6 +14,13 @@ const MAX_AGENT_IMAGE_PIXELS = 12_000_000;
 
 // No cache: approval and workers must notice changed font assets.
 export async function rendererVersion(): Promise<string> {
+  if (isWorkers) {
+    try {
+      const version = JSON.parse((await readWorkerAsset('agent-renderer-version.json')).toString());
+      if (typeof version === 'string' && /^[a-f0-9]{64}$/.test(version)) return version;
+    } catch { /* Missing or invalid build assets must not approve a different renderer. */ }
+    throw new AgentError('Agent renderer build is missing', 503);
+  }
   const fonts = path.join(process.cwd(), 'public/fonts');
   const hashes = await Promise.all((await fs.readdir(fonts)).filter(f => f.endsWith('.ttf')).sort().map(async file => digest(await fs.readFile(path.join(fonts, file)))));
   // Bundled builds set this to a hash of the actual rendering sources.
@@ -30,12 +39,13 @@ export async function makeTemplate(base64?: unknown): Promise<Uint8Array> {
   if (base64 !== undefined) {
     if (typeof base64 !== 'string' || base64.length > 14_000_000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) throw new AgentError('Template must be base64 PNG/JPEG, at most 10 MB');
     const bytes = Buffer.from(base64, 'base64');
-    if (bytes.length > 10 * 1024 * 1024) throw new AgentError('Template is too large', 413);
-    const detected = detectUploadedImage(bytes, MAX_AGENT_IMAGE_PIXELS);
-    if (!detected) throw new AgentError('Template must be a PNG or JPEG within the 12 megapixel limit');
+    if (bytes.length > (isWorkers ? 4 : 10) * 1024 * 1024) throw new AgentError('Template is too large', 413);
+    const pixelLimit = isWorkers ? 4_000_000 : MAX_AGENT_IMAGE_PIXELS;
+    const detected = detectUploadedImage(bytes, pixelLimit);
+    if (!detected) throw new AgentError(`Template must be a PNG or JPEG within the ${pixelLimit / 1_000_000} megapixel limit`);
     try {
       const image = detected.mimetype === 'image/png' ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
-      if (image.width * image.height > MAX_AGENT_IMAGE_PIXELS) throw new Error('Too many pixels');
+      if (image.width * image.height > pixelLimit) throw new Error('Too many pixels');
       // The image aspect ratio is preserved on a defined, printable page.
       const width = image.width >= image.height ? 842 : 595;
       const height = width * image.height / image.width;

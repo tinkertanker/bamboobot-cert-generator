@@ -26,6 +26,8 @@ import {
   requireSafeEmailHeader
 } from '@/lib/email/abuse-controls';
 import { SignedFileUrlError, verifySignedGeneratedFileCapabilityUrl } from '@/lib/security/signed-generated-url';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { sendWorkerEmail } from '@/lib/email/worker-queue';
 
 export const config = {
   api: {
@@ -47,7 +49,7 @@ async function sendEmailHandler(req: AuthenticatedRequest, res: NextApiResponse)
   const userId = user.id;
 
   // Apply rate limiting
-  const rl = enforceRateLimit(req, res, { userId, route: 'send-email', category: 'email' });
+  const rl = await enforceRateLimit(req, res, { userId, route: 'send-email', category: 'email' });
   if (!rl.allowed) {
     res.status(429).json({ error: 'Too many emails sent. Please wait before sending more.' });
     return;
@@ -153,8 +155,8 @@ Important: This download link will expire in 90 days. Please save your certifica
       throw new EmailRequestError('A certificate attachment is required');
     }
 
-    const quota = await reserveEmailUsage(userId, recipients.length);
-    if (!quota.allowed) {
+    const quota = isWorkers ? undefined : await reserveEmailUsage(userId, recipients.length);
+    if (quota && !quota.allowed) {
       res.status(403).json({
         error: 'email limit reached',
         code: 'LIMIT_REACHED',
@@ -163,7 +165,7 @@ Important: This download link will expire in 90 days. Please save your certifica
       });
       return;
     }
-    if (!quota.reservationDay) throw new Error('Email quota reservation is missing its accounting epoch');
+    if (quota && !quota.reservationDay) throw new Error('Email quota reservation is missing its accounting epoch');
 
     // Prepare email parameters using the standard EmailParams interface
     const emailParams = {
@@ -178,7 +180,7 @@ Important: This download link will expire in 90 days. Please save your certifica
     // Send email using the provider (works with both Resend and SES)
     let result;
     try {
-      result = await emailProvider.sendEmail(emailParams);
+      result = isWorkers ? await sendWorkerEmail(userId, emailParams) : await emailProvider.sendEmail(emailParams);
     } catch (error) {
       // Transport failures are ambiguous: the provider may have accepted the
       // message before the connection failed, so retain the reservation.
@@ -186,7 +188,7 @@ Important: This download link will expire in 90 days. Please save your certifica
     }
 
     if (!result.success) {
-      if (isDefinitelyUnsentProviderError(result.error)) {
+      if (quota?.reservationDay && isDefinitelyUnsentProviderError(result.error)) {
         await releaseEmailUsageReservation(userId, recipients.length, quota.reservationDay).catch(refundError => {
           console.error('Failed to release email quota reservation:', refundError);
         });

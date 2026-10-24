@@ -27,6 +27,9 @@ import { requireAuth } from '@/lib/auth/requireAuth';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { getGeneratedDir } from '@/lib/paths';
 import { getAuthorizedTemplateCandidates, PrivateFileAccessError } from '@/lib/security/private-file-access';
+import { cloudflare, isWorkers } from '@/lib/server/cloudflare';
+import { PdfQueueManager } from '@/lib/pdf/pdf-queue';
+import { createWorkerPdfJob, getWorkerPdfProgress, controlWorkerPdfJob, processWorkerPdfJob } from '@/lib/pdf/worker-jobs';
 import {
   clampProgressiveBatchSize,
   MAX_ACTIVE_PROGRESSIVE_SESSIONS_PER_USER,
@@ -34,9 +37,9 @@ import {
   validatePdfJobInput,
 } from '@/lib/pdf/server-limits';
 
-const sessionManager = PdfSessionManager.getInstance();
+const sessionManager = isWorkers ? null : PdfSessionManager.getInstance();
 const sessionOwners = new Map<string, string>();
-sessionManager.onSessionRemoved(sessionId => sessionOwners.delete(sessionId));
+sessionManager?.onSessionRemoved(sessionId => sessionOwners.delete(sessionId));
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   // Require auth for all methods (middleware also enforces when enabled)
@@ -48,21 +51,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     switch (req.method) {
       case 'POST':
         {
-          const rl = enforceRateLimit(req, res, { userId, route: 'generate-progressive:POST', category: 'generate' });
+          const rl = await enforceRateLimit(req, res, { userId, route: 'generate-progressive:POST', category: 'generate' });
           if (!rl.allowed) { res.status(429).json({ error: 'Rate limit exceeded for batch generation.' }); return; }
           await handlePost(req, res, userId);
         }
         return;
       case 'GET':
         {
-          const rl = enforceRateLimit(req, res, { userId, route: 'generate-progressive:GET', category: 'api' });
+          const rl = await enforceRateLimit(req, res, { userId, route: 'generate-progressive:GET', category: 'api' });
           if (!rl.allowed) { res.status(429).json({ error: 'Too many status checks.' }); return; }
           await handleGet(req, res, userId);
         }
         return;
       case 'PUT':
         {
-          const rl = enforceRateLimit(req, res, { userId, route: 'generate-progressive:PUT', category: 'api' });
+          const rl = await enforceRateLimit(req, res, { userId, route: 'generate-progressive:PUT', category: 'api' });
           if (!rl.allowed) { res.status(429).json({ error: 'Too many control requests.' }); return; }
           await handlePut(req, res, userId);
         }
@@ -123,7 +126,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
   let activeSessions = 0;
   for (const [activeSessionId, ownerId] of sessionOwners) {
     if (ownerId !== userId) continue;
-    const status = sessionManager.getSession(activeSessionId)?.getProgress().status;
+    const status = sessionManager?.getSession(activeSessionId)?.getProgress().status;
     if (status === 'processing' || status === 'paused' || status === 'idle') activeSessions += 1;
   }
   if (activeSessions >= MAX_ACTIVE_PROGRESSIVE_SESSIONS_PER_USER) {
@@ -143,6 +146,22 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
 
   // Create session
   const sessionId = `pdf-${Date.now()}-${uuidv4().slice(0, 8)}`;
+
+  if (isWorkers) {
+    const manager = new PdfQueueManager(sessionId, templateFilename, positions,
+      uiContainerDimensions, mode, { batchSize });
+    await manager.initializeQueue(data, namingColumn);
+    await manager.startProcessing();
+    if (!await createWorkerPdfJob(userId, manager)) {
+      res.status(429).json({ error: 'Too many PDF generation jobs in progress. Wait for one to finish or cancel it.' });
+      return;
+    }
+    // Start one bounded batch now. The minute cron durably continues/reclaims
+    // the rest, without keeping this request busy for an entire large job.
+    cloudflare().ctx.waitUntil(processWorkerPdfJob(sessionId));
+    res.status(200).json({ sessionId, status: 'started', total: data.length, batchSize, message: 'PDF generation started' });
+    return;
+  }
   
   try {
     // Create session directory
@@ -155,7 +174,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
     }
 
     // Create queue manager
-    const queueManager = sessionManager.createSession(
+    const queueManager = sessionManager!.createSession(
       sessionId,
       templateFilename,
       positions,
@@ -183,7 +202,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
     });
     return;
   } catch (err) {
-    sessionManager.removeSession(sessionId);
+    sessionManager?.removeSession(sessionId);
     sessionOwners.delete(sessionId);
     throw err;
   }
@@ -200,7 +219,14 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, userId: stri
     return;
   }
 
-  const queueManager = sessionManager.getSession(sessionId);
+  if (isWorkers) {
+    const progress = await getWorkerPdfProgress(userId, sessionId);
+    if (!progress) res.status(404).json({ error: 'Session not found' });
+    else res.status(200).json(progress);
+    return;
+  }
+
+  const queueManager = sessionManager?.getSession(sessionId);
   if (!queueManager || sessionOwners.get(sessionId) !== userId) {
     res.status(404).json({ error: 'Session not found' });
     return;
@@ -239,7 +265,22 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: stri
     return;
   }
 
-  const queueManager = sessionManager.getSession(sessionId);
+  if (isWorkers) {
+    try {
+      const status = await controlWorkerPdfJob(userId, sessionId, action);
+      if (!status) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+      if (action === 'resume') cloudflare().ctx.waitUntil(processWorkerPdfJob(sessionId));
+      res.status(200).json({ sessionId, action, status });
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'Action failed' });
+    }
+    return;
+  }
+
+  const queueManager = sessionManager?.getSession(sessionId);
   if (!queueManager || sessionOwners.get(sessionId) !== userId) {
     res.status(404).json({ error: 'Session not found' });
     return;
@@ -261,7 +302,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: stri
         break;
       case 'cancel':
         await queueManager.cancel();
-        sessionManager.removeSession(sessionId);
+        sessionManager?.removeSession(sessionId);
         sessionOwners.delete(sessionId);
         break;
     }
@@ -284,7 +325,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, userId: stri
  * Process next batch of PDFs
  */
 async function processNextBatch(sessionId: string, sessionDir: string) {
-  const queueManager = sessionManager.getSession(sessionId);
+  const queueManager = sessionManager?.getSession(sessionId);
   if (!queueManager) {
     error(`Session ${sessionId} not found`);
     return;

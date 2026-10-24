@@ -16,7 +16,7 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 export function validateAgentInput(value: unknown): AgentInput {
-  if (!object(value) || typeof value.label !== 'string' || !value.label.trim() || value.label.length > 100) {
+  if (!object(value) || typeof value.label !== 'string' || !value.label.trim() || value.label.length > 100 || /[\u0000-\u001f\u007f\p{Cf}]/u.test(value.label)) {
     throw new AgentError('A label of 1–100 characters is required');
   }
   if (!Array.isArray(value.rows) || value.rows.length < 1 || value.rows.length > 500) {

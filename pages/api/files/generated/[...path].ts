@@ -6,6 +6,8 @@ import { requireAuth } from '@/lib/auth/requireAuth';
 import { getPublicUrl as getR2SignedUrl } from '@/lib/r2-client';
 import { getS3SignedUrl } from '@/lib/s3-client';
 import { getGeneratedDir, resolvePathWithin } from '@/lib/paths';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { serveWorkerObject } from '@/lib/server/worker-files';
 
 const SERVED_TYPES: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -53,6 +55,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   
   try {
+    if (isWorkers) {
+      await serveWorkerObject(`generated/${relativePath}`, mimeType, res);
+      return;
+    }
     // Check if we're using cloud storage
     if (storageConfig.isR2Enabled) {
       // For R2, generate a signed URL and redirect

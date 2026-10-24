@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { renderHook } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 
 const mockUseSession = jest.fn();
 jest.mock('next-auth/react', () => ({ useSession: () => mockUseSession() }));
@@ -21,6 +21,7 @@ jest.mock('@/lib/project-storage', () => ({
 import { useProjectManagement } from '@/hooks/useProjectManagement';
 import { SessionStorage } from '@/lib/session-storage';
 import { ProjectStorage } from '@/lib/project-storage';
+import { useTableData } from '@/hooks/useTableData';
 
 function makeProps() {
   return {
@@ -80,5 +81,28 @@ describe('useProjectManagement startup restore gating', () => {
     renderHook(() => useProjectManagement(makeProps()));
     await Promise.resolve();
     expect(SessionStorage.loadSession).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])('restores saved recipient rows without discarding a newer working session (session=%s)', async sessionExists => {
+    mockUseSession.mockReturnValue({ data: { user: { id: 'fixture' } }, status: 'authenticated' });
+    const rows = [{ Name: 'Ada', Course: 'Robotics' }, { Name: 'Grace', Course: 'Design' }];
+    jest.mocked(ProjectStorage.getMostRecentProject).mockResolvedValueOnce({
+      id: 'saved', name: 'Saved certificate', created: '', lastModified: '', version: '1.0',
+      columns: ['Course', 'Name'], tableData: rows, positions: {},
+      certificateImage: { url: '/fixture.png', filename: 'fixture.png', uploadedAt: '', isCloudStorage: true },
+    });
+    jest.mocked(SessionStorage.loadSession).mockReturnValueOnce(sessionExists ? {
+      tableData: [{ Name: 'Unsaved edit' }], tableInput: 'Name\nUnsaved edit',
+      useCSVMode: false, isFirstRowHeader: true, lastModified: new Date().toISOString(),
+    } : null);
+    jest.mocked(SessionStorage.getSessionAge).mockReturnValueOnce(1000);
+    const { result } = renderHook(() => {
+      const table = useTableData();
+      const project = useProjectManagement({ ...makeProps(), loadSessionData: table.loadSessionData });
+      return { table, project };
+    });
+    await waitFor(() => expect(result.current.project.hasManuallySaved).toBe(true));
+    expect(result.current.table.tableData).toEqual(sessionExists ? [{ Name: 'Unsaved edit' }] : rows);
+    expect(result.current.table.tableInput).toBe(sessionExists ? 'Name\nUnsaved edit' : 'Course\tName\nRobotics\tAda\nDesign\tGrace');
   });
 });

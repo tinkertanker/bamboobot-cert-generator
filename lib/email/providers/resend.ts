@@ -1,5 +1,7 @@
 import type { EmailParams, EmailResult, RateLimitInfo, EmailProvider } from '@/lib/email/types';
 import { providerRejectedError } from '@/lib/email/provider-errors';
+import { isWorkers } from '@/lib/server/cloudflare';
+import { withWorkerProviderCapacity } from '@/lib/email/worker-provider';
 
 function getSendTimeoutMs(): number {
   const configured = Number.parseInt(process.env.EMAIL_PROVIDER_SEND_TIMEOUT_MS || '', 10);
@@ -37,6 +39,10 @@ export class ResendProvider implements EmailProvider {
   }
 
   async sendEmail(params: EmailParams): Promise<EmailResult> {
+    if (isWorkers) {
+      return withWorkerProviderCapacity(this.name, 1, this.rateLimit.limit,
+        () => this.sendEmailLocked(params, AbortSignal.timeout(getSendTimeoutMs())));
+    }
     if (this.pendingSends >= getMaxPendingSends()) {
       return {
         id: '',

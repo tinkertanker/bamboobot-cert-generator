@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bamboobot",
+  "account_id": "b8b1032c61d9475cd00229c74db7ec72",
+  "main": "cloudflare-worker.ts",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "bamboobot.tk.sg", "custom_domain": true }],
+  "triggers": { "crons": ["* * * * *"] },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "bamboobot",
+    "database_id": "14c7642a-6947-4f7a-a2a3-b8273e6a63b2",
+    "migrations_dir": "prisma/d1-migrations"
+  }],
+  "r2_buckets": [{
+    "binding": "FILES",
+    "bucket_name": "bamboobot-files"
+  }],
+  "vars": {
+    "BAMBOOBOT_RUNTIME": "workers",
+    "AGENT_CERTIFICATES_ENABLED": "true",
+    "REQUIRE_AUTH": "true",
+    "STORAGE_PROVIDER": "cloudflare-r2",
+    "NEXTAUTH_URL": "https://bamboobot.tk.sg",
+    "NEXT_PUBLIC_PROJECT_SERVER_PERSISTENCE": "true",
+    "EMAIL_DELIVERY_MODE": "live"
+  }
+}
