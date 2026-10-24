@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+
+# SQLite needs no daemon or reconnection. Never reinstall dependencies on wake.
+if [[ ! -x node_modules/.bin/next || ! -f node_modules/.prisma/client/index.js ]]; then
+  echo 'Orb dependencies are missing; run .agents/setup to repair them.' >&2
+  exit 1
+fi
+
+echo 'Orb dependencies ready; no services need reconnecting'

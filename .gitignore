@@ -60,6 +60,7 @@ test-results/
 
 # Code agent artifacts
 /.code/
+/.amp/portals/*
 
 # Prisma / SQLite database
 prisma/*.db

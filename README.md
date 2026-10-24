@@ -60,6 +60,27 @@ npm run dev
 # Open http://localhost:3000
 ```
 
+### Amp orbs
+
+Amp runs the executable `.agents/setup` hook when preparing a project snapshot.
+It selects Node.js 22 to match CI, installs npm dependencies,
+generates Prisma's client, initialises local SQLite, builds the PDF worker and
+installs Playwright's Chromium. Exact snapshots skip setup; stale snapshots reuse
+`node_modules`, npm's cache and downloaded browsers, with a quick npm dependency
+check instead of a clean reinstall. Run `.agents/setup` manually to repair an orb.
+
+Setup creates a minimal `.env` for local SQLite and storage only if `.env` is
+absent. It leaves auth enabled, sets no fixed hostname and does not create
+credentials or sign in. Configure OAuth and secrets separately if needed.
+Schema changes during setup target only
+`prisma/database.db`, never a database configured through project credentials.
+SQLite needs no service; `.agents/resume` only checks that dependencies are ready
+and never installs packages.
+
+Start the development server when needed with
+`amp orb service start bamboobot --command 'npm run dev' --port 3000 --portal`.
+Use the returned portal URL to open it remotely. No server runs during setup.
+
 ### Docker
 ```bash
 # Production
