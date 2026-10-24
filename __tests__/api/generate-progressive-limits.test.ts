@@ -38,7 +38,12 @@ async function post(payload: Record<string, unknown>) {
   return res;
 }
 
-afterAll(() => PdfSessionManager.getInstance().destroy());
+beforeAll(() => jest.useFakeTimers());
+afterAll(() => {
+  PdfSessionManager.getInstance().destroy();
+  jest.clearAllTimers();
+  jest.useRealTimers();
+});
 
 describe('/api/generate-progressive resource limits', () => {
   it('rejects datasets over the row limit', async () => {

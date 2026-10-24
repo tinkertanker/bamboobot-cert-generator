@@ -1,0 +1,27 @@
+# Opt-in same-host agent worker. See docs/AGENT_CERTIFICATES.md before first use.
+services:
+  bamboobot:
+    image: bamboobot-cert-generator:local
+    mem_limit: 1g
+    environment:
+      AGENT_CERTIFICATES_ENABLED: "true"
+      DATABASE_URL: "file:/app/agent-db/database.db"
+    volumes:
+      - ./data/agent-db:/app/agent-db
+
+  certificate-worker:
+    image: bamboobot-cert-generator:local
+    profiles: [agent]
+    init: true
+    entrypoint: [node, build/agent-worker.js]
+    env_file: [.env]
+    environment:
+      NODE_ENV: production
+      AGENT_CERTIFICATES_ENABLED: "true"
+      DATABASE_URL: "file:/app/agent-db/database.db"
+    volumes:
+      - ./data/agent-db:/app/agent-db
+      - ./data/generated:/app/storage/generated
+    restart: unless-stopped
+    stop_grace_period: 11m
+    mem_limit: 768m

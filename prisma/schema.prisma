@@ -33,6 +33,8 @@ model User {
   projects      Project[]
   usageLogs     UsageLog[]
   auditLogs     AuditLog[]
+  agentKeys     AgentKey[]
+  certificateJobs CertificateJob[]
 }
 
 model Account {
@@ -119,3 +121,46 @@ model AuditLog {
   @@index([createdAt])
 }
 
+model AgentKey {
+  id        String @id @default(cuid())
+  ownerId   String
+  label     String
+  tokenHash String @unique
+  scopes    Json
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  lastUsedAt DateTime?
+  revokedAt DateTime?
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  @@index([ownerId])
+}
+
+// Inputs are immutable. Editing a draft means creating a new, unapproved job.
+// Only an owner browser session can move awaiting_approval -> queued.
+model CertificateJob {
+  id          String @id
+  ownerId     String
+  label       String
+  idempotencyKey String
+  inputHash   String
+  rendererVersion String
+  input       Json
+  sampleHash  String
+  total       Int
+  status      String @default("awaiting_approval")
+  approvedAt  DateTime?
+  attempts    Int @default(0)
+  attemptToken String?
+  leaseUntil  DateTime?
+  retryAt     DateTime?
+  progress    Int @default(0)
+  error       String?
+  manifest    Json?
+  storageBytes Int @default(0)
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  @@unique([ownerId, idempotencyKey])
+  @@index([status, retryAt])
+  @@index([ownerId])
+}

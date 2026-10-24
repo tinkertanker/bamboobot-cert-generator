@@ -6,6 +6,7 @@ are implemented. The items below are still open.
 
 ## Top priority
 
+- [x] Approval-gated agent API with scoped keys, unattended jobs and individual/ZIP downloads (see docs/AGENT_CERTIFICATES.md)
 - [ ] Email download links for client-side PDFs (see below)
 - [ ] Settings page, reachable from the avatar dropdown (currently a disabled "coming soon" item)
   - [ ] Default PDF generation method (client/server)

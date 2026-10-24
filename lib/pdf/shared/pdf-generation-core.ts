@@ -196,7 +196,8 @@ export function addTextToPage(
   entryData: Entry,
   positions: Record<string, Position>,
   fonts: FontSet,
-  uiContainerDimensions: { width: number; height: number }
+  uiContainerDimensions: { width: number; height: number },
+  strict = false
 ): void {
   const { width, height } = page.getSize();
 
@@ -221,6 +222,13 @@ export function addTextToPage(
     const { fontFamily, isBold, isOblique } = resolveFontStyle(entryValue, position);
 
     const font = selectFont(fonts, fontFamily, isBold, isOblique);
+
+    if (strict) {
+      const supported = new Set(font.getCharacterSet());
+      if (Array.from(entryValue.text).some(char => !supported.has(char.codePointAt(0)!))) {
+        throw new Error(`Unsupported character in field ${key}`);
+      }
+    }
 
     // Get text mode and width settings
     const textMode = position.textMode || 'shrink';
@@ -275,6 +283,11 @@ export function addTextToPage(
       const fontAscent = adjustedFontSize * FONT_BASELINE_ADJUSTMENT;
       const y = height - (position.y * height) - fontAscent;
 
+      const descent = strict ? font.heightAtSize(adjustedFontSize) - font.heightAtSize(adjustedFontSize, { descender: false }) : 0;
+      if (strict && (textWidth > maxTextWidth + 0.01 || adjustedX < 0 || adjustedX + textWidth > width || y - descent < 0 || y + font.heightAtSize(adjustedFontSize) > height)) {
+        throw new Error(`Text does not fit field ${key}`);
+      }
+
       page.drawText(entryValue.text, {
         x: adjustedX,
         y: y,
@@ -291,6 +304,10 @@ export function addTextToPage(
         fontSize,
         2 // max 2 lines
       );
+
+      if (strict && lines.join(' ').replace(/ +/g, ' ').trim() !== entryValue.text.replace(/ +/g, ' ').trim()) {
+        throw new Error(`Text would be truncated in field ${key}`);
+      }
 
       // Calculate line height
       const actualLineHeight = fontSize * lineHeight;
@@ -316,6 +333,11 @@ export function addTextToPage(
         
         // Calculate Y position for each line
         const lineY = baseY - (index * actualLineHeight);
+
+        const descent = strict ? font.heightAtSize(fontSize) - font.heightAtSize(fontSize, { descender: false }) : 0;
+        if (strict && (lineWidth > maxTextWidth + 0.01 || adjustedX < 0 || adjustedX + lineWidth > width || lineY - descent < 0 || lineY + font.heightAtSize(fontSize) > height)) {
+          throw new Error(`Text does not fit field ${key}`);
+        }
         
         page.drawText(line, {
           x: adjustedX,

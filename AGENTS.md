@@ -19,6 +19,8 @@ npm test                   # full Jest suite; includes __tests__/build.test.ts, 
 npm run lint               # ESLint; `next build` skips lint, so run this yourself
 npm run build              # production build, also type-checks app code
 npm run build:worker       # rebuild public/pdf-worker.js after changing worker or shared PDF code
+npm run build:agent        # bundle the separate unattended certificate worker
+npm run agent:worker       # requires AGENT_CERTIFICATES_ENABLED=true and migrated SQLite
 ```
 
 CI (`.github/workflows/test.yml`) runs `npm ci`, `npm run build:worker`, `npm test` and `npm run lint` on Node 22. Playwright E2E tests in `e2e/` are not run in CI.
@@ -30,6 +32,7 @@ CI (`.github/workflows/test.yml`) runs `npm ci`, `npm run build:worker`, `npm te
 - `pages/app.tsx` is the editor and wires most hooks together. `pages/index.tsx` is the public landing page; signed-in users are redirected to `/app`.
 - `pages/admin/*` is the tier-based admin area. `pages/dashboard.tsx` is a separate older page gated by `ADMIN_EMAILS`.
 - `pages/api/*` holds API routes. Most wrap their handler with `withFeatureGate` (`lib/server/middleware/featureGate.ts`) or `requireAuth` (`lib/auth/requireAuth.ts`).
+- `pages/api/agent/*`, `lib/agent/` and `pages/agent.tsx` implement opt-in external-agent jobs. They authenticate sessions/PATs independently; only an owner browser session may approve actual samples. `scripts/agent-worker.ts` is a separate supervised, restart-safe worker. See `docs/AGENT_CERTIFICATES.md` for local-only artifact storage, limits, explicit schema migration and Docker setup.
 - `hooks/` holds feature state (`useTableData`, `useProjectManagement`, `usePdfGenerationMethods`, `useEmailConfig` and so on). `components/panels/` and `components/modals/` hold the UI.
 - `lib/pdf/shared/` is PDF layout code shared by the browser worker and the server: `pdf-generation-core.ts` (text placement, shrink-to-fit, multi-line) and `coordinate-transform.ts`.
 - `lib/pdf/client/` is browser generation: the worker entry is `worker/pdf-worker-with-fonts.ts`, bundled by `webpack.worker.config.js` into `public/pdf-worker.js`.
