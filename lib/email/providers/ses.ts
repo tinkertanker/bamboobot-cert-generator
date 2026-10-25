@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
 import type { EmailParams, EmailResult, RateLimitInfo, EmailProvider } from '@/lib/email/types';
 import { providerRejectedError } from '@/lib/email/provider-errors';
+import { getSendTimeoutMs, getMaxPendingSends } from '@/lib/email/provider-limits';
 import { isWorkers } from '@/lib/server/cloudflare';
 import { withWorkerProviderCapacity } from '@/lib/email/worker-provider';
 import {
@@ -35,18 +36,6 @@ function encodeMimeMailbox(value: string): string {
 function base64MimeBody(value: string): string {
   const encoded = Buffer.from(value, 'utf8').toString('base64');
   return encoded.match(/.{1,76}/g)?.join('\r\n') ?? '';
-}
-
-function getSendTimeoutMs(): number {
-  const configured = Number.parseInt(process.env.EMAIL_PROVIDER_SEND_TIMEOUT_MS || '', 10);
-  if (!Number.isSafeInteger(configured) || configured <= 0) return 30_000;
-  return Math.min(configured, 120_000);
-}
-
-function getMaxPendingSends(): number {
-  const configured = Number.parseInt(process.env.MAX_PENDING_EMAIL_PROVIDER_SENDS || '', 10);
-  if (!Number.isSafeInteger(configured) || configured <= 0) return 8;
-  return Math.min(configured, 100);
 }
 
 export class SESProvider implements EmailProvider {
