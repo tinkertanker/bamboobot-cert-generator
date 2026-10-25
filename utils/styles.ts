@@ -11,38 +11,22 @@ export const COLORS = {
   background: "#F5F1E8",
   cardBg: "#FFFEF7",
   grayLight: "#F9FAFB",
-  gray50: "#F3F4F6",
-  gray100: "#E5E7EB",
   grayDisabled: "#e5e7eb",
-  grayMuted: "#9ca3af",
   
   // Border and separator colors
   border: "#dddddd",
   borderGray: "#D1D5DB",
   borderDisabled: "#d1d5db",
-  borderDark: "#6B7280",
   
   // Text colors
   textPrimary: "#1F2937",
-  textSecondary: "#6B7280",
-  textMuted: "#9CA3AF",
   textDisabled: "#9ca3af",
-  textActive: "#374151",
   white: "#ffffff",
   black: "#000000",
   
   // Status colors
-  success: "#10B981",
   successMedium: "#52B788",
   successLight: "#D1FAE5",
-  successDark: "#047857",
-  error: "#EF4444",
-  errorDark: "#DC2626",
-  errorRed: "#dc2626",
-  errorLight: "#FEE2E2",
-  warning: "#F59E0B",
-  warningLight: "#FEF3C7",
-  amber900: "#92400e",
   
   // Highlight colors
   highlightBg: "#FFFBEB",
@@ -52,17 +36,12 @@ export const COLORS = {
   tabActive: "#2D6A4F",
   tabInactive: "#cccccc",
   tabText: "#374151",
-  tabTextActive: "#ffffff",
-  
-  // Special UI colors
-  spinnerBlue: "#3498db"
+  tabTextActive: "#ffffff"
 } as const;
 
 export const GRADIENTS = {
   // CSS gradient strings for backgrounds
   primary: "linear-gradient(135deg, #1B4332 0%, #2D6A4F 100%)",
-  coral: "linear-gradient(135deg, #E76F51 0%, #D86444 100%)",
-  amber: "linear-gradient(135deg, #F4A261 0%, #E5935A 100%)",
   
   // Tailwind gradient classes for ActionButton
   primaryTailwind: "bg-gradient-to-r from-[#1B4332] to-[#2D6A4F]",
@@ -75,7 +54,5 @@ export const GRADIENTS = {
 } as const;
 
 export const TRANSITIONS = {
-  fast: "transition-all duration-150 ease-in-out",
-  normal: "transition-all duration-200 ease-in-out", 
-  slow: "transition-all duration-300 ease-in-out"
+  fast: "transition-all duration-150 ease-in-out"
 } as const;
