@@ -15,7 +15,6 @@ export interface UseClientPdfGenerationProps {
   positions: Positions;
   uploadedFile: File | string | null;
   uploadedFileUrl?: string | null;
-  localFileBlob?: Blob | null;
   localBlobUrl?: string | null;
   localPdfByteLength?: number | null;
   selectedNamingColumn: string;
@@ -46,7 +45,6 @@ export function useClientPdfGeneration({
   positions,
   uploadedFile,
   uploadedFileUrl,
-  localFileBlob,
   localBlobUrl,
   localPdfByteLength,
   selectedNamingColumn,

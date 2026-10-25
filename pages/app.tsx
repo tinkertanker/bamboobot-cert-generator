@@ -377,9 +377,7 @@ export default function HomePage() {
     devMode,
     setDevMode,
     baseEmail,
-    setBaseEmail,
     numTestEmails,
-    setNumTestEmails,
     loadPresetData,
     clearData,
     clearFile,
@@ -540,7 +538,7 @@ export default function HomePage() {
     [tableData]
   );
 
-  const { headerGroups, rows, prepareRow } = useTable({
+  const { headerGroups } = useTable({
     columns,
     data: tableData
   });
@@ -989,8 +987,6 @@ export default function HomePage() {
               handleCSVModeToggle={handleCSVModeToggle}
               tableData={tableData}
               headerGroups={headerGroups}
-              rows={rows}
-              prepareRow={prepareRow}
               detectedEmailColumn={detectedEmailColumn}
               currentPreviewIndex={currentPreviewIndex}
               setCurrentPreviewIndex={setCurrentPreviewIndex}
@@ -1023,9 +1019,6 @@ export default function HomePage() {
               detectedEmailColumn={detectedEmailColumn}
               emailConfig={emailConfig}
               setEmailConfig={setEmailConfig}
-              selectedField={selectedField}
-              setSelectedField={setSelectedField}
-              setShowCenterGuide={setShowCenterGuide}
             />
             </div>
           )}

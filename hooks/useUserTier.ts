@@ -1,7 +1,7 @@
 // Client-side hook for user tier management and usage tracking
 import { useSession } from 'next-auth/react';
 import { useState, useEffect, useCallback } from 'react';
-import { getTierLimits, getRemainingQuota, type UserTier, type TierLimits } from '@/types/user';
+import { getTierLimits, type UserTier, type TierLimits } from '@/types/user';
 
 interface UseUserTierReturn {
   tier: UserTier;

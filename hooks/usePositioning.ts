@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { DEFAULT_FONT_SIZE } from "@/utils/constants";
-import type { TableData, Position, Positions, TextAlignment } from "@/types/certificate";
+import type { TableData, Positions, TextAlignment } from "@/types/certificate";
 
 export interface UsePositioningProps {
   tableData: TableData[];

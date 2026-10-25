@@ -193,8 +193,6 @@ export interface DataPanelProps {
   getTableProps: () => any;
   getTableBodyProps: () => any;
   headerGroups: any[];
-  rows: any[];
-  prepareRow: (row: any) => void;
   detectedEmailColumn: string | null;
   currentPreviewIndex: number;
   setCurrentPreviewIndex: (index: number) => void;
@@ -218,7 +216,4 @@ export interface EmailConfigPanelProps {
   detectedEmailColumn: string | null;
   emailConfig: EmailConfig;
   setEmailConfig: React.Dispatch<React.SetStateAction<EmailConfig>>;
-  selectedField: string | null;
-  setSelectedField: (field: string | null) => void;
-  setShowCenterGuide: React.Dispatch<React.SetStateAction<CenterGuideState>>;
 }

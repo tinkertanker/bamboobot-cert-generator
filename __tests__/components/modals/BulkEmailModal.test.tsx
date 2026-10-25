@@ -23,7 +23,6 @@ describe('BulkEmailModal attachment ingestion', () => {
       <BulkEmailModal
         open
         onClose={jest.fn()}
-        totalEmails={2}
         emailConfig={{
           senderName: 'Sender',
           subject: 'Certificate',
@@ -56,7 +55,6 @@ describe('BulkEmailModal attachment ingestion', () => {
       <BulkEmailModal
         open
         onClose={jest.fn()}
-        totalEmails={1}
         emailConfig={{
           senderName: 'Sender',
           subject: 'Certificate',
@@ -84,7 +82,6 @@ describe('BulkEmailModal attachment ingestion', () => {
       <BulkEmailModal
         open
         onClose={jest.fn()}
-        totalEmails={1}
         emailConfig={{
           senderName: 'Sender',
           subject: 'Certificate',
@@ -129,7 +126,6 @@ describe('BulkEmailModal attachment ingestion', () => {
       <BulkEmailModal
         open
         onClose={onClose}
-        totalEmails={1}
         emailConfig={{
           senderName: 'Sender',
           subject: 'Certificate',
