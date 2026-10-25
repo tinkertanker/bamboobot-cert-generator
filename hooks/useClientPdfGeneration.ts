@@ -3,7 +3,7 @@ import { ClientPdfGenerator } from '@/lib/pdf/client/pdf-generator-client';
 import { FeatureDetector } from '@/lib/pdf/client/feature-detection';
 import { DEFAULT_FONT_SIZE } from '@/utils/constants';
 import { getFontReferenceDimensions } from '@/utils/fontScale';
-import type { TableData, Positions, PdfFile } from '@/types/certificate';
+import type { TableData, Positions, PdfFile, FontFamily } from '@/types/certificate';
 import {
   assessIndividualPdfCapacity,
   estimateTemplateBytes,
@@ -127,7 +127,7 @@ export function useClientPdfGeneration({
         [key: string]: {
           text: string;
           color?: [number, number, number];
-          font?: string | any;
+          font?: FontFamily;
           bold?: boolean;
           oblique?: boolean;
         };

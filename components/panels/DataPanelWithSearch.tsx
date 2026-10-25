@@ -24,7 +24,7 @@ export function DataPanelWithSearch({
   currentPreviewIndex,
   setCurrentPreviewIndex,
   isProcessing = false
-}: Omit<DataPanelProps, 'getTableProps' | 'getTableBodyProps'> & { isProcessing?: boolean }) {
+}: DataPanelProps & { isProcessing?: boolean }) {
   // Remember which tableData the filtered rows were computed from so a stale
   // filter result is never shown after the data changes.
   const [filterResult, setFilterResult] = useState<{
