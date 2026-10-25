@@ -152,7 +152,6 @@ export function splitTextIntoLines(
       // Check if we're at the limit after pushing
       if (lines.length >= maxLines) {
         // We've hit the limit, add ellipsis if there's more content
-        const remainingContent = words.slice(i).join(' ');
         if (i < words.length) {
           const lastLine = lines[lines.length - 1];
           let truncatedLine = lastLine;

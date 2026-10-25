@@ -1,34 +1,6 @@
 import { useCallback, useRef } from 'react';
 
 /**
- * Hook that returns a debounced version of the provided function
- * @param fn The function to debounce
- * @param delay The delay in milliseconds
- * @returns Debounced function
- */
-export function useDebounce<T extends (...args: any[]) => any>(
-  fn: T,
-  delay: number
-): (...args: Parameters<T>) => void {
-  const timeoutRef = useRef<NodeJS.Timeout>();
-
-  const debouncedFn = useCallback(
-    (...args: Parameters<T>) => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-
-      timeoutRef.current = setTimeout(() => {
-        fn(...args);
-      }, delay);
-    },
-    [fn, delay]
-  );
-
-  return debouncedFn;
-}
-
-/**
  * Hook that returns a throttled version of the provided function
  * Ensures the function is called at most once per specified interval
  * @param fn The function to throttle
