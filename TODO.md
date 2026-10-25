@@ -63,3 +63,10 @@ would choose this in the summary modal shown when they click Generate.
 ## Performance
 
 - [ ] Performance monitoring utility for measuring optimisations
+
+## Refactoring follow-ups
+
+- [ ] Modernise the existing Playwright suite for `/app`, tutorial dismissal, the developer-tools disclosure and current accessible controls. Keep the failing legacy suite visible until its replacement exercises the same workflows.
+- [ ] Split editor orchestration (`pages/app.tsx`) and bulk-email state (`BulkEmailModal`) along lifecycle boundaries, with end-to-end coverage for cancellation, project restore and PDF/email handoff before moving effects.
+- [ ] Review Node/Workers job-queue duplication separately. Preserve durable admission, leases, quota refunds and ambiguous-delivery semantics; these are intentional platform differences, not interchangeable implementations.
+- [ ] Apply the documented file naming convention to remaining legacy utility filenames when their owning areas next change; avoid a repository-wide path-only rename.
