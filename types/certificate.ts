@@ -1,6 +1,7 @@
 // Centralized type definitions for the certificate generator
 
 import type { PdfGenerationProgress } from '@/lib/pdf/types';
+import type { HeaderGroup } from 'react-table';
 
 // Font family types
 export type FontFamily =
@@ -190,9 +191,7 @@ export interface DataPanelProps {
   useCSVMode: boolean;
   handleCSVModeToggle: () => void;
   tableData: TableData[];
-  getTableProps: () => any;
-  getTableBodyProps: () => any;
-  headerGroups: any[];
+  headerGroups: HeaderGroup<TableData>[];
   detectedEmailColumn: string | null;
   currentPreviewIndex: number;
   setCurrentPreviewIndex: (index: number) => void;

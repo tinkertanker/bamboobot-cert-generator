@@ -6,11 +6,13 @@ import { COLORS } from '@/utils/styles';
 import { EmailPreviewModal } from './EmailPreviewModal';
 import { buildLinkEmail, buildAttachmentEmail } from '@/lib/email-templates';
 import { parseRecipientsDetailed } from '@/utils/email-validation';
+import type { EmailConfig } from '@/types/certificate';
 import {
   blobToBase64,
   createEmailSessionId,
   partitionClientEmailCertificates,
-  usesAttachmentDelivery
+  usesAttachmentDelivery,
+  type ClientEmailCertificate
 } from '@/lib/email/client-attachment-batches';
 import { 
   saveEmailStatus, 
@@ -24,19 +26,8 @@ import {
 interface BulkEmailModalProps {
   open: boolean;
   onClose: () => void;
-  emailConfig: {
-    senderName: string;
-    subject: string;
-    message: string;
-    deliveryMethod: 'download' | 'attachment';
-    isConfigured: boolean;
-  };
-  certificates: Array<{
-    email: string;
-    downloadUrl: string;
-    fileName: string;
-    blob?: Blob;
-  }>;
+  emailConfig: EmailConfig;
+  certificates: ClientEmailCertificate[];
 }
 
 /** Turn an email API failure into something a user can act on. */

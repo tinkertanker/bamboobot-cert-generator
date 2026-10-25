@@ -1,8 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-
-type Positions = Record<string, Record<string, unknown>>;
+import type { Positions } from '@/types/certificate';
 
 function setup(initial: Positions, platform = 'Win32') {
   Object.defineProperty(navigator, 'platform', { value: platform, configurable: true });

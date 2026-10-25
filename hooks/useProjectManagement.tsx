@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import type { SavedProject } from "@/lib/project-storage";
-import type { EmailConfig, TableData } from "@/types/certificate";
+import type { EmailConfig, TableData, Positions } from "@/types/certificate";
+import type { UseFileUploadReturn } from "@/hooks/useFileUpload";
 import { ProjectStorage } from "@/lib/project-storage";
 import { SessionStorage } from "@/lib/session-storage";
 import { normalizeLegacyPrivateAssetReference } from "@/lib/storage-urls";
@@ -12,7 +13,7 @@ import {
 
 interface UseProjectManagementProps {
   // State setters
-  setPositions: (positions: any) => void;
+  setPositions: (positions: Positions) => void;
   setEmailConfig: (config: EmailConfig) => void;
   setUploadedFileUrl: (url: string | null) => void;
   setUploadedFile: (file: File | string | null) => void;
@@ -21,7 +22,7 @@ interface UseProjectManagementProps {
   loadSessionData: (data: string, isBinary: boolean, hasHeaders: boolean) => Promise<void>;
   
   // File upload
-  uploadToServer: () => Promise<any>;
+  uploadToServer: UseFileUploadReturn['uploadToServer'];
   
   // Toast notifications
   showToast: (options: { message: string; type: "success" | "error" | "info"; duration: number }) => void;
@@ -32,7 +33,7 @@ interface UseProjectManagementProps {
   // Current state
   uploadedFileUrl: string | null;
   uploadedFile: File | string | null;
-  positions: any;
+  positions: Positions;
   emailConfig: EmailConfig;
   tableData: TableData[];
   automaticTextColorResult: {

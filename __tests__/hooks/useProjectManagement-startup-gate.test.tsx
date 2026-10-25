@@ -30,7 +30,7 @@ function makeProps() {
     setUploadedFileUrl: jest.fn(),
     setUploadedFile: jest.fn(),
     loadSessionData: jest.fn(async () => {}),
-    uploadToServer: jest.fn(async () => ({})),
+    uploadToServer: jest.fn(async () => undefined),
     showToast: jest.fn(),
     manualSave: jest.fn(async () => ({ success: true })),
     uploadedFileUrl: null,

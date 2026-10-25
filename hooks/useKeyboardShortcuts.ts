@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { FONT_CAPABILITIES } from "@/utils/constants";
+import type { Positions } from "@/types/certificate";
 
 /** True when keyboard input belongs to a form control rather than the canvas. */
 function isEditableElement(element: Element | null): boolean {
@@ -31,8 +32,8 @@ function isInteractiveControl(element: Element | null): boolean {
 export interface UseKeyboardShortcutsProps {
   selectedField: string | null;
   isDragging: boolean;
-  positions: { [key: string]: any };
-  setPositions: React.Dispatch<React.SetStateAction<{ [key: string]: any }>>;
+  positions: Positions;
+  setPositions: React.Dispatch<React.SetStateAction<Positions>>;
   onEscapePressed: () => void;
 }
 

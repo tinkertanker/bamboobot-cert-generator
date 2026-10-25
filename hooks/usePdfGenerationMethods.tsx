@@ -15,7 +15,8 @@
  */
 import { useCallback, useEffect } from "react";
 import { PROGRESSIVE_PDF } from "@/utils/constants";
-import type { TableData } from "@/types/certificate";
+import type { TableData, PdfFile } from "@/types/certificate";
+import type { UseFileUploadReturn } from "@/hooks/useFileUpload";
 import type { CapacityDecision } from "@/lib/pdf/client/individual-capacity";
 
 interface UsePdfGenerationMethodsProps {
@@ -35,17 +36,17 @@ interface UsePdfGenerationMethodsProps {
   generateIndividualPdfs: (overrideFilename?: string) => Promise<void>;
   startProgressiveGeneration: (mode: "individual" | "bulk", batchSize?: number, overrideFilename?: string) => Promise<void>;
   setGeneratedPdfUrl: (url: string | null) => void;
-  setIndividualPdfsData: (data: any) => void;
+  setIndividualPdfsData: (data: PdfFile[] | null) => void;
   
   // Client-side generation functions
   generateClientPdf: () => Promise<void>;
   generateClientIndividualPdfs: () => Promise<void>;
   assessClientIndividualCapacity: () => Promise<CapacityDecision>;
   clientGeneratedPdfUrl: string | null;
-  clientIndividualPdfsData: any;
+  clientIndividualPdfsData: PdfFile[] | null;
   
   // File upload
-  uploadToServer: () => Promise<any>;
+  uploadToServer: UseFileUploadReturn['uploadToServer'];
 }
 
 interface UsePdfGenerationMethodsReturn {
