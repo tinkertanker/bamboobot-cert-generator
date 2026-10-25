@@ -11,7 +11,7 @@
  * When server-side is used:
  * 1. Browser doesn't support client-side generation (no Web Workers, insufficient memory)
  * 2. Explicitly requested via Dev Mode buttons (for testing/comparison)
- * 3. Future: Special cases requiring server-only features
+ * 3. The individual batch exceeds the browser's capacity budget
  */
 import { useCallback, useEffect } from "react";
 import { PROGRESSIVE_PDF } from "@/utils/constants";
@@ -162,7 +162,6 @@ export function usePdfGenerationMethods({
       try {
         const capacity = await assessClientIndividualCapacity();
         if (!capacity.allowed) {
-          console.log("Client individual generation capacity exceeded", capacity);
           method = "server";
         }
       } catch (error) {

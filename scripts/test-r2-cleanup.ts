@@ -7,7 +7,7 @@ import { config } from 'dotenv';
 config({ path: '.env' });
 
 // Then import R2 client (after env is loaded)
-import { cleanupExpiredFiles, listFiles, getFileMetadata, isR2Configured } from '../lib/r2-client';
+import { listFiles, getFileMetadata, isR2Configured } from '../lib/r2-client';
 
 // Debug environment variables
 console.log('Environment check:');
@@ -51,20 +51,7 @@ async function testCleanup() {
       }
     }
 
-    // Run cleanup in dry-run mode (commented out for safety)
-    console.log('\n🧹 Running cleanup (dry run - not actually deleting)...');
-    console.log('To actually run cleanup, uncomment the cleanup code below');
-    
-    // Uncomment to actually run cleanup:
-    // const result = await cleanupExpiredFiles();
-    // console.log(`\n✅ Cleanup complete!`);
-    // console.log(`Deleted ${result.deleted.length} files`);
-    // if (result.deleted.length > 0) {
-    //   console.log('Deleted files:', result.deleted);
-    // }
-    // if (result.errors.length > 0) {
-    //   console.log(`❌ Errors with ${result.errors.length} files:`, result.errors);
-    // }
+    console.log('\nInspection complete; no files were deleted.');
 
   } catch (error) {
     console.error('❌ Error:', error);

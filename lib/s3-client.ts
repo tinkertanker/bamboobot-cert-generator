@@ -118,7 +118,7 @@ export async function getS3SignedUrl(key: string, expiresIn: number = 86400): Pr
 }
 
 /**
- * Get public URL (if CloudFront is configured)
+ * Get a time-limited signed URL for a private S3 object.
  */
 export async function getS3PublicUrl(key: string): Promise<string> {
   return getS3SignedUrl(key);
