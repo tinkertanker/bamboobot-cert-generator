@@ -20,6 +20,7 @@ export default function MarketingPage({ authRequired = true }: MarketingPageProp
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-white to-emerald-50 px-4 sm:px-6 pb-12 text-center">
       <Head>
         <title>Bamboobot Certificate Generator</title>
+        <meta name="description" content="Create personalised certificates in bulk with the visual editor, or let your agent prepare a batch for your sample approval and PDF/ZIP download." />
       </Head>
       <div className="w-full max-w-2xl">
         <div className="mb-6 mt-12 flex justify-center">
@@ -51,7 +52,7 @@ export default function MarketingPage({ authRequired = true }: MarketingPageProp
             Sign in with Google
           </button>
         </div>
-        <section id="features" aria-labelledby="features-heading" className="mt-16 grid sm:grid-cols-3 gap-6 text-left">
+        <section id="features" aria-labelledby="features-heading" className="mt-16 grid sm:grid-cols-2 gap-6 text-left">
           <h2 id="features-heading" className="sr-only">Features</h2>
           <div className="bg-white p-4 rounded-lg border border-emerald-100 shadow-sm">
             <h3 className="font-semibold text-emerald-900">Drag & Drop</h3>
@@ -64,6 +65,10 @@ export default function MarketingPage({ authRequired = true }: MarketingPageProp
           <div className="bg-white p-4 rounded-lg border border-emerald-100 shadow-sm">
             <h3 className="font-semibold text-emerald-900">Email Ready</h3>
             <p className="text-emerald-800 opacity-90">Optional email sending via Resend or SES when configured.</p>
+          </div>
+          <div className="bg-white p-4 rounded-lg border border-emerald-100 shadow-sm">
+            <h3 className="font-semibold text-emerald-900"><Link href="/agent" className="underline underline-offset-2">Agent API</Link></h3>
+            <p className="text-emerald-800 opacity-90">API batches. You approve.</p>
           </div>
         </section>
 

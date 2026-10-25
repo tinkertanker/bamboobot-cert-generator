@@ -7,6 +7,7 @@ are implemented. The items below are still open.
 ## Top priority
 
 - [x] Approval-gated agent API with scoped keys, unattended jobs and individual/ZIP downloads (see docs/AGENT_CERTIFICATES.md)
+- [x] Agent batch discovery on the landing page, README and Agent access onboarding, with API examples and privacy/retention guidance
 - [ ] Complete post-launch verification of the [Cloudflare migration](docs/CLOUDFLARE_PRODUCTION.md)
   - [x] Local OpenNext/D1/private R2 target, recovery export and hash-verified R2 backup
   - [x] Local restore checks for upload, projects, PDF/ZIP, durable PDF progress and HTTP rate limits

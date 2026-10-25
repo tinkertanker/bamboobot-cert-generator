@@ -1,11 +1,39 @@
 # Agent certificate batches (v1)
 
-An external agent supplies recipient JSON and a layout. Bamboobot renders actual
+Any HTTP client—an agent, script or integration—can supply recipient JSON and a layout. Bamboobot renders actual
 sample PDFs, the signed-in owner approves them, and durable unattended work
 publishes individual PDFs and a complete ZIP without an open browser. Production
 uses the existing Cloudflare Worker, minute cron, D1 and private R2. Local Node
 development can instead use the separate SQLite/filesystem worker. There is no
 hosted language model, MCP server, email sending or automatic approval.
+
+## Start here: owners and external agents
+
+The feature is live at **[bamboobot.tk.sg/agent](https://bamboobot.tk.sg/agent)**.
+You do not need to deploy a worker or run Bamboobot locally to use it.
+
+1. Sign in and open **Account menu → Agent access**. Create a labelled key and
+   save the once-visible token in your agent's secret store as `BAMBOOBOT_API_KEY`,
+   never in a prompt, source file, URL, screenshot or log.
+2. Give the agent this guide. Once preparation finishes, follow its review link.
+   Check the actual sample PDF **and all frozen recipient inputs**, then approve
+   the whole batch in your signed-in browser. The agent cannot approve for you.
+3. The agent polls for completion and collects the PDFs, ZIP and manifest.
+   No browser needs to stay open. Only complete batches are downloadable.
+
+Example task instructions for an external agent (no credentials in the prompt):
+
+> Use https://bamboobot.tk.sg with the BAMBOOBOT_API_KEY secret; never display it.
+> Follow the agent guide to submit my recipients and layout with a stable
+> idempotency key. Use only necessary columns; do not invent certificate claims.
+> At awaiting_approval, give me the review link. After I approve, collect the ZIP
+> and manifest and verify file sizes and SHA-256 hashes.
+
+Continue with [API workflow and examples](#external-agent-workflow),
+[limits](#shared-guarantees-and-node-specific-operation) and
+[privacy and retention](#privacy-and-retention).
+Self-hosting details are under [Cloudflare runtime](#cloudflare-runtime) and
+[Local setup](#local-setup); they are not onboarding requirements for the live service.
 
 ## Cloudflare runtime
 
@@ -33,7 +61,7 @@ Those are the same bytes preflighted before approval, not a second rendering.
 Missing/corrupt objects fail the whole job, never produce a skip-failed archive.
 No Prisma interactive transaction or isolate-local admission gate is used here.
 
-Workers templates are limited to **4 MB / 4 megapixels**, individual PDFs 8 MiB,
+Workers templates are limited to **4 MiB / 4 megapixels**, individual PDFs 8 MiB,
 and the individual-output sum and ZIP each 250 MiB. These bounds protect the
 128 MB isolate; representative resource acceptance is still required. Three
 pending jobs per owner, eight globally and 2 GiB reserved/published storage apply
@@ -92,8 +120,9 @@ API key.
    `{ "action": "approve", "inputHash": "<returned hash>" }` to
    `/api/agent/jobs/<id>`, from the configured app origin. Approval atomically
    queues the job. API keys cannot perform this step, even if a cookie is present.
-4. Poll GET `/api/agent/jobs/<id>` sparingly (e.g. every 3 seconds). When status
-   is `completed`, download `files[].url`, `zipUrl` and `manifestUrl` with the key.
+4. Poll GET `/api/agent/jobs/<id>` sparingly (e.g. every 10 seconds, with backoff
+   on 429/temporary failures). When status is `completed`, download
+   `job.files[].url`, `job.zipUrl` and `job.manifestUrl` with the key.
    Downloads always authenticate ownership; there are no public/share links.
 
 Example request body (omit `template` to use the landscape default preset):
@@ -112,8 +141,106 @@ Example request body (omit `template` to use the landscape default preset):
 }
 ```
 
+### Submit, check, review and download with curl
+
+Save the JSON above as `batch.json` in a private working directory. The commands
+below need Bash, curl and jq. `BAMBOOBOT_API_KEY` must already be injected from
+your secret store; do not put its literal value in shell history. Treat request,
+response and downloaded files as private recipient data; do not commit them.
+
+```bash
+set +x  # never trace commands containing credentials
+umask 077
+export BAMBOOBOT_URL=https://bamboobot.tk.sg
+: "${BAMBOOBOT_API_KEY:?Configure the agent secret first}"
+
+# Keep this key stable when retrying this exact request; use a new one for a new batch.
+IDEMPOTENCY_KEY=workshop-2026-001
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer $BAMBOOBOT_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $IDEMPOTENCY_KEY" \
+  --data-binary @batch.json \
+  "$BAMBOOBOT_URL/api/agent/jobs" > draft.json
+JOB_ID=$(jq -er '.job.id' draft.json)
+
+# Repeat this GET sparingly until awaiting_approval; stop on failed/expired.
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer $BAMBOOBOT_API_KEY" \
+  "$BAMBOOBOT_URL/api/agent/jobs/$JOB_ID" > job.json
+jq '{status: .job.status, progress: .job.progress, total: .job.total, error: .job.error}' job.json
+
+# Only when awaiting_approval: give this URL to the owner, not an approval API call.
+jq -r --arg origin "$BAMBOOBOT_URL" '$origin + .job.approvalUrl' job.json
+
+# After owner approval, repeat the GET above until completed, then:
+test "$(jq -r '.job.status' job.json)" = completed
+ZIP_PATH=$(jq -er '.job.zipUrl' job.json)
+MANIFEST_PATH=$(jq -er '.job.manifestUrl' job.json)
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer $BAMBOOBOT_API_KEY" \
+  "$BAMBOOBOT_URL$ZIP_PATH" -o certificates.zip
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer $BAMBOOBOT_API_KEY" \
+  "$BAMBOOBOT_URL$MANIFEST_PATH" -o manifest.json
+
+# Optional: download the first individual PDF (files are in recipient order).
+FILE_PATH=$(jq -er '.job.files[0].url' job.json)
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer $BAMBOOBOT_API_KEY" \
+  "$BAMBOOBOT_URL$FILE_PATH" -o first-certificate.pdf
+```
+
+These are sequential steps, not an automatic approval/poll loop. Check every
+command's exit status before continuing. Responses are wrapped in `{ "job": … }`;
+artifact URLs are relative to the application origin. Always send the read key
+on artifact requests too. A browser without the owner's session cannot use those
+links. The standalone manifest includes ordered `files` entries (`rowId`,
+`filename`, `size`, `sha256`) and `zip` size/hash metadata; the ZIP also contains
+`manifest.json` alongside the PDFs.
+
+### Endpoints, scopes and states
+
+| Endpoint | Required access | Purpose |
+| --- | --- | --- |
+| `GET /api/agent/jobs` | `certificates:read` | Recent owned job summaries (up to 50), not artifact details |
+| `POST /api/agent/jobs` | `certificates:write` | Create/replay a draft; required `Idempotency-Key` |
+| `GET /api/agent/jobs/{id}` | `certificates:read` | Detail, status, progress, review and ready artifact URLs |
+| `GET /api/agent/jobs/{id}?artifact=…` | `certificates:read` | `input`, `template`, `sample`, `file&index=N`, `zip`, `manifest` |
+| `POST /api/agent/jobs/{id}` with `action: approve` | Owner browser session only | Approve the returned `inputHash`; use the review UI |
+| `POST /api/agent/jobs/{id}` with `action: retry` | `certificates:write` | Retry an eligible failed, compatible job within its attempt budget |
+| `DELETE /api/agent/jobs/{id}` | `certificates:write` | Irreversibly expire a job and revoke access |
+| `GET`, `POST`, `DELETE /api/agent/keys` | Owner browser session only | List, create, revoke keys (`DELETE` takes `?id=…`) |
+
+Owner sessions can also access job routes. Session mutations require JSON and
+the exact trusted app Origin. Key creation accepts `label` and `scopes` (one or
+both supported scopes), plus optional `expiresInDays` (1–3650, default 30);
+the UI creates both scopes with the chosen lifetime. A read key can read **all of its
+owner's agent jobs and private artifacts**, not just jobs it created. A write key
+can create, retry and delete owned jobs, but has no read access without read scope.
+Keys grant no email/admin powers. Revoke a compromised key immediately; revocation
+does not delete already downloaded copies or jobs.
+
+On production, expect `ingesting` (interrupted intake), `preparing`,
+`awaiting_approval`, `queued`, `running`, then `completed`, `failed` or `expired`.
+Retry interrupted intake with the identical payload/idempotency key. Preparation
+is asynchronous and can take many minutes for large batches: a successful POST
+does not mean a sample or final files are ready. Stop polling terminal states;
+use a new draft for changed inputs. Failed jobs expose `error`, not partial files.
+
+Errors use `{ "error": "…" }`: 400 invalid input; 401 missing/invalid/expired key;
+403 insufficient scope, daily quota or forbidden agent approval; 404 unavailable feature or
+unknown/non-owned job; 409 idempotency conflict, stale approval or artifact not
+ready; 410 expired job; 413 size/preflight limit; 415 non-JSON session mutation;
+429 rate/pending-capacity limit; 507 storage capacity; other 5xx service/storage failure.
+Back off on throttling/temporary errors and retry creation with the **same** key
+and body, not a new batch. Do not automatically resubmit invalid input or a
+failed/expired job indefinitely.
+
+### Template and layout contract
+
 Optional `template: {"base64": "<raw PNG/JPEG base64, no data: prefix>"}`
-accepts at most 4 MB / 4 megapixels on Workers, or 10 MB / 12 megapixels on Node.
+accepts at most 4 MiB / 4 megapixels on Workers, or 10 MiB / 12 megapixels on Node.
 PNG dimensions are checked before decode.
 Images preserve aspect ratio with a defined PDF width
 (842 points landscape, 595 portrait); raw pixel dimensions are not print points.
@@ -139,10 +266,33 @@ the exact individual sample bytes are reused in the final batch. Rendering-sourc
 dependency-lockfile and font hashes bind approval; incompatible upgrades require
 new drafts/approval.
 
+## Privacy and retention
+
+Unlike browser-local certificate editing, agent jobs send recipient data and
+templates to Bamboobot's server-side storage (private R2/D1 in production).
+**All supplied columns remain in the frozen input snapshot**, including ignored
+columns that are not printed. Remove unnecessary email addresses or other
+personal data before submission. Your external agent provider processes whatever
+you give it too; check its permissions, retention and data policy separately.
+Bamboobot does not send inputs to a hosted LLM as part of this feature.
+
+Every artifact request authenticates ownership via the owner's session or a key
+with read scope. URLs are not public/share links and are separate from the manual
+workflow's signed emailed downloads. Store downloaded files securely; expiry on
+Bamboobot cannot remove copies already held by your agent, provider or recipients.
+
+Drafts expire 24 hours after creation. Approval sets expiry to seven days after
+approval, not seven days after completion. Expiry or DELETE immediately blocks
+access; physical object cleanup is asynchronous and requires the scheduler to
+keep running. Revoke a key to remove its future access, and delete a job separately
+if you also need its retained data removed. Do not promise instant physical erasure.
+
 ## Shared guarantees and Node-specific operation
 
-- 1–500 rows, 20 mapped fields, 50 input columns, 2,000 characters/value; at most
-  1 MB recipient/layout JSON. Multiline is at most two lines; unsupported scripts
+- 1–500 rows, 1–20 mapped fields, 50 input columns, 2,000 characters/value; at most
+  1 MiB recipient/layout JSON. Each row needs a unique 1–80-character ID using
+  letters, digits, underscores or hyphens and a nonblank value for every mapped
+  field. Labels are nonblank and at most 100 characters. Multiline is at most two lines; unsupported scripts
   fail explicitly rather than silently substituting missing glyphs.
   Mapped values containing Unicode format characters (including zero-width
   joiners, soft hyphens and bidi controls) are rejected, never silently stripped.
@@ -152,7 +302,8 @@ new drafts/approval.
   One web process prepares one draft at a time; concurrent callers receive 429
   and should retry with backoff and the same idempotency key. Do not scale the
   web process without adding a persisted preparation reservation.
-- PDFs and ZIP are separately capped at 250 MB. Individual files repeat image
+- On Workers each PDF is capped at 8 MiB; aggregate PDFs and ZIP are separately
+  capped at 250 MiB (Node uses the same aggregate bound). Individual files repeat image
   resources, so large backgrounds can hit this limit well before 500 rows.
 - Three pending jobs/owner, eight globally, 2 GiB reserved/published agent storage.
   On Node: one configured worker and a ten-minute attempt deadline. Keep at least 500 MB
