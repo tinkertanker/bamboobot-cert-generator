@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+
+# Match CI rather than the base image's potentially newer Node major.
+# /usr/local/bin is available to agents and supervised services, not just setup.
+if [[ "$(node -p 'process.versions.node.split(".")[0]')" != 22 ]]; then
+  echo 'Installing Node.js 22 to match CI'
+  time npm install --global --prefix /usr/local node@22 --force --no-audit --no-fund
+fi
+node --version
+npm --version
+export NEXT_TELEMETRY_DISABLED=1
+
+echo 'Checking locked npm dependencies (reuses restored node_modules and npm cache)'
+time npm install --include=dev --prefer-offline --no-audit --no-fund
+
+echo 'Preparing local configuration without replacing existing settings'
+if [[ ! -f .env ]]; then
+  # No fixed hostname or credentials: portals and thread secrets vary by orb.
+  cat > .env <<'EOF'
+DATABASE_URL="file:./database.db"
+STORAGE_PROVIDER=local
+NEXT_TELEMETRY_DISABLED=1
+REQUIRE_AUTH=true
+EOF
+fi
+
+# Check the same layered environment the dev server uses without changing it.
+node <<'NODE'
+require('@next/env').loadEnvConfig(process.cwd(), true);
+if (!process.env.DATABASE_URL) {
+  console.error('Set DATABASE_URL in .env (for local SQLite: file:./database.db), then rerun .agents/setup.');
+  process.exit(1);
+}
+if (process.env.DATABASE_URL !== 'file:./database.db') {
+  console.error('Orb setup requires DATABASE_URL=file:./database.db. Check process variables and .env* overrides; no database settings have been changed.');
+  process.exit(1);
+}
+NODE
+
+echo 'Generating Prisma client and initialising only the orb-local SQLite database'
+time npx --no-install prisma generate
+# Never push a schema to a database supplied through shared project credentials.
+time DATABASE_URL='file:./database.db' npx --no-install prisma db push --skip-generate
+
+echo 'Preparing the PDF worker'
+time npm run build:worker
+
+echo 'Installing the Chromium version used by the Playwright tests'
+# The orb already includes Chromium system libraries; other browsers are unused.
+time npx --no-install playwright install chromium
+
+echo 'Orb setup ready: npm test, npm run lint, and npm run dev are available'
