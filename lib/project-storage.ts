@@ -94,10 +94,6 @@ export class ProjectStorage {
           errors++;
         }
       }
-      
-      if (migrated > 0 || errors > 0) {
-        console.log(`Migration complete: ${migrated} projects migrated, ${errors} errors`);
-      }
     } catch (error) {
       console.error('Error during migration:', error);
     }

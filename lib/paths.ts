@@ -69,7 +69,6 @@ export function ensureDirectoryExists(dirPath: string): void {
   try {
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
-      console.log(`Created directory: ${dirPath}`);
     }
   } catch (error) {
     console.error(`Error creating directory ${dirPath}:`, error);
