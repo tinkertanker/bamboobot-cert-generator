@@ -6,9 +6,7 @@ interface UseDevModeProps {
   devMode: boolean;
   setDevMode: (value: boolean) => void;
   baseEmail: string;
-  setBaseEmail: (value: string) => void;
   numTestEmails: number;
-  setNumTestEmails: (value: number) => void;
   loadPresetData: (data: string) => Promise<void>;
   clearData: () => void;
   clearFile: () => void;
@@ -90,9 +88,7 @@ export function useDevMode({
   devMode,
   setDevMode,
   baseEmail,
-  setBaseEmail,
   numTestEmails,
-  setNumTestEmails,
   loadPresetData,
   clearData,
   clearFile,

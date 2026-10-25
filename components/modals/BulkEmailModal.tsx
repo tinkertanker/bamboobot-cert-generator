@@ -24,7 +24,6 @@ import {
 interface BulkEmailModalProps {
   open: boolean;
   onClose: () => void;
-  totalEmails: number;
   emailConfig: {
     senderName: string;
     subject: string;

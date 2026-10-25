@@ -15,7 +15,7 @@ function Harness({ onSelect, current = 0 }: { onSelect: (i: number) => void; cur
     () => Object.keys(data[0]).map((key) => ({ Header: key, accessor: key })),
     []
   );
-  const { headerGroups, rows, prepareRow } = useTable({ columns, data });
+  const { headerGroups } = useTable({ columns, data });
   return (
     <DataPanelWithSearch
       tableInput=""
@@ -26,8 +26,6 @@ function Harness({ onSelect, current = 0 }: { onSelect: (i: number) => void; cur
       handleCSVModeToggle={() => {}}
       tableData={data}
       headerGroups={headerGroups}
-      rows={rows}
-      prepareRow={prepareRow}
       detectedEmailColumn={null}
       currentPreviewIndex={current}
       setCurrentPreviewIndex={onSelect}

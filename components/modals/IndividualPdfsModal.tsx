@@ -573,7 +573,6 @@ export function IndividualPdfsModal({
             <BulkEmailModal
               open={showBulkEmailModal}
               onClose={() => setShowBulkEmailModal(false)}
-              totalEmails={individualPdfsData.length}
               emailConfig={emailConfig}
               certificates={individualPdfsData.map((file, index) => {
                 const rowIndex = file.originalIndex ?? index;
