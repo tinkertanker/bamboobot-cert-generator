@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useThrottle } from "./useDebounce";
+import { useThrottle } from "@/hooks/useThrottle";
 import type { Positions, DragInfo, CenterGuideState, TabType } from "@/types/certificate";
 
 export interface UseDragAndDropProps {

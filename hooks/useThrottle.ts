@@ -7,15 +7,15 @@ import { useCallback, useRef } from 'react';
  * @param delay The minimum delay between calls in milliseconds
  * @returns Throttled function
  */
-export function useThrottle<T extends (...args: any[]) => any>(
-  fn: T,
+export function useThrottle<Args extends unknown[]>(
+  fn: (...args: Args) => void,
   delay: number
-): (...args: Parameters<T>) => void {
+): (...args: Args) => void {
   const lastCallRef = useRef<number>(0);
   const timeoutRef = useRef<NodeJS.Timeout>();
 
   const throttledFn = useCallback(
-    (...args: Parameters<T>) => {
+    (...args: Args) => {
       const now = Date.now();
       const timeSinceLastCall = now - lastCallRef.current;
 
