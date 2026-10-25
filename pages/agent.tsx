@@ -1,8 +1,10 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { CSSProperties, FormEvent, useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useSession } from 'next-auth/react';
+import { Check, ChevronDown, Copy } from 'lucide-react';
+import { COLORS, GRADIENTS } from '@/utils/styles';
 
 interface AgentKey {
   id: string;
@@ -34,8 +36,9 @@ interface AgentJob {
   sampleRowIds?: string[];
 }
 
-const button = 'rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-700 disabled:opacity-50 disabled:cursor-not-allowed';
-const link = 'text-sm text-gray-700 underline underline-offset-2 hover:text-gray-950';
+const button = 'rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[var(--agent-primary)] transition-colors hover:bg-[var(--agent-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--agent-accent)] disabled:opacity-50 disabled:cursor-not-allowed';
+const link = 'text-sm text-[var(--agent-accent)] underline underline-offset-2 hover:text-[var(--agent-primary)]';
+const cardStyle = { backgroundColor: COLORS.cardBg, borderColor: COLORS.border };
 const isActive = (job: AgentJob) => ['preparing', 'queued', 'running'].includes(job.status);
 const date = (value: string | null | undefined) => value ? new Date(value).toLocaleString() : '—';
 
@@ -63,6 +66,7 @@ export default function AgentPage() {
   const [label, setLabel] = useState('');
   const [lifetime, setLifetime] = useState('30');
   const [token, setToken] = useState('');
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [keyError, setKeyError] = useState('');
   const [jobError, setJobError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -78,6 +82,8 @@ export default function AgentPage() {
     setJobs([]);
     setJob(null);
   }, [account]);
+
+  useEffect(() => { setCopyStatus('idle'); }, [token]);
 
   useEffect(() => {
     if (!account) return;
@@ -142,6 +148,15 @@ export default function AgentPage() {
     } finally { setBusy(''); }
   }
 
+  async function copyToken() {
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopyStatus('copied');
+    } catch {
+      setCopyStatus('error');
+    }
+  }
+
   async function revokeKey(key: AgentKey) {
     if (!window.confirm(`Revoke “${key.label}”? Agents using this key will lose access.`)) return;
     setBusy(key.id);
@@ -176,31 +191,41 @@ export default function AgentPage() {
   if (!account) return <main className="p-8">Please sign in to manage agent access and approve samples.</main>;
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-8 text-gray-900 sm:px-8">
+    <main className="min-h-screen px-4 py-8 sm:px-8" style={{
+      backgroundColor: COLORS.background, color: COLORS.textPrimary,
+      '--agent-primary': COLORS.primary, '--agent-accent': COLORS.primaryMedium, '--agent-hover': COLORS.successLight,
+    } as CSSProperties}>
       <Head><title>Agent access — Bamboobot</title><meta name="referrer" content="same-origin" /></Head>
       <div className="mx-auto max-w-5xl space-y-6">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div><h1 className="text-2xl font-bold">Agent access</h1><p className="mt-1 text-gray-600">Let an agent prepare certificates. Review the actual PDF sample yourself before generation.</p></div>
-          <Link href="/app" className={button}>Back to app</Link>
+        <header className="flex flex-wrap items-start justify-between gap-4 rounded-lg p-5 shadow-sm" style={{ background: GRADIENTS.primary }}>
+          <div className="min-w-0 flex-1 basis-72"><h1 className="text-2xl font-bold" style={{ color: COLORS.amber }}>Agent access</h1><p className="mt-1 text-sm text-white/90">Let an agent prepare certificates. Review the actual PDF sample yourself before generation.</p></div>
+          <Link href="/app" className="rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Back to app</Link>
         </header>
 
-        <section aria-labelledby="keys-heading" className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
-          <h2 id="keys-heading" className="text-lg font-semibold">API keys</h2>
+        <section aria-labelledby="keys-heading" className="rounded-lg border p-5 space-y-4 shadow-sm" style={cardStyle}>
+          <h2 id="keys-heading" className="text-lg font-semibold" style={{ color: COLORS.primary }}>API keys</h2>
           <p className="text-sm text-gray-600">Keys can read and prepare certificate jobs, but cannot approve samples. Only you, signed in here, can approve a job. Keys expire after their chosen lifetime — 30 days by default, up to 10 years.</p>
           <form onSubmit={createKey} className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-0"><label htmlFor="key-label" className="block text-sm font-medium mb-1">Key label</label><input id="key-label" value={label} onChange={event => setLabel(event.target.value)} required maxLength={100} placeholder="e.g. Certificate assistant" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" /></div>
-            <div><label htmlFor="key-lifetime" className="block text-sm font-medium mb-1">Expires after</label><select id="key-lifetime" value={lifetime} onChange={event => setLifetime(event.target.value)} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+            <div className="flex-1 basis-56 min-w-0"><label htmlFor="key-label" className="block text-sm font-medium mb-1">Key label</label><input id="key-label" value={label} onChange={event => setLabel(event.target.value)} required maxLength={100} placeholder="e.g. Certificate assistant" className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[var(--agent-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--agent-accent)]" /></div>
+            <div><label htmlFor="key-lifetime" className="block text-sm font-medium mb-1">Expires after</label><div className="relative"><select id="key-lifetime" value={lifetime} onChange={event => setLifetime(event.target.value)} className="w-full appearance-none rounded-md border border-gray-300 bg-white pl-3 pr-9 py-2 text-sm focus:border-[var(--agent-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--agent-accent)]">
               <option value="30">30 days</option>
               <option value="90">90 days</option>
               <option value="365">1 year</option>
               <option value="3650">10 years</option>
-            </select></div>
-            <button type="submit" disabled={!!busy || !label.trim()} className={button}>{busy === 'create-key' ? 'Creating…' : 'Create API key'}</button>
+            </select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" /></div></div>
+            <button type="submit" disabled={!!busy || !label.trim()} className={`${button} hover:brightness-110`} style={{ background: GRADIENTS.primary, color: COLORS.white }}>{busy === 'create-key' ? 'Creating…' : 'Create API key'}</button>
           </form>
-          {token && <div className="rounded-md border border-amber-300 bg-amber-50 p-4 space-y-2" role="status">
-            <p className="font-medium">Save this token now. It is shown only once.</p>
+          {token && <div className="rounded-md border p-4 space-y-2" style={{ backgroundColor: COLORS.highlightBg, borderColor: COLORS.highlightBorder }}>
+            <p className="font-medium" role="status">Save this token now. It is shown only once.</p>
             <p className="text-sm">Treat it like a password. It cannot approve samples.</p>
-            <code className="block break-all select-all text-sm">{token}</code>
+            <div className="flex items-start gap-2">
+              <code className="min-w-0 break-all select-all rounded-md border border-amber-200/60 bg-white/70 px-3 py-2 text-sm">{token}</code>
+              <button type="button" className={`${button} inline-flex h-9 w-9 shrink-0 items-center justify-center p-0`} aria-label="Copy API key" title="Copy API key" onClick={() => void copyToken()}>
+                {copyStatus === 'copied' ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+              </button>
+            </div>
+            <p role="status" className="text-sm" style={{ color: COLORS.primaryMedium }}>{copyStatus === 'copied' ? 'Copied' : ''}</p>
+            {copyStatus === 'error' && <p role="alert" className="text-sm text-red-700">Could not copy. Select the key and copy it manually.</p>}
             <button type="button" className={button} onClick={() => setToken('')}>Dismiss token</button>
           </div>}
           {keyError && <p role="alert" className="text-sm text-red-700">{keyError}</p>}
@@ -213,8 +238,8 @@ export default function AgentPage() {
           </ul>}
         </section>
 
-        <section aria-labelledby="jobs-heading" className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
-          <div className="flex items-center justify-between gap-3"><h2 id="jobs-heading" className="text-lg font-semibold">Certificate jobs</h2><button type="button" className={button} disabled={jobsLoading || !!busy} onClick={() => setJobsVersion(value => value + 1)}>Refresh jobs</button></div>
+        <section aria-labelledby="jobs-heading" className="rounded-lg border p-5 space-y-4 shadow-sm" style={cardStyle}>
+          <div className="flex items-center justify-between gap-3"><h2 id="jobs-heading" className="text-lg font-semibold" style={{ color: COLORS.primary }}>Certificate jobs</h2><button type="button" className={button} disabled={jobsLoading || !!busy} onClick={() => setJobsVersion(value => value + 1)}>Refresh jobs</button></div>
           <p className="text-sm text-gray-600">Preparing, queued and running jobs refresh every 3 seconds. Preparation and approved jobs continue without this browser; the agent can collect files once the whole batch is complete.</p>
           {jobError && <p role="alert" className="text-sm text-red-700">{jobError}</p>}
           {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
@@ -228,8 +253,8 @@ export default function AgentPage() {
           </ul>
         </section>
 
-        {job && job.id === jobId && <section aria-labelledby="sample-heading" className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
-          <div className="flex flex-wrap items-start justify-between gap-3"><h2 id="sample-heading" className="text-lg font-semibold break-words">{job.label || job.id}</h2><span className="text-sm text-gray-600">{job.status.replace(/_/g, ' ')}</span></div>
+        {job && job.id === jobId && <section aria-labelledby="sample-heading" className="rounded-lg border p-5 space-y-4 shadow-sm" style={cardStyle}>
+          <div className="flex flex-wrap items-start justify-between gap-3"><h2 id="sample-heading" className="text-lg font-semibold break-words" style={{ color: COLORS.primary }}>{job.label || job.id}</h2><span className="text-sm text-gray-600">{job.status.replace(/_/g, ' ')}</span></div>
           {isActive(job) && typeof job.progress === 'number' && <p className="text-sm text-gray-600" role="status">Progress: {job.progress}/{job.total}</p>}
           <dl className="space-y-2 text-sm">
             <div><dt className="font-medium">Recipients</dt><dd>{job.total}</dd></div>
