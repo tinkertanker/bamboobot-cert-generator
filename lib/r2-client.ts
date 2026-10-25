@@ -3,14 +3,17 @@ import {
   PutObjectCommand, 
   GetObjectCommand, 
   DeleteObjectCommand,
-  ListObjectsV2Command,
   HeadObjectCommand 
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { readFileMetadata } from '@/lib/storage/file-metadata';
+import { readFileMetadata, type FileMetadata } from '@/lib/storage/file-metadata';
+import { listS3Objects, type StoredObject, type UploadResult } from '@/lib/storage/s3-objects';
 import { cleanupExpiredObjects } from '@/lib/storage/expiry-cleanup';
 import { cloudflare, isWorkers } from '@/lib/server/cloudflare';
 import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-url';
+
+export type { FileMetadata } from '@/lib/storage/file-metadata';
+export type { UploadResult } from '@/lib/storage/s3-objects';
 
 // Initialize R2 client (S3-compatible)
 const r2Client = new S3Client({
@@ -24,20 +27,6 @@ const r2Client = new S3Client({
 });
 
 const BUCKET_NAME = process.env.R2_BUCKET_NAME || 'bamboobot-certificates';
-
-export interface UploadResult {
-  key: string;
-  url: string;
-  publicUrl?: string;
-}
-
-export interface FileMetadata {
-  type: 'preview' | 'individual' | 'bulk' | 'template';
-  created: string;
-  retention: '24h' | '7d' | '90d' | 'permanent';
-  emailSent?: 'true' | 'false';
-  downloadCount?: string;
-}
 
 /**
  * Upload a file to R2
@@ -179,9 +168,9 @@ export async function getFileMetadata(key: string): Promise<FileMetadata | null>
 /**
  * List all files with optional prefix filter
  */
-export async function listFiles(prefix?: string): Promise<Array<{key: string, lastModified?: Date, size?: number}>> {
-  const files: Array<{key: string, lastModified?: Date, size?: number}> = [];
+export async function listFiles(prefix?: string): Promise<StoredObject[]> {
   if (isWorkers) {
+    const files: StoredObject[] = [];
     let cursor: string | undefined;
     do {
       const page = await cloudflare().env.FILES.list({ prefix, cursor });
@@ -190,29 +179,7 @@ export async function listFiles(prefix?: string): Promise<Array<{key: string, la
     } while (cursor);
     return files;
   }
-  let continuationToken: string | undefined;
-  
-  do {
-    const command = new ListObjectsV2Command({
-      Bucket: BUCKET_NAME,
-      Prefix: prefix,
-      ContinuationToken: continuationToken,
-    });
-    
-    const response = await r2Client.send(command);
-    
-    if (response.Contents) {
-      files.push(...response.Contents.map(obj => ({
-        key: obj.Key || '',
-        lastModified: obj.LastModified,
-        size: obj.Size,
-      })));
-    }
-    
-    continuationToken = response.NextContinuationToken;
-  } while (continuationToken);
-  
-  return files;
+  return listS3Objects(r2Client, BUCKET_NAME, prefix);
 }
 
 /**
