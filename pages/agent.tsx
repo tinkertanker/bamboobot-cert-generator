@@ -198,9 +198,19 @@ export default function AgentPage() {
       <Head><title>Agent access — Bamboobot</title><meta name="referrer" content="same-origin" /></Head>
       <div className="mx-auto max-w-5xl space-y-6">
         <header className="flex flex-wrap items-start justify-between gap-4 rounded-lg p-5 shadow-sm" style={{ background: GRADIENTS.primary }}>
-          <div className="min-w-0 flex-1 basis-72"><h1 className="text-2xl font-bold" style={{ color: COLORS.amber }}>Agent access</h1><p className="mt-1 text-sm text-white/90">Let an agent prepare certificates. Review the actual PDF sample yourself before generation.</p></div>
+          <div className="min-w-0 flex-1 basis-72"><h1 className="text-2xl font-bold" style={{ color: COLORS.amber }}>Agent access</h1><p className="mt-1 text-sm text-white/90">Let an external agent prepare a batch. You approve the actual sample before Bamboobot publishes the files.</p></div>
           <Link href="/app" className="rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Back to app</Link>
         </header>
+
+        <section aria-labelledby="getting-started-heading" className="rounded-lg border p-5 space-y-3 shadow-sm" style={cardStyle}>
+          <h2 id="getting-started-heading" className="text-lg font-semibold" style={{ color: COLORS.primary }}>Get started with your agent</h2>
+          <ol className="list-decimal pl-5 space-y-2 text-sm text-gray-600">
+            <li>Create a key and save it in your agent’s secret store—not a prompt, repository or log.</li>
+            <li>Give your agent the <a href="https://github.com/tinkertanker/bamboobot-cert-generator/blob/main/docs/AGENT_CERTIFICATES.md" className={link}>agent guide and API examples</a> to submit recipients and layout.</li>
+            <li>Review its actual sample PDF and all recipient inputs, then approve. Collect the PDFs, ZIP and manifest when ready; no open browser needed.</li>
+          </ol>
+          <p className="text-sm text-gray-600">Send only necessary data: unprinted columns are stored too. Downloads require authentication. Drafts expire after 24 hours; approved jobs seven days after approval. See the guide for limits and cleanup details.</p>
+        </section>
 
         <section aria-labelledby="keys-heading" className="rounded-lg border p-5 space-y-4 shadow-sm" style={cardStyle}>
           <h2 id="keys-heading" className="text-lg font-semibold" style={{ color: COLORS.primary }}>API keys</h2>

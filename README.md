@@ -2,6 +2,9 @@
 
 Generate beautiful, personalised certificates from an image background with drag‑and‑drop text fields, rich formatting, and bulk PDF/email workflows. Includes Google sign‑in with route gating, user tiers, optional server persistence (Prisma + SQLite) and an admin area.
 
+Prefer to delegate the preparation? [Agent certificate batches](#agent-certificate-batches)
+let an external agent submit recipients and layout, then collect PDFs after you approve the actual sample.
+
 ## Key Features
 
 ### Core Functionality
@@ -83,6 +86,28 @@ docker-compose -f docker-compose.dev.yml up -d
 7. **Generate** - Create single PDF or individual PDFs
 8. **Send/Download** - Email certificates or download as PDF/ZIP
 
+## Agent certificate batches
+
+Use the HTTP API from any agent, script or integration:
+
+1. Sign in at [Agent access](https://bamboobot.tk.sg/agent) (also in the account
+   menu). Create a scoped API key and save it in your client's secret store,
+   never a prompt or repository. Keys expire after the chosen lifetime and cannot approve jobs.
+2. Follow the [guide and API examples](docs/AGENT_CERTIFICATES.md) to submit
+   recipients, layout and an optional PNG/JPEG background.
+3. Review the actual sample PDF and all recipient inputs, then approve each batch
+   yourself. Bamboobot finishes without an open browser and provides individual
+   PDFs, a complete ZIP and a manifest with file hashes.
+
+Up to 500 recipients per batch; preparation can take several minutes and
+template/output limits apply. Your API client supplies the layout—Bamboobot
+has no hosted LLM, MCP server or agent email sending.
+
+All submitted columns are stored server-side, even if not printed. Downloads
+require owner or read-key authentication. Drafts expire after 24 hours; approved
+jobs seven days after approval. See the guide for full limits, privacy, retention
+and self-hosting details. The manual editor remains unchanged.
+
 ## Authentication
 
 - Set `REQUIRE_AUTH=true` to gate app pages and APIs behind login while keeping the public landing page available at `/`. This server-only setting is evaluated at runtime; production defaults to authentication enabled when it is omitted or invalid. Setting it to `false` removes the global middleware login wall, including from APIs; use it only in a trusted local environment. Only endpoints with their own authorization checks remain protected.
@@ -106,7 +131,7 @@ ADMIN_EMAILS=you@example.com, teammate@example.com
 
 Persisted uploads and generated certificates live under `storage/` (or `LOCAL_STORAGE_DIR`), never under Next.js' `public/` directory. `npm start` and `npm run dev` automatically migrate legacy local files; `npm run migrate:storage` is also available for one-shot migrations. Docker keeps the existing `./data/*` host directories and remounts them at `/app/storage/*`, so no host-side copy is required.
 
-Generated download links are signed capabilities that expire after 90 days. Set `NEXTAUTH_URL` to the public application origin so emailed links are absolute, and set `FILE_URL_SIGNING_SECRET` (or a strong `NEXTAUTH_SECRET`) consistently across instances. Previously emailed unsigned `/generated/...` links are intentionally invalidated because their guessable paths cannot be converted into secure capabilities retroactively.
+Manual-workflow generated download links are signed capabilities that expire after 90 days. Agent job downloads instead require authentication and use the shorter retention described above. Set `NEXTAUTH_URL` to the public application origin so emailed links are absolute, and set `FILE_URL_SIGNING_SECRET` (or a strong `NEXTAUTH_SECRET`) consistently across instances. Previously emailed unsigned `/generated/...` links are intentionally invalidated because their guessable paths cannot be converted into secure capabilities retroactively.
 
 ## Dev Mode Features
 
@@ -152,7 +177,7 @@ AWS_SES_REGION=us-east-1
 ### Cloud Storage (optional)
 If neither R2 or S3 are specified, the app defaults to local storage. 
 
-When using cloud storage (R2 or S3), files automatically expire:
+For the manual workflow, when using cloud storage (R2 or S3), files automatically expire:
 - **Individual certificates**: 90 days (extended if emailed)
 - **Bulk PDFs**: 7 days
 - **Previews**: 24 hours
