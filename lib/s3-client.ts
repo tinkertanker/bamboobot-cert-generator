@@ -3,12 +3,15 @@ import {
   PutObjectCommand, 
   GetObjectCommand, 
   DeleteObjectCommand,
-  ListObjectsV2Command,
   HeadObjectCommand 
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { normalizeStoredMetadata, readFileMetadata } from '@/lib/storage/file-metadata';
+import { normalizeStoredMetadata, readFileMetadata, type FileMetadata } from '@/lib/storage/file-metadata';
+import { listS3Objects, type StoredObject, type UploadResult } from '@/lib/storage/s3-objects';
 import { cleanupExpiredObjects } from '@/lib/storage/expiry-cleanup';
+
+export type { FileMetadata } from '@/lib/storage/file-metadata';
+export type { UploadResult } from '@/lib/storage/s3-objects';
 
 // Initialize S3 client
 const s3Client = new S3Client({
@@ -20,20 +23,6 @@ const s3Client = new S3Client({
 });
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME || '';
-
-export interface UploadResult {
-  key: string;
-  url: string;
-  publicUrl?: string;
-}
-
-export interface FileMetadata {
-  type: 'preview' | 'individual' | 'bulk' | 'template';
-  created: string;
-  retention: '24h' | '7d' | '90d' | 'permanent';
-  emailSent?: 'true' | 'false';
-  downloadCount?: string;
-}
 
 /**
  * Check if S3 is properly configured
@@ -141,27 +130,8 @@ export async function deleteFromS3(key: string): Promise<void> {
  */
 export async function listAllS3Objects(
   prefix?: string
-): Promise<Array<{key: string; lastModified?: Date; size?: number}>> {
-  const results: Array<{key: string; lastModified?: Date; size?: number}> = [];
-  let continuationToken: string | undefined;
-
-  do {
-    const command = new ListObjectsV2Command({
-      Bucket: BUCKET_NAME,
-      Prefix: prefix,
-      ContinuationToken: continuationToken,
-    });
-    const response = await s3Client.send(command);
-    const batch = (response.Contents || []).map(o => ({
-      key: o.Key || '',
-      lastModified: o.LastModified,
-      size: o.Size,
-    }));
-    results.push(...batch);
-    continuationToken = response.NextContinuationToken;
-  } while (continuationToken);
-
-  return results;
+): Promise<StoredObject[]> {
+  return listS3Objects(s3Client, BUCKET_NAME, prefix);
 }
 
 /**
