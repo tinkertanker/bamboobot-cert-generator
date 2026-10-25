@@ -34,6 +34,10 @@ if (!process.env.DATABASE_URL) {
   console.error('Set DATABASE_URL in .env (for local SQLite: file:./database.db), then rerun .agents/setup.');
   process.exit(1);
 }
+if (process.env.DATABASE_URL !== 'file:./database.db') {
+  console.error('Orb setup requires DATABASE_URL=file:./database.db. Check process variables and .env* overrides; no database settings have been changed.');
+  process.exit(1);
+}
 NODE
 
 echo 'Generating Prisma client and initialising only the orb-local SQLite database'

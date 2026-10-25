@@ -72,7 +72,8 @@ check instead of a clean reinstall. Run `.agents/setup` manually to repair an or
 Setup creates a minimal `.env` for local SQLite and storage only if `.env` is
 absent. It leaves auth enabled, sets no fixed hostname and does not create
 credentials or sign in. Configure OAuth and secrets separately if needed.
-If the development environment has no `DATABASE_URL`, setup stops with instructions
+If the effective `DATABASE_URL` is missing or differs from `file:./database.db`,
+setup stops with instructions
 instead of changing existing settings or reporting readiness.
 Schema changes during setup target only
 `prisma/database.db`, never a database configured through project credentials.
