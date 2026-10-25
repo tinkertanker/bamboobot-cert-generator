@@ -3,7 +3,7 @@ import {
   findColumn,
   formatColumnToken,
   getLastToken
-} from '@/components/SmartSearchBar';
+} from '@/utils/search';
 
 const columns = ['First Name', 'Last Name', 'Email', 'Course_Code'];
 
