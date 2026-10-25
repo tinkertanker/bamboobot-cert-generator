@@ -69,6 +69,7 @@ CI (`.github/workflows/test.yml`) runs `npm ci`, `npm run build:worker`, `npm te
 
 - Import from the repo root with `@/` (for example `@/lib/paths`).
 - Function components with hooks; keep feature state in a hook in `hooks/`.
+- Use PascalCase component names/files, `useCamelCase` hook names/files and kebab-case utility modules. Keep exported functions and variables camelCase; do not rename persisted keys or API fields for style consistency.
 - Tailwind for styling; colours come from `COLORS` in `utils/styles.ts`.
 - User-facing errors come from `utils/errorMessages.ts` where a message exists; log with `lib/log.ts` (`debug`, `error`) rather than bare `console.log` in server code.
 - British English in UI copy, docs and comments.
