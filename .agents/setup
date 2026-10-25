@@ -27,6 +27,15 @@ REQUIRE_AUTH=true
 EOF
 fi
 
+# Check the same layered environment the dev server uses without changing it.
+node <<'NODE'
+require('@next/env').loadEnvConfig(process.cwd(), true);
+if (!process.env.DATABASE_URL) {
+  console.error('Set DATABASE_URL in .env (for local SQLite: file:./database.db), then rerun .agents/setup.');
+  process.exit(1);
+}
+NODE
+
 echo 'Generating Prisma client and initialising only the orb-local SQLite database'
 time npx --no-install prisma generate
 # Never push a schema to a database supplied through shared project credentials.
