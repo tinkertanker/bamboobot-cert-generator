@@ -397,58 +397,7 @@ export class ProjectStorage {
           imageStatus: p.imageStatus ?? 'checking',
         }));
       }
-      const projects: ProjectListItem[] = [];
-      const processedIds = new Set<string>();
-      
-      // Process both new and old keys
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (!key) continue;
-        
-        // Check if it's either new or old format
-        if (!key.startsWith(STORAGE_KEY_PREFIX) && !key.startsWith(OLD_STORAGE_KEY_PREFIX)) {
-          continue;
-        }
-        
-        try {
-          const data = localStorage.getItem(key);
-          if (!data) continue;
-          
-          const project = JSON.parse(data) as SavedProject;
-          
-          // Skip if we've already processed this ID (avoid duplicates)
-          if (processedIds.has(project.id)) continue;
-          processedIds.add(project.id);
-          
-          // Image availability is not verified remotely: cloud images are
-          // assumed present, local ones only need a stored URL.
-          let imageStatus: ProjectListItem['imageStatus'] = 'checking';
-          if (project.certificateImage.isCloudStorage) {
-            imageStatus = 'available';
-          } else {
-            imageStatus = project.certificateImage.url ? 'available' : 'missing';
-          }
-          
-          projects.push({
-            id: project.id,
-            name: project.name,
-            created: project.created,
-            lastModified: project.lastModified,
-            columnsCount: project.columns.length,
-            rowsCount: project.tableData?.length || 0,
-            hasEmailConfig: !!project.emailConfig?.isConfigured,
-            imageStatus
-          });
-        } catch (error) {
-          console.error('Error parsing project:', error);
-          continue;
-        }
-      }
-      
-      // Sort by last modified date (newest first)
-      return projects.sort((a, b) => 
-        new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
-      );
+      return this.listLocalProjects();
     } catch (error) {
       console.error('Error listing projects:', error);
       return [];
@@ -475,6 +424,7 @@ export class ProjectStorage {
           if (processedIds.has(project.id)) continue;
           processedIds.add(project.id);
 
+          // Cloud images are assumed present; local images only need a stored URL.
           let imageStatus: ProjectListItem['imageStatus'] = 'checking';
           if (project.certificateImage.isCloudStorage) {
             imageStatus = 'available';
