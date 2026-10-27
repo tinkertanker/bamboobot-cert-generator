@@ -10,11 +10,21 @@ import { QUARANTINE_PREFIX } from '@/lib/storage/account-scope';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
 describe('useTableData Auto-Detection', () => {
-  it.each(['success', 'write failure', 'verification failure'])('preserves rejected sessions and saved projects through autosave with archive %s', async (archiveResult) => {
+  it.each(['parser', 'corrupt JSON', 'invalid shape', 'invalid timestamp'].flatMap(sessionKind =>
+    ['success', 'write failure', 'verification failure'].map(archiveResult => [sessionKind, archiveResult])
+  ))('preserves %s sessions and saved projects through autosave with archive %s', async (sessionKind, archiveResult) => {
     jest.useFakeTimers();
     localStorage.clear();
     const saved = await ProjectStorage.saveProject('Alice', { Name: { x: 50, y: 50 } }, ['Name'], '/image.png', 'image.png', [{ Name: 'Alice' }]);
     SessionStorage.saveSession({ tableData: [], tableInput: 'Name\n' + 'x'.repeat(2001), useCSVMode: false, isFirstRowHeader: true });
+    if (sessionKind === 'invalid timestamp') {
+      const session = JSON.parse(localStorage.getItem('bamboobot_current_session_v1')!);
+      localStorage.setItem('bamboobot_current_session_v1', JSON.stringify({ ...session, lastModified: 'not-a-date' }));
+    } else if (sessionKind !== 'parser') {
+      localStorage.setItem('bamboobot_current_session_v1', sessionKind === 'corrupt JSON'
+        ? '{"tableInput":"Name\\nRecoverable Bob"'
+        : JSON.stringify({ tableInput: 'Name\nRecoverable Bob', tableData: [{ Name: 'Recoverable Bob' }] }));
+    }
     const rejectedSession = localStorage.getItem('bamboobot_current_session_v1')!;
     const originalSet = Storage.prototype.setItem;
     const originalGet = Storage.prototype.getItem;
@@ -73,6 +83,26 @@ describe('useTableData Auto-Detection', () => {
         expect(ProjectStorage.loadProject(saved.id!)?.tableData).toEqual([{ Name: 'Alice' }]);
         expect(ProjectStorage.loadProject('bob')?.tableData).toEqual(legacy.tableData);
         expect(ProjectStorage.loadProject(saved.id!)?.positions).toMatchObject({ Name: { x: 50, y: 50 } });
+      }
+      // A normal JSON import can pass numeric bounds but fail position or asset
+      // normalisation. Neither failure may commit its table before rejecting.
+      for (const invalid of [
+        { positions: { Name: { x: 12, y: 34, color: 123 } } },
+        { certificateImage: { url: '/temp_images/u_fixture/bob.png', filename: 123 } },
+      ]) {
+        const imported = await ProjectStorage.importProject(JSON.stringify({ version: 1, project: {
+          ...ProjectStorage.loadProject(saved.id!)!, name: 'Imported Bob', tableData: [{ Name: 'Bob' }], ...invalid,
+        } }));
+        expect(imported.success).toBe(true);
+        const bob = ProjectStorage.loadProject(imported.id!)!;
+        await act(async () => { await expect(result.current.project.handleLoadProject(bob)).rejects.toThrow(); });
+        await act(async () => { jest.advanceTimersByTime(11_000); });
+        expect(result.current.project.currentProjectId).toBe(saved.id);
+        expect(ProjectStorage.loadProject(saved.id!)?.tableData).toEqual([{ Name: 'Alice' }]);
+        expect(ProjectStorage.loadProject(saved.id!)?.positions).toMatchObject({ Name: { x: 50, y: 50 } });
+        expect(ProjectStorage.loadProject(imported.id!)?.tableData).toEqual([{ Name: 'Bob' }]);
+        if (archiveResult === 'success') expect(SessionStorage.loadSession()?.tableData).toEqual([{ Name: 'Alice' }]);
+        else expect(localStorage.getItem('bamboobot_current_session_v1')).toBe(rejectedSession);
       }
       // A later manual save must not re-enable unsafe session autosave.
       act(() => { result.current.project.handleSaveProjectSuccess(saved.id!, 'Alice'); });

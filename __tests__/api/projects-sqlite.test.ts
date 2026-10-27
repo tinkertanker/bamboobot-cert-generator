@@ -63,6 +63,36 @@ describe('project ordering in native SQLite', () => {
     await prisma.project.deleteMany();
   });
 
+  it('acknowledges only semantically identical POST replays, including concurrent conflicts', async () => {
+    const post = async (name: string, data: object) => {
+      const res = httpMocks.createResponse();
+      await projects(httpMocks.createRequest({ method: 'POST', body: { name, data, clientProjectId: 'replay-contract' } }), res);
+      return res;
+    };
+    try {
+      const created = await post('Alice', { recipient: 'Alice', options: { size: 12, tags: ['a', 'b'] } });
+      expect(created.statusCode).toBe(201);
+      // Object key order is irrelevant, array order and value types are not.
+      expect((await post('Alice', { options: { tags: ['a', 'b'], size: 12 }, recipient: 'Alice' })).statusCode).toBe(200);
+      for (const [name, data] of [
+        ['Alice', { recipient: 'Bob', options: { size: 12, tags: ['a', 'b'] } }],
+        ['Carol', { recipient: 'Alice', options: { size: 12, tags: ['a', 'b'] } }],
+        ['Alice', { recipient: 'Alice', options: { size: '12', tags: ['a', 'b'] } }],
+        ['Alice', { recipient: 'Alice', options: { size: 12, tags: ['b', 'a'] } }],
+      ] as const) expect((await post(name, data)).statusCode).toBe(409);
+      const reloaded = httpMocks.createResponse();
+      await project(httpMocks.createRequest({ method: 'GET', query: { id: created._getJSONData().project.id } }), reloaded);
+      expect(reloaded._getJSONData().project.data).toEqual({ recipient: 'Alice', options: { size: 12, tags: ['a', 'b'] } });
+      await prisma.project.deleteMany();
+      const names = ['Concurrent Alice', 'Concurrent Bob'];
+      const results: Array<{ statusCode: number }> = await Promise.all(names.map(name => post(name, { recipient: name })));
+      expect(results.map(res => res.statusCode).sort()).toEqual([201, 409]);
+      const winner = results.findIndex(res => res.statusCode === 201);
+      expect(await prisma.project.findMany({ select: { name: true, data: true } }))
+        .toEqual([{ name: names[winner], data: { recipient: names[winner] } }]);
+    } finally { await prisma.project.deleteMany(); }
+  });
+
   it('lists the most recently edited project first across legacy and atomic creates', async () => {
     const legacy = await prisma.project.create({ data: { ownerId: 'fixture', name: 'Legacy', data: {},
       createdAt: new Date('2025-01-01'), updatedAt: new Date('2025-01-01') } });

@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { isDeepStrictEqual } from 'node:util';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import prisma from '@/lib/server/prisma';
 import { createProjectWithinLimit } from '@/lib/server/project-admission';
@@ -73,6 +74,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!admitted) {
         res.status(403).json({ error: 'Project limit reached for your plan', code: 'LIMIT_REACHED' });
         return;
+      }
+      // Import keeps its historical key-only acknowledgement. POST may only
+      // acknowledge a replay if the requested name and JSON were persisted.
+      if (!admitted.created && (admitted.project.name !== trimmedName || !isDeepStrictEqual(admitted.project.data, data))) {
+        return res.status(409).json({ error: 'clientProjectId already belongs to a different project payload' });
       }
       const { id, name: projectName, createdAt, updatedAt } = admitted.project;
       res.status(admitted.created ? 201 : 200).json({ project: { id, name: projectName, createdAt, updatedAt } });

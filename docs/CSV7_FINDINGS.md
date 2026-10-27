@@ -82,3 +82,28 @@ Actual hooks/storage/autosave and native SQLite tests failed before these fixes.
 SQLite and D1 route regressions verify rejection without persistence, valid replay
 acknowledgement and distinct payload reloads. These corrections require fresh
 exact-head review and normal landing gates; earlier clean receipts are not clearance.
+
+## Fifth-cycle corrections
+
+Cycle four stopped with two independently reproduced Required defects. Its immutable
+NON-CLEAN checkpoint remains preserved. The user explicitly authorised a fifth
+correction/review cycle, also covering the subsequent corrupt-session host finding.
+
+- Rows 4/16/21: position, email and private-asset normalisation now prepare values
+  before table acceptance. Only after parsing succeeds are prepared values and
+  project identity committed. Normal JSON imports with malformed colour or asset
+  metadata reject without replacing the current project's rows, positions or session
+  through autosave. Rejected table parsing still preserves the prior state.
+- Row 3: POST acknowledges an existing client ID only when the trimmed name and
+  semantic JSON data match. Object key order is irrelevant; different values,
+  value types or array order return 409 without mutation, including concurrent
+  conflicting submissions. Historical import replay semantics remain unchanged.
+- Rows 16/21: corrupt JSON, invalid session shapes and invalid timestamps preserve
+  raw bytes in verified quarantine before fallback; archive write/verification
+  failures keep session autosave blocked. An invalid date is not evidence of expiry.
+
+The actual persistence contracts failed before correction and pass afterwards on
+combined hooks/localStorage/autosave and native SQLite/D1 routes. The total remains
+five cycles, not a reset. Fresh exact-head independent review and supported normal
+landing gates are still required; no policy override, deployment or shared-data
+write is part of these fixes. Rows 12/15/19 retain their mitigated classifications.
