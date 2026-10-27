@@ -17,6 +17,8 @@ export async function cleanupWorkerObjects(): Promise<void> {
         // Preserve active/ambiguous dispatch payloads and allow a full day for
         // concurrent admission before treating an unreferenced upload as debris.
         if (Date.now() - object.uploaded.getTime() <= 86400000) return;
+        if (object.key.startsWith('mail-payload/v2/') && await db.prepare(
+          'SELECT token FROM EmailPayloadReservation WHERE token=?').bind(object.key.split('/')[2]).first()) return;
         if (await db.prepare('SELECT id FROM EmailItem WHERE payloadKey=?').bind(object.key).first()) return;
       } else if (prefix === 'mail-preview/') {
         if (Date.now() - object.uploaded.getTime() <= 7 * 86400000) return;

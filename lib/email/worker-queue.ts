@@ -6,6 +6,7 @@ import { getTierLimits, type UserTier } from '@/types/user';
 import { EmailRequestError } from '@/lib/email/abuse-controls';
 import { isDefinitelyUnsentProviderError, isProviderBackpressureError, providerRetryAfterSeconds, publicProviderError } from '@/lib/email/provider-errors';
 import { detectUserTier } from '@/lib/server/tiers';
+import { cleanupEmailPayloads, discardEmailPayloads, emailPayloadKeys, putEmailPayloads, reserveEmailPayloads } from './worker-payloads';
 
 const HOUR = 3600000;
 const LEASE_MS = 5 * 60 * 1000;
@@ -20,7 +21,7 @@ function serialise(email: EmailParams): string {
 
 export async function enqueueWorkerEmails(ownerId: string, sessionId: string,
   emails: EmailParams[], defer: boolean, policy: Record<string, number>) {
-  const { DB: db, FILES: files } = cloudflare().env;
+  const { DB: db } = cloudflare().env;
   const id = `${ownerId}:${sessionId}`;
   const bodies = emails.map(serialise);
   const submission = createHash('sha256').update(id).update(JSON.stringify(bodies)).digest('hex');
@@ -39,24 +40,26 @@ export async function enqueueWorkerEmails(ownerId: string, sessionId: string,
   const provider = getEmailProvider();
   const token = randomUUID();
   const items = [];
-  const payloadKeys = bodies.map((_, index) => `mail-payload/${token}/${index}.json`);
+  const payloadKeys = emailPayloadKeys(token, bodies.length);
+  await reserveEmailPayloads(token, ownerId, id, bodies, policy);
   try {
+    await putEmailPayloads(token, bodies);
     for (let index = 0; index < emails.length; index++) {
       const email = emails[index];
       const payloadKey = payloadKeys[index];
-      await files.put(payloadKey, bodies[index], { httpMetadata: { contentType: 'application/json' } });
       items.push({ id: randomUUID(), payloadKey, recipients: JSON.stringify(email.to), recipientCount: email.to.length,
         attachmentBytes: email.attachments?.reduce((n, a) => n + (typeof a.content === 'string' ? Buffer.byteLength(a.content) : a.content?.length || 0), 0) || 0 });
     }
   } catch (error) {
-    // No database admission was attempted, so even an uncertain put is disposable.
-    if (payloadKeys.length) await files.delete(payloadKeys);
+    await discardEmailPayloads(token);
     throw error;
   }
   try {
     // The trigger charges each inserted item in this native atomic batch. The
     // token makes concurrent identical submissions a no-op, not a second send.
     await db.batch([
+      db.prepare(`UPDATE EmailPayloadReservation SET state='admitted' WHERE token=? AND state='staging' AND expiresAt>?`)
+        .bind(token, Date.now()),
       db.prepare(`INSERT INTO EmailJob(id,ownerId,status,provider,policy,updatedAt,expiresAt) VALUES(?,?,?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET status=CASE WHEN status IN ('paused','cancelled') THEN status ELSE excluded.status END,
           policy=excluded.policy`)
@@ -74,12 +77,12 @@ export async function enqueueWorkerEmails(ownerId: string, sessionId: string,
         .bind(defer ? 'idle' : 'processing', now, now + 24 * HOUR, now + HOUR, id, submission, token),
     ]);
   } catch (error) {
-    // Keep possible committed payloads after an unknown D1 response. An expiry
-    // sweep removes unreferenced objects; never guess that a failed RPC rolled back.
+    // Unknown D1 outcomes stay charged. Cron reconciles the atomic reservation
+    // state with the submission ledger; never guess that a failed RPC rolled back.
     const message = String(error);
-    if (/EMAIL_(QUOTA_CHANGED|QUEUE_CANCELLED|QUEUE_CAPACITY|SESSION_LIMIT|ATTACHMENT_CAPACITY)/.test(message)) {
+    if (/EMAIL_(QUOTA_CHANGED|QUEUE_CANCELLED|QUEUE_CAPACITY|SESSION_LIMIT|ATTACHMENT_CAPACITY|PAYLOAD_EXPIRED)/.test(message)) {
       // These are explicit RAISE(ABORT) results from the atomic admission trigger.
-      if (payloadKeys.length) await files.delete(payloadKeys);
+      await discardEmailPayloads(token);
     }
     if (message.includes('EMAIL_QUOTA_CHANGED')) throw new EmailRequestError('Email quota changed or limit reached', 403);
     if (message.includes('EMAIL_')) throw new EmailRequestError('Email queue or attachment capacity reached', 429);
@@ -88,7 +91,7 @@ export async function enqueueWorkerEmails(ownerId: string, sessionId: string,
   const admitted = await db.prepare('SELECT token FROM EmailSubmission WHERE id=?').bind(submission).first<{ token: string }>();
   if (admitted && admitted.token !== token && payloadKeys.length) {
     // A concurrent identical submission won; only its payloads are referenced.
-    await files.delete(payloadKeys);
+    await discardEmailPayloads(token);
   }
   const status = await getWorkerEmailStatus(ownerId, sessionId);
   return { success: true, queueLength: status.total, status };
@@ -230,6 +233,7 @@ export async function expireWorkerEmails(): Promise<void> {
     db.prepare(`DELETE FROM EmailJob WHERE expiresAt<=? AND NOT EXISTS(SELECT 1 FROM EmailItem WHERE jobId=EmailJob.id AND status='sending')`).bind(now),
     db.prepare('DELETE FROM EmailIngestion WHERE expiresAt<=?').bind(now),
   ]);
+  await cleanupEmailPayloads();
 }
 
 export async function withWorkerEmailIngestion<T>(ownerId: string, perUser: number, global: number, operation: () => Promise<T>): Promise<T> {

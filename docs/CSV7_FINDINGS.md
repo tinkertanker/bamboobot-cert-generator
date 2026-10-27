@@ -154,3 +154,53 @@ The user explicitly approved as-needed further review cycles. The cumulative cou
 is seven, not a reset; sixth-cycle reports remain immutable but no longer clear the
 new candidate. Fresh exact-head independent review and normal host gates still apply.
 No deployment, installation, shared-data write or unrelated test cleanup is included.
+
+## Row 19 follow-up: durable payload reservations
+
+`0007_email_payload_reservations.sql` and the Workers email queue reserve the full
+UTF-8 JSON size (including base64 expansion, message and metadata) before any R2
+write. A single native D1 statement enforces the existing policy's queue, owner and
+global byte limits, and active-per-owner/global counts for concurrent staging.
+All reservation states count towards bytes, even after expiry or failed deletion.
+Admission changes the reservation and email ledger in the same native atomic batch;
+daily recipient quota and its existing refund rules remain separate.
+
+Payload keys under `mail-payload/v2/` are first created as empty placeholders, once
+only. After all placeholders exist, the writer checks its live reservation and uses
+If-Match for payload replacement. Cleanup first fences admission in D1, then deletes
+all reserved keys, then releases the charge. A late payload write cannot recreate a
+deleted placeholder. A late placeholder creation can leave only a zero-byte object,
+which the existing 24-hour paginated sweep collects. Tokens/keys are never reused.
+This relies on R2's [atomic conditional writes and strong consistency](https://developers.cloudflare.com/r2/reference/consistency/),
+not a timeout assumption about when in-flight requests must finish. The two write
+phases are separated by one second for R2's per-key write rate limit; this adds a
+second per submission, not per recipient, plus one extra R2 write per recipient.
+The supported 500-recipient case requires Workers Paid's internal subrequest budget.
+
+The existing minute cron reconciles at most ten reservations per invocation, with
+at most 500 keys per reservation. Unadmitted staging expires after 30 minutes.
+Definitive rejection/duplicate losers attempt immediate cleanup; failed operations
+remain charged and retry. Unknown admission responses preserve committed payloads;
+uncommitted reservations become reclaimable at expiry. Admitted payloads stay charged
+until their job/submission is removed and R2 deletion succeeds, including terminal
+queues and owner deletion. Persistent storage outages therefore fail closed with
+429 capacity errors rather than silently releasing occupied storage. Inspect
+reservation state/bytes/expiry and the cleanup-failed logs when capacity stays full.
+
+**Rollout is not performed by this change.** This is a Workers-only additive D1
+migration; Node/SQLite email handling is unchanged. Under separate approval, pause
+new mail ingestion, drain existing dispatches and in-flight old-code requests,
+apply migration 0007, deploy the matching code, and resume ingestion. The new trigger
+rejects old-code admission without a reservation; do not run mixed writers. Legacy
+payloads/debris are not retroactively measured: retain the existing reference-aware
+24-hour sweep and verify the old prefix is drained before claiming a bucket-wide
+cap. The new reservation bound covers v2 payloads, not previews or unrelated files.
+For rollback, pause ingestion and drain/reconcile v2 reservations before reverting
+code; removing the admission trigger needs explicit migration approval. Keep the
+reservation table/evidence until all charged objects have been accounted for. Never
+delete ledger rows to recover capacity without confirmed fenced R2 deletion.
+
+Local Miniflare D1/R2 tests exercise UTF-8/base64 boundaries, concurrent quota and
+duplicate admission, partial writes, failed deletes, lost D1 responses, and cleanup
+interleaved before placeholder, payload and admission commits. Remote storage and
+production migration validation remain outside this change's authority.
