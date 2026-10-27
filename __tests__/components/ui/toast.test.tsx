@@ -1,237 +1,73 @@
 import React from 'react';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, act, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Toast, ToastContainer, useToast } from '@/components/ui/toast';
 
-// Mock timers
-jest.useFakeTimers();
+function Harness({ duration }: { duration?: number }) {
+  const { toasts, showToast, hideToast } = useToast();
+  return <>
+    <button onClick={() => showToast({ message: 'Saved', type: 'success', duration })}>Save</button>
+    <ToastContainer toasts={toasts} onClose={hideToast} />
+  </>;
+}
 
-describe('Toast Component', () => {
-  const defaultProps = {
-    id: 'test-toast',
-    message: 'Test message',
-    onClose: jest.fn(),
-  };
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  describe('Rendering', () => {
-    it('renders with default info type', () => {
-      render(<Toast {...defaultProps} />);
-      
-      const toast = screen.getByText('Test message').closest('div');
-      expect(toast).toBeInTheDocument();
-      expect(toast).toHaveClass('bg-blue-50', 'text-blue-800', 'border-blue-200');
-    });
-
-    it('renders with success type', () => {
-      render(<Toast {...defaultProps} type="success" />);
-      
-      const toast = screen.getByText('Test message').closest('div');
-      expect(toast).toHaveClass('bg-green-50', 'text-green-800', 'border-green-200');
-      // Check for SVG icon presence
-      const icon = toast?.querySelector('svg');
-      expect(icon).toBeInTheDocument();
-    });
-
-    it('renders with error type', () => {
-      render(<Toast {...defaultProps} type="error" />);
-      
-      const toast = screen.getByText('Test message').closest('div');
-      expect(toast).toHaveClass('bg-red-50', 'text-red-800', 'border-red-200');
-      // Check for SVG icon presence
-      const icon = toast?.querySelector('svg');
-      expect(icon).toBeInTheDocument();
-    });
-  });
-
-  describe('Auto-dismiss', () => {
-    it('auto-dismisses after default duration (3000ms)', () => {
-      render(<Toast {...defaultProps} />);
-      
-      expect(defaultProps.onClose).not.toHaveBeenCalled();
-      
-      act(() => {
-        jest.advanceTimersByTime(3000);
-      });
-      
-      expect(defaultProps.onClose).toHaveBeenCalledWith('test-toast');
-    });
-
-    it('auto-dismisses after custom duration', () => {
-      render(<Toast {...defaultProps} duration={5000} />);
-      
-      act(() => {
-        jest.advanceTimersByTime(4999);
-      });
-      expect(defaultProps.onClose).not.toHaveBeenCalled();
-      
-      act(() => {
-        jest.advanceTimersByTime(1);
-      });
-      expect(defaultProps.onClose).toHaveBeenCalledWith('test-toast');
-    });
-
-    it('does not auto-dismiss when duration is 0', () => {
-      render(<Toast {...defaultProps} duration={0} />);
-      
-      act(() => {
-        jest.advanceTimersByTime(10000);
-      });
-      
-      expect(defaultProps.onClose).not.toHaveBeenCalled();
-    });
-
-    it('clears timeout on unmount', () => {
-      const { unmount } = render(<Toast {...defaultProps} />);
-      
-      unmount();
-      
-      act(() => {
-        jest.advanceTimersByTime(3000);
-      });
-      
-      expect(defaultProps.onClose).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('Manual dismiss', () => {
-    it('calls onClose when close button is clicked', async () => {
-      const user = userEvent.setup({ delay: null });
-      render(<Toast {...defaultProps} />);
-      
-      await user.click(screen.getByRole('button'));
-      
-      expect(defaultProps.onClose).toHaveBeenCalledWith('test-toast');
-    });
-  });
+beforeEach(() => jest.useFakeTimers());
+afterEach(() => {
+  jest.clearAllTimers();
+  jest.useRealTimers();
 });
 
-describe('ToastContainer Component', () => {
-  const mockToasts = [
-    { id: '1', message: 'Toast 1', type: 'success' as const },
-    { id: '2', message: 'Toast 2', type: 'error' as const },
-    { id: '3', message: 'Toast 3', type: 'info' as const },
-  ];
-
-  it('renders all toasts', () => {
-    render(<ToastContainer toasts={mockToasts} onClose={jest.fn()} />);
-    
-    expect(screen.getByText('Toast 1')).toBeInTheDocument();
-    expect(screen.getByText('Toast 2')).toBeInTheDocument();
-    expect(screen.getByText('Toast 3')).toBeInTheDocument();
+describe('toast notifications', () => {
+  it('announces errors urgently and other messages as status, with named dismiss controls', () => {
+    render(<ToastContainer toasts={[
+      { id: 'info', message: 'Preparing' },
+      { id: 'success', message: 'Saved', type: 'success' },
+      { id: 'error', message: 'Failed', type: 'error' },
+    ]} onClose={jest.fn()} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed');
+    expect(screen.getAllByRole('status').map(node => node.textContent)).toEqual(['Preparing', 'Saved']);
+    expect(screen.getAllByRole('button', { name: 'Dismiss notification' })).toHaveLength(3);
   });
 
-  it('passes onClose to each toast', async () => {
-    const user = userEvent.setup({ delay: null });
+  it.each([undefined, 5000])('dismisses at the configured deadline (%s), not before it', async duration => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    render(<Harness duration={duration} />);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    act(() => jest.advanceTimersByTime((duration ?? 3000) - 1));
+    expect(screen.getByRole('status')).toHaveTextContent('Saved');
+    act(() => jest.advanceTimersByTime(1));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('keeps persistent notifications until their dismiss button is used', async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    render(<Harness duration={0} />);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    act(() => jest.advanceTimersByTime(10000));
+    expect(screen.getByRole('status')).toHaveTextContent('Saved');
+    await user.click(screen.getByRole('button', { name: 'Dismiss notification' }));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('dismisses identical simultaneous notifications independently', async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    render(<Harness duration={0} />);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    const notifications = screen.getAllByRole('status');
+    expect(notifications).toHaveLength(2);
+    await user.click(within(notifications[0]).getByRole('button', { name: 'Dismiss notification' }));
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(notifications[1]).toBeInTheDocument();
+    await user.click(within(notifications[1]).getByRole('button', { name: 'Dismiss notification' }));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('does not notify the owner after unmount', () => {
     const onClose = jest.fn();
-    render(<ToastContainer toasts={mockToasts} onClose={onClose} />);
-    
-    const closeButtons = screen.getAllByRole('button');
-    await user.click(closeButtons[0]);
-    
-    expect(onClose).toHaveBeenCalledWith('1');
-  });
-});
-
-describe('useToast Hook', () => {
-  function TestComponent() {
-    const { toasts, showToast, hideToast } = useToast();
-    
-    return (
-      <div>
-        <button onClick={() => showToast({ message: 'Test toast', type: 'success' })}>
-          Show Toast
-        </button>
-        <button onClick={() => showToast({ message: 'Error toast', type: 'error' })}>
-          Show Error
-        </button>
-        <button onClick={() => toasts[0] && hideToast(toasts[0].id)}>
-          Hide First
-        </button>
-        <ToastContainer toasts={toasts} onClose={hideToast} />
-      </div>
-    );
-  }
-
-  it('shows multiple toasts', async () => {
-    const user = userEvent.setup({ delay: null });
-    render(<TestComponent />);
-    
-    await user.click(screen.getByText('Show Toast'));
-    await user.click(screen.getByText('Show Error'));
-    
-    expect(screen.getByText('Test toast')).toBeInTheDocument();
-    expect(screen.getByText('Error toast')).toBeInTheDocument();
-  });
-
-  it('generates unique IDs for toasts', async () => {
-    const user = userEvent.setup({ delay: null });
-    render(<TestComponent />);
-    
-    await user.click(screen.getByText('Show Toast'));
-    await user.click(screen.getByText('Show Toast'));
-    
-    const toasts = screen.getAllByText('Test toast');
-    expect(toasts).toHaveLength(2);
-  });
-
-  it('hides toast when hideToast is called', async () => {
-    const user = userEvent.setup({ delay: null });
-    render(<TestComponent />);
-    
-    await user.click(screen.getByText('Show Toast'));
-    expect(screen.getByText('Test toast')).toBeInTheDocument();
-    
-    await user.click(screen.getByText('Hide First'));
-    expect(screen.queryByText('Test toast')).not.toBeInTheDocument();
-  });
-
-  it('auto-dismisses toasts', async () => {
-    const user = userEvent.setup({ delay: null });
-    render(<TestComponent />);
-    
-    await user.click(screen.getByText('Show Toast'));
-    expect(screen.getByText('Test toast')).toBeInTheDocument();
-    
-    act(() => {
-      jest.advanceTimersByTime(3000);
-    });
-    
-    await waitFor(() => {
-      expect(screen.queryByText('Test toast')).not.toBeInTheDocument();
-    });
-  });
-
-  it('handles manual dismiss via close button', async () => {
-    const user = userEvent.setup({ delay: null });
-    render(<TestComponent />);
-    
-    await user.click(screen.getByText('Show Toast'));
-    expect(screen.getByText('Test toast')).toBeInTheDocument();
-    
-    const closeButton = screen.getAllByRole('button').find(btn => 
-      btn.querySelector('svg') && btn.closest('[class*="bg-green"]')
-    );
-    
-    await user.click(closeButton!);
-    expect(screen.queryByText('Test toast')).not.toBeInTheDocument();
-  });
-
-  it('preserves toast properties', async () => {
-    const user = userEvent.setup({ delay: null });
-    render(<TestComponent />);
-    
-    await user.click(screen.getByText('Show Toast'));
-    
-    const successToast = screen.getByText('Test toast').closest('div');
-    expect(successToast).toHaveClass('bg-green-50', 'text-green-800');
-    
-    await user.click(screen.getByText('Show Error'));
-    
-    const errorToast = screen.getByText('Error toast').closest('div');
-    expect(errorToast).toHaveClass('bg-red-50', 'text-red-800');
+    const { unmount } = render(<Toast id="one" message="Saved" onClose={onClose} />);
+    unmount();
+    act(() => jest.advanceTimersByTime(3000));
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

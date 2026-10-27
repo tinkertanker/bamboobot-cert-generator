@@ -25,16 +25,22 @@ describe('agent input contract', () => {
   });
 
   it.each([
-    { name: { x: 90, y: 42, width: 70, alignment: 'center' } },
-    { name: { x: NaN, y: 42 } },
-    { name: { x: 50, y: 42, fontFamily: 'UninstalledFont' } },
-    { name: { x: 50, y: 42, fontFamily: 'GreatVibes', bold: true } },
-    { name: { x: 50, y: 42, color: 'url(https://example.test)' } },
-    { name: { x: 0, y: 42, width: 70, textMode: ['shrink'] } },
-    { name: { x: 0, y: 42, width: 70, alignment: ['center'] } },
-    {},
-  ])('rejects unsafe or unsupported layouts', positions => {
-    expect(() => validateAgentInput({ ...input(), positions })).toThrow();
+    [{ x: 90 }, /outside the page/],
+    [{ x: NaN }, /Invalid x/],
+    [{ fontFamily: 'UninstalledFont' }, /Unsupported font/],
+    [{ fontFamily: 'GreatVibes', bold: true }, /Font style is unavailable/],
+    [{ color: 'url(https://example.test)' }, /six-digit hex colour/],
+    [{ textMode: ['shrink'] }, /Invalid text mode/],
+    [{ alignment: ['center'] }, /Invalid alignment/],
+  ])('rejects an invalid layout property %j for its own reason', (override, error) => {
+    const value = input();
+    expect(() => validateAgentInput({
+      ...value, positions: { name: { ...value.positions.name, ...override } },
+    })).toThrow(error);
+  });
+
+  it('requires at least one mapped field', () => {
+    expect(() => validateAgentInput({ ...input(), positions: {} })).toThrow('Map 1–20 visible text fields');
   });
 
   it('rejects reserved field names rather than silently omitting recipient text', () => {
@@ -42,14 +48,14 @@ describe('agent input contract', () => {
       label: 'Reserved field',
       rows: [{ id: 'row', fields: JSON.parse('{"__proto__":"Ada Lovelace"}') }],
       positions: JSON.parse('{"__proto__":{"x":0,"y":42}}'),
-    })).toThrow();
+    })).toThrow('Invalid field mapping');
   });
 
   it('rejects duplicate row IDs, missing mapped fields, objects and oversized batches', () => {
     const value = input();
-    expect(() => validateAgentInput({ ...value, rows: [value.rows[0], value.rows[0]] })).toThrow();
-    expect(() => validateAgentInput({ ...value, rows: [{ id: 'b', fields: { other: 'Ada' } }] })).toThrow();
-    expect(() => validateAgentInput({ ...value, rows: [{ id: 'b', fields: { name: {} } }] })).toThrow();
-    expect(() => validateAgentInput({ ...value, rows: Array.from({ length: 501 }, (_, i) => ({ id: String(i), fields: { name: 'A' } })) })).toThrow();
+    expect(() => validateAgentInput({ ...value, rows: [value.rows[0], value.rows[0]] })).toThrow('unique id');
+    expect(() => validateAgentInput({ ...value, rows: [{ id: 'b', fields: { other: 'Ada' } }] })).toThrow('Every recipient needs a value for name');
+    expect(() => validateAgentInput({ ...value, rows: [{ id: 'b', fields: { name: {} } }] })).toThrow('single-line strings');
+    expect(() => validateAgentInput({ ...value, rows: Array.from({ length: 501 }, (_, i) => ({ id: String(i), fields: { name: 'A' } })) })).toThrow('Supply 1–500 recipient rows');
   });
 });

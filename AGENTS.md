@@ -15,7 +15,7 @@ npx prisma db push         # create or update the local SQLite database
 npm run dev                # builds the PDF worker, then starts http://localhost:3000
 
 npm test -- __tests__/lib/rate-limit.test.ts   # run one Jest file (prefer this)
-npm test                   # full Jest suite; includes __tests__/build.test.ts, which runs a full `npm run build` and deletes .next
+npm test                   # full Jest suite; builds run separately, without deleting build/cache directories from tests
 npm run lint               # ESLint CLI; Next 16 does not run lint during builds
 npm run build              # production build, also type-checks app code
 npm run build:worker       # rebuild public/pdf-worker.js after changing worker or shared PDF code
@@ -25,7 +25,7 @@ npm run build:cloudflare   # enables Workers + server project persistence; stagi
 npx wrangler deploy --dry-run --outdir /tmp/bamboobot-worker  # local packaging only, not deployment
 ```
 
-CI (`.github/workflows/test.yml`) runs `npm ci`, `npm run build:worker`, `npm test`, `npm run lint`, the Cloudflare build and a Wrangler dry run on Node 22. It does not deploy. Playwright E2E tests in `e2e/` are not run in CI.
+CI (`.github/workflows/test.yml`) runs `npm ci`, the Node application build (including the PDF worker), `npm test`, `npm run lint`, the Cloudflare build and a Wrangler dry run on Node 22. Both Node and Workers builds are required; their runtime/persistence settings differ. It does not deploy. Playwright E2E tests in `e2e/` are not run in CI.
 
 `npx tsc --noEmit` checks app and test code. Jest-DOM matcher types are included in `tsconfig.json`; Next 16 builds also type-check the tests.
 
@@ -36,7 +36,7 @@ CI (`.github/workflows/test.yml`) runs `npm ci`, `npm run build:worker`, `npm te
 - `pages/api/*` holds API routes. Most wrap their handler with `withFeatureGate` (`lib/server/middleware/featureGate.ts`) or `requireAuth` (`lib/auth/requireAuth.ts`).
 - `pages/api/agent/*`, `lib/agent/` and `pages/agent.tsx` implement opt-in external-agent jobs. They authenticate sessions/PATs independently; only an owner browser session may approve actual samples. Production uses D1/R2 with checkpointed preparation and existing minute-cron execution in `lib/agent/worker-jobs.ts`. `scripts/agent-worker.ts` is the separate SQLite/filesystem worker for Node installations, not production. See `docs/AGENT_CERTIFICATES.md` for runtime-specific limits, approval, migrations and rollback.
 - `hooks/` holds feature state (`useTableData`, `useProjectManagement`, `usePdfGenerationMethods`, `useEmailConfig` and so on). `components/panels/` and `components/modals/` hold the UI.
-- `lib/pdf/shared/` is PDF layout code shared by the browser worker and the server: `pdf-generation-core.ts` (text placement, shrink-to-fit, multi-line) and `coordinate-transform.ts`.
+- `lib/pdf/shared/pdf-generation-core.ts` owns PDF text placement, coordinate conversion, shrink-to-fit and multi-line layout shared by the browser worker and the server. The older `coordinate-transform.ts` helper has no production callers.
 - `lib/pdf/client/` is browser generation: the worker entry is `worker/pdf-worker-with-fonts.ts`, bundled by `webpack.worker.config.js` into `public/pdf-worker.js`.
 - `pages/api/generate.ts`, `pages/api/generate-progressive.ts` and `lib/pdf-generator.ts` are server generation.
 - `lib/email/` holds the email queue and providers (`providers/resend.ts`, `providers/ses.ts`, chosen by `provider-factory.ts` from the credentials present).
@@ -49,7 +49,7 @@ CI (`.github/workflows/test.yml`) runs `npm ci`, `npm run build:worker`, `npm te
 
 **PDF generation is client-first.** `getPdfGenerationMethod` in `hooks/usePdfGenerationMethods.tsx` picks the browser worker whenever the browser supports it, and falls back to the server when it does not or when `lib/pdf/client/individual-capacity.ts` decides the batch is too big for the device. Dev Mode can force server generation for comparison. Server batches over 100 rows use progressive generation (`PROGRESSIVE_PDF` in `utils/constants.ts`).
 
-**Keep preview, worker and server in agreement.** Put layout changes in `lib/pdf/shared/` so both generators get them. Text positions are stored as percentages from the top-left; PDF space is bottom-left, and `coordinate-transform.ts` converts between them. Check that the on-screen preview (`components/CertificatePreview.tsx`, `utils/textMeasurement.ts`, `utils/fontScale.ts`) still matches the PDF.
+**Keep preview, worker and server in agreement.** Put layout changes in `lib/pdf/shared/` so both generators get them. Text positions are stored as percentages from the top-left; callers normalise these to fractions for `pdf-generation-core.ts`, which converts them to bottom-left PDF space. Check that the on-screen preview (`components/CertificatePreview.tsx`, `utils/textMeasurement.ts`, `utils/fontScale.ts`) still matches the PDF.
 
 **The worker bundle is committed.** `public/pdf-worker.js` and its chunk files are checked in. If you touch `lib/pdf/client/worker/`, `lib/pdf/shared/` or anything they import, run `npm run build:worker` and commit the regenerated files.
 

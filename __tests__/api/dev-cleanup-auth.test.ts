@@ -15,6 +15,7 @@ const { detectUserTier } = require('@/lib/server/tiers');
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 const ORIGINAL_REQUIRE_AUTH = process.env.REQUIRE_AUTH;
+const ORIGINAL_STORAGE_DIR = process.env.LOCAL_STORAGE_DIR;
 
 function setNodeEnv(value: string) {
   Object.defineProperty(process.env, 'NODE_ENV', { value, configurable: true, writable: true, enumerable: true });
@@ -27,6 +28,10 @@ function run(method: RequestMethod = 'POST', body: Body = { target: 'temp' }) {
 }
 
 describe('dev-cleanup authentication', () => {
+  let storageDir: string;
+  let disposableFile: string;
+  let retainedFile: string;
+
   it('preserves protected agent jobs while deleting disposable generated files', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'csv7-cleanup-'));
     const previous = process.env.LOCAL_STORAGE_DIR;
@@ -50,13 +55,36 @@ describe('dev-cleanup authentication', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     delete process.env.REQUIRE_AUTH;
+    storageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-cleanup-auth-'));
+    process.env.LOCAL_STORAGE_DIR = storageDir;
+    disposableFile = path.join(storageDir, 'temp_images', 'u_test', 'delete.png');
+    retainedFile = path.join(storageDir, 'generated', 'keep.pdf');
+    fs.mkdirSync(path.dirname(disposableFile), { recursive: true });
+    fs.mkdirSync(path.dirname(retainedFile), { recursive: true });
+    fs.writeFileSync(disposableFile, 'disposable image');
+    fs.writeFileSync(retainedFile, 'retained certificate');
   });
 
-  afterAll(() => {
+  afterEach(() => {
+    fs.rmSync(storageDir, { recursive: true, force: true });
+    if (ORIGINAL_STORAGE_DIR === undefined) delete process.env.LOCAL_STORAGE_DIR;
+    else process.env.LOCAL_STORAGE_DIR = ORIGINAL_STORAGE_DIR;
     Object.defineProperty(process.env, 'NODE_ENV', { value: ORIGINAL_NODE_ENV, configurable: true, writable: true, enumerable: true });
     if (ORIGINAL_REQUIRE_AUTH === undefined) delete process.env.REQUIRE_AUTH;
     else process.env.REQUIRE_AUTH = ORIGINAL_REQUIRE_AUTH;
   });
+
+  function expectPreserved() {
+    expect(fs.readFileSync(disposableFile, 'utf8')).toBe('disposable image');
+    expect(fs.readFileSync(retainedFile, 'utf8')).toBe('retained certificate');
+  }
+
+  function expectCleaned(res: Awaited<ReturnType<typeof run>>) {
+    expect(res.statusCode).toBe(200);
+    expect(res._getJSONData()).toMatchObject({ success: true, deletedFiles: 1, freedSpace: 16 });
+    expect(fs.existsSync(disposableFile)).toBe(false);
+    expect(fs.readFileSync(retainedFile, 'utf8')).toBe('retained certificate');
+  }
 
   it('rejects unauthenticated requests in production with 401', async () => {
     setNodeEnv('production');
@@ -64,6 +92,7 @@ describe('dev-cleanup authentication', () => {
     const res = await run();
     expect(res.statusCode).toBe(401);
     expect(detectUserTier).not.toHaveBeenCalled();
+    expectPreserved();
   });
 
   it('rejects a non-super-admin session in production with 403', async () => {
@@ -72,6 +101,7 @@ describe('dev-cleanup authentication', () => {
     detectUserTier.mockReturnValue('free');
     const res = await run();
     expect(res.statusCode).toBe(403);
+    expectPreserved();
   });
 
   it('requires a session outside development even when auth is not enforced (e.g. test env)', async () => {
@@ -79,6 +109,7 @@ describe('dev-cleanup authentication', () => {
     getServerSession.mockResolvedValue(null);
     const res = await run();
     expect(res.statusCode).toBe(401);
+    expectPreserved();
   });
 
   it('requires a session in development when auth is explicitly enforced (REQUIRE_AUTH=true)', async () => {
@@ -87,6 +118,7 @@ describe('dev-cleanup authentication', () => {
     getServerSession.mockResolvedValue(null);
     const res = await run();
     expect(res.statusCode).toBe(401);
+    expectPreserved();
   });
 
   it('allows an authenticated non-admin session in development with auth enforced', async () => {
@@ -95,8 +127,7 @@ describe('dev-cleanup authentication', () => {
     getServerSession.mockResolvedValue({ user: { id: 'u1', email: 'dev@example.com' } });
     detectUserTier.mockReturnValue('free');
     const res = await run();
-    expect(res.statusCode).not.toBe(401);
-    expect(res.statusCode).not.toBe(403);
+    expectCleaned(res);
   });
 
   it('allows the open development mode (auth not enforced) so the dev StorageMonitor works', async () => {
@@ -104,9 +135,7 @@ describe('dev-cleanup authentication', () => {
     delete process.env.REQUIRE_AUTH; // default dev: isAuthenticationRequired() === false
     getServerSession.mockResolvedValue(null);
     const res = await run();
-    // No session required in open dev mode; must not be blocked by auth.
-    expect(res.statusCode).not.toBe(401);
-    expect(res.statusCode).not.toBe(403);
+    expectCleaned(res);
     expect(getServerSession).not.toHaveBeenCalled();
   });
 
@@ -114,5 +143,6 @@ describe('dev-cleanup authentication', () => {
     setNodeEnv('development');
     const res = await run('GET');
     expect(res.statusCode).toBe(405);
+    expectPreserved();
   });
 });
