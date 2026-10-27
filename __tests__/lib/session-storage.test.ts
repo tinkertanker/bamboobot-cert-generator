@@ -1,5 +1,6 @@
 import { SessionStorage } from '@/lib/session-storage';
 import type { SessionData } from '@/lib/session-storage';
+import { OWNER_KEY, QUARANTINE_PREFIX, guardLocalStorageForUser } from '@/lib/storage/account-scope';
 import { installMockLocalStorage } from '../helpers/mock-local-storage';
 import { silenceConsole } from '../helpers/silence-console';
 
@@ -11,6 +12,53 @@ describe('SessionStorage', () => {
   beforeEach(() => {
     mockLocalStorage.clear();
     jest.clearAllMocks();
+  });
+
+  it('binds new recovery copies to their account without adopting identical unknown archives', () => {
+    const key = 'bamboobot_current_session_v1';
+    const original = '{"tableInput":"Alice\\n\ud800"';
+    const legacyKey = `${QUARANTINE_PREFIX}legacy`;
+    const legacy = JSON.stringify({ [key]: original });
+    mockLocalStorage.store[legacyKey] = legacy;
+    guardLocalStorageForUser('alice');
+    mockLocalStorage.store[key] = original;
+
+    expect(SessionStorage.archiveSession('alice')).toBe(true);
+    const copies = SessionStorage.listRecoverySessions('alice');
+    expect(copies).toHaveLength(1);
+    expect(SessionStorage.readRecoverySession(copies[0], 'alice')).toBe(original);
+    expect(mockLocalStorage.store[legacyKey]).toBe(legacy);
+    expect(() => SessionStorage.readRecoverySession(legacyKey, 'alice')).toThrow();
+
+    expect(SessionStorage.archiveSession('alice')).toBe(true);
+    expect(SessionStorage.listRecoverySessions('alice')).toEqual(copies);
+    mockLocalStorage.store[key] = original + ' changed';
+    expect(SessionStorage.archiveSession('alice')).toBe(true);
+    expect(SessionStorage.listRecoverySessions('alice')).toHaveLength(2);
+
+    guardLocalStorageForUser('bob');
+    expect(SessionStorage.listRecoverySessions('bob')).toEqual([]);
+    expect(() => SessionStorage.readRecoverySession(copies[0], 'bob')).toThrow();
+    expect(() => SessionStorage.listRecoverySessions('alice')).toThrow();
+    expect(SessionStorage.archiveSession('alice')).toBe(false);
+    guardLocalStorageForUser('alice');
+    expect(SessionStorage.readRecoverySession(copies[0], 'alice')).toBe(original);
+  });
+
+  it('fails closed on storage errors but reuses exact owned bytes when storage is full', () => {
+    const key = 'bamboobot_current_session_v1';
+    mockLocalStorage.store[OWNER_KEY] = 'alice';
+    mockLocalStorage.store[key] = 'rejected bytes';
+    expect(SessionStorage.archiveSession('alice')).toBe(true);
+    mockLocalStorage.setItem.mockImplementationOnce(() => { throw new Error('QuotaExceededError'); });
+    expect(SessionStorage.archiveSession('alice')).toBe(true);
+    mockLocalStorage.store[key] = 'different rejected bytes';
+    expect(SessionStorage.archiveSession('alice')).toBe(false);
+    expect(mockLocalStorage.store[key]).toBe('different rejected bytes');
+    mockLocalStorage.key.mockImplementationOnce(() => { throw new Error('SecurityError'); });
+    expect(SessionStorage.archiveSession('alice')).toBe(false);
+    mockLocalStorage.key.mockImplementationOnce(() => { throw new Error('SecurityError'); });
+    expect(() => SessionStorage.listRecoverySessions('alice')).toThrow();
   });
 
   it('saves session data successfully', () => {
