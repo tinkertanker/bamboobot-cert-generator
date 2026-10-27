@@ -117,22 +117,29 @@ describe('durable email admission in real D1', () => {
     expect((await files.list({ prefix: 'mail-payload/' })).objects).toHaveLength(1);
   });
 
-  it('keeps partial failed uploads charged until deletion succeeds, then admits new work', async () => {
+  it.each([[false, false], [true, false], [true, true]])(
+    'keeps failed uploads charged through unknown outcomes (put committed=%s, delete committed=%s)', async (putCommitted, deleteCommitted) => {
     const files = bindings.FILES as any;
     const bytes = Buffer.byteLength(JSON.stringify(params));
     const capped = { ...policy, globalBytes: bytes * 2 };
     bindings.FILES = {
       put: async (key: string, value: string, options: any) => {
-        if (value && key.endsWith('/1.json')) throw new Error('Injected second upload failure');
+        if (value && key.endsWith('/1.json')) {
+          if (putCommitted) await files.put(key, value, options);
+          throw new Error('Injected second upload failure');
+        }
         return files.put(key, value, options);
       },
-      delete: async () => { throw new Error('Injected delete failure'); },
+      delete: async (keys: string[]) => {
+        if (deleteCommitted) await files.delete(keys);
+        throw new Error('Injected delete failure');
+      },
     };
     try {
       await expect(enqueueWorkerEmails('fixture', 'partial', [params, params], true, capped)).rejects.toThrow('second upload failure');
       expect(await db.prepare('SELECT bytes,state FROM EmailPayloadReservation').first()).toEqual({ bytes: bytes * 2, state: 'deleting' });
       expect((await files.list({ prefix: 'mail-payload/' })).objects.map((object: any) => object.size).sort((a: number, b: number) => a - b))
-        .toEqual([0, bytes]);
+        .toEqual(deleteCommitted ? [] : [putCommitted ? bytes : 0, bytes]);
       await expect(enqueueWorkerEmails('fixture', 'blocked', [params], true, capped)).rejects.toMatchObject({ statusCode: 429 });
     } finally { bindings.FILES = files; }
     await expireWorkerEmails();
