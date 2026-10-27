@@ -25,11 +25,15 @@ shared owner are fixed together; distinct source IDs remain below.
 | 16 | b7a4a35f-84fa-4262-8794-5776eece755d | Fixed with 21. Table parsing checks aggregate cells before rectangular object allocation and shows a recoverable error while preserving the last accepted table, input and saved project. Limits: 5,000 rows, 100 columns, 100,000 cells, 1,000,000 characters, 2,000 characters per field. |
 | 17 | ab3627bd-fdaa-455d-abab-122ddc4c00a7 | Fixed for the reported metadata loop. The shared PNG guard validates chunk boundaries and every terminator searched by UPNG's tEXt/iTXt paths before embedding. |
 | 18 | 55010161-1fde-4ab0-b75a-9d50407d46b7 | Fixed. Reject acTL/fcTL/fdAT before PNG frame expansion, including browser uploads. |
-| 19 | 48d92975-c56a-4c58-b42d-d66d788362ab | Mitigated. Explicit atomic admission rejection and concurrent duplicate losers reclaim their own staged R2 keys; pre-admission put failures also clean up. Ambiguous D1 outcomes preserve possibly committed payloads for existing expiry. A durable pre-upload staging reservation remains deferred; this does not claim an absolute staged-byte cap. |
+| 19 | 48d92975-c56a-4c58-b42d-d66d788362ab | Durable reservation implemented in the [row 19 follow-up](#row-19-follow-up-durable-payload-reservations), superseding PR82's rejection-cleanup mitigation. Full v2 payload bytes remain charged before upload through confirmed deletion, with late-write fencing. Deployment, migration and legacy drain still require separate approval; this is not a claim about current production or all bucket contents. |
 | 20 | 34356e81-c339-4591-bef6-389be05f79c3 | Fixed. Shared PNG guard requires exactly one first IHDR and rejects replacement headers before allocations. |
 | 21 | 0f15adab-8df9-425d-a698-67a7f3f739a5 | Fixed with 16. Project save/import and restoration validate cells and expanded text before nested row-string construction, including sparse rows. |
 
-## Scope and residual risk
+## Scope and residual risk at the PR82 checkpoint
+
+This section records PR82's historical scope. The PDF-budget and
+[row 19 follow-up](#row-19-follow-up-durable-payload-reservations) sections below
+supersede their deferred dispositions in code, not in production.
 
 No database migration, deployment, live email, or shared-data write is part of
 this change. Independent review also found a 65-byte PNG whose malformed Huffman
@@ -193,3 +197,53 @@ and output buffers, garbage collection and simultaneous jobs still consume memor
 Server deadlines are cooperative; deterministic operation limits also apply where
 a runtime's clock does not advance during synchronous work. No deployment or live
 production load test is part of this follow-up.
+
+## Row 19 follow-up: durable payload reservations
+
+`0007_email_payload_reservations.sql` and the Workers email queue reserve the full
+UTF-8 JSON size (including base64 expansion, message and metadata) before any R2
+write. A single native D1 statement enforces the existing policy's queue, owner and
+global byte limits, and active-per-owner/global counts for concurrent staging.
+All reservation states count towards bytes, even after expiry or failed deletion.
+Admission changes the reservation and email ledger in the same native atomic batch;
+daily recipient quota and its existing refund rules remain separate.
+
+Payload keys under `mail-payload/v2/` are first created as empty placeholders, once
+only. After all placeholders exist, the writer checks its live reservation and uses
+If-Match for payload replacement. Cleanup first fences admission in D1, then deletes
+all reserved keys, then releases the charge. A late payload write cannot recreate a
+deleted placeholder. A late placeholder creation can leave only a zero-byte object,
+which the existing 24-hour paginated sweep collects. Tokens/keys are never reused.
+This relies on R2's [atomic conditional writes and strong consistency](https://developers.cloudflare.com/r2/reference/consistency/),
+not a timeout assumption about when in-flight requests must finish. The two write
+phases are separated by one second for R2's per-key write rate limit; this adds a
+second per submission, not per recipient, plus one extra R2 write per recipient.
+The supported 500-recipient case requires Workers Paid's internal subrequest budget.
+
+The existing minute cron reconciles at most ten reservations per invocation, with
+at most 500 keys per reservation. Unadmitted staging expires after 30 minutes.
+Definitive rejection/duplicate losers attempt immediate cleanup; failed operations
+remain charged and retry. Unknown admission responses preserve committed payloads;
+uncommitted reservations become reclaimable at expiry. Admitted payloads stay charged
+until their job/submission is removed and R2 deletion succeeds, including terminal
+queues and owner deletion. Persistent storage outages therefore fail closed with
+429 capacity errors rather than silently releasing occupied storage. Inspect
+reservation state/bytes/expiry and the cleanup-failed logs when capacity stays full.
+
+**Rollout is not performed by this change.** This is a Workers-only additive D1
+migration; Node/SQLite email handling is unchanged. Under separate approval, pause
+new mail ingestion, drain existing dispatches and in-flight old-code requests,
+apply migration 0007, deploy the matching code, and resume ingestion. The new trigger
+rejects old-code admission without a reservation; do not run mixed writers. Legacy
+payloads/debris are not retroactively measured: retain the existing reference-aware
+24-hour sweep and verify the old prefix is drained before claiming a bucket-wide
+cap. The new reservation bound covers v2 payloads, not previews or unrelated files.
+For rollback, pause ingestion and drain/reconcile v2 reservations before reverting
+code; removing the admission trigger needs explicit migration approval. Keep the
+reservation table/evidence until all charged objects have been accounted for. Never
+delete ledger rows to recover capacity without confirmed fenced R2 deletion.
+
+Local Miniflare D1/R2 tests exercise UTF-8/base64 boundaries, concurrent quota and
+duplicate admission, partial writes, failed deletes, lost D1 responses, and cleanup
+interleaved before placeholder, payload and admission commits. Remote storage and
+production migration validation remain outside this change's authority.

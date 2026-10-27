@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { readFileSync } from 'fs';
-import { enqueueWorkerEmails, controlWorkerEmails, getWorkerEmailStatus, processWorkerEmails } from '@/lib/email/worker-queue';
+import { enqueueWorkerEmails, controlWorkerEmails, getWorkerEmailStatus, processWorkerEmails, expireWorkerEmails } from '@/lib/email/worker-queue';
 import { PreviewEmailProvider } from '@/lib/email/providers/preview';
 import { cleanupWorkerObjects } from '@/lib/server/worker-cleanup';
 import { reservePdfUsage, reserveEmailUsage, setUserTier } from '@/lib/server/tiers';
@@ -33,7 +33,7 @@ describe('durable email admission in real D1', () => {
     }, dev: { unsafeRegisterWorker: false } }] });
     db = await mf.getD1Database('DB', 'email-contract');
     bindings = { DB: db, FILES: await mf.getR2Bucket('FILES', 'email-contract') };
-    for (const file of ['0001_initial.sql', '0004_email_jobs.sql', '0005_maintenance.sql']) {
+    for (const file of ['0001_initial.sql', '0004_email_jobs.sql', '0005_maintenance.sql', '0007_email_payload_reservations.sql']) {
       // Submit each complete statement, including each entire trigger body.
       let statement = '';
       for (const line of readFileSync(`prisma/d1-migrations/${file}`, 'utf8').split('\n')) {
@@ -50,6 +50,10 @@ describe('durable email admission in real D1', () => {
   afterAll(async () => { await mf?.dispose(); });
   beforeEach(async () => {
     await db.prepare('DELETE FROM EmailJob').run();
+    await db.prepare('DELETE FROM EmailPayloadReservation').run();
+    const files = bindings.FILES as any;
+    const objects = (await files.list({ prefix: 'mail-payload/' })).objects;
+    if (objects.length) await files.delete(objects.map((object: any) => object.key));
     await db.prepare('DELETE FROM EmailProviderWindow').run();
     await db.prepare('UPDATE User SET dailyEmailCount=0,lifetimeEmailCount=0').run();
   });
@@ -62,6 +66,139 @@ describe('durable email admission in real D1', () => {
     expect(await db.prepare('SELECT dailyEmailCount,lifetimeEmailCount FROM User WHERE id=?').bind('fixture').first())
       .toEqual({ dailyEmailCount: 1, lifetimeEmailCount: 1 });
     expect(await db.prepare('SELECT count(*) AS items FROM EmailItem').first()).toEqual({ items: 1 });
+    expect(await db.prepare('SELECT count(*) AS reservations FROM EmailPayloadReservation').first()).toEqual({ reservations: 1 });
+    expect((await (bindings.FILES as any).list({ prefix: 'mail-payload/' })).objects).toHaveLength(1);
+  });
+
+  it('reserves actual UTF-8 payload bytes before allowing competing uploads', async () => {
+    const files = bindings.FILES as any;
+    const body = { ...params, html: '証明書'.repeat(50) };
+    const bytes = Buffer.byteLength(JSON.stringify(body));
+    const capped = { ...policy, globalBytes: bytes, userBytes: bytes, queueBytes: bytes };
+    const before = (await files.list({ prefix: 'mail-payload/' })).objects.length;
+    const results = await Promise.allSettled(['capacity-a', 'capacity-b'].map(session =>
+      enqueueWorkerEmails('fixture', session, [body], true, capped)));
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.find(result => result.status === 'rejected')).toMatchObject({ reason: { statusCode: 429 } });
+    expect((await files.list({ prefix: 'mail-payload/' })).objects).toHaveLength(before + 1);
+  });
+
+  it.each(['globalBytes', 'userBytes', 'queueBytes'])('enforces %s on the full encoded attachment payload', async limit => {
+    const email = { ...params, attachments: [{ filename: 'cert.pdf', content: Buffer.from('certificate') }] };
+    const encoded = { ...params, attachments: [{ filename: 'cert.pdf', content: { base64: Buffer.from('certificate').toString('base64') } }] };
+    const bytes = Buffer.byteLength(JSON.stringify(encoded));
+    await expect(enqueueWorkerEmails('fixture', 'encoded', [email], true, { ...policy, [limit]: bytes - 1 }))
+      .rejects.toMatchObject({ statusCode: 429 });
+    const files = bindings.FILES as any;
+    expect((await files.list({ prefix: 'mail-payload/' })).objects).toHaveLength(0);
+    await enqueueWorkerEmails('fixture', 'encoded', [email], true, { ...policy, [limit]: bytes });
+    expect(await db.prepare('SELECT bytes,state FROM EmailPayloadReservation').first()).toEqual({ bytes, state: 'admitted' });
+    const stored = (await files.list({ prefix: 'mail-payload/' })).objects;
+    expect(stored.map((object: any) => object.size)).toEqual([bytes]);
+    expect(JSON.parse(await (await files.get(stored[0].key)).text())).toEqual(encoded);
+  });
+
+  it.each(['activePerUser', 'activeGlobal'])('enforces durable %s staging concurrency before writes', async limit => {
+    const files = bindings.FILES as any;
+    const capped = { ...policy, [limit]: 1 };
+    let checked = false;
+    bindings.FILES = { put: async (key: string, value: string, options: any) => {
+      if (!checked) {
+        checked = true;
+        await expect(enqueueWorkerEmails('fixture', 'competing-stage', [params], true, capped))
+          .rejects.toMatchObject({ statusCode: 429 });
+        expect((await files.list({ prefix: 'mail-payload/' })).objects).toHaveLength(0);
+      }
+      return files.put(key, value, options);
+    }, delete: files.delete.bind(files) };
+    try { await enqueueWorkerEmails('fixture', 'first-stage', [params], true, capped); }
+    finally { bindings.FILES = files; }
+    expect(checked).toBe(true);
+    expect((await files.list({ prefix: 'mail-payload/' })).objects).toHaveLength(1);
+  });
+
+  it.each([[false, false], [true, false], [true, true]])(
+    'keeps failed uploads charged through unknown outcomes (put committed=%s, delete committed=%s)', async (putCommitted, deleteCommitted) => {
+    const files = bindings.FILES as any;
+    const bytes = Buffer.byteLength(JSON.stringify(params));
+    const capped = { ...policy, globalBytes: bytes * 2 };
+    bindings.FILES = {
+      put: async (key: string, value: string, options: any) => {
+        if (value && key.endsWith('/1.json')) {
+          if (putCommitted) await files.put(key, value, options);
+          throw new Error('Injected second upload failure');
+        }
+        return files.put(key, value, options);
+      },
+      delete: async (keys: string[]) => {
+        if (deleteCommitted) await files.delete(keys);
+        throw new Error('Injected delete failure');
+      },
+    };
+    try {
+      await expect(enqueueWorkerEmails('fixture', 'partial', [params, params], true, capped)).rejects.toThrow('second upload failure');
+      expect(await db.prepare('SELECT bytes,state FROM EmailPayloadReservation').first()).toEqual({ bytes: bytes * 2, state: 'deleting' });
+      expect((await files.list({ prefix: 'mail-payload/' })).objects.map((object: any) => object.size).sort((a: number, b: number) => a - b))
+        .toEqual(deleteCommitted ? [] : [putCommitted ? bytes : 0, bytes]);
+      await expect(enqueueWorkerEmails('fixture', 'blocked', [params], true, capped)).rejects.toMatchObject({ statusCode: 429 });
+    } finally { bindings.FILES = files; }
+    await expireWorkerEmails();
+    expect((await files.list({ prefix: 'mail-payload/' })).objects).toHaveLength(0);
+    expect(await db.prepare('SELECT count(*) AS count FROM EmailPayloadReservation').first()).toEqual({ count: 0 });
+    await enqueueWorkerEmails('fixture', 'recovered', [params], true, capped);
+  });
+
+  it.each(['placeholder', 'payload', 'admission'])('fences a late %s after expiry without retaining payload bytes', async phase => {
+    const files = bindings.FILES as any;
+    let intercepted = false;
+    const expire = async () => {
+      intercepted = true;
+      await db.prepare(`UPDATE EmailPayloadReservation SET expiresAt=0`).run();
+      await expireWorkerEmails();
+    };
+    bindings.FILES = { put: async (key: string, value: string, options: any) => {
+      if (!intercepted && ((phase === 'placeholder' && !value) || (phase === 'payload' && value))) await expire();
+      return files.put(key, value, options);
+    }, delete: files.delete.bind(files) };
+    bindings.DB = { prepare: db.prepare.bind(db), batch: async (statements: any[]) => {
+      if (!intercepted && phase === 'admission') await expire();
+      return db.batch(statements);
+    } };
+    try {
+      await expect(enqueueWorkerEmails('fixture', 'late', [params], true, policy)).rejects.toMatchObject({ statusCode: 429 });
+      expect(intercepted).toBe(true);
+      expect(await db.prepare('SELECT count(*) AS count FROM EmailItem').first()).toEqual({ count: 0 });
+      expect(await db.prepare('SELECT count(*) AS count FROM EmailPayloadReservation').first()).toEqual({ count: 0 });
+      const objects = (await files.list({ prefix: 'mail-payload/' })).objects;
+      // A create already in flight can leave only an empty placeholder, never a payload.
+      expect(objects.every((object: any) => object.size === 0)).toBe(true);
+      if (phase !== 'placeholder') expect(objects).toHaveLength(0);
+    } finally { bindings.FILES = files; bindings.DB = db; }
+  });
+
+  it.each([false, true])('reconciles lost D1 acknowledgement with commit=%s', async committed => {
+    const files = bindings.FILES as any;
+    bindings.DB = { prepare: db.prepare.bind(db), batch: async (statements: any[]) => {
+      if (committed) await db.batch(statements);
+      throw new Error('Lost admission acknowledgement');
+    } };
+    try {
+      await expect(enqueueWorkerEmails('fixture', 'unknown', [params], true, policy)).rejects.toThrow('Lost admission');
+    } finally { bindings.DB = db; }
+    await db.prepare('UPDATE EmailPayloadReservation SET expiresAt=0').run();
+    await expireWorkerEmails();
+    const objects = (await files.list({ prefix: 'mail-payload/' })).objects;
+    expect(objects).toHaveLength(committed ? 1 : 0);
+    expect(await db.prepare('SELECT count(*) AS count FROM EmailPayloadReservation').first()).toEqual({ count: committed ? 1 : 0 });
+    if (committed) {
+      await enqueueWorkerEmails('fixture', 'unknown', [params], true, policy);
+      expect((await files.list({ prefix: 'mail-payload/' })).objects.map((object: any) => object.key)).toEqual(objects.map((object: any) => object.key));
+      expect(await db.prepare('SELECT dailyEmailCount FROM User').first()).toEqual({ dailyEmailCount: 1 });
+      await db.prepare('UPDATE EmailJob SET expiresAt=0').run();
+      await expireWorkerEmails();
+      expect((await files.list({ prefix: 'mail-payload/' })).objects).toHaveLength(0);
+      expect(await db.prepare('SELECT count(*) AS count FROM EmailPayloadReservation').first()).toEqual({ count: 0 });
+    }
   });
 
   it('rolls back every item and its quota when the last recipient exceeds the daily limit', async () => {
