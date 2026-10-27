@@ -27,6 +27,14 @@ export class SessionStorage {
       const original = localStorage.getItem(SESSION_KEY);
       if (original === null) return true;
       const archive = JSON.stringify({ [SESSION_KEY]: original });
+      // A rejected session may remain active when no saved project replaces it.
+      // Reuse verified bytes instead of consuming more storage on every reload.
+      for (let i = 0; i < localStorage.length; i++) {
+        const existingKey = localStorage.key(i);
+        if (existingKey?.startsWith(QUARANTINE_PREFIX) && localStorage.getItem(existingKey) === archive) {
+          return true;
+        }
+      }
       const key = `${QUARANTINE_PREFIX}${uuidv4()}`;
       localStorage.setItem(key, archive);
       return localStorage.getItem(key) === archive;

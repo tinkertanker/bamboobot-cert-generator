@@ -133,3 +133,24 @@ real route/database coverage supplies the persistence proof. No unrelated tests
 were deleted or consolidated. Actual total: six cycles, without a count reset.
 Fresh exact-head review and supported landing gates remain required; no deployment
 or shared-data mutation is authorised. Rows 12/15/19 remain mitigated.
+
+## Seventh-cycle recovery-copy correction
+
+After both sixth-cycle audits were clean, host review reproduced another storage
+regression: without a saved project, rejected active session bytes remain in place,
+so every reload created another permanent quarantine copy. The real startup hook
+regression fails on the second mount with two identical archives instead of one.
+
+Session archival now reuses an existing quarantine value only after reading and
+matching its complete bytes. The active original remains untouched; changed bytes
+still get a separate verified copy. This avoids a new deletion or cross-tab removal
+race, and an existing verified copy works when storage cannot grow. Enumeration,
+read, write and verification failures still fail closed and block session autosave.
+The startup regression exercises repeated mounts without any saved project, changed
+session bytes, quota exhaustion and enumeration failure. Previous saved-project and
+archive-failure contracts remain unchanged.
+
+The user explicitly approved as-needed further review cycles. The cumulative count
+is seven, not a reset; sixth-cycle reports remain immutable but no longer clear the
+new candidate. Fresh exact-head independent review and normal host gates still apply.
+No deployment, installation, shared-data write or unrelated test cleanup is included.

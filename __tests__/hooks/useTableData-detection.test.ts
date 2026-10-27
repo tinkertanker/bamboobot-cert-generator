@@ -10,6 +10,69 @@ import { QUARANTINE_PREFIX } from '@/lib/storage/account-scope';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
 describe('useTableData Auto-Detection', () => {
+  it('reuses a verified recovery copy across reloads without a saved project', async () => {
+    localStorage.clear();
+    const key = 'bamboobot_current_session_v1';
+    const original = '{"tableInput":"Recoverable Alice"';
+    localStorage.setItem(key, original);
+    const mount = () => renderHook(() => {
+      const table = useTableData();
+      const project = useProjectManagement({
+        setPositions: () => {}, setUploadedFileUrl: () => {}, setUploadedFile: () => {}, setEmailConfig: () => {},
+        loadSessionData: table.loadSessionData, uploadToServer: async () => undefined,
+        showToast: () => {}, manualSave: async () => ({ success: true }),
+        uploadedFileUrl: null, uploadedFile: null, positions: {}, emailConfig: {} as EmailConfig,
+        tableData: table.tableData, automaticTextColorResult: null,
+        clearFile: () => {}, clearPositions: () => {}, clearDragState: () => {}, clearData: table.clearData,
+      });
+      useSessionAutosave({ ...table,
+        enabled: project.hasManuallySaved && !project.sessionAutosaveBlocked && table.tableData.length > 0 });
+      return project;
+    });
+    const archives = () => Object.keys(localStorage).filter(name => name.startsWith(QUARANTINE_PREFIX))
+      .map(name => localStorage.getItem(name));
+    try {
+      for (let reload = 0; reload < 3; reload++) {
+        const { result, unmount } = mount();
+        try {
+          await act(async () => {});
+          expect(result.current.currentProjectId).toBeNull();
+          expect(result.current.sessionAutosaveBlocked).toBe(false);
+          expect(localStorage.getItem(key)).toBe(original);
+          expect(archives()).toEqual([JSON.stringify({ [key]: original })]);
+        } finally { unmount(); }
+      }
+      // A different rejected value must retain its own recovery copy.
+      const changed = '{"tableInput":"Recoverable Bob"';
+      localStorage.setItem(key, changed);
+      const changedMount = mount();
+      try { await act(async () => {}); } finally { changedMount.unmount(); }
+      expect(archives()).toEqual(expect.arrayContaining([
+        JSON.stringify({ [key]: original }), JSON.stringify({ [key]: changed }),
+      ]));
+      expect(archives()).toHaveLength(2);
+
+      // Existing verified bytes remain usable even when storage cannot grow.
+      jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('QuotaExceededError'); });
+      const fullMount = mount();
+      try {
+        await act(async () => {});
+        expect(fullMount.result.current.sessionAutosaveBlocked).toBe(false);
+        expect(localStorage.getItem(key)).toBe(changed);
+        expect(archives()).toHaveLength(2);
+      } finally { fullMount.unmount(); }
+
+      jest.spyOn(Storage.prototype, 'key').mockImplementation(() => { throw new Error('SecurityError'); });
+      const unreadableMount = mount();
+      try {
+        await act(async () => {});
+        expect(unreadableMount.result.current.sessionAutosaveBlocked).toBe(true);
+        expect(localStorage.getItem(key)).toBe(changed);
+        expect(archives()).toHaveLength(2);
+      } finally { unreadableMount.unmount(); }
+    } finally { jest.restoreAllMocks(); localStorage.clear(); }
+  });
+
   it.each(['parser', 'corrupt JSON', 'invalid shape', 'invalid timestamp'].flatMap(sessionKind =>
     ['success', 'write failure', 'verification failure'].map(archiveResult => [sessionKind, archiveResult])
   ))('preserves %s sessions and saved projects through autosave with archive %s', async (sessionKind, archiveResult) => {
