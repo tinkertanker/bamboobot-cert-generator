@@ -6,6 +6,7 @@ import type { UseFileUploadReturn } from "@/hooks/useFileUpload";
 import { ProjectStorage } from "@/lib/project-storage";
 import { SessionStorage } from "@/lib/session-storage";
 import { normalizeLegacyPrivateAssetReference } from "@/lib/storage-urls";
+import { projectInputError } from '@/utils/input-bounds';
 import {
   applyAutomaticTextColor,
   normalizeAutomaticTextColorProvenance
@@ -52,6 +53,7 @@ interface UseProjectManagementReturn {
   currentProjectName: string | null;
   currentProjectId: string | null;
   hasManuallySaved: boolean;
+  sessionAutosaveBlocked: boolean;
   showSaveProjectModal: boolean;
   showLoadProjectModal: boolean;
   showNewProjectModal: boolean;
@@ -143,11 +145,16 @@ export function useProjectManagement({
   const [currentProjectName, setCurrentProjectName] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [hasManuallySaved, setHasManuallySaved] = useState<boolean>(false);
+  const [sessionAutosaveBlocked, setSessionAutosaveBlocked] = useState(false);
   const [showSaveProjectModal, setShowSaveProjectModal] = useState<boolean>(false);
   const [showLoadProjectModal, setShowLoadProjectModal] = useState<boolean>(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
 
-  const loadProjectPositions = useCallback((project: SavedProject) => {
+  // Prepare every fallible transformation before accepting the project's table.
+  // A rejected load must leave the current project and its autosaves untouched.
+  const prepareProject = useCallback((project: SavedProject) => {
+    const error = projectInputError(project.positions, project.columns, project.tableData || []);
+    if (error) throw new Error(error);
     const normalizedPositions = normalizeAutomaticTextColorProvenance(
       project.positions,
       project.columns
@@ -161,12 +168,18 @@ export function useProjectManagement({
             cachedAutomaticTextColor.color
           )
         : normalizedPositions;
-    setPositions(adjustedPositions);
-    // The normal autosave persists migrated provenance. Avoid a write-on-load
-    // that could race with edits or change the project's modified timestamp.
-  }, [setPositions]);
+    return {
+      positions: adjustedPositions,
+      emailConfig: project.emailConfig ? withComputedIsConfigured(project.emailConfig) : null,
+      asset: project.certificateImage.url ? normalizeLegacyPrivateAssetReference(
+        project.certificateImage.url, project.certificateImage.filename,
+      ) : null,
+    };
+  }, []);
 
   const loadProjectTableData = useCallback(async (project: SavedProject) => {
+    const error = projectInputError(project.positions, project.columns, project.tableData || []);
+    if (error) throw new Error(error);
     if (project.tableData?.length) {
       const headers = project.columns;
       const rows = project.tableData.map(row => headers.map(col => row[col] || "").join("\t"));
@@ -174,6 +187,8 @@ export function useProjectManagement({
     } else if (project.columns.length > 0) {
       const headers = project.columns;
       await loadSessionData([headers.join("\t"), headers.map(() => "").join("\t")].join("\n"), false, true);
+    } else {
+      await loadSessionData('', false, true);
     }
   }, [loadSessionData]);
 
@@ -188,44 +203,56 @@ export function useProjectManagement({
         const session = SessionStorage.loadSession();
         if (session) {
           const sessionAge = SessionStorage.getSessionAge();
-          if (sessionAge && sessionAge < 24 * 60 * 60 * 1000) {
-            await loadSessionData(
-              session.tableInput,
-              session.useCSVMode,
-              session.isFirstRowHeader
-            );
-            restoredWorkingSession = true;
-
-            showToast({
-              message: "Session data restored",
-              type: "info",
-              duration: 2000
-            });
+          if (sessionAge !== null && sessionAge < 24 * 60 * 60 * 1000) {
+            try {
+              await loadSessionData(
+                session.tableInput,
+                session.useCSVMode,
+                session.isFirstRowHeader
+              );
+              restoredWorkingSession = true;
+              showToast({ message: "Session data restored", type: "info", duration: 2000 });
+            } catch {
+              // A saved-project fallback must not overwrite rejected working
+              // data. Keep session autosave paused if a verified copy fails.
+              const preserved = SessionStorage.archiveSession();
+              setSessionAutosaveBlocked(!preserved);
+              showToast({
+                message: preserved
+                  ? "Session data could not be restored; a recovery copy was preserved. Loading the saved project instead"
+                  : "Session data could not be preserved; session autosave is paused. Loading the saved project instead",
+                type: "error", duration: 10000
+              });
+            }
+          } else if (sessionAge === null) {
+            // Invalid timestamps cannot establish expiry; preserve the raw data.
+            setSessionAutosaveBlocked(!SessionStorage.archiveSession());
           } else {
             SessionStorage.clearSession();
           }
+        } else {
+          // Null also means corrupt JSON or an invalid shape, not just absence.
+          // archiveSession is a no-op for an absent key and fails closed on I/O.
+          setSessionAutosaveBlocked(!SessionStorage.archiveSession());
         }
 
         const project = await ProjectStorage.getMostRecentProject();
 
         if (project) {
+          const prepared = prepareProject(project);
           // A different browser/origin has no working-session copy. Restore
           // saved rows before enabling autosave, never persist an empty table
           // over the recovered project. Keep the newer local working session.
           if (!restoredWorkingSession) await loadProjectTableData(project);
-          loadProjectPositions(project);
+          setPositions(prepared.positions);
 
-          if (project.emailConfig) {
-            setEmailConfig(withComputedIsConfigured(project.emailConfig));
+          if (prepared.emailConfig) {
+            setEmailConfig(prepared.emailConfig);
           }
 
-          if (project.certificateImage.url) {
-            const asset = normalizeLegacyPrivateAssetReference(
-              project.certificateImage.url,
-              project.certificateImage.filename,
-            );
-            setUploadedFileUrl(asset.url);
-            setUploadedFile(asset.filename);
+          if (prepared.asset) {
+            setUploadedFileUrl(prepared.asset.url);
+            setUploadedFile(prepared.asset.filename);
           }
 
           showToast({
@@ -257,7 +284,8 @@ export function useProjectManagement({
     status,
     loadSessionData,
     setEmailConfig,
-    loadProjectPositions,
+    prepareProject,
+    setPositions,
     loadProjectTableData,
     setUploadedFile,
     setUploadedFileUrl,
@@ -267,28 +295,26 @@ export function useProjectManagement({
   // Project handlers
   const handleLoadProject = useCallback(
     async (project: SavedProject) => {
-      loadProjectPositions(project);
+      const prepared = prepareProject(project);
       await loadProjectTableData(project);
+      setPositions(prepared.positions);
 
-      if (project.emailConfig) {
-        setEmailConfig(withComputedIsConfigured(project.emailConfig));
+      if (prepared.emailConfig) {
+        setEmailConfig(prepared.emailConfig);
       }
       
       setCurrentProjectId(project.id);
       setCurrentProjectName(project.name);
       setHasManuallySaved(true);
 
-      if (project.certificateImage.url) {
-        const asset = normalizeLegacyPrivateAssetReference(
-          project.certificateImage.url,
-          project.certificateImage.filename,
-        );
-        setUploadedFileUrl(asset.url);
-        setUploadedFile(asset.filename);
+      if (prepared.asset) {
+        setUploadedFileUrl(prepared.asset.url);
+        setUploadedFile(prepared.asset.filename);
       }
     },
     [
-      loadProjectPositions,
+      prepareProject,
+      setPositions,
       setEmailConfig,
       setUploadedFileUrl,
       setUploadedFile,
@@ -445,6 +471,7 @@ export function useProjectManagement({
     currentProjectName,
     currentProjectId,
     hasManuallySaved,
+    sessionAutosaveBlocked,
     showSaveProjectModal,
     showLoadProjectModal,
     showNewProjectModal,

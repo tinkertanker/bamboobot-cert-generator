@@ -6,6 +6,12 @@ are implemented. The items below are still open.
 
 ## Top priority
 
+- [ ] CSV7 follow-ups ([per-row dispositions](docs/CSV7_FINDINGS.md))
+  - [x] Atomic project create/import quota across Node and D1, preserving partial-import confirmations (row 3)
+  - [x] Quarantine unknown-owner legacy browser data and block restoration on isolation failure (row 7)
+  - [ ] Ownership-verified recovery for quarantined legacy browser data, without arbitrary-account adoption
+  - [ ] Enforce PDF parser decoded-stream/object budgets; reported image-fallback and remote-URL entrances are closed (rows 12, 15)
+  - [ ] Durable pre-upload R2 staging reservations and reconciliation for ambiguous D1 outcomes (row 19)
 - [x] Approval-gated agent API with scoped keys, unattended jobs and individual/ZIP downloads (see docs/AGENT_CERTIFICATES.md)
 - [x] Agent batch discovery on the landing page, README and Agent access onboarding, with API examples and privacy/retention guidance
 - [ ] Complete post-launch verification of the [Cloudflare migration](docs/CLOUDFLARE_PRODUCTION.md)

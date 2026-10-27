@@ -5,6 +5,7 @@ import { getEmailProvider } from '@/lib/email/provider-factory';
 import { getTierLimits, type UserTier } from '@/types/user';
 import { EmailRequestError } from '@/lib/email/abuse-controls';
 import { isDefinitelyUnsentProviderError, isProviderBackpressureError, providerRetryAfterSeconds, publicProviderError } from '@/lib/email/provider-errors';
+import { detectUserTier } from '@/lib/server/tiers';
 
 const HOUR = 3600000;
 const LEASE_MS = 5 * 60 * 1000;
@@ -31,18 +32,26 @@ export async function enqueueWorkerEmails(ownerId: string, sessionId: string,
   const day = new Date(new Date(now).setUTCHours(0, 0, 0, 0)).toISOString().replace('Z', '+00:00');
   await db.prepare(`UPDATE User SET dailyEmailCount=0,dailyPdfCount=0,lastUsageReset=? WHERE id=? AND lastUsageReset<?`)
     .bind(new Date(now).toISOString().replace('Z', '+00:00'), ownerId, day).run();
-  const user = await db.prepare('SELECT tier,lastUsageReset FROM User WHERE id=?').bind(ownerId)
-    .first<{ tier: UserTier; lastUsageReset: string }>();
+  const user = await db.prepare('SELECT email,tier,tierSource,lastUsageReset FROM User WHERE id=?').bind(ownerId)
+    .first<{ email: string | null; tier: UserTier; tierSource: string; lastUsageReset: string }>();
   if (!user) throw new EmailRequestError('User not found', 401);
+  const effectiveTier = detectUserTier(user.email, user.tier, user.tierSource === 'manual' ? 'manual' : 'env');
   const provider = getEmailProvider();
   const token = randomUUID();
   const items = [];
-  for (let index = 0; index < emails.length; index++) {
-    const email = emails[index];
-    const payloadKey = `mail-payload/${token}/${index}.json`;
-    await files.put(payloadKey, bodies[index], { httpMetadata: { contentType: 'application/json' } });
-    items.push({ id: randomUUID(), payloadKey, recipients: JSON.stringify(email.to), recipientCount: email.to.length,
-      attachmentBytes: email.attachments?.reduce((n, a) => n + (typeof a.content === 'string' ? Buffer.byteLength(a.content) : a.content?.length || 0), 0) || 0 });
+  const payloadKeys = bodies.map((_, index) => `mail-payload/${token}/${index}.json`);
+  try {
+    for (let index = 0; index < emails.length; index++) {
+      const email = emails[index];
+      const payloadKey = payloadKeys[index];
+      await files.put(payloadKey, bodies[index], { httpMetadata: { contentType: 'application/json' } });
+      items.push({ id: randomUUID(), payloadKey, recipients: JSON.stringify(email.to), recipientCount: email.to.length,
+        attachmentBytes: email.attachments?.reduce((n, a) => n + (typeof a.content === 'string' ? Buffer.byteLength(a.content) : a.content?.length || 0), 0) || 0 });
+    }
+  } catch (error) {
+    // No database admission was attempted, so even an uncertain put is disposable.
+    if (payloadKeys.length) await files.delete(payloadKeys);
+    throw error;
   }
   try {
     // The trigger charges each inserted item in this native atomic batch. The
@@ -57,7 +66,7 @@ export async function enqueueWorkerEmails(ownerId: string, sessionId: string,
         SELECT json_extract(value,'$.id'), ?, ?, json_extract(value,'$.recipients'), json_extract(value,'$.recipientCount'),
           json_extract(value,'$.payloadKey'), json_extract(value,'$.attachmentBytes'), ?, ?, ?, ?
         FROM json_each(?) WHERE EXISTS(SELECT 1 FROM EmailSubmission WHERE id=? AND token=?)`)
-        .bind(id, submission, user.lastUsageReset, getTierLimits(user.tier).dailyEmailLimit, user.tier, now,
+        .bind(id, submission, user.lastUsageReset, getTierLimits(effectiveTier).dailyEmailLimit, user.tier, now,
           JSON.stringify(items), submission, token),
       db.prepare(`UPDATE EmailJob SET status=CASE WHEN status='paused' THEN 'paused' ELSE ? END,updatedAt=?,
         expiresAt=CASE WHEN status='paused' THEN ? ELSE ? END
@@ -68,9 +77,18 @@ export async function enqueueWorkerEmails(ownerId: string, sessionId: string,
     // Keep possible committed payloads after an unknown D1 response. An expiry
     // sweep removes unreferenced objects; never guess that a failed RPC rolled back.
     const message = String(error);
+    if (/EMAIL_(QUOTA_CHANGED|QUEUE_CANCELLED|QUEUE_CAPACITY|SESSION_LIMIT|ATTACHMENT_CAPACITY)/.test(message)) {
+      // These are explicit RAISE(ABORT) results from the atomic admission trigger.
+      if (payloadKeys.length) await files.delete(payloadKeys);
+    }
     if (message.includes('EMAIL_QUOTA_CHANGED')) throw new EmailRequestError('Email quota changed or limit reached', 403);
     if (message.includes('EMAIL_')) throw new EmailRequestError('Email queue or attachment capacity reached', 429);
     throw error;
+  }
+  const admitted = await db.prepare('SELECT token FROM EmailSubmission WHERE id=?').bind(submission).first<{ token: string }>();
+  if (admitted && admitted.token !== token && payloadKeys.length) {
+    // A concurrent identical submission won; only its payloads are referenced.
+    await files.delete(payloadKeys);
   }
   const status = await getWorkerEmailStatus(ownerId, sessionId);
   return { success: true, queueLength: status.total, status };

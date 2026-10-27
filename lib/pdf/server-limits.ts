@@ -4,6 +4,8 @@
  * template held in memory) or a single field long enough to make text layout
  * quadratic, letting one authenticated request exhaust the server.
  */
+import { layoutError } from '@/utils/input-bounds';
+
 export const MAX_SINGLE_REQUEST_PDF_ROWS = 1000;
 export const MAX_PROGRESSIVE_PDF_ROWS = 5000;
 export const MAX_PDF_FIELDS = 100;
@@ -36,6 +38,8 @@ export function validatePdfJobInput(data: unknown, positions: unknown, maxRows: 
   if (positionKeys.some(key => !isPlainObject(positions[key]))) {
     return 'Invalid text field position';
   }
+  const positionError = layoutError(positions);
+  if (positionError) return positionError;
   for (const entry of data) {
     if (!isPlainObject(entry)) return 'Each data row must be an object';
     for (const key of positionKeys) {

@@ -4,6 +4,7 @@
  */
 
 import { PDFDocument } from 'pdf-lib';
+import { detectUploadedImage } from '@/lib/security/uploaded-image';
 
 export class ImageToPdfConverter {
   /**
@@ -23,12 +24,14 @@ export class ImageToPdfConverter {
     try {
       // Read image as array buffer
       const imageBytes = await imageBlob.arrayBuffer();
+      const detected = detectUploadedImage(new Uint8Array(imageBytes));
+      if (!detected) throw new Error('Invalid or oversized image');
       
       // Create a new PDF document
       const pdfDoc = await PDFDocument.create();
       
       // Embed the image
-      const image = imageBlob.type === 'image/png' 
+      const image = detected.mimetype === 'image/png'
         ? await pdfDoc.embedPng(imageBytes)
         : await pdfDoc.embedJpg(imageBytes);
       

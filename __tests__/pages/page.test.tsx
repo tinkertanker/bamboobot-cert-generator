@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import MainPage from '../../pages/app';
+import { useSession } from 'next-auth/react';
 
 // Mock the fetch API
 global.fetch = jest.fn(() =>
@@ -65,6 +66,27 @@ describe('MainPage Component', () => {
     jest.clearAllMocks();
   });
 
+  it('does not mount storage-backed editor features when quarantine fails', () => {
+    localStorage.clear();
+    localStorage.setItem('bamboobot_current_session_v1', 'private recipient data');
+    (useSession as jest.Mock).mockReturnValue({ status: 'authenticated', data: { user: { id: 'new-user' } } });
+    const original = Storage.prototype.setItem;
+    const write = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (key.startsWith('bamboobot_quarantine_')) throw new Error('QuotaExceededError');
+      return original.call(this, key, value);
+    });
+    try {
+      render(<MainPage />);
+      expect(screen.getByRole('alert')).toHaveTextContent('Browser data could not be safely separated');
+      expect(screen.queryByRole('textbox', { name: 'Certificate data' })).not.toBeInTheDocument();
+      expect(localStorage.getItem('bamboobot_current_session_v1')).toBe('private recipient data');
+    } finally {
+      write.mockRestore();
+      (useSession as jest.Mock).mockReturnValue({ status: 'unauthenticated' });
+      localStorage.clear();
+    }
+  });
+
   it('renders the upload button when no file is uploaded', () => {
     render(<MainPage />);
     expect(screen.getByText(/Upload your certificate's background image here/i)).toBeInTheDocument();
@@ -74,8 +96,10 @@ describe('MainPage Component', () => {
   it('handles file upload', async () => {
     render(<MainPage />);
     
-    // Mock file upload
-    const file = new File(['dummy content'], 'test.jpg', { type: 'image/jpeg' });
+    // A real PNG: invalid image bytes must no longer use the old PDF fallback.
+    const bytes = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=', 'base64'));
+    const file = new File([bytes], 'test.png', { type: 'image/png' });
+    file.arrayBuffer = async () => bytes.buffer;
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     
     // Fire upload event

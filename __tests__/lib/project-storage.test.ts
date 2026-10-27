@@ -41,6 +41,18 @@ describe('ProjectStorage', () => {
   });
 
   describe('saveTemplate', () => {
+    it('rejects malformed layout and sparse table expansion before saving', async () => {
+      const columns = Array.from({ length: 100 }, (_, i) => `Field${i}`);
+      const result = await ProjectStorage.saveProject('Ragged', {}, columns, mockImageUrl, mockFilename, Array(1001).fill({}));
+      expect(result).toMatchObject({ success: false, error: expect.stringContaining('100,000 cells') });
+      const layout = await ProjectStorage.saveProject('Invalid', { name: { x: 0, y: 0, fontSize: '1e308' as unknown as number } },
+        mockColumns, mockImageUrl, mockFilename, mockTableData);
+      expect(layout).toMatchObject({ success: false, error: 'Invalid text field fontSize' });
+      const header = await ProjectStorage.saveProject('Long header', {}, ['x'.repeat(2001)], mockImageUrl, mockFilename, []);
+      expect(header).toMatchObject({ success: false, error: expect.stringContaining('2000 characters') });
+      expect(localStorage.length).toBe(0);
+    });
+
     it('should save a template successfully', async () => {
       const result = await ProjectStorage.saveProject(
         'Test Template',

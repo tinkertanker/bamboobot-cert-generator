@@ -73,6 +73,8 @@ function cleanupDirectory(dirPath: string, maxAge?: number, targetTypes?: string
   const items = fs.readdirSync(dirPath);
 
   for (const item of items) {
+    // Agent jobs have owner/expiry/lease-aware cleanup of their own.
+    if (item === 'agent_jobs') continue;
     const itemPath = path.join(dirPath, item);
     
     let stats: fs.Stats;

@@ -7,7 +7,7 @@ import { FileText, Trash2, Download, Upload, AlertCircle, Mail, Edit2 } from 'lu
 interface LoadProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoadProject: (project: SavedProject) => void;
+  onLoadProject: (project: SavedProject) => void | Promise<void>;
   /** Called with the deleted project's id, or null when all projects were deleted */
   onProjectDeleted?: (projectId: string | null) => void;
 }
@@ -60,7 +60,7 @@ export function LoadProjectModal({ isOpen, onClose, onLoadProject, onProjectDele
         project = ProjectStorage.loadProject(projectId);
       }
       if (project) {
-        onLoadProject(project);
+        await onLoadProject(project);
         handleClose();
       } else {
         setError('Failed to load project');

@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { isDeepStrictEqual } from 'node:util';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import prisma from '@/lib/server/prisma';
-import { getRemainingProjectAllowance } from '@/lib/server/tiers';
+import { createProjectWithinLimit } from '@/lib/server/project-admission';
 
 const MAX_PROJECT_NAME_LENGTH = 200;
 
@@ -61,23 +62,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (trimmedName.length > MAX_PROJECT_NAME_LENGTH) {
       return res.status(400).json({ error: 'Project name is too long' });
     }
+    if (typeof clientProjectId === 'string' && (!clientProjectId.trim() || clientProjectId.length > 200)) {
+      return res.status(400).json({ error: 'clientProjectId must contain 1 to 200 characters' });
+    }
 
     try {
-      const remaining = await getRemainingProjectAllowance(userId);
-      if (remaining !== null && remaining <= 0) {
+      const admitted = await createProjectWithinLimit(userId, {
+        name: trimmedName, data,
+        clientProjectId: typeof clientProjectId === 'string' ? clientProjectId : null,
+      });
+      if (!admitted) {
         res.status(403).json({ error: 'Project limit reached for your plan', code: 'LIMIT_REACHED' });
         return;
       }
-      const created = await prisma.project.create({
-        data: {
-          name: trimmedName,
-          data,
-          ownerId: userId,
-          clientProjectId: typeof clientProjectId === 'string' ? clientProjectId.slice(0, 200) : null,
-        },
-        select: { id: true, name: true, createdAt: true, updatedAt: true },
-      });
-      res.status(201).json({ project: created });
+      // Import keeps its historical key-only acknowledgement. POST may only
+      // acknowledge a replay if the requested name and JSON were persisted.
+      if (!admitted.created && (admitted.project.name !== trimmedName || !isDeepStrictEqual(admitted.project.data, data))) {
+        return res.status(409).json({ error: 'clientProjectId already belongs to a different project payload' });
+      }
+      const { id, name: projectName, createdAt, updatedAt } = admitted.project;
+      res.status(admitted.created ? 201 : 200).json({ project: { id, name: projectName, createdAt, updatedAt } });
       return;
     } catch (err) {
       const e = err as { code?: string } | null;

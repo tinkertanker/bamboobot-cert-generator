@@ -8,6 +8,7 @@ jest.mock('@/lib/session-storage', () => ({
   SessionStorage: {
     loadSession: jest.fn(() => null),
     getSessionAge: jest.fn(() => null),
+    archiveSession: jest.fn(() => true),
     clearSession: jest.fn(),
   },
 }));

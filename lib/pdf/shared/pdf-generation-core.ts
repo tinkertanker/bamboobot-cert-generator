@@ -5,6 +5,7 @@
 
 import { PDFDocument, PDFPage, PDFFont, rgb, StandardFonts } from 'pdf-lib';
 import { splitTextIntoLines, calculateShrinkToFitFontSize } from '@/utils/pdf-text-utils';
+import { assertTextFitBounds } from '@/utils/text-fitting';
 import type { FontFamily } from '@/types/certificate';
 
 const FONT_SIZE_MULTIPLIER = 1;
@@ -235,6 +236,7 @@ export function addTextToPage(
     const widthPercent = position.width || 90;
     const lineHeight = position.lineHeight || 1.2;
     const maxTextWidth = width * (widthPercent / 100);
+    assertTextFitBounds(maxTextWidth, fontSize, 8);
     const alignment = position.alignment || 'left';
     
     // Calculate the text box bounds based on position and width

@@ -112,10 +112,14 @@ export function useFileUpload(): UseFileUploadReturn {
       setUploadedFileUrl(imageBlobUrl);
     } catch (error) {
       console.error("Error converting image to PDF:", error);
-      // Fallback: just use the original file
-      const blobUrl = URL.createObjectURL(file);
-      setLocalBlobUrl(blobUrl);
-      setUploadedFileUrl(blobUrl);
+      // Rejected image bytes must never become a PDF template fallback.
+      setUploadedFile(null);
+      setPendingFile(null);
+      setLocalBlobUrl(null);
+      setUploadedFileUrl(null);
+      setUploadError(ERROR_MESSAGES.UPLOAD_FAILED);
+      if (previousImageBlobUrl) URL.revokeObjectURL(previousImageBlobUrl);
+      return;
     }
     // Revoke only once the preview has been pointed at the new image.
     if (previousImageBlobUrl) {

@@ -51,7 +51,7 @@ describe('POST /api/admin/users/update-tier', () => {
     prisma.user.findUnique.mockResolvedValue({ tier: 'free' });
     const res = await call({ userId: 'u2', tier: 'plus' });
     expect(res.statusCode).toBe(200);
-    expect(setUserTier).toHaveBeenCalledWith('admin-1', 'u2', 'plus');
+    expect(setUserTier).toHaveBeenCalledWith('admin-1', 'u2', 'plus', false);
   });
 
   it('lets a super admin grant admin access', async () => {

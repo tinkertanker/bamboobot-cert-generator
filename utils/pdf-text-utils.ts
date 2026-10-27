@@ -1,4 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
+import { assertTextFitBounds, ellipsise } from './text-fitting';
 
 type PDFFont = ReturnType<typeof PDFDocument.prototype.embedFont> extends Promise<infer T> ? T : never;
 
@@ -38,13 +39,7 @@ export function splitTextIntoLines(
   } else if (currentLine && lines.length === maxLines) {
     // Add ellipsis to last line if there's overflow
     const lastLine = lines[maxLines - 1];
-    let truncatedLine = lastLine;
-    while (font.widthOfTextAtSize(truncatedLine + '...', fontSize) > maxWidth && truncatedLine.length > 0) {
-      truncatedLine = truncatedLine.slice(0, -1).trim();
-    }
-    if (truncatedLine) {
-      lines[maxLines - 1] = truncatedLine + '...';
-    }
+    lines[maxLines - 1] = ellipsise(lastLine, maxWidth, text => font.widthOfTextAtSize(text, fontSize));
   }
   
   return lines;
@@ -61,6 +56,7 @@ export function calculateShrinkToFitFontSize(
   font: PDFFont,
   minFontSize: number = 8
 ): number {
+  assertTextFitBounds(maxWidth, baseFontSize, minFontSize);
   let fontSize = baseFontSize;
   let textWidth = font.widthOfTextAtSize(text, fontSize);
   
@@ -72,8 +68,8 @@ export function calculateShrinkToFitFontSize(
   let low = minFontSize;
   let high = baseFontSize;
   
-  while (high - low > 0.5) {
-    fontSize = (low + high) / 2;
+  for (let iteration = 0; iteration < 32 && high - low > 0.5; iteration++) {
+    fontSize = low + (high - low) / 2;
     textWidth = font.widthOfTextAtSize(text, fontSize);
     
     if (textWidth > maxWidth) {

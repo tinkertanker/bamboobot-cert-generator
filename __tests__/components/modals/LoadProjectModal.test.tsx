@@ -155,7 +155,16 @@ describe('LoadProjectModal', () => {
     
     expect(ProjectStorage.loadProject).toHaveBeenCalledWith('template-1');
     expect(defaultProps.onLoadProject).toHaveBeenCalledWith(mockSavedProject);
-    expect(defaultProps.onClose).toHaveBeenCalled();
+    await waitFor(() => expect(defaultProps.onClose).toHaveBeenCalled());
+  });
+
+  it('keeps the modal open and shows an error when restoring a project rejects', async () => {
+    const onLoadProject = async () => { throw new Error('Invalid layout'); };
+    render(<LoadProjectModal {...defaultProps} onLoadProject={onLoadProject} />);
+    fireEvent.click(await screen.findByText('Template 1'));
+    fireEvent.click(screen.getByRole('button', { name: 'Load Project' }));
+    expect(await screen.findByText('Failed to load project')).toBeInTheDocument();
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
   });
 
   it('deletes template after confirmation', async () => {

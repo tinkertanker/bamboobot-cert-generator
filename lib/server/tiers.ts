@@ -224,6 +224,22 @@ export interface EmailQuotaReservation {
   reservationDay?: Date;
 }
 
+/** One atomic admission for a server PDF batch, shared by both generation routes. */
+export async function reservePdfUsage(userId: string): Promise<boolean> {
+  await resetDailyUsageIfNeeded(userId);
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return false;
+  const tier = detectUserTier(user.email, user.tier as UserTier, user.tierSource === 'manual' ? 'manual' : 'env');
+  const limit = getTierLimits(tier).dailyPdfLimit;
+  const result = await prisma.user.updateMany({
+    where: { id: userId, tier: user.tier, tierSource: user.tierSource,
+      lastUsageReset: user.lastUsageReset,
+      ...(limit === null ? {} : { dailyPdfCount: { lt: limit } }) },
+    data: { dailyPdfCount: { increment: 1 }, lifetimePdfCount: { increment: 1 } },
+  });
+  return result.count === 1;
+}
+
 export async function checkEmailUsageAvailability(
   userId: string,
   recipientCount: number
@@ -234,10 +250,10 @@ export async function checkEmailUsageAvailability(
   await resetDailyUsageIfNeeded(userId);
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { tier: true, dailyEmailCount: true }
+    select: { email: true, tier: true, tierSource: true, dailyEmailCount: true }
   });
   if (!user) return { allowed: false, limit: 0, current: 0 };
-  const tier = user.tier as UserTier;
+  const tier = detectUserTier(user.email, user.tier as UserTier, user.tierSource === 'manual' ? 'manual' : 'env');
   const limit = getTierLimits(tier).dailyEmailLimit;
   return {
     allowed: limit === null || user.dailyEmailCount + recipientCount <= limit,
@@ -255,11 +271,11 @@ export async function reserveEmailUsage(userId: string, recipientCount: number):
   await resetDailyUsageIfNeeded(userId);
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { tier: true, dailyEmailCount: true, lastUsageReset: true }
+    select: { email: true, tier: true, tierSource: true, dailyEmailCount: true, lastUsageReset: true }
   });
   if (!user) return { allowed: false, limit: 0, current: 0 };
 
-  const tier = user.tier as UserTier;
+  const tier = detectUserTier(user.email, user.tier as UserTier, user.tierSource === 'manual' ? 'manual' : 'env');
   const limit = getTierLimits(tier).dailyEmailLimit;
   if (limit !== null && recipientCount > limit) {
     return { allowed: false, limit, current: user.dailyEmailCount, tier };
@@ -268,6 +284,8 @@ export async function reserveEmailUsage(userId: string, recipientCount: number):
   const reservation = await prisma.user.updateMany({
     where: {
       id: userId,
+      tier: user.tier,
+      tierSource: user.tierSource,
       // Tie the increment to the exact daily accounting epoch we read. If a
       // concurrent midnight reset wins, this reservation fails instead of
       // being charged to a day that its compensation cannot identify.
@@ -413,10 +431,11 @@ export async function getUserProjectCount(userId: string): Promise<number> {
 export async function getRemainingProjectAllowance(userId: string): Promise<number | null> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { tier: true }
+    select: { email: true, tier: true, tierSource: true }
   });
   if (!user) return 0;
-  const limit = getTierLimits(user.tier as UserTier).projectLimit;
+  const tier = detectUserTier(user.email, user.tier as UserTier, user.tierSource === 'manual' ? 'manual' : 'env');
+  const limit = getTierLimits(tier).projectLimit;
   if (limit === null) return null;
   const count = await getUserProjectCount(userId);
   return Math.max(0, limit - count);
@@ -425,15 +444,18 @@ export async function getRemainingProjectAllowance(userId: string): Promise<numb
 /**
  * Manually set user tier (admin action)
  */
-export async function setUserTier(actorId: string, targetUserId: string, newTier: UserTier): Promise<DbUser> {
+export async function setUserTier(actorId: string, targetUserId: string, newTier: UserTier, actorIsSuperAdmin = false): Promise<DbUser | null> {
+  if (!actorIsSuperAdmin && isAdminTier(newTier)) return null;
   const previous = await prisma.user.findUnique({
     where: { id: targetUserId },
     select: { tier: true }
   });
-  const updatedUser = await prisma.user.update({
-    where: { id: targetUserId },
+  const result = await prisma.user.updateMany({
+    where: { id: targetUserId, ...(actorIsSuperAdmin ? {} : { tier: { in: ['free', 'plus'] } }) },
     data: { tier: newTier, tierSource: 'manual' }
   });
+  if (result.count !== 1) return null;
+  const updatedUser = await prisma.user.findUnique({ where: { id: targetUserId } });
 
   // Log the audit action
   const previousRank = previous ? TIER_RANK[previous.tier as UserTier] ?? 0 : 0;

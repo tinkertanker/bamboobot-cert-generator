@@ -6,6 +6,9 @@ jest.mock('@/lib/server/tiers', () => ({ detectUserTier: jest.fn() }));
 import handler from '@/pages/api/dev-cleanup';
 import httpMocks from 'node-mocks-http';
 import type { Body, RequestMethod } from 'node-mocks-http';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 const { getServerSession } = require('next-auth');
 const { detectUserTier } = require('@/lib/server/tiers');
@@ -24,6 +27,26 @@ function run(method: RequestMethod = 'POST', body: Body = { target: 'temp' }) {
 }
 
 describe('dev-cleanup authentication', () => {
+  it('preserves protected agent jobs while deleting disposable generated files', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'csv7-cleanup-'));
+    const previous = process.env.LOCAL_STORAGE_DIR;
+    process.env.LOCAL_STORAGE_DIR = root;
+    setNodeEnv('development');
+    try {
+      fs.mkdirSync(path.join(root, 'generated/agent_jobs/other-owner'), { recursive: true });
+      fs.writeFileSync(path.join(root, 'generated/agent_jobs/other-owner/sample.pdf'), 'protected');
+      fs.writeFileSync(path.join(root, 'generated/disposable.pdf'), 'disposable');
+      const res = await run('POST', { target: 'generated' });
+      expect(res.statusCode).toBe(200);
+      expect(fs.readFileSync(path.join(root, 'generated/agent_jobs/other-owner/sample.pdf'), 'utf8')).toBe('protected');
+      expect(fs.existsSync(path.join(root, 'generated/disposable.pdf'))).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.LOCAL_STORAGE_DIR;
+      else process.env.LOCAL_STORAGE_DIR = previous;
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   beforeEach(() => {
     jest.resetAllMocks();
     delete process.env.REQUIRE_AUTH;
