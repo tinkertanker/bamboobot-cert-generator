@@ -117,7 +117,9 @@ export function useProjectManagement({
   clearDragState,
   clearData
 }: UseProjectManagementProps): UseProjectManagementReturn {
-  const { status } = useSession();
+  const { data: authenticatedSession, status } = useSession();
+  const archiveOwner = status === 'authenticated'
+    ? (authenticatedSession?.user as { id?: string } | undefined)?.id ?? '' : undefined;
   // Ensure the one-shot startup restore reads localStorage only once.
   const hasLoadedStartupRef = useRef(false);
   // Keep latest mutable references for frequently changing objects to avoid
@@ -215,25 +217,25 @@ export function useProjectManagement({
             } catch {
               // A saved-project fallback must not overwrite rejected working
               // data. Keep session autosave paused if a verified copy fails.
-              const preserved = SessionStorage.archiveSession();
+              const preserved = SessionStorage.archiveSession(archiveOwner);
               setSessionAutosaveBlocked(!preserved);
               showToast({
                 message: preserved
-                  ? "Session data could not be restored; a recovery copy was preserved. Loading the saved project instead"
+                  ? "Session data could not be restored; a recovery copy was preserved. Use Recover session data in the project menu. Loading the saved project instead"
                   : "Session data could not be preserved; session autosave is paused. Loading the saved project instead",
                 type: "error", duration: 10000
               });
             }
           } else if (sessionAge === null) {
             // Invalid timestamps cannot establish expiry; preserve the raw data.
-            setSessionAutosaveBlocked(!SessionStorage.archiveSession());
+            setSessionAutosaveBlocked(!SessionStorage.archiveSession(archiveOwner));
           } else {
             SessionStorage.clearSession();
           }
         } else {
           // Null also means corrupt JSON or an invalid shape, not just absence.
           // archiveSession is a no-op for an absent key and fails closed on I/O.
-          setSessionAutosaveBlocked(!SessionStorage.archiveSession());
+          setSessionAutosaveBlocked(!SessionStorage.archiveSession(archiveOwner));
         }
 
         const project = await ProjectStorage.getMostRecentProject();
@@ -282,6 +284,7 @@ export function useProjectManagement({
     loadStartupData();
   }, [
     status,
+    archiveOwner,
     loadSessionData,
     setEmailConfig,
     prepareProject,
