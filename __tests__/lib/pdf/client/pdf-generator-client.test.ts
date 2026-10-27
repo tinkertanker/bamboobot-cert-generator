@@ -197,6 +197,8 @@ describe('ClientPdfGenerator parser watchdog', () => {
     const stuck = client.generate(options);
     await jest.advanceTimersByTimeAsync(1);
     const downloading = client.generate({ ...options, templateUrl: '/slow.pdf' });
+    const progressive = client.generateProgressive({ ...options, templateUrl: '/slow.pdf', entries: [{ Name: { text: 'Ada' } }] });
+    const progressiveFailure = expect(progressive).rejects.toThrow('PDF worker is not available');
     await jest.advanceTimersByTimeAsync(12000);
     const failed = await stuck;
     expect(failed.success).toBe(false);
@@ -205,6 +207,8 @@ describe('ClientPdfGenerator parser watchdog', () => {
 
     finishDownload();
     expect(await downloading).toMatchObject({ success: false, error: new Error('PDF worker is not available') });
+    await progressiveFailure;
+    await expect(client.resumeProgressive()).rejects.toThrow('PDF worker is not available');
     // A failed request must not leave a watchdog that throws after it settles.
     await jest.advanceTimersByTimeAsync(12001);
 
@@ -213,6 +217,16 @@ describe('ClientPdfGenerator parser watchdog', () => {
     expect(await retry).toMatchObject({ success: true, data: new Uint8Array([37, 80, 68, 70]) });
     expect(workers).toHaveLength(2);
     expect(workers[1].terminated).toBe(false);
+  });
+
+  it('rejects font preloading if the worker fails while initialization resumes', async () => {
+    const client = ClientPdfGenerator.getInstance();
+    const initialized = client.initialize();
+    await jest.advanceTimersByTimeAsync(1);
+    await initialized;
+    const preload = client.preloadFonts([]);
+    workers[0].dispatchEvent(new ErrorEvent('error', { message: 'Worker stopped' }));
+    await expect(preload).rejects.toThrow('PDF worker is not available');
   });
 
   it('rejects an oversized body even without a Content-Length header', async () => {

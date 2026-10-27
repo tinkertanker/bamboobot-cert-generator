@@ -365,13 +365,15 @@ export class ClientPdfGenerator {
    */
   async preloadFonts(fonts: Array<{ family: string; bold?: boolean; italic?: boolean }>) {
     await this.initialize();
+    const worker = this.worker;
+    if (!worker) throw new Error('PDF worker is not available');
     
     const requestId = `preload-${Date.now()}`;
     const resultPromise = new Promise<void>((resolve, reject) => {
       this.pendingRequests.set(requestId, { resolve, reject });
     });
 
-    this.worker!.postMessage({
+    worker.postMessage({
       type: 'preloadFonts',
       id: requestId,
       payload: { fonts }
@@ -421,7 +423,9 @@ export class ClientPdfGenerator {
     );
     
     // Start processing
-    await this.queueManager.startProcessing(this.worker!);
+    const worker = this.worker;
+    if (!worker) throw new Error('PDF worker is not available');
+    await this.queueManager.startProcessing(worker);
     
     return {
       sessionId,
@@ -456,7 +460,9 @@ export class ClientPdfGenerator {
     if (!this.queueManager) {
       throw new Error('No active progressive generation');
     }
-    await this.queueManager.resume(this.worker!);
+    const worker = this.worker;
+    if (!worker) throw new Error('PDF worker is not available');
+    await this.queueManager.resume(worker);
   }
 
   /**
