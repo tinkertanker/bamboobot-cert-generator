@@ -9,7 +9,7 @@ shared owner are fixed together; distinct source IDs remain below.
 | --- | --- | --- |
 | 1 | f5b5863a-be88-4bdf-ad42-1b71f70c481b | Fixed. Generic Node cleanup skips `agent_jobs`; disposable-files regression preserves another owner's sample. Workers agent keys are outside the generic generated prefix. |
 | 2 | deba0591-f390-4335-9c75-f7cec127b911 | Fixed with 11. Progressive POST reserves one daily batch before creating work, on both runtimes. Reads and controls are not charged. As with ordinary generation, admission attempts remain charged on later failure. |
-| 3 | b5ee015f-2648-425a-8cc3-955857c3b4d8 | Fixed after independent review challenged deferral. Create/import share a conditional INSERT that checks current capacity, tier snapshot and replay identity atomically on SQLite and D1. Imports retain the upfront batch check and acknowledge only verified persisted IDs after partial admission. A real Node route admitted three of eight against limit one before the fix; the D1 regression now admits exactly one across both routes. |
+| 3 | b5ee015f-2648-425a-8cc3-955857c3b4d8 | Fixed after review corrections. Create/import share conditional SQLite/D1 capacity admission. Import confirmation now compares complete JSON payloads at both the previous-record precheck and concurrent-loser path; conflicting same-ID batches reject before writes. Equivalent copies count once, and partial retries still confirm saved payloads, including generated display-name suffixes. Cycle five's false import acknowledgement and browser-copy deletion remain documented in its immutable NON-CLEAN checkpoint. |
 | 4 | 960588b7-3883-4b24-b9a3-f9f6f80d9dde | Fixed. Project save/import and load reject malformed numeric layouts; preview fitting rejects nonfinite/unsupported bounds and caps search iterations. |
 | 5 | 83d89c53-c116-4e60-9e5c-24875f4ecdbe | Fixed. Node and D1 email admission resolve effective environment/manual tiers on every admission. Real D1 regression denies a revoked environment admin and leaves its count unchanged. No automatic tier rewrite is needed for this authorisation decision. |
 | 6 | 75340ec8-944f-4d63-920c-2a317ee5f777 | Fixed with 14. Shared ellipsis search measures logarithmically many prefixes. The original 2,000-character example processes 2,010,963 glyphs; regression requires the same output under a 100,000-glyph budget. |
@@ -107,3 +107,29 @@ combined hooks/localStorage/autosave and native SQLite/D1 routes. The total rema
 five cycles, not a reset. Fresh exact-head independent review and supported normal
 landing gates are still required; no policy override, deployment or shared-data
 write is part of these fixes. Rows 12/15/19 retain their mitigated classifications.
+
+## Sixth-cycle import correction
+
+The second fifth-cycle audit found a remaining Required defect: import acknowledged
+a different payload with the same client ID after losing atomic admission, allowing
+browser migration to delete its unsaved copy. Exact-base concurrency/batch controls
+persisted both payloads; the new loser-discard path was a regression, while the
+sequential key-only precheck was historical. Both fifth-cycle receipts and red
+evidence remain immutable. The user explicitly authorised this sixth cycle.
+
+Import now returns 409 without acknowledging the conflicting ID at both paths.
+Within a batch, conflicting duplicate IDs reject before any write, and equivalent
+duplicates count once against remaining capacity. Comparison uses JSON-normalised
+payloads, not generated display names: object key order is irrelevant, but changed
+values, types, names or array order conflict. Previously saved partial imports and
+duplicate-name suffixes remain replayable. Non-success responses preserve browser
+copies through the existing migration hook; no deletion or quota policy is relaxed.
+
+Native SQLite/D1 route and real migration-hook regressions failed before this fix.
+The old D1 test incorrectly accepted six different payloads under one ID; it now
+tests identical replay separately from conflicting imports and asserts durable
+winner content. The mock-only precheck fixture now supplies stored payload data;
+real route/database coverage supplies the persistence proof. No unrelated tests
+were deleted or consolidated. Actual total: six cycles, without a count reset.
+Fresh exact-head review and supported landing gates remain required; no deployment
+or shared-data mutation is authorised. Rows 12/15/19 remain mitigated.

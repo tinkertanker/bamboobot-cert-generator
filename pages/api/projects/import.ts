@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { isDeepStrictEqual } from 'node:util';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import prisma from '@/lib/server/prisma';
 import type { Prisma } from '@prisma/client';
@@ -47,17 +48,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return { name, data, clientProjectId };
     });
 
-    // Projects imported by an earlier attempt are confirmed without being
-    // created again, so a retry after a partial failure makes no duplicates.
+    // An ID-only acknowledgement cannot distinguish conflicting copies within
+    // one batch. Reject those before writing; count equivalent copies only once.
+    const uniqueInputs: typeof inputs = [];
+    const byId = new Map<string, Prisma.InputJsonValue>();
+    for (const input of inputs) {
+      if (input.clientProjectId !== null) {
+        if (byId.has(input.clientProjectId)) {
+          if (!isDeepStrictEqual(byId.get(input.clientProjectId), input.data)) {
+            res.status(409).json({ error: 'Project ID already refers to different content', code: 'PROJECT_CONFLICT', importedIds: [] });
+            return;
+          }
+          continue;
+        }
+        byId.set(input.clientProjectId, input.data);
+      }
+      uniqueInputs.push(input);
+    }
+
+    // Confirm a previous attempt only when its complete payload was saved.
+    // Compare data, not the display name, which may have an import suffix.
     const importedIds: string[] = [];
     const toCreate: typeof inputs = [];
-    for (const input of inputs) {
+    for (const input of uniqueInputs) {
       if (input.clientProjectId) {
         const existing = await prisma.project.findFirst({
           where: { ownerId: userId, clientProjectId: input.clientProjectId },
-          select: { id: true },
+          select: { data: true },
         });
         if (existing) {
+          if (!isDeepStrictEqual(existing.data, input.data)) {
+            res.status(409).json({ error: 'Project ID already refers to different content', code: 'PROJECT_CONFLICT', importedIds });
+            return;
+          }
           importedIds.push(input.clientProjectId);
           continue;
         }
@@ -91,6 +114,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Capacity changed after the batch precheck. Acknowledge only durable
         // copies; unconfirmed browser projects remain available for retry.
         res.status(403).json({ error: 'Project limit reached for your plan', code: 'LIMIT_REACHED', imported, importedIds });
+        return;
+      }
+      // A concurrent import may have won after the precheck with other content.
+      // Never confirm that loser's ID: migration deletes confirmed browser copies.
+      if (!admitted.created && !isDeepStrictEqual(admitted.project.data, input.data)) {
+        res.status(409).json({ error: 'Project ID already refers to different content', code: 'PROJECT_CONFLICT', imported, importedIds });
         return;
       }
       if (admitted.created) imported++;

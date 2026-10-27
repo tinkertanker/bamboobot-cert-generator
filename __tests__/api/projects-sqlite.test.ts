@@ -93,6 +93,71 @@ describe('project ordering in native SQLite', () => {
     } finally { await prisma.project.deleteMany(); }
   });
 
+  it('confirms import content, not just its ID, across batches, retries and concurrent requests', async () => {
+    const importProjects = require('@/pages/api/projects/import').default;
+    const alice = { id: 'import-replay', name: 'Alice', tableData: [{ Name: 'Alice' }], options: { size: 12, tags: ['a', 'b'] } };
+    const post = async (inputs: object[]) => {
+      const res = httpMocks.createResponse();
+      await importProjects(httpMocks.createRequest({ method: 'POST', body: { projects: inputs } }), res);
+      return res;
+    };
+    try {
+      // A duplicate ID cannot ambiguously confirm two different browser copies.
+      const batch = await post([alice, { ...alice, name: 'Bob' }]);
+      expect(batch.statusCode).toBe(409);
+      expect(batch._getJSONData().importedIds).toEqual([]);
+      expect(await prisma.project.count()).toBe(0);
+
+      expect((await post([alice, alice]))._getJSONData()).toEqual({ imported: 1, importedIds: [alice.id] });
+      const equivalent = { options: { tags: ['a', 'b'], size: 12 }, tableData: [{ Name: 'Alice' }], name: 'Alice', id: alice.id };
+      expect((await post([equivalent]))._getJSONData()).toEqual({ imported: 0, importedIds: [alice.id] });
+      for (const changed of [
+        { ...alice, name: 'Bob' },
+        { ...alice, tableData: [{ Name: 'Bob' }] },
+        { ...alice, options: { size: '12', tags: ['a', 'b'] } },
+        { ...alice, options: { size: 12, tags: ['b', 'a'] } },
+      ]) {
+        const conflict = await post([changed]);
+        expect(conflict.statusCode).toBe(409);
+        expect(conflict._getJSONData().importedIds).not.toContain(alice.id);
+      }
+      expect(await prisma.project.findMany({ select: { data: true } })).toEqual([{ data: alice }]);
+
+      // Retrying after a partially persisted request confirms its existing copy
+      // and admits only the missing one, even when its display name needs a suffix.
+      const second = { ...alice, id: 'second-import' };
+      expect((await post([alice, second]))._getJSONData()).toEqual({ imported: 1, importedIds: [alice.id, second.id] });
+      expect((await post([second]))._getJSONData()).toEqual({ imported: 0, importedIds: [second.id] });
+      expect(await prisma.project.count()).toBe(2);
+
+      await prisma.project.deleteMany();
+      const inputs = [alice, { ...alice, name: 'Bob', tableData: [{ Name: 'Bob' }] }];
+      const replies = await Promise.all(inputs.map(input => post([input])));
+      expect(replies.map((res: { statusCode: number }) => res.statusCode).sort()).toEqual([200, 409]);
+      const winner = replies.findIndex((res: { statusCode: number }) => res.statusCode === 200);
+      expect(replies[1 - winner]._getJSONData().importedIds).not.toContain(alice.id);
+      expect(await prisma.project.findMany({ select: { data: true } })).toEqual([{ data: inputs[winner] }]);
+    } finally { await prisma.project.deleteMany(); }
+  });
+
+  it('counts equivalent batch IDs once against the remaining import capacity', async () => {
+    const importProjects = require('@/pages/api/projects/import').default;
+    await prisma.user.update({ where: { id: 'fixture' }, data: { tier: 'free' } });
+    try {
+      const input = { id: 'one-slot', name: 'Alice', tableData: [{ Name: 'Alice' }] };
+      for (const imported of [1, 0]) {
+        const res = httpMocks.createResponse();
+        await importProjects(httpMocks.createRequest({ method: 'POST', body: { projects: [input, input] } }), res);
+        expect(res.statusCode).toBe(200);
+        expect(res._getJSONData()).toEqual({ imported, importedIds: [input.id] });
+      }
+      expect(await prisma.project.count()).toBe(1);
+    } finally {
+      await prisma.project.deleteMany();
+      await prisma.user.update({ where: { id: 'fixture' }, data: { tier: 'plus' } });
+    }
+  });
+
   it('lists the most recently edited project first across legacy and atomic creates', async () => {
     const legacy = await prisma.project.create({ data: { ownerId: 'fixture', name: 'Legacy', data: {},
       createdAt: new Date('2025-01-01'), updatedAt: new Date('2025-01-01') } });

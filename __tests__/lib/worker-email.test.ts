@@ -205,8 +205,8 @@ describe('durable email admission in real D1', () => {
 
   it('deduplicates concurrent import identities and preserves duplicate-name recovery', async () => {
     try {
-      const results: number[] = await Promise.all(Array.from({ length: 6 }, async (_, index) => {
-        const req = httpMocks.createRequest({ method: 'POST', body: { projects: [{ id: 'same-local', name: `Name ${index}` }] } });
+      const results: number[] = await Promise.all(Array.from({ length: 6 }, async () => {
+        const req = httpMocks.createRequest({ method: 'POST', body: { projects: [{ id: 'same-local', name: 'Same content' }] } });
         const res = httpMocks.createResponse();
         await importProjects(req, res);
         expect(res.statusCode).toBe(200);
@@ -222,6 +222,49 @@ describe('durable email admission in real D1', () => {
       expect(res._getJSONData()).toEqual({ imported: 1, importedIds: ['different-local'] });
       expect(await db.prepare('SELECT count(*) AS count FROM Project').first()).toEqual({ count: 2 });
     } finally { await db.prepare('DELETE FROM Project').run(); }
+  });
+
+  it('never confirms discarded D1 import content in a concurrent race, replay or batch', async () => {
+    const alice = { id: 'same-import', name: 'Alice', tableData: [{ Name: 'Alice' }], options: { size: 12, tags: ['a', 'b'] } };
+    const bob = { ...alice, name: 'Bob', tableData: [{ Name: 'Bob' }] };
+    const post = async (inputs: object[]) => {
+      const res = httpMocks.createResponse();
+      await importProjects(httpMocks.createRequest({ method: 'POST', body: { projects: inputs } }), res);
+      return res;
+    };
+    try {
+      const inputs = [alice, bob];
+      const replies = await Promise.all(inputs.map(input => post([input])));
+      expect(replies.map((res: { statusCode: number }) => res.statusCode).sort()).toEqual([200, 409]);
+      const winner = replies.findIndex((res: { statusCode: number }) => res.statusCode === 200);
+      expect(replies[1 - winner]._getJSONData().importedIds).not.toContain(alice.id);
+      expect(await prisma.project.findMany({ select: { data: true } })).toEqual([{ data: inputs[winner] }]);
+      const conflict = await post([inputs[1 - winner]]);
+      expect(conflict.statusCode).toBe(409);
+      expect(conflict._getJSONData().importedIds).not.toContain(alice.id);
+      expect((await post([inputs[winner]]))._getJSONData()).toEqual({ imported: 0, importedIds: [alice.id] });
+
+      await db.prepare('DELETE FROM Project').run();
+      const batch = await post([alice, bob]);
+      expect(batch.statusCode).toBe(409);
+      expect(batch._getJSONData().importedIds).toEqual([]);
+      expect(await prisma.project.count()).toBe(0);
+      await db.prepare(`UPDATE User SET tier='free'`).run();
+      const equivalent = { options: { tags: ['a', 'b'], size: 12 }, tableData: [{ Name: 'Alice' }], name: 'Alice', id: alice.id };
+      expect((await post([alice, equivalent]))._getJSONData()).toEqual({ imported: 1, importedIds: [alice.id] });
+      expect((await post([equivalent]))._getJSONData()).toEqual({ imported: 0, importedIds: [alice.id] });
+      expect(await prisma.project.count()).toBe(1);
+
+      // A previous partial write and generated name suffix must remain replayable.
+      await db.prepare(`UPDATE User SET tier='plus'`).run();
+      const second = { ...alice, id: 'another-import' };
+      expect((await post([alice, second]))._getJSONData()).toEqual({ imported: 1, importedIds: [alice.id, second.id] });
+      expect((await post([second]))._getJSONData()).toEqual({ imported: 0, importedIds: [second.id] });
+      expect(await prisma.project.count()).toBe(2);
+    } finally {
+      await db.prepare('DELETE FROM Project').run();
+      await db.prepare(`UPDATE User SET tier='plus'`).run();
+    }
   });
 
   it('revokes stale environment email grants in both admission implementations', async () => {

@@ -175,7 +175,7 @@ describe('projects API', () => {
     it('confirms projects an earlier import already saved without creating them again', async () => {
       getRemainingProjectAllowance.mockResolvedValue(1);
       prisma.project.findFirst.mockImplementation(async ({ where }: any) =>
-        where.clientProjectId === 'local-1' ? { id: 'srv-1' } : null
+        where.clientProjectId === 'local-1' ? { data: { id: 'local-1', name: 'Old' } } : null
       );
       createProjectWithinLimit.mockResolvedValue({ project: { id: 'srv-2' }, created: true });
       const req = httpMocks.createRequest({
