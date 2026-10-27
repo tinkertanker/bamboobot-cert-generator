@@ -244,6 +244,10 @@ export class ClientPdfGenerator {
       // Load template
       const templateData = await this.loadTemplate(options.templateUrl);
 
+      // Another request may have terminated the worker during the download.
+      const worker = this.worker;
+      if (!worker) throw new Error('PDF worker is not available');
+
       // Generate request ID
       const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -275,13 +279,14 @@ export class ClientPdfGenerator {
         } as GeneratePayload
       };
 
-      const stopWatching = watchPdfParsing(this.worker!, requestId);
+      let stopWatching: (() => void) | undefined;
       let result;
       try {
-        this.worker!.postMessage(request, [templateData]);
+        stopWatching = watchPdfParsing(worker, requestId);
+        worker.postMessage(request, [templateData]);
         result = await resultPromise;
       } finally {
-        stopWatching();
+        stopWatching?.();
         this.pendingRequests.delete(requestId);
       }
 

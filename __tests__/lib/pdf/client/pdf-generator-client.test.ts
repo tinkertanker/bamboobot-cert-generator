@@ -187,12 +187,26 @@ describe('ClientPdfGenerator parser watchdog', () => {
   it('terminates a stuck parser, settles the caller, and gives the next request a healthy worker', async () => {
     const client = ClientPdfGenerator.getInstance();
     const options = { templateUrl: '/template.pdf', entries: [], positions: {}, uiContainerDimensions: { width: 600, height: 400 } };
+    const fetchTemplate = global.fetch;
+    let finishDownload!: () => void;
+    const download = new Promise<void>(resolve => { finishDownload = resolve; });
+    global.fetch = jest.fn(async (input, init) => {
+      if (input === '/slow.pdf') await download;
+      return fetchTemplate(input, init);
+    });
     const stuck = client.generate(options);
-    await jest.advanceTimersByTimeAsync(12001);
+    await jest.advanceTimersByTimeAsync(1);
+    const downloading = client.generate({ ...options, templateUrl: '/slow.pdf' });
+    await jest.advanceTimersByTimeAsync(12000);
     const failed = await stuck;
     expect(failed.success).toBe(false);
     expect(failed.error?.message).toContain('PDF template parsing timed out');
     expect(workers[0].terminated).toBe(true);
+
+    finishDownload();
+    expect(await downloading).toMatchObject({ success: false, error: new Error('PDF worker is not available') });
+    // A failed request must not leave a watchdog that throws after it settles.
+    await jest.advanceTimersByTimeAsync(12001);
 
     const retry = client.generate(options);
     await jest.advanceTimersByTimeAsync(15001);
