@@ -5,6 +5,8 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
+COPY scripts/patch-pdf-lib.cjs ./scripts/patch-pdf-lib.cjs
+COPY lib/pdf/parser-budget.cjs ./lib/pdf/parser-budget.cjs
 RUN npm ci
 COPY . .
 # Ensure Prisma Client is generated after the schema is available

@@ -18,10 +18,10 @@ shared owner are fixed together; distinct source IDs remain below.
 | 9 | 6bc425f1-a835-41e7-821a-00610ecca7ab | Fixed for the reported missing browser guard. Browser conversion now uses the same pixel and PNG-structure checks as server/agent uploads, including URL-fetched image fallbacks. This is not a general decoder CPU/memory sandbox. |
 | 10 | 5ecd51e3-890c-48a1-9a72-95317b4cef80 | Fixed with 8 in shared PDF layout and the rebuilt browser worker; imported invalid sizes are rejected before preview/generation. |
 | 11 | 5a7603fa-5d3a-4b55-945a-5d637a154bc2 | Fixed with 2. Conditional `updateMany` ties quota, stored tier/source and accounting epoch to one increment. Real D1 admits exactly one of eight requests for the last free-tier batch. |
-| 12 | 512dbb47-cabe-49a9-a200-522e7b95e710 | Mitigated at the reported entry. Failed image conversion no longer forwards original bytes as a PDF. The dependency's unbounded cross-reference parser itself is not patched; general parser budgets remain deferred. |
+| 12 | 512dbb47-cabe-49a9-a200-522e7b95e710 | Fixed for parser allocation amplification in the PDF-budget follow-up below. The original image-conversion entry guard remains; xref widths/counts now require bounded, available stream bytes before entry allocation. |
 | 13 | 1a192ade-6a60-4b7b-9130-55501903599b | Fixed. Ordinary-admin mutation includes a database target-tier predicate and returns conflict if the target is no longer free/plus. A promoted target is preserved in real D1. |
 | 14 | 17b7e6e0-588a-4ccc-b411-857ef6ddf3e1 | Fixed with 6. Preview uses the shared bounded ellipsis search; project/table field-length bounds also apply before preview. |
-| 15 | 0cfc2c31-ec5a-4ec0-b4b9-638464784420 | Mitigated at the reported entry. Browser URL resolution rejects protocol-relative and backslash-based cross-origin template URLs. General PDF stream/object-count budgets are not implemented; same-origin/blobs remain trusted template sources. |
+| 15 | 0cfc2c31-ec5a-4ec0-b4b9-638464784420 | Fixed for decoded-stream/object amplification in the PDF-budget follow-up below. Same-origin/blob bytes now receive the same parser budgets as server templates; the original remote-URL guard remains. This is not a process-wide memory sandbox. |
 | 16 | b7a4a35f-84fa-4262-8794-5776eece755d | Fixed with 21. Table parsing checks aggregate cells before rectangular object allocation and shows a recoverable error while preserving the last accepted table, input and saved project. Limits: 5,000 rows, 100 columns, 100,000 cells, 1,000,000 characters, 2,000 characters per field. |
 | 17 | ab3627bd-fdaa-455d-abab-122ddc4c00a7 | Fixed for the reported metadata loop. The shared PNG guard validates chunk boundaries and every terminator searched by UPNG's tEXt/iTXt paths before embedding. |
 | 18 | 55010161-1fde-4ab0-b75a-9d50407d46b7 | Fixed. Reject acTL/fcTL/fdAT before PNG frame expansion, including browser uploads. |
@@ -39,7 +39,7 @@ complete input and exactly the declared scanline size (including Adam7), and cap
 scanlines at 256MiB. Pixel/frame/metadata guards still apply. This is bounded
 validation, not a general decoder/process sandbox.
 
-Rows **12, 15 and 19 remain mitigated**, not fully fixed. A malicious PDF that
+At the PR82 checkpoint, rows **12, 15 and 19 remained mitigated**. A malicious PDF that
 reaches a same-origin/blob template source can still exercise unbounded xref or
 decoded-object parsing; no remaining normal-image-upload entrance was demonstrated.
 The final review cycle also closes rejected-session/project restoration paths:
@@ -55,8 +55,8 @@ the existing UUID library's getRandomValues fallback on non-secure HTTP contexts
 R2 staging remains outside durable byte accounting until admission: crashes,
 ambiguous database outcomes or failed cleanup can retain objects until the existing
 24-hour, paginated sweep. No attacker-triggerable platform failure was demonstrated.
-PDF parser budgets, ownership-verified quarantine recovery and durable staged-byte
-accounting remain explicit follow-ups in `TODO.md`.
+The PDF-budget follow-up below supersedes that parser disposition. Ownership-verified
+quarantine recovery and durable staged-byte accounting remain separate follow-ups.
 
 ## Fourth-cycle corrections
 
@@ -154,3 +154,42 @@ The user explicitly approved as-needed further review cycles. The cumulative cou
 is seven, not a reset; sixth-cycle reports remain immutable but no longer clear the
 new candidate. Fresh exact-head independent review and normal host gates still apply.
 No deployment, installation, shared-data write or unrelated test cleanup is included.
+
+## PDF-budget follow-up (rows 12 and 15)
+
+New synthetic adversarial contracts, not reconstructed scanner fixtures, reproduce
+both mechanisms through `renderSinglePdf`: a 20,000-entry xref backed by four bytes
+and a PDF under 20KB expanding to 17MiB were accepted before the change. Both now
+reject with `PDF resource budget exceeded`, including the actual built browser
+worker's merged and individual modes; that worker can then render a valid PDF.
+
+`lib/pdf/parser-budget.cjs` owns per-document limits: 32MiB input, 16MiB per decoded
+stream buffer, 32MiB cumulative decoder capacity (including intermediate filters),
+64MiB cumulative stream copies, 64KiB per scalar token and 1MiB cumulative scalar
+construction, 100,000 parsed values, 10,000 indirect definitions,
+10,000 xref entries, depth 64, eight filters, and 20,971,520 charged parser/decoder
+operations. Allocation checks precede buffer growth and include power-of-two
+rounding. Malformed xref geometry/object-stream offsets fail closed. Limits are
+sticky across pdf-lib's invalid-object recovery and isolated across concurrent
+documents. Page-tree cycles, repeated children and inconsistent parents reject
+before later page traversal. Normal compressed/uncompressed templates still work.
+
+The parser checks a ten-second cooperative deadline. The browser's main thread
+also terminates a parser worker after twelve seconds without its `parsed` response,
+rejects pending requests, and allows a fresh worker on the next request. Rendering
+after that response is not timed as parsing. Progressive queues stop after worker
+failure rather than retrying a dead worker. Browser template downloads enforce the
+input limit while reading, even without a trustworthy Content-Length.
+
+`scripts/patch-pdf-lib.cjs` applies small hooks to checksum-pinned pdf-lib 1.17.1
+CJS and ESM sources, without a network request or additional dependency. Install,
+worker/agent builds and tests apply it; Docker copies its inputs before `npm ci`.
+Dependency/source drift fails the build and requires re-auditing the hooks. The
+committed browser bundle must be rebuilt whenever the budget or hooks change.
+
+These are parser work/allocation budgets, not a hard process RSS ceiling or a
+general PDF viewer/font/image-decoder sandbox. JavaScript object overhead, input
+and output buffers, garbage collection and simultaneous jobs still consume memory.
+Server deadlines are cooperative; deterministic operation limits also apply where
+a runtime's clock does not advance during synchronous work. No deployment or live
+production load test is part of this follow-up.

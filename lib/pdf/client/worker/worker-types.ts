@@ -14,7 +14,7 @@ export interface WorkerRequest {
 }
 
 export interface WorkerResponse {
-  type: 'progress' | 'file' | 'complete' | 'error' | 'ready';
+  type: 'progress' | 'file' | 'complete' | 'error' | 'ready' | 'parsed';
   id?: string;
   payload: unknown;
 }

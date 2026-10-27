@@ -17,6 +17,39 @@ import type {
 import type { PdfGenerationProgress } from '@/lib/pdf/types';
 import { PROGRESSIVE_PDF } from '@/utils/constants';
 import { ImageToPdfConverter } from './image-to-pdf';
+import { watchPdfParsing } from './parser-watchdog';
+import { limits } from '@/lib/pdf/parser-budget.cjs';
+
+async function readTemplateResponse(response: Response): Promise<ArrayBuffer> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('PDF template response has no body');
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    if (Number(response.headers.get('content-length')) > limits.inputBytes) {
+      throw new Error('PDF resource budget exceeded: input bytes');
+    }
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limits.inputBytes) throw new Error('PDF resource budget exceeded: input bytes');
+      chunks.push(value);
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes.buffer;
+}
 
 export interface ClientPdfOptions {
   enableFallback?: boolean;
@@ -170,6 +203,10 @@ export class ClientPdfGenerator {
    */
   private handleWorkerError(error: ErrorEvent) {
     console.error('Worker error:', error);
+    this.worker?.terminate();
+    this.worker = null;
+    this.isInitialized = false;
+    this.initPromise = null;
     // Reject all pending requests
     this.pendingRequests.forEach(pending => {
       pending.reject(new Error('Worker error: ' + error.message));
@@ -238,10 +275,15 @@ export class ClientPdfGenerator {
         } as GeneratePayload
       };
 
-      this.worker!.postMessage(request, [templateData]);
-
-      // Wait for result
-      const result = await resultPromise;
+      const stopWatching = watchPdfParsing(this.worker!, requestId);
+      let result;
+      try {
+        this.worker!.postMessage(request, [templateData]);
+        result = await resultPromise;
+      } finally {
+        stopWatching();
+        this.pendingRequests.delete(requestId);
+      }
 
       return {
         success: true,
@@ -273,14 +315,14 @@ export class ClientPdfGenerator {
       if (!response.ok) {
         throw new Error(`Failed to load blob template: ${response.statusText}`);
       }
-      return response.arrayBuffer();
+      return readTemplateResponse(response);
     }
     
     // Handle local paths (avoid CORS issues with remote URLs)
     if (url.startsWith('/')) {
       const response = await fetch(url);
       if (response.ok) {
-        return response.arrayBuffer();
+        return readTemplateResponse(response);
       }
       // If the PDF is missing (e.g., imported project only has image), try converting image URL to PDF on the fly
       if (url.toLowerCase().endsWith('.pdf')) {
@@ -293,6 +335,7 @@ export class ClientPdfGenerator {
         for (const candidate of candidates) {
           try {
             const pdfBlob = await ImageToPdfConverter.convertImageUrlToPdf(candidate);
+            if (pdfBlob.size > limits.inputBytes) throw new Error('PDF resource budget exceeded: input bytes');
             const buf = await pdfBlob.arrayBuffer();
             return buf;
           } catch {
@@ -462,8 +505,7 @@ export class ClientPdfGenerator {
    */
   destroy() {
     if (this.worker) {
-      this.worker.terminate();
-      this.worker = null;
+      this.worker.dispatchEvent(new ErrorEvent('error', { message: 'PDF worker closed' }));
     }
     if (this.queueManager) {
       this.queueManager.destroy();

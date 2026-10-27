@@ -11,6 +11,7 @@ import type {
   PdfGenerationConfig
 } from '@/lib/pdf/types';
 import { PROGRESSIVE_PDF } from '@/utils/constants';
+import { watchPdfParsing } from './parser-watchdog';
 import {
   getPdfBaseFilename,
   UniquePdfFilenameAllocator
@@ -210,7 +211,7 @@ export class ClientPdfQueueManager {
     
     // Process items one by one (could be parallelized in future)
     for (const item of pendingItems) {
-      if (this.isPausing) break;
+      if (this.isPausing || this.queue.status !== 'processing') break;
       
       await this.processItem(item);
     }
@@ -259,13 +260,14 @@ export class ClientPdfQueueManager {
       item.status = 'failed';
       item.error = error instanceof Error ? error.message : 'Unknown error';
       
-      if (item.attempts >= this.config.maxRetries) {
+      if (this.queue.status === 'error' || item.attempts >= this.config.maxRetries) {
         this.queue.failed++;
       }
       
       console.error(`Failed to generate PDF for item ${item.index}:`, error);
     } finally {
       this.currentProcessingItem = null;
+      if (this.queue.status === 'error') this.reportProgress();
     }
   }
 
@@ -283,33 +285,52 @@ export class ClientPdfQueueManager {
       }
 
       const requestId = `generate-${item.id}`;
+      const worker = this.worker;
+      const stopWatching = watchPdfParsing(worker, requestId);
+      const cleanup = () => {
+        stopWatching();
+        worker.removeEventListener('message', handler);
+        worker.removeEventListener('error', onError);
+      };
+      const onError = (event: ErrorEvent) => {
+        cleanup();
+        this.queue.status = 'error';
+        this.worker = null;
+        reject(new Error(event.message));
+      };
       
       const handler = (event: MessageEvent) => {
         if (event.data.id === requestId) {
           if (event.data.type === 'complete') {
-            this.worker?.removeEventListener('message', handler);
+            cleanup();
             resolve(event.data.payload.pdfData || event.data.payload.files?.[0]?.data);
           } else if (event.data.type === 'error') {
-            this.worker?.removeEventListener('message', handler);
+            cleanup();
             reject(new Error(event.data.payload.message));
           }
         }
       };
 
-      this.worker.addEventListener('message', handler);
+      worker.addEventListener('message', handler);
+      worker.addEventListener('error', onError);
 
       // Send generation request to worker
-      this.worker.postMessage({
-        type: 'generate',
-        id: requestId,
-        payload: {
-          templateData,
-          entries: [item.data],
-          positions: this.queue.positions,
-          uiContainerDimensions: this.queue.uiContainerDimensions,
-          mode: 'single'
-        }
-      }, [templateData.slice(0)]); // Transfer copy of template data
+      try {
+        worker.postMessage({
+          type: 'generate',
+          id: requestId,
+          payload: {
+            templateData,
+            entries: [item.data],
+            positions: this.queue.positions,
+            uiContainerDimensions: this.queue.uiContainerDimensions,
+            mode: 'single'
+          }
+        }, [templateData]);
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
     });
   }
 
@@ -395,7 +416,7 @@ export class ClientPdfQueueManager {
       : undefined;
 
     const errors = this.queue.items
-      .filter(item => item.status === 'failed' && item.attempts >= this.config.maxRetries)
+      .filter(item => item.status === 'failed' && (this.queue.status === 'error' || item.attempts >= this.config.maxRetries))
       .map(item => ({
         index: item.index,
         error: item.error || 'Unknown error'
@@ -422,7 +443,7 @@ export class ClientPdfQueueManager {
   getResults(): PdfGenerationResult & { pdfs: Map<string, Uint8Array> } {
     const completedItems = this.queue.items.filter(item => item.status === 'completed');
     const failedItems = this.queue.items.filter(
-      item => item.status === 'failed' && item.attempts >= this.config.maxRetries
+      item => item.status === 'failed' && (this.queue.status === 'error' || item.attempts >= this.config.maxRetries)
     );
 
     const files = completedItems.map(item => ({
