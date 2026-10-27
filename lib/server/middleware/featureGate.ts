@@ -6,7 +6,7 @@ import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/lib/server/prisma';
 import { getTierLimits } from '@/types/user';
 import type { UserTier, UserWithTier } from '@/types/user';
-import { incrementUsage, logUsage, resetDailyUsageIfNeeded, getUserProjectCount } from '@/lib/server/tiers';
+import { incrementUsage, logUsage, resetDailyUsageIfNeeded, getUserProjectCount, reservePdfUsage } from '@/lib/server/tiers';
 
 export interface GateOptions {
   feature: 'pdf' | 'email' | 'project' | 'admin';
@@ -90,7 +90,9 @@ export function withFeatureGate(
         case 'pdf':
           limit = limits.dailyPdfLimit;
           currentUsage = userWithTier.dailyPdfCount;
-          canProceed = limit === null || currentUsage < limit;
+          canProceed = options.increment
+            ? await reservePdfUsage(userWithTier.id)
+            : limit === null || currentUsage < limit;
           break;
           
         case 'email':
@@ -120,7 +122,7 @@ export function withFeatureGate(
       }
       
       // If we should increment usage, do it now
-      if (options.increment && (options.feature === 'pdf' || options.feature === 'email')) {
+      if (options.increment && options.feature === 'email') {
         await incrementUsage(userWithTier.id, options.feature);
       }
       

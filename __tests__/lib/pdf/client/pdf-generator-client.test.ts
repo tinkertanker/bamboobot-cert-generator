@@ -35,6 +35,18 @@ describe('ClientPdfGenerator streamed worker messages', () => {
     );
   });
 
+  it.each(['//evil.example/template.pdf', '/\\evil.example/template.pdf'])('rejects resolved remote template %s', async templateUrl => {
+    const client = ClientPdfGenerator.getInstance();
+    const initialize = jest.spyOn(client, 'initialize').mockResolvedValue();
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async () => { throw new Error('remote fetch must not run'); });
+    try {
+      const result = await client.generate({ templateUrl, entries: [], positions: {}, uiContainerDimensions: { width: 800, height: 600 } });
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain('Cannot load remote templates');
+    } finally { initialize.mockRestore(); global.fetch = originalFetch; }
+  });
+
   it('delivers file messages without completing the pending request', () => {
     const resolve = jest.fn();
     const reject = jest.fn();

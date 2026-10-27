@@ -23,8 +23,9 @@ export function DataPanelWithSearch({
   detectedEmailColumn,
   currentPreviewIndex,
   setCurrentPreviewIndex,
-  isProcessing = false
-}: DataPanelProps & { isProcessing?: boolean }) {
+  isProcessing = false,
+  dataError
+}: DataPanelProps & { isProcessing?: boolean; dataError?: string | null }) {
   // Remember which tableData the filtered rows were computed from so a stale
   // filter result is never shown after the data changes.
   const [filterResult, setFilterResult] = useState<{
@@ -181,6 +182,7 @@ export function DataPanelWithSearch({
           className="w-full resize-y min-h-[96px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           style={{ height: "154px" }}
         />
+        {dataError && <p role="alert" className="mt-2 text-sm text-red-600">{dataError}</p>}
         {isProcessing ? (
           <div className="mt-4" role="status" aria-live="polite">
             <ProcessingDataSkeleton />

@@ -5,6 +5,14 @@ describe('localStorage monitor', () => {
     localStorage.clear();
   });
 
+  it('does not disclose or delete quarantined legacy data', async () => {
+    const key = 'bamboobot_quarantine_fixture';
+    localStorage.setItem(key, JSON.stringify({ recipient: 'private@example.test' }));
+    expect((await analyzeLocalStorage()).items.find(item => item.key === key)?.data).toEqual({ quarantined: true });
+    await cleanupLocalStorage({ target: 'all' });
+    expect(localStorage.getItem(key)).toContain('private@example.test');
+  });
+
   it('classifies current and legacy saved projects as projects', async () => {
     localStorage.setItem(
       'bamboobot_project_v1_abc',

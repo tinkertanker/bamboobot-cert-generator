@@ -24,6 +24,7 @@ import { uploadToR2 } from '@/lib/r2-client';
 import { uploadToS3 } from '@/lib/s3-client';
 import { debug, error } from '@/lib/log';
 import { requireAuth } from '@/lib/auth/requireAuth';
+import { reservePdfUsage } from '@/lib/server/tiers';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { getGeneratedDir } from '@/lib/paths';
 import { getAuthorizedTemplateCandidates, PrivateFileAccessError } from '@/lib/security/private-file-access';
@@ -142,6 +143,12 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, userId: str
       return;
     }
     throw accessError;
+  }
+
+  // Charge one batch at admission, never on progress reads or controls.
+  if (!await reservePdfUsage(userId)) {
+    res.status(403).json({ error: 'PDF limit reached', code: 'LIMIT_REACHED' });
+    return;
   }
 
   // Create session

@@ -5,6 +5,7 @@
  */
 
 import { formatBytes } from './format';
+import { QUARANTINE_PREFIX } from '@/lib/storage/account-scope';
 
 export interface LocalStorageItem {
   key: string;
@@ -119,6 +120,7 @@ function getItemSize(value: string): number {
 }
 
 function parseItemData(key: string, value: string): Record<string, unknown> {
+  if (key.startsWith(QUARANTINE_PREFIX)) return { quarantined: true };
   try {
     const parsed = JSON.parse(value);
     
@@ -253,6 +255,7 @@ export async function cleanupLocalStorage(options: CleanupOptions): Promise<{ de
     : null;
   
   stats.items.forEach(item => {
+    if (item.key.startsWith(QUARANTINE_PREFIX)) return;
     let shouldDelete = false;
     
     switch (options.target) {

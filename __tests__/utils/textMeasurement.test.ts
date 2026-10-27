@@ -73,9 +73,30 @@ describe('splitTextIntoLines', () => {
       expect(splitTextIntoLines('a  b', 1000, 10)).toEqual(['a  b']);
     });
   });
+
+  it('truncates an oversized final word without measuring every shorter prefix', () => {
+    withMockedMeasurement(({ splitTextIntoLines }, measureText) => {
+      let glyphs = 0;
+      measureText.mockImplementation((text: string) => {
+        glyphs += text.length;
+        if (glyphs > 100_000) throw new Error('excessive glyph processing');
+        return { width: text.length * 5 };
+      });
+      expect(splitTextIntoLines('x'.repeat(2000) + ' y', 50, 10, 1)).toEqual(['xxxxxxx...']);
+    });
+  });
 });
 
 describe('calculateShrinkToFitFontSize', () => {
+  it('rejects malformed imported bounds without entering measurement', () => {
+    withMockedMeasurement(({ calculateShrinkToFitFontSize }, measureText) => {
+      measureText.mockImplementation(() => { throw new Error('measurement must not run'); });
+      for (const size of [Infinity, 1e308, '1e308']) {
+        expect(() => calculateShrinkToFitFontSize('Name', -10, size as number)).toThrow('Invalid text layout');
+      }
+    });
+  });
+
   it('returns the base size when the text already fits', () => {
     withMockedMeasurement(({ calculateShrinkToFitFontSize }) => {
       // 'hi' at 24px measures 24px <= 100px

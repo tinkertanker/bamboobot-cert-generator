@@ -6,6 +6,7 @@
  */
 
 import type { Positions, EmailConfig } from '@/types/certificate';
+import { projectInputError } from '@/utils/input-bounds';
 
 export interface SavedProject {
   id: string;
@@ -115,6 +116,8 @@ export class ProjectStorage {
     storageInfo?: { isCloudStorage: boolean; provider?: 'r2' | 's3' | 'local' }
   ): Promise<{ success: boolean; id?: string; error?: string }> {
     try {
+      const inputError = projectInputError(positions, columns, tableData);
+      if (inputError) return { success: false, error: inputError };
       if (this.serverEnabled) {
         // Persist to server
         const body = {

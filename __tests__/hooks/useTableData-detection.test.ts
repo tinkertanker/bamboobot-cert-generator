@@ -1,7 +1,46 @@
 import { renderHook, act } from '@testing-library/react';
 import { useTableData } from '../../hooks/useTableData';
+import { useProjectAutosave } from '@/hooks/useProjectAutosave';
+import { ProjectStorage } from '@/lib/project-storage';
 
 describe('useTableData Auto-Detection', () => {
+  it('preserves an already saved project when a paste is rejected', async () => {
+    jest.useFakeTimers();
+    localStorage.clear();
+    const positions = { Name: { x: 50, y: 50 } };
+    const saved = await ProjectStorage.saveProject('Accepted', positions, ['Name'], '/image.png', 'image.png', [{ Name: 'Alice' }]);
+    const { result, unmount } = renderHook(() => {
+      const table = useTableData();
+      useProjectAutosave({ positions, columns: Object.keys(table.tableData[0] ?? {}),
+        tableData: table.tableData, emailConfig: null, certificateImageUrl: '/image.png',
+        certificateFilename: 'image.png', currentProjectId: saved.id, currentProjectName: 'Accepted' });
+      return table;
+    });
+    try {
+      await act(async () => { await result.current.loadSessionData('Name\nAlice', false, true); });
+      for (const length of [2001, 1_000_001]) {
+        await act(async () => { await result.current.handleTableDataChange({ target: { value: 'x'.repeat(length) } } as React.ChangeEvent<HTMLTextAreaElement>); });
+        await act(async () => { jest.advanceTimersByTime(11_000); });
+        expect(result.current.dataError).toBeTruthy();
+        expect(result.current.tableInput).toBe('Name\nAlice');
+        expect(ProjectStorage.loadProject(saved.id!)?.tableData).toEqual([{ Name: 'Alice' }]);
+      }
+    } finally { unmount(); jest.useRealTimers(); localStorage.clear(); }
+  });
+
+  it('rejects ragged expansion over the cell budget and recovers on smaller input', async () => {
+    const { result } = renderHook(() => useTableData());
+    const headers = Array.from({ length: 100 }, (_, i) => `Field${i}`).join('\t');
+    await act(async () => {
+      await result.current.loadSessionData(headers + '\n' + Array(1001).fill('x').join('\n'), false, true);
+    });
+    expect(result.current.tableData).toEqual([]);
+    expect(result.current.dataError).toContain('100,000 cells');
+    await act(async () => { await result.current.loadSessionData('Name\nAlice', false, true); });
+    expect(result.current.tableData).toEqual([{ Name: 'Alice' }]);
+    expect(result.current.dataError).toBeNull();
+  });
+
   describe('CSV vs TSV Detection', () => {
     it('should detect CSV format with commas', () => {
       const { result } = renderHook(() => useTableData());

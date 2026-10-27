@@ -38,7 +38,7 @@ describe('atomic email quota reservation', () => {
 
     expect(result).toMatchObject({ allowed: true, limit: 100, current: 100, reservationDay: accountingEpoch });
     expect(user.updateMany).toHaveBeenLastCalledWith({
-      where: { id: 'u1', lastUsageReset: accountingEpoch, dailyEmailCount: { lte: 95 } },
+      where: { id: 'u1', tier: 'plus', tierSource: undefined, lastUsageReset: accountingEpoch, dailyEmailCount: { lte: 95 } },
       data: {
         dailyEmailCount: { increment: 5 },
         lifetimeEmailCount: { increment: 5 }
@@ -120,13 +120,13 @@ describe('atomic email quota reservation', () => {
     user.updateMany
       .mockResolvedValueOnce({ count: 0 })
       .mockResolvedValueOnce({ count: 1 });
-    user.findUnique.mockResolvedValue({ tier: 'admin', dailyEmailCount: 5000, lastUsageReset: accountingEpoch });
+    user.findUnique.mockResolvedValue({ tier: 'admin', tierSource: 'manual', dailyEmailCount: 5000, lastUsageReset: accountingEpoch });
 
     const result = await reserveEmailUsage('admin-1', 10_000);
 
     expect(result).toMatchObject({ allowed: true, limit: null, current: 15_000 });
     expect(user.updateMany).toHaveBeenLastCalledWith({
-      where: { id: 'admin-1', lastUsageReset: accountingEpoch },
+      where: { id: 'admin-1', tier: 'admin', tierSource: 'manual', lastUsageReset: accountingEpoch },
       data: {
         dailyEmailCount: { increment: 10_000 },
         lifetimeEmailCount: { increment: 10_000 }

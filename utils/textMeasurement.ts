@@ -1,4 +1,5 @@
 import type { FontFamily } from "@/types/certificate";
+import { assertTextFitBounds, ellipsise } from './text-fitting';
 
 // Font family mapping for Canvas (matching CertificatePreview)
 const fontFamilyMap: Record<FontFamily, string> = {
@@ -84,6 +85,7 @@ export function calculateShrinkToFitFontSize(
   bold: boolean = false,
   italic: boolean = false
 ): number {
+  assertTextFitBounds(maxWidth, baseFontSize, minFontSize);
   let fontSize = baseFontSize;
   let textWidth = measureTextWidth(text, fontSize, fontFamily, bold, italic);
   
@@ -96,8 +98,8 @@ export function calculateShrinkToFitFontSize(
   let low = minFontSize;
   let high = baseFontSize;
   
-  while (high - low > 0.5) {
-    fontSize = (low + high) / 2;
+  for (let iteration = 0; iteration < 32 && high - low > 0.5; iteration++) {
+    fontSize = low + (high - low) / 2;
     textWidth = measureTextWidth(text, fontSize, fontFamily, bold, italic);
     
     if (textWidth > maxWidth) {
@@ -107,13 +109,8 @@ export function calculateShrinkToFitFontSize(
     }
   }
   
-  // Ensure we don't exceed maxWidth
-  while (textWidth > maxWidth && fontSize > minFontSize) {
-    fontSize -= 0.5;
-    textWidth = measureTextWidth(text, fontSize, fontFamily, bold, italic);
-  }
-  
-  return Math.max(fontSize, minFontSize);
+  // low is the last fitting bound (or the minimum when no size fits).
+  return low;
 }
 
 /**
@@ -154,13 +151,8 @@ export function splitTextIntoLines(
         // We've hit the limit, add ellipsis if there's more content
         if (i < words.length) {
           const lastLine = lines[lines.length - 1];
-          let truncatedLine = lastLine;
-          while (measureTextWidth(truncatedLine + '...', fontSize, fontFamily, bold, italic) > maxWidth && truncatedLine.length > 0) {
-            truncatedLine = truncatedLine.slice(0, -1).trim();
-          }
-          if (truncatedLine) {
-            lines[lines.length - 1] = truncatedLine + '...';
-          }
+          lines[lines.length - 1] = ellipsise(lastLine, maxWidth,
+            text => measureTextWidth(text, fontSize, fontFamily, bold, italic));
         }
         break;
       }

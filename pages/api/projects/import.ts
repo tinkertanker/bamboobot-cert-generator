@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth/requireAuth';
 import prisma from '@/lib/server/prisma';
 import type { Prisma } from '@prisma/client';
 import { getRemainingProjectAllowance } from '@/lib/server/tiers';
+import { createProjectWithinLimit } from '@/lib/server/project-admission';
 
 const MAX_IMPORT_PROJECTS = 100;
 const MAX_PROJECT_NAME_LENGTH = 200;
@@ -72,19 +73,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Create in sequence to honor unique (ownerId, name)
     let imported = 0;
     for (const input of toCreate) {
-      const create = (name: string) =>
-        prisma.project.create({
-          data: { ownerId: userId, name, data: input.data, clientProjectId: input.clientProjectId, importSource: 'localStorage' },
-        });
+      const create = (name: string) => createProjectWithinLimit(userId, { ...input, name, importSource: 'localStorage' });
+      let admitted;
       try {
-        await create(input.name);
+        admitted = await create(input.name);
       } catch (e) {
         const error = e as { code?: string };
         if (error?.code !== 'P2002') throw e;
         // duplicate name for this user; append suffix
-        await create(`${input.name} (Imported ${new Date().toISOString().slice(0, 10)})`);
+        admitted = await create(`${input.name} (Imported ${new Date().toISOString().slice(0, 10)})`);
       }
-      imported++;
+      if (!admitted) {
+        // Capacity changed after the batch precheck. Acknowledge only durable
+        // copies; unconfirmed browser projects remain available for retry.
+        res.status(403).json({ error: 'Project limit reached for your plan', code: 'LIMIT_REACHED', imported, importedIds });
+        return;
+      }
+      if (admitted.created) imported++;
       if (input.clientProjectId) importedIds.push(input.clientProjectId);
     }
 

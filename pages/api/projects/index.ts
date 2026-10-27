@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import prisma from '@/lib/server/prisma';
-import { getRemainingProjectAllowance } from '@/lib/server/tiers';
+import { createProjectWithinLimit } from '@/lib/server/project-admission';
 
 const MAX_PROJECT_NAME_LENGTH = 200;
 
@@ -63,21 +63,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-      const remaining = await getRemainingProjectAllowance(userId);
-      if (remaining !== null && remaining <= 0) {
+      const admitted = await createProjectWithinLimit(userId, {
+        name: trimmedName, data,
+        clientProjectId: typeof clientProjectId === 'string' ? clientProjectId.slice(0, 200) : null,
+      });
+      if (!admitted) {
         res.status(403).json({ error: 'Project limit reached for your plan', code: 'LIMIT_REACHED' });
         return;
       }
-      const created = await prisma.project.create({
-        data: {
-          name: trimmedName,
-          data,
-          ownerId: userId,
-          clientProjectId: typeof clientProjectId === 'string' ? clientProjectId.slice(0, 200) : null,
-        },
-        select: { id: true, name: true, createdAt: true, updatedAt: true },
-      });
-      res.status(201).json({ project: created });
+      const { id, name: projectName, createdAt, updatedAt } = admitted.project;
+      res.status(201).json({ project: { id, name: projectName, createdAt, updatedAt } });
       return;
     } catch (err) {
       const e = err as { code?: string } | null;

@@ -3,6 +3,7 @@
  */
 jest.mock('@/lib/auth/requireAuth', () => ({ requireAuth: jest.fn(async () => ({ user: { id: 'u1' } })) }));
 jest.mock('@/lib/rate-limit', () => ({ enforceRateLimit: jest.fn(() => ({ allowed: true })) }));
+jest.mock('@/lib/server/tiers', () => ({ reservePdfUsage: jest.fn(async () => true) }));
 jest.mock('@/lib/storage-config', () => ({
   __esModule: true,
   default: { isR2Enabled: false, isS3Enabled: false, getFileUrl: jest.fn(() => '/x.pdf') },
@@ -24,6 +25,7 @@ jest.mock('@/lib/pdf-generator', () => ({ generateSinglePdf: jest.fn(() => new P
 
 import httpMocks from 'node-mocks-http';
 import handler from '@/pages/api/generate-progressive';
+import { reservePdfUsage } from '@/lib/server/tiers';
 import { PdfSessionManager } from '@/lib/pdf/session-manager';
 import {
   MAX_ACTIVE_PROGRESSIVE_SESSIONS_PER_USER,
@@ -54,6 +56,13 @@ afterAll(() => {
 });
 
 describe('/api/generate-progressive resource limits', () => {
+  it('rejects a new job when the shared daily PDF allowance is exhausted', async () => {
+    (reservePdfUsage as jest.Mock).mockResolvedValueOnce(false);
+    const res = await post(body());
+    expect(res.statusCode).toBe(403);
+    expect(res._getJSONData().code).toBe('LIMIT_REACHED');
+  });
+
   it('rejects datasets over the row limit', async () => {
     const data = Array.from({ length: MAX_PROGRESSIVE_PDF_ROWS + 1 }, () => ({}));
     const res = await post(body({ data }));

@@ -64,7 +64,11 @@ async function updateTierHandler(
   }
   
   try {
-    const updatedUser = await setUserTier(actor.id, userId, tier);
+    const updatedUser = await setUserTier(actor.id, userId, tier, actor.tier === 'super_admin');
+    if (!updatedUser) {
+      res.status(409).json({ error: 'Account changed; reload before updating its tier' });
+      return;
+    }
     
     res.status(200).json({
       success: true,

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import type { TableData } from "@/types/certificate";
 import { parseRecipientsDetailed } from "@/utils/email-validation";
+import { MAX_TABLE_TEXT, TABLE_LIMIT_ERROR, tableSizeError } from '@/utils/input-bounds';
 
 export interface UseTableDataReturn {
   tableData: TableData[];
@@ -10,6 +11,7 @@ export interface UseTableDataReturn {
   detectedEmailColumn: string | null;
   hasEmailColumn: boolean;
   isProcessingData: boolean;
+  dataError: string | null;
   handleTableDataChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleHeaderToggle: () => void;
   handleCSVModeToggle: () => void;
@@ -180,6 +182,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
   const [useCSVMode, setUseCSVMode] = useState<boolean>(false); // Default to TSV
   const [detectedEmailColumn, setDetectedEmailColumn] = useState<string | null>(null);
   const [isProcessingData, setIsProcessingData] = useState<boolean>(false);
+  const [dataError, setDataError] = useState<string | null>(null);
   // Whether a table is currently loaded. Used to show the loading skeleton only
   // for an initial large load: re-showing it on every edit of an existing
   // large table would unmount/remount the whole table (and add a 50ms delay)
@@ -191,12 +194,20 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     useHeaderRow: boolean,
     csvMode: boolean
   ) => {
+    setDataError(null);
+    if (input.length > MAX_TABLE_TEXT) {
+      setDataError(TABLE_LIMIT_ERROR);
+      return false;
+    }
     const trimmedInput = input.trim();
     if (!trimmedInput) {
       hasTableDataRef.current = false;
       setTableData([]);
       setDetectedEmailColumn(null);
-      return;
+      setTableInput(input);
+      setUseCSVMode(csvMode);
+      setIsFirstRowHeader(useHeaderRow);
+      return true;
     }
 
     // For large datasets, show loading state on the initial load
@@ -221,6 +232,11 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
       });
       if (rows.length === 0) return;
 
+      const error = tableSizeError(rows.length - (useHeaderRow ? 1 : 0), rows[0].length, input.length);
+      if (error || rows.some(row => row.some(value => value.length > 2000))) {
+        setDataError(error || 'Field values are limited to 2000 characters');
+        return false;
+      }
       const headers = useHeaderRow
         ? rows[0].map((header, index) => header || `_column_${index}`) // Handle blank headers
         : rows[0].map((_, index) => `Column ${index + 1}`);
@@ -235,8 +251,11 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
       
       hasTableDataRef.current = processedTableData.length > 0;
       setTableData(processedTableData);
-
+      setTableInput(input);
+      setUseCSVMode(csvMode);
+      setIsFirstRowHeader(useHeaderRow);
       setDetectedEmailColumn(detectEmailColumn(headers, processedTableData));
+      return true;
     } finally {
       setIsProcessingData(false);
     }
@@ -244,69 +263,31 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
 
   const handleTableDataChange = useCallback(async (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newInput = event.target.value;
-    setTableInput(newInput);
-    if (newInput.trim() === "") {
-      hasTableDataRef.current = false;
-      setTableData([]);
-      setDetectedEmailColumn(null);
-    } else {
-      // Auto-detect format and headers when data is pasted/entered
-      const detectedCSV = detectFormat(newInput);
-      const detectedHeaders = detectHeaders(newInput, detectedCSV);
-      
-      // Only auto-switch if different from current settings
-      let shouldUpdateCSV = false;
-      let shouldUpdateHeaders = false;
-      
-      if (detectedCSV !== useCSVMode) {
-        setUseCSVMode(detectedCSV);
-        shouldUpdateCSV = true;
-      }
-      
-      if (detectedHeaders !== isFirstRowHeader) {
-        setIsFirstRowHeader(detectedHeaders);
-        shouldUpdateHeaders = true;
-      }
-      
-      // Process data with detected or current settings
-      await processTableData(
-        newInput, 
-        shouldUpdateHeaders ? detectedHeaders : isFirstRowHeader, 
-        shouldUpdateCSV ? detectedCSV : useCSVMode
-      );
+    if (newInput.length > MAX_TABLE_TEXT) {
+      await processTableData(newInput, isFirstRowHeader, useCSVMode);
+      return;
     }
+    const csvMode = newInput.trim() ? detectFormat(newInput) : useCSVMode;
+    const headerRow = newInput.trim() ? detectHeaders(newInput, csvMode) : isFirstRowHeader;
+    // Rejected edits must not replace the accepted state consumed by autosave.
+    await processTableData(newInput, headerRow, csvMode);
   }, [isFirstRowHeader, useCSVMode, processTableData]);
 
   const handleHeaderToggle = useCallback(async () => {
-    setIsFirstRowHeader((prev) => {
-      const newValue = !prev;
-      if (tableInput.trim()) {
-        processTableData(tableInput, newValue, useCSVMode);
-      }
-      return newValue;
-    });
-  }, [tableInput, useCSVMode, processTableData]);
+    await processTableData(tableInput, !isFirstRowHeader, useCSVMode);
+  }, [tableInput, isFirstRowHeader, useCSVMode, processTableData]);
 
   const handleCSVModeToggle = useCallback(async () => {
-    setUseCSVMode((prev) => {
-      const newValue = !prev;
-      // Reprocess data with new format
-      if (tableInput.trim()) {
-        processTableData(tableInput, isFirstRowHeader, newValue);
-      }
-      return newValue;
-    });
-  }, [tableInput, isFirstRowHeader, processTableData]);
+    await processTableData(tableInput, isFirstRowHeader, !useCSVMode);
+  }, [tableInput, isFirstRowHeader, useCSVMode, processTableData]);
 
   const loadPresetData = useCallback(async (csvData: string) => {
-    setUseCSVMode(true);
-    setIsFirstRowHeader(true);
-    setTableInput(csvData);
     await processTableData(csvData, true, true);
   }, [processTableData]);
 
   const clearData = useCallback(() => {
     hasTableDataRef.current = false;
+    setDataError(null);
     setTableData([]);
     setTableInput("");
     setDetectedEmailColumn(null);
@@ -318,13 +299,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     csvMode: boolean,
     headerRow: boolean
   ) => {
-    setTableInput(input);
-    setUseCSVMode(csvMode);
-    setIsFirstRowHeader(headerRow);
-    
-    if (input.trim()) {
-      await processTableData(input, headerRow, csvMode);
-    }
+    await processTableData(input, headerRow, csvMode);
   }, [processTableData]);
 
   return {
@@ -335,6 +310,7 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     detectedEmailColumn,
     hasEmailColumn: detectedEmailColumn !== null,
     isProcessingData,
+    dataError,
     handleTableDataChange,
     handleHeaderToggle,
     handleCSVModeToggle,

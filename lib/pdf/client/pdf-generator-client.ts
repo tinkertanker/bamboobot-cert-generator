@@ -261,6 +261,12 @@ export class ClientPdfGenerator {
    * Load template file
    */
   private async loadTemplate(url: string): Promise<ArrayBuffer> {
+    // A leading slash is not proof of locality: //host and /\host resolve to
+    // another origin. Resolve with the browser's URL rules before fetching.
+    const resolved = new URL(url, window.location.href);
+    if (resolved.origin !== window.location.origin) {
+      throw new Error('Cannot load remote templates. Please use local files or server-side generation.');
+    }
     // Handle blob URLs directly
     if (url.startsWith('blob:')) {
       const response = await fetch(url);

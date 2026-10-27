@@ -67,6 +67,31 @@ const TAB_BUTTON_CLASSES =
   "px-4 py-2 text-sm font-medium rounded-md transition-all flex-1 text-center min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-1";
 
 export default function HomePage() {
+  const { data: session, status } = useSession();
+  const userId = (session?.user as { id?: string } | undefined)?.id;
+  const identity = status === 'authenticated' ? userId : null;
+  const [readyFor, setReadyFor] = useState<string | null | undefined>(undefined);
+  const [storageFailed, setStorageFailed] = useState(false);
+
+  useEffect(() => {
+    if (status === 'loading') return;
+    try {
+      if (status === 'authenticated' && !identity) throw new Error('Missing account identity');
+      guardLocalStorageForUser(identity);
+      setStorageFailed(false);
+      setReadyFor(identity);
+    } catch {
+      setStorageFailed(true);
+      setReadyFor(undefined);
+    }
+  }, [identity, status]);
+
+  if (storageFailed) return <p role="alert" className="p-6">Browser data could not be safely separated for this account. Your retained data has not been adopted. Free browser storage or allow site storage, then reload.</p>;
+  if (status === 'loading' || readyFor === undefined || readyFor !== identity) return null;
+  return <CertificateEditor key={identity ?? 'anonymous'} />;
+}
+
+function CertificateEditor() {
   // ============================================================================
   // MOBILE DETECTION
   // ============================================================================
@@ -75,13 +100,6 @@ export default function HomePage() {
   const [forceMobileAccess, setForceMobileAccess] = useState(false);
   const { data: session } = useSession();
   const { isSuperAdmin } = useUserTier();
-  // Clear localStorage that belonged to a different account before any
-  // localStorage-backed feature (project migration, autosave, email queues)
-  // reads it. Runs before useProjectMigration so a new account never sees the
-  // previous account's projects.
-  useEffect(() => {
-    guardLocalStorageForUser((session?.user as { id?: string } | undefined)?.id ?? null);
-  }, [session?.user]);
   // Check for localStorage projects on first login and offer import
   useProjectMigration();
 
@@ -124,6 +142,7 @@ export default function HomePage() {
     useCSVMode,
     detectedEmailColumn,
     isProcessingData,
+    dataError,
     handleTableDataChange,
     handleHeaderToggle,
     handleCSVModeToggle,
@@ -991,6 +1010,7 @@ export default function HomePage() {
               currentPreviewIndex={currentPreviewIndex}
               setCurrentPreviewIndex={setCurrentPreviewIndex}
               isProcessing={isProcessingData}
+              dataError={dataError}
             />
             </div>
           )}

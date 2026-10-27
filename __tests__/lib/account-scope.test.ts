@@ -18,14 +18,30 @@ describe('guardLocalStorageForUser', () => {
     localStorage.clear();
   });
 
-  it('adopts the current account without purging when there is no prior owner', () => {
+  it('quarantines unknown-owner data without exposing it to the new account', () => {
     seedAppData();
     const purged = guardLocalStorageForUser('userA');
-    expect(purged).toBe(false);
+    expect(purged).toBe(true);
     expect(localStorage.getItem(OWNER_KEY)).toBe('userA');
-    // Existing single-user data is preserved on first adoption.
+    expect(localStorage.getItem('bamboobot_project_v1_abc')).toBeNull();
+    expect(localStorage.getItem('bamboobot_current_session_v1')).toBeNull();
+    const archives = Object.keys(localStorage).filter(key => key.startsWith('bamboobot_quarantine_'));
+    expect(archives).toHaveLength(1);
+    expect(JSON.parse(localStorage.getItem(archives[0])!)).toMatchObject({
+      bamboobot_project_v1_abc: JSON.stringify({ name: 'A project' }),
+      bamboobot_current_session_v1: JSON.stringify({ rows: 1 }),
+    });
+    guardLocalStorageForUser('userB');
+    expect(localStorage.getItem(archives[0])).not.toBeNull();
+  });
+
+  it('blocks and preserves originals if quarantine cannot be written', () => {
+    seedAppData();
+    const write = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('QuotaExceededError'); });
+    try { expect(() => guardLocalStorageForUser('userA')).toThrow(); }
+    finally { write.mockRestore(); }
+    expect(localStorage.getItem(OWNER_KEY)).toBeNull();
     expect(localStorage.getItem('bamboobot_project_v1_abc')).not.toBeNull();
-    expect(localStorage.getItem('bamboobot_current_session_v1')).not.toBeNull();
   });
 
   it('does nothing when the same account is seen again', () => {
@@ -76,9 +92,8 @@ describe('guardLocalStorageForUser', () => {
     expect(localStorage.getItem('bamboobot_project_v1_abc')).toBeNull();
   });
 
-  it('reports a purge truthfully even when recording the new owner fails', () => {
-    // Regression: a setItem failure after the purge used to report "no purge"
-    // while the previous account's data was already gone.
+  it('blocks when recording the new owner fails even after a purge', () => {
+    // An incomplete ownership transition must not allow editor mounting.
     guardLocalStorageForUser('userA');
     seedAppData();
 
@@ -88,8 +103,7 @@ describe('guardLocalStorageForUser', () => {
       return originalSetItem.call(this, key, value);
     };
     try {
-      const purged = guardLocalStorageForUser('userB');
-      expect(purged).toBe(true);
+      expect(() => guardLocalStorageForUser('userB')).toThrow();
       expect(localStorage.getItem('bamboobot_project_v1_abc')).toBeNull();
       // Owner was not recorded, so the next sign-in re-runs the guard.
       expect(localStorage.getItem(OWNER_KEY)).toBe('userA');
@@ -105,7 +119,7 @@ describe('guardLocalStorageForUser', () => {
       throw new Error('SecurityError');
     };
     try {
-      expect(guardLocalStorageForUser('userA')).toBe(false);
+      expect(() => guardLocalStorageForUser('userA')).toThrow();
     } finally {
       Storage.prototype.getItem = originalGetItem;
     }

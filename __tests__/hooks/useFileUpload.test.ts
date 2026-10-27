@@ -25,6 +25,19 @@ describe('useFileUpload', () => {
   });
 
   describe('processFile', () => {
+    it('does not expose rejected image bytes as a PDF or upload them', async () => {
+      const { ImageToPdfConverter } = require('@/lib/pdf/client/image-to-pdf');
+      ImageToPdfConverter.convertImageToPdf.mockRejectedValueOnce(new Error('Invalid PNG'));
+      const { result } = renderHook(() => useFileUpload());
+      await act(async () => {
+        await result.current.processFile(new File(['%PDF-'], 'fake.png', { type: 'image/png' }));
+      });
+      expect(result.current.localBlobUrl).toBeNull();
+      expect(result.current.uploadedFile).toBeNull();
+      expect(result.current.uploadError).not.toBeNull();
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
     it('should process valid image file successfully', async () => {
       const { result } = renderHook(() => useFileUpload());
       const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' });

@@ -5,14 +5,13 @@
  * data. This module records which account owns the current localStorage
  * contents and purges everything when a *different* account signs in.
  *
- * On first run for a given browser the owner is unknown; we adopt the current
- * account without purging so a single user's existing work is never destroyed
- * by the upgrade. Purging only happens on an actual account change, and we do
- * not clear on sign-out (that would lose the owner's own projects between their
- * own sessions — the next different sign-in performs the purge instead).
+ * Unknown-owner data is preserved in an opaque quarantine, never adopted by
+ * whoever signs in next. Recovery requires a separate ownership decision.
+ * Storage failures propagate so the editor cannot mount and disclose originals.
  */
 
 const OWNER_KEY = 'bamboobot_ls_owner_v1';
+export const QUARANTINE_PREFIX = 'bamboobot_quarantine_';
 
 // Prefixes / exact keys of all app-owned localStorage entries.
 const APP_KEY_PREFIXES = [
@@ -34,13 +33,13 @@ function isAppOwnedKey(key: string): boolean {
   return APP_KEY_PREFIXES.some((prefix) => key.startsWith(prefix));
 }
 
-function purgeAppOwnedKeys(): void {
-  const toRemove: string[] = [];
+function appOwnedKeys(): string[] {
+  const keys: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && isAppOwnedKey(key)) toRemove.push(key);
+    if (key && isAppOwnedKey(key)) keys.push(key);
   }
-  for (const key of toRemove) localStorage.removeItem(key);
+  return keys;
 }
 
 /**
@@ -53,28 +52,21 @@ function purgeAppOwnedKeys(): void {
 export function guardLocalStorageForUser(userId: string | null | undefined): boolean {
   if (typeof window === 'undefined' || !userId) return false;
 
-  let previousOwner: string | null = null;
-  try {
-    previousOwner = localStorage.getItem(OWNER_KEY);
-  } catch {
-    return false;
-  }
-
+  const previousOwner = localStorage.getItem(OWNER_KEY);
   if (previousOwner === userId) return false;
 
-  let purged = false;
-  try {
-    // Unknown owner: adopt the current account without discarding existing data.
-    if (previousOwner !== null) {
-      purgeAppOwnedKeys();
-      purged = true;
-    }
-    localStorage.setItem(OWNER_KEY, userId);
-  } catch {
-    // Recording the new owner can fail after the purge already ran; report the
-    // purge truthfully — the next sign-in re-runs the guard and settles state.
+  const keys = appOwnedKeys();
+  if (previousOwner === null && keys.length) {
+    const archive = JSON.stringify(Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])));
+    const archiveKey = `${QUARANTINE_PREFIX}${crypto.randomUUID()}`;
+    localStorage.setItem(archiveKey, archive);
+    if (localStorage.getItem(archiveKey) !== archive) throw new Error('Browser data quarantine failed');
   }
-  return purged;
+  for (const key of keys) localStorage.removeItem(key);
+  if (appOwnedKeys().length) throw new Error('Browser data isolation failed');
+  localStorage.setItem(OWNER_KEY, userId);
+  if (localStorage.getItem(OWNER_KEY) !== userId) throw new Error('Browser ownership could not be recorded');
+  return keys.length > 0;
 }
 
 export const __test__ = { OWNER_KEY, isAppOwnedKey };

@@ -6,6 +6,7 @@ import type { UseFileUploadReturn } from "@/hooks/useFileUpload";
 import { ProjectStorage } from "@/lib/project-storage";
 import { SessionStorage } from "@/lib/session-storage";
 import { normalizeLegacyPrivateAssetReference } from "@/lib/storage-urls";
+import { projectInputError } from '@/utils/input-bounds';
 import {
   applyAutomaticTextColor,
   normalizeAutomaticTextColorProvenance
@@ -148,6 +149,8 @@ export function useProjectManagement({
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
 
   const loadProjectPositions = useCallback((project: SavedProject) => {
+    const error = projectInputError(project.positions, project.columns, project.tableData || []);
+    if (error) throw new Error(error);
     const normalizedPositions = normalizeAutomaticTextColorProvenance(
       project.positions,
       project.columns
@@ -167,6 +170,8 @@ export function useProjectManagement({
   }, [setPositions]);
 
   const loadProjectTableData = useCallback(async (project: SavedProject) => {
+    const error = projectInputError(project.positions, project.columns, project.tableData || []);
+    if (error) throw new Error(error);
     if (project.tableData?.length) {
       const headers = project.columns;
       const rows = project.tableData.map(row => headers.map(col => row[col] || "").join("\t"));
