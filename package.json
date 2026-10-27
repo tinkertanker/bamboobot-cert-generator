@@ -23,7 +23,6 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "verify": "node scripts/verify-frontend.js",
-    "test:build": "jest __tests__/build.test.ts",
     "cleanup": "node scripts/cleanup.js",
     "cleanup:old": "node scripts/cleanup-old-files.js",
     "cleanup:old:dry": "node scripts/cleanup-old-files.js --dry-run",

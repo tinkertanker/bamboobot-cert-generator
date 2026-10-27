@@ -337,7 +337,7 @@ See `AGENTS.md` for the full contributor guide (commands, architecture notes and
 - Use provider factory for email/storage, never hardcode
 - Use `COLORS` constants from `utils/styles.ts`
 - Extract complex UI into focused components
-- **Coordinate System**: PDF uses bottom-left origin (0,0), UI uses top-left; conversion lives in `lib/pdf/shared/coordinate-transform.ts`
+- **Coordinate System**: PDF uses bottom-left origin (0,0), UI uses top-left; conversion lives in `lib/pdf/shared/pdf-generation-core.ts`
 
 ## Testing
 

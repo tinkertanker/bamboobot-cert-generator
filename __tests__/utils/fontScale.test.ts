@@ -3,7 +3,9 @@ import {
   getPreviewFontScale,
   getFontReferenceDimensions
 } from '@/utils/fontScale';
-import { scaleFontSize } from '@/lib/pdf/shared/coordinate-transform';
+import { PDFDocument } from 'pdf-lib';
+import { addTextToPage, embedStandardFonts } from '@/lib/pdf/shared/pdf-generation-core';
+import { readPdfText } from '../helpers/pdf-text';
 
 describe('font scaling', () => {
   afterEach(() => {
@@ -26,13 +28,20 @@ describe('font scaling', () => {
     expect(getFontReferenceDimensions()).toEqual({ width: FONT_REFERENCE_WIDTH, height: 566 });
   });
 
-  it('keeps text the same share of the page in preview and PDF', () => {
+  it('keeps text the same share of the page in preview and generated PDF', async () => {
     const storedSize = 24;
     const pdfWidth = 842;
-    const pdfSize = scaleFontSize(storedSize, getFontReferenceDimensions().width, pdfWidth);
+    const pdf = await PDFDocument.create();
+    const fonts = await embedStandardFonts(pdf);
+    addTextToPage(pdf.addPage([pdfWidth, 595]), { name: { text: 'Ada' } }, {
+      name: { x: 0.2, y: 0.3, fontSize: storedSize },
+    }, fonts, getFontReferenceDimensions());
+    const drawn = await readPdfText(pdf);
+    expect(drawn).toHaveLength(1);
+    expect(drawn[0].text).toBe('Ada');
     for (const previewWidth of [500, 800, 1300]) {
       const previewSize = storedSize * getPreviewFontScale(previewWidth);
-      expect(previewSize / previewWidth).toBeCloseTo(pdfSize / pdfWidth, 10);
+      expect(previewSize / previewWidth).toBeCloseTo(drawn[0].size / pdfWidth, 10);
     }
   });
 });

@@ -17,33 +17,6 @@ describe('SplitButton Component', () => {
     jest.clearAllMocks();
   });
 
-  describe('Rendering', () => {
-    it('renders main button with label', () => {
-      render(<SplitButton {...defaultProps} />);
-      expect(screen.getByRole('button', { name: 'Main Action' })).toBeInTheDocument();
-    });
-
-    it('renders dropdown button with chevron', () => {
-      render(<SplitButton {...defaultProps} />);
-      const buttons = screen.getAllByRole('button');
-      expect(buttons).toHaveLength(2);
-      expect(buttons[1]).toHaveAttribute('aria-haspopup', 'menu');
-      expect(buttons[1]).toHaveAttribute('aria-expanded', 'false');
-    });
-
-    it('renders with primary variant by default', () => {
-      render(<SplitButton {...defaultProps} />);
-      const mainButton = screen.getByRole('button', { name: 'Main Action' });
-      expect(mainButton).toHaveClass('bg-gradient-to-r', 'from-blue-600', 'to-blue-700');
-    });
-
-    it('applies custom gradient class', () => {
-      render(<SplitButton {...defaultProps} gradientClass="bg-gradient-to-r from-green-500 to-green-600" />);
-      const mainButton = screen.getByRole('button', { name: 'Main Action' });
-      expect(mainButton).toHaveClass('bg-gradient-to-r', 'from-green-500', 'to-green-600');
-    });
-  });
-
   describe('Main Button Functionality', () => {
     it('calls onClick when main button is clicked', async () => {
       const user = userEvent.setup();
@@ -67,7 +40,9 @@ describe('SplitButton Component', () => {
       const user = userEvent.setup();
       render(<SplitButton {...defaultProps} />);
       
-      const dropdownButton = screen.getAllByRole('button')[1];
+      const dropdownButton = screen.getByRole('button', { name: 'More Main Action options' });
+      expect(dropdownButton).toHaveAttribute('aria-haspopup', 'menu');
+      expect(dropdownButton).toHaveAttribute('aria-expanded', 'false');
       
       // Initially closed
       expect(screen.queryByRole('menu')).not.toBeInTheDocument();
@@ -133,7 +108,6 @@ describe('SplitButton Component', () => {
       
       const disabledItem = screen.getByRole('menuitem', { name: 'Disabled Option' });
       expect(disabledItem).toBeDisabled();
-      expect(disabledItem).toHaveClass('text-gray-400', 'cursor-not-allowed');
       
       await user.click(disabledItem);
       expect(menuItemClick).not.toHaveBeenCalled();
@@ -176,27 +150,46 @@ describe('SplitButton Component', () => {
   });
 
   describe('Keyboard Navigation', () => {
-    it('can be navigated with keyboard', async () => {
+    it('opens with Enter, skips disabled items and separators, wraps, and restores focus on Escape', async () => {
       const user = userEvent.setup();
-      render(<SplitButton {...defaultProps} />);
-      
-      // Tab to main button
+      render(<SplitButton {...defaultProps} menuItems={[
+        { label: 'Disabled', onClick: jest.fn(), disabled: true },
+        { label: 'First', onClick: jest.fn() },
+        { label: '', onClick: jest.fn(), separator: true },
+        { label: 'Middle disabled', onClick: jest.fn(), disabled: true },
+        { label: 'Last', onClick: jest.fn() },
+      ]} />);
       await user.tab();
       expect(screen.getByRole('button', { name: 'Main Action' })).toHaveFocus();
-      
-      // Tab to dropdown button
       await user.tab();
-      expect(screen.getAllByRole('button')[1]).toHaveFocus();
-      
-      // Open dropdown with Enter
+      const toggle = screen.getByRole('button', { name: 'More Main Action options' });
+      expect(toggle).toHaveFocus();
       await user.keyboard('{Enter}');
-      expect(screen.getByRole('menu')).toBeInTheDocument();
-      
-      // Close by clicking the dropdown button again (since Escape handling isn't implemented)
-      await user.click(screen.getAllByRole('button')[1]);
-      await waitFor(() => {
-        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-      });
+      expect(screen.getByRole('menu', { name: 'More Main Action options' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'First' })).toHaveFocus();
+      await user.keyboard('{ArrowDown}');
+      expect(screen.getByRole('menuitem', { name: 'Last' })).toHaveFocus();
+      await user.keyboard('{ArrowDown}');
+      expect(screen.getByRole('menuitem', { name: 'First' })).toHaveFocus();
+      await user.keyboard('{ArrowUp}');
+      expect(screen.getByRole('menuitem', { name: 'Last' })).toHaveFocus();
+      await user.keyboard('{Home}');
+      expect(screen.getByRole('menuitem', { name: 'First' })).toHaveFocus();
+      await user.keyboard('{End}');
+      expect(screen.getByRole('menuitem', { name: 'Last' })).toHaveFocus();
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+      expect(toggle).toHaveFocus();
+    });
+
+    it('does not leak menu navigation to certificate keyboard shortcuts', async () => {
+      const user = userEvent.setup();
+      const onKeyDown = jest.fn();
+      render(<div onKeyDown={onKeyDown}><SplitButton {...defaultProps} /></div>);
+      await user.click(screen.getByRole('button', { name: 'More Main Action options' }));
+      screen.getByRole('menuitem', { name: 'Option 1' }).focus();
+      await user.keyboard('{ArrowDown}{ArrowUp}{Home}{End}{Escape}');
+      expect(onKeyDown).not.toHaveBeenCalled();
     });
   });
 });

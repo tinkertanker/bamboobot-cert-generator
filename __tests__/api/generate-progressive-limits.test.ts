@@ -49,6 +49,10 @@ async function post(payload: Record<string, unknown>) {
 }
 
 beforeAll(() => jest.useFakeTimers());
+beforeEach(() => {
+  const manager = PdfSessionManager.getInstance();
+  for (const sessionId of manager.getActiveSessions()) manager.removeSession(sessionId);
+});
 afterAll(() => {
   PdfSessionManager.getInstance().destroy();
   jest.clearAllTimers();
@@ -76,8 +80,7 @@ describe('/api/generate-progressive resource limits', () => {
   });
 
   it('limits concurrent sessions per user', async () => {
-    // One session is already active from the previous test.
-    for (let i = 1; i < MAX_ACTIVE_PROGRESSIVE_SESSIONS_PER_USER; i++) {
+    for (let i = 0; i < MAX_ACTIVE_PROGRESSIVE_SESSIONS_PER_USER; i++) {
       expect((await post(body())).statusCode).toBe(200);
     }
     expect((await post(body())).statusCode).toBe(429);

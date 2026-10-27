@@ -6,6 +6,8 @@ are implemented. The items below are still open.
 
 ## Top priority
 
+- [x] First test-quality cleanup: isolate destructive cleanup and progressive-session fixtures, test real PDF output, unmask validation failures, consolidate font/UI echoes, and keep Node/Workers build checks outside Jest
+- [ ] Continue test-quality audit follow-ups: real autosave/load/save persistence and targeted replacements for remaining mock-heavy tests; retain security, D1 and import data-loss coverage
 - [ ] CSV7 follow-ups ([per-row dispositions](docs/CSV7_FINDINGS.md))
   - [x] Atomic project create/import quota across Node and D1, preserving partial-import confirmations (row 3)
   - [x] Quarantine unknown-owner legacy browser data and block restoration on isolation failure (row 7)

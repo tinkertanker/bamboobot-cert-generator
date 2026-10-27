@@ -60,10 +60,11 @@ describe('Multi-domain Admin Configuration', () => {
       });
 
       it('should be case insensitive', () => {
-        process.env.SUPER_ADMIN_EMAILS = 'admin@company.com,founder@startup.io,ceo@corporation.org';
+        process.env.SUPER_ADMIN_EMAILS = ' Admin@Company.Com , FOUNDER@STARTUP.IO , ceo@corporation.org ';
         const detectUserTier = getDetectUserTier();
         expect(detectUserTier('ADMIN@COMPANY.COM')).toBe('super_admin');
         expect(detectUserTier('Admin@Company.Com')).toBe('super_admin');
+        expect(detectUserTier(' founder@Startup.io ')).toBe('super_admin');
       });
 
       it('should handle extra whitespace', () => {
@@ -89,10 +90,11 @@ describe('Multi-domain Admin Configuration', () => {
       });
 
       it('should be case insensitive', () => {
-        process.env.ADMIN_DOMAINS = 'company.com,startup.io,corporation.org';
+        process.env.ADMIN_DOMAINS = ' Company.Com , STARTUP.IO , corporation.org ';
         const detectUserTier = getDetectUserTier();
         expect(detectUserTier('user@COMPANY.COM')).toBe('admin');
         expect(detectUserTier('user@Company.Com')).toBe('admin');
+        expect(detectUserTier(' employee@Startup.io ')).toBe('admin');
       });
 
       it('should handle extra whitespace', () => {
@@ -132,8 +134,8 @@ describe('Multi-domain Admin Configuration', () => {
         delete process.env.SUPER_ADMIN_EMAILS;
         delete process.env.ADMIN_DOMAINS;
         
-        process.env.SUPER_ADMIN_EMAIL = 'legacy@admin.com';
-        process.env.ADMIN_DOMAIN = 'legacy.com';
+        process.env.SUPER_ADMIN_EMAIL = ' Legacy@Admin.Com ';
+        process.env.ADMIN_DOMAIN = ' Legacy.Com ';
         const detectUserTier = getDetectUserTier();
         expect(detectUserTier('LEGACY@ADMIN.COM')).toBe('super_admin');
         expect(detectUserTier('USER@LEGACY.COM')).toBe('admin');

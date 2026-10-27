@@ -6,9 +6,14 @@ Jest (jsdom) with React Testing Library. Dependencies come from `npm ci`; nothin
 npm test -- __tests__/lib/rate-limit.test.ts   # one file
 npm test -- -t "rate limit"                    # tests whose name matches
 npm run test:watch
-npm test                                       # everything, including build.test.ts (runs a full build)
+npm test                                       # all Jest suites; builds run separately
 npm test -- --coverage
+npm run build                                  # Node application and PDF worker
 ```
+
+CI runs the Node build before Jest so worker artifact tests inspect a fresh bundle.
+It also runs the Cloudflare build and Wrangler packaging check; both build paths
+remain required and must run sequentially because they share `.next`.
 
 ## Layout
 
@@ -22,7 +27,6 @@ npm test -- --coverage
 | `fonts/` | Font files and `FONT_CAPABILITIES` |
 | `pages/` | Page rendering |
 | `middleware.test.ts` | Route gating in `middleware.ts` |
-| `build.test.ts` | `npm run build` succeeds |
 | `helpers/` | Shared helpers (`mock-local-storage.ts`, `silence-console.ts`); not test suites |
 | `__mocks__/` | AWS SDK mocks, wired up in `jest.config.js` |
 

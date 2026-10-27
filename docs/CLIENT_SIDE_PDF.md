@@ -23,8 +23,7 @@ Server generation of individual PDFs uses progressive batches when there are mor
 | `lib/pdf/client/worker/pdf-worker-with-fonts.ts` | Web Worker entry; builds PDFs with pdf-lib and fontkit |
 | `lib/pdf/client/font-manager.ts` | Fetches TTFs from `public/fonts/`, caches them in memory and IndexedDB |
 | `lib/pdf/client/image-to-pdf.ts` | Turns the uploaded PNG/JPEG into a PDF page to stamp on |
-| `lib/pdf/shared/pdf-generation-core.ts` | Text placement, shrink-to-fit and two-line wrapping, shared with the server |
-| `lib/pdf/shared/coordinate-transform.ts` | Converts top-left percentage positions to PDF bottom-left coordinates |
+| `lib/pdf/shared/pdf-generation-core.ts` | Coordinate conversion, text placement, shrink-to-fit and two-line wrapping, shared with the server |
 
 All ten fonts, bold and italic variants, both text modes and ZIP download (JSZip, in `components/modals/IndividualPdfsModal.tsx`) work client-side.
 

@@ -18,17 +18,21 @@ alone retained allocations under sustained authenticated artifact reads. The
 Cloudflare build also enables browser project persistence at build time; a
 runtime binding alone cannot set a `NEXT_PUBLIC_` flag in browser JavaScript.
 
+Current local verification commands (historical staging results follow):
+
 ```sh
 npm ci
 npm run lint
+npm run build
 npm test
 npm run build:cloudflare
 npx wrangler deploy --dry-run --outdir /tmp/bamboobot-worker
 ```
 
-`npm test` includes a Node production build that deletes `.next`; run it before,
-not concurrently with, the Cloudflare build. CI performs both build paths and a
-local Wrangler dry run, without deployment credentials.
+The Node and Cloudflare builds both write `.next`; run them sequentially, not
+concurrently. `npm test` no longer runs a build or deletes build/cache directories.
+CI performs both build paths and a local Wrangler dry run, without deployment
+credentials.
 
 `check:cloudflare` checks the custom entry point separately with JavaScript input
 disabled. The app's TypeScript config excludes that entry point and generated
