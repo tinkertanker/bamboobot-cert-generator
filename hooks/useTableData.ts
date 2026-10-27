@@ -299,7 +299,9 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     csvMode: boolean,
     headerRow: boolean
   ) => {
-    await processTableData(input, headerRow, csvMode);
+    if (!await processTableData(input, headerRow, csvMode)) {
+      throw new Error('Saved table data exceeds the supported limits');
+    }
   }, [processTableData]);
 
   return {

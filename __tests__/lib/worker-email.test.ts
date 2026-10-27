@@ -6,6 +6,8 @@ import { cleanupWorkerObjects } from '@/lib/server/worker-cleanup';
 import { reservePdfUsage, reserveEmailUsage, setUserTier } from '@/lib/server/tiers';
 import createProject from '@/pages/api/projects/index';
 import importProjects from '@/pages/api/projects/import';
+import projectRoute from '@/pages/api/projects/[id]';
+import prisma from '@/lib/server/prisma';
 import httpMocks from 'node-mocks-http';
 
 let bindings: Record<string, unknown>;
@@ -92,6 +94,32 @@ describe('durable email admission in real D1', () => {
     } finally {
       await db.prepare(`UPDATE User SET tier='plus',tierSource='manual'`).run();
     }
+  });
+
+  it('lists recently edited projects first across Prisma and atomic D1 creates', async () => {
+    try {
+      const legacy = await prisma.project.create({ data: { ownerId: 'fixture', name: 'Legacy', data: {},
+        createdAt: new Date('2025-01-01'), updatedAt: new Date('2025-01-01') } });
+      const ids = [legacy.id];
+      for (const name of ['Older', 'Newer']) {
+        const res = httpMocks.createResponse();
+        await createProject(httpMocks.createRequest({ method: 'POST', body: { name, data: {} } }), res);
+        expect(res.statusCode).toBe(201);
+        ids.push(res._getJSONData().project.id);
+      }
+      for (const id of [ids[1], legacy.id]) {
+        await new Promise(resolve => setTimeout(resolve, 20));
+        const updated = httpMocks.createResponse();
+        await projectRoute(httpMocks.createRequest({ method: 'PUT', query: { id }, body: { data: { edited: true } } }), updated);
+        expect(updated.statusCode).toBe(200);
+        const listed = httpMocks.createResponse();
+        await createProject(httpMocks.createRequest({ method: 'GET' }), listed);
+        expect(listed._getJSONData().projects[0].id).toBe(id);
+        const reloaded = httpMocks.createResponse();
+        await projectRoute(httpMocks.createRequest({ method: 'GET', query: { id } }), reloaded);
+        expect(reloaded._getJSONData().project.data).toEqual({ edited: true });
+      }
+    } finally { await db.prepare('DELETE FROM Project').run(); }
   });
 
   it('shares atomic project capacity between create and import requests in D1', async () => {

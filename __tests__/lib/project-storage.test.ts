@@ -48,6 +48,8 @@ describe('ProjectStorage', () => {
       const layout = await ProjectStorage.saveProject('Invalid', { name: { x: 0, y: 0, fontSize: '1e308' as unknown as number } },
         mockColumns, mockImageUrl, mockFilename, mockTableData);
       expect(layout).toMatchObject({ success: false, error: 'Invalid text field fontSize' });
+      const header = await ProjectStorage.saveProject('Long header', {}, ['x'.repeat(2001)], mockImageUrl, mockFilename, []);
+      expect(header).toMatchObject({ success: false, error: expect.stringContaining('2000 characters') });
       expect(localStorage.length).toBe(0);
     });
 

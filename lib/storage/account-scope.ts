@@ -10,6 +10,8 @@
  * Storage failures propagate so the editor cannot mount and disclose originals.
  */
 
+import { v4 as uuidv4 } from 'uuid';
+
 const OWNER_KEY = 'bamboobot_ls_owner_v1';
 export const QUARANTINE_PREFIX = 'bamboobot_quarantine_';
 
@@ -58,7 +60,7 @@ export function guardLocalStorageForUser(userId: string | null | undefined): boo
   const keys = appOwnedKeys();
   if (previousOwner === null && keys.length) {
     const archive = JSON.stringify(Object.fromEntries(keys.map(key => [key, localStorage.getItem(key)])));
-    const archiveKey = `${QUARANTINE_PREFIX}${crypto.randomUUID()}`;
+    const archiveKey = `${QUARANTINE_PREFIX}${uuidv4()}`;
     localStorage.setItem(archiveKey, archive);
     if (localStorage.getItem(archiveKey) !== archive) throw new Error('Browser data quarantine failed');
   }

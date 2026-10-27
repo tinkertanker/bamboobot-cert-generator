@@ -1,9 +1,57 @@
 import { renderHook, act } from '@testing-library/react';
+import { useState } from 'react';
 import { useTableData } from '../../hooks/useTableData';
 import { useProjectAutosave } from '@/hooks/useProjectAutosave';
+import { useProjectManagement } from '@/hooks/useProjectManagement';
 import { ProjectStorage } from '@/lib/project-storage';
+import { SessionStorage } from '@/lib/session-storage';
+import type { Positions, EmailConfig } from '@/types/certificate';
 
 describe('useTableData Auto-Detection', () => {
+  it('does not autosave rejected restored data over either the current or selected project', async () => {
+    jest.useFakeTimers();
+    localStorage.clear();
+    const saved = await ProjectStorage.saveProject('Alice', { Name: { x: 50, y: 50 } }, ['Name'], '/image.png', 'image.png', [{ Name: 'Alice' }]);
+    SessionStorage.saveSession({ tableData: [], tableInput: 'Name\n' + 'x'.repeat(2001), useCSVMode: false, isFirstRowHeader: true });
+    jest.advanceTimersByTime(1000);
+    const { result, unmount } = renderHook(() => {
+      const table = useTableData();
+      const [positions, setPositions] = useState<Positions>({});
+      const [url, setUrl] = useState<string | null>(null);
+      const project = useProjectManagement({
+        setPositions, setUploadedFileUrl: setUrl, setUploadedFile: () => {}, setEmailConfig: () => {},
+        loadSessionData: table.loadSessionData, uploadToServer: async () => undefined,
+        showToast: () => {}, manualSave: async () => ({ success: true }),
+        uploadedFileUrl: url, uploadedFile: null, positions, emailConfig: {} as EmailConfig,
+        tableData: table.tableData, automaticTextColorResult: null,
+        clearFile: () => {}, clearPositions: () => {}, clearDragState: () => {}, clearData: table.clearData,
+      });
+      useProjectAutosave({ positions, columns: Object.keys(table.tableData[0] ?? {}), tableData: table.tableData,
+        emailConfig: null, certificateImageUrl: url, certificateFilename: 'image.png',
+        enabled: project.hasManuallySaved, currentProjectId: project.currentProjectId, currentProjectName: project.currentProjectName });
+      return { table, project };
+    });
+    try {
+      await act(async () => {});
+      await act(async () => { jest.advanceTimersByTime(11_000); });
+      expect(result.current.project.currentProjectId).toBe(saved.id);
+      expect(ProjectStorage.loadProject(saved.id!)?.tableData).toEqual([{ Name: 'Alice' }]);
+      // Legacy projects can predate admission bounds. Also exercise rejection
+      // during parsing, after structurally valid project data passes admission.
+      for (const column of ['x'.repeat(2001), 'Field\t'.repeat(101)]) {
+        const legacy = { ...ProjectStorage.loadProject(saved.id!)!, id: 'bob', name: 'Bob',
+          positions: { [column]: { x: 12, y: 34 } }, columns: [column], tableData: [{ [column]: 'Bob' }] };
+        localStorage.setItem('bamboobot_project_v1_bob', JSON.stringify(legacy));
+        await act(async () => { await expect(result.current.project.handleLoadProject(legacy)).rejects.toThrow(); });
+        await act(async () => { jest.advanceTimersByTime(11_000); });
+        expect(result.current.project.currentProjectId).toBe(saved.id);
+        expect(ProjectStorage.loadProject(saved.id!)?.tableData).toEqual([{ Name: 'Alice' }]);
+        expect(ProjectStorage.loadProject('bob')?.tableData).toEqual(legacy.tableData);
+        expect(ProjectStorage.loadProject(saved.id!)?.positions).toMatchObject({ Name: { x: 50, y: 50 } });
+      }
+    } finally { unmount(); jest.useRealTimers(); localStorage.clear(); }
+  });
+
   it('preserves an already saved project when a paste is rejected', async () => {
     jest.useFakeTimers();
     localStorage.clear();
@@ -32,7 +80,7 @@ describe('useTableData Auto-Detection', () => {
     const { result } = renderHook(() => useTableData());
     const headers = Array.from({ length: 100 }, (_, i) => `Field${i}`).join('\t');
     await act(async () => {
-      await result.current.loadSessionData(headers + '\n' + Array(1001).fill('x').join('\n'), false, true);
+      await expect(result.current.loadSessionData(headers + '\n' + Array(1001).fill('x').join('\n'), false, true)).rejects.toThrow();
     });
     expect(result.current.tableData).toEqual([]);
     expect(result.current.dataError).toContain('100,000 cells');

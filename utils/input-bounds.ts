@@ -33,6 +33,7 @@ export function projectInputError(positions: unknown, columns: unknown, rows: un
   if (!Array.isArray(columns) || !columns.every(column => typeof column === 'string') || !Array.isArray(rows)) {
     return 'Invalid project table';
   }
+  if (columns.some(column => column.length > 2000)) return 'Column names are limited to 2000 characters';
   const sizeError = tableSizeError(rows.length, columns.length);
   if (sizeError) return sizeError;
   // Include separators and repeated column names before allocating row strings.

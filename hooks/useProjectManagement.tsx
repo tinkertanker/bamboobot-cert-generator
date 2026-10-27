@@ -179,6 +179,8 @@ export function useProjectManagement({
     } else if (project.columns.length > 0) {
       const headers = project.columns;
       await loadSessionData([headers.join("\t"), headers.map(() => "").join("\t")].join("\n"), false, true);
+    } else {
+      await loadSessionData('', false, true);
     }
   }, [loadSessionData]);
 
@@ -194,18 +196,19 @@ export function useProjectManagement({
         if (session) {
           const sessionAge = SessionStorage.getSessionAge();
           if (sessionAge && sessionAge < 24 * 60 * 60 * 1000) {
-            await loadSessionData(
-              session.tableInput,
-              session.useCSVMode,
-              session.isFirstRowHeader
-            );
-            restoredWorkingSession = true;
-
-            showToast({
-              message: "Session data restored",
-              type: "info",
-              duration: 2000
-            });
+            try {
+              await loadSessionData(
+                session.tableInput,
+                session.useCSVMode,
+                session.isFirstRowHeader
+              );
+              restoredWorkingSession = true;
+              showToast({ message: "Session data restored", type: "info", duration: 2000 });
+            } catch {
+              // Preserve the rejected session, but fall back to the saved table
+              // before selecting a project and enabling its autosave.
+              showToast({ message: "Session data could not be restored; loading the saved project instead", type: "error", duration: 5000 });
+            }
           } else {
             SessionStorage.clearSession();
           }
@@ -272,8 +275,8 @@ export function useProjectManagement({
   // Project handlers
   const handleLoadProject = useCallback(
     async (project: SavedProject) => {
-      loadProjectPositions(project);
       await loadProjectTableData(project);
+      loadProjectPositions(project);
 
       if (project.emailConfig) {
         setEmailConfig(withComputedIsConfigured(project.emailConfig));

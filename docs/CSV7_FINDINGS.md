@@ -42,6 +42,16 @@ validation, not a general decoder/process sandbox.
 Rows **12, 15 and 19 remain mitigated**, not fully fixed. A malicious PDF that
 reaches a same-origin/blob template source can still exercise unbounded xref or
 decoded-object parsing; no remaining normal-image-upload entrance was demonstrated.
+The final review cycle also closes rejected-session/project restoration paths:
+programmatic parsing rejects rather than resolving successfully, and project
+identity, positions and autosave follow accepted table data. Invalid working
+sessions fall back to the saved project. Combined real-hook/localStorage tests
+verify Alice's saved rows survive both startup and a rejected Bob project load.
+Column headers share the parser's 2,000-character limit. Atomic insertion binds
+Date values through Prisma, preserving native SQLite/D1 timestamp representations;
+real create/update/list/reload route tests cover both runtimes. Quarantine IDs use
+the existing UUID library's getRandomValues fallback on non-secure HTTP contexts.
+
 R2 staging remains outside durable byte accounting until admission: crashes,
 ambiguous database outcomes or failed cleanup can retain objects until the existing
 24-hour, paginated sweep. No attacker-triggerable platform failure was demonstrated.

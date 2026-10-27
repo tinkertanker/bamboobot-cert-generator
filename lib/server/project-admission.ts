@@ -13,7 +13,7 @@ export async function createProjectWithinLimit(ownerId: string, input: {
   const tier = detectUserTier(user.email, user.tier as UserTier, user.tierSource === 'manual' ? 'manual' : 'env');
   const limit = getTierLimits(tier).projectLimit;
   const id = uuidv4();
-  const now = new Date().toISOString();
+  const now = new Date();
   let inserted: number;
   try {
     inserted = await prisma.$executeRaw`
