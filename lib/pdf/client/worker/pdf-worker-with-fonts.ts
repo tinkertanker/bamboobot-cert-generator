@@ -270,10 +270,11 @@ async function generatePdf(payload: {
   namingColumn?: string;
 }, requestId: string) {
   const { templateData, entries, positions, uiContainerDimensions, mode } = payload;
+  const templateDoc = await PDFDocument.load(templateData);
+  self.postMessage({ type: 'parsed', id: requestId });
 
   if (mode === 'single') {
     // Generate merged PDF
-    const templateDoc = await PDFDocument.load(templateData);
     const mergedPdf = await PDFDocument.create();
     
     // Embed every custom font variant used across all entries once
@@ -313,7 +314,6 @@ async function generatePdf(payload: {
     // Generate individual PDFs
     const filenameAllocator = new UniquePdfFilenameAllocator();
     const totalEntries = entries.length;
-    const templateDoc = await PDFDocument.load(templateData);
 
     for (let i = 0; i < totalEntries; i++) {
       const pdfBytes = await generateSingleCertificate(
