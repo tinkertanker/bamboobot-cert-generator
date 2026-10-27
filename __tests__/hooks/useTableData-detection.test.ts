@@ -1,20 +1,28 @@
 import { renderHook, act } from '@testing-library/react';
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { useTableData } from '../../hooks/useTableData';
 import { useProjectAutosave } from '@/hooks/useProjectAutosave';
 import { useSessionAutosave } from '@/hooks/useSessionAutosave';
 import { useProjectManagement } from '@/hooks/useProjectManagement';
 import { ProjectStorage } from '@/lib/project-storage';
 import { SessionStorage } from '@/lib/session-storage';
-import { QUARANTINE_PREFIX } from '@/lib/storage/account-scope';
+import { OWNER_KEY, QUARANTINE_PREFIX } from '@/lib/storage/account-scope';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
 describe('useTableData Auto-Detection', () => {
-  it('reuses a verified recovery copy across reloads without a saved project', async () => {
+  it.each([undefined, 'alice'])('reuses a verified recovery copy across reloads for %s without a saved project', async (ownerId) => {
     localStorage.clear();
+    const sessionMock = jest.mocked(useSession);
+    sessionMock.mockReturnValue(ownerId
+      ? { status: 'authenticated', data: { user: { id: ownerId, tier: 'free', dailyPdfCount: 0, dailyEmailCount: 0 }, expires: '' }, update: jest.fn() }
+      : { status: 'unauthenticated', data: null, update: jest.fn() });
+    if (ownerId) localStorage.setItem(OWNER_KEY, ownerId);
     const key = 'bamboobot_current_session_v1';
     const original = '{"tableInput":"Recoverable Alice"';
     localStorage.setItem(key, original);
+    const archived = (session: string) => JSON.stringify(ownerId
+      ? { version: 1, ownerId, session } : { [key]: session });
     const mount = () => renderHook(() => {
       const table = useTableData();
       const project = useProjectManagement({
@@ -39,7 +47,7 @@ describe('useTableData Auto-Detection', () => {
           expect(result.current.currentProjectId).toBeNull();
           expect(result.current.sessionAutosaveBlocked).toBe(false);
           expect(localStorage.getItem(key)).toBe(original);
-          expect(archives()).toEqual([JSON.stringify({ [key]: original })]);
+          expect(archives()).toEqual([archived(original)]);
         } finally { unmount(); }
       }
       // A different rejected value must retain its own recovery copy.
@@ -48,7 +56,7 @@ describe('useTableData Auto-Detection', () => {
       const changedMount = mount();
       try { await act(async () => {}); } finally { changedMount.unmount(); }
       expect(archives()).toEqual(expect.arrayContaining([
-        JSON.stringify({ [key]: original }), JSON.stringify({ [key]: changed }),
+        archived(original), archived(changed),
       ]));
       expect(archives()).toHaveLength(2);
 
@@ -70,7 +78,11 @@ describe('useTableData Auto-Detection', () => {
         expect(localStorage.getItem(key)).toBe(changed);
         expect(archives()).toHaveLength(2);
       } finally { unreadableMount.unmount(); }
-    } finally { jest.restoreAllMocks(); localStorage.clear(); }
+    } finally {
+      jest.restoreAllMocks();
+      sessionMock.mockReturnValue({ status: 'unauthenticated', data: null, update: jest.fn() });
+      localStorage.clear();
+    }
   });
 
   it.each(['parser', 'corrupt JSON', 'invalid shape', 'invalid timestamp'].flatMap(sessionKind =>

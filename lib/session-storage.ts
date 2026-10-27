@@ -7,7 +7,7 @@
 
 import type { TableData } from '@/types/certificate';
 import { v4 as uuidv4 } from 'uuid';
-import { QUARANTINE_PREFIX } from '@/lib/storage/account-scope';
+import { OWNER_KEY, QUARANTINE_PREFIX } from '@/lib/storage/account-scope';
 
 export interface SessionData {
   tableData: TableData[];
@@ -19,28 +19,81 @@ export interface SessionData {
 
 const SESSION_KEY = 'bamboobot_current_session_v1';
 const MAX_SESSION_SIZE = 2 * 1024 * 1024; // 2MB limit for session data
+// Still opaque to generic inspection/cleanup and all automatic restore readers.
+const OWNED_SESSION_PREFIX = `${QUARANTINE_PREFIX}session_v1_`;
+
+function requireRecoveryOwner(userId: string): void {
+  if (!userId || localStorage.getItem(OWNER_KEY) !== userId) {
+    throw new Error('Recovery requires the original signed-in account and browser ownership');
+  }
+}
+
+function ownedSession(raw: string | null, userId: string): string | null {
+  if (raw === null) return null;
+  try {
+    const record = JSON.parse(raw);
+    return record?.version === 1 && record.ownerId === userId && typeof record.session === 'string'
+      ? record.session : null;
+  } catch {
+    return null;
+  }
+}
 
 export class SessionStorage {
-  /** Preserve rejected working data outside restoration and cleanup readers. */
-  static archiveSession(): boolean {
+  /**
+   * Preserve rejected working data outside restoration and cleanup readers.
+   * Callers may bind NEW copies only to the authenticated owner of active data.
+   * Old unowned archives are never relabelled, even if their bytes match.
+   */
+  static archiveSession(userId?: string): boolean {
     try {
+      if (userId !== undefined) requireRecoveryOwner(userId);
       const original = localStorage.getItem(SESSION_KEY);
       if (original === null) return true;
-      const archive = JSON.stringify({ [SESSION_KEY]: original });
+      const archive = JSON.stringify(userId === undefined
+        ? { [SESSION_KEY]: original }
+        : { version: 1, ownerId: userId, session: original });
+      const prefix = userId === undefined ? QUARANTINE_PREFIX : OWNED_SESSION_PREFIX;
       // A rejected session may remain active when no saved project replaces it.
       // Reuse verified bytes instead of consuming more storage on every reload.
       for (let i = 0; i < localStorage.length; i++) {
         const existingKey = localStorage.key(i);
-        if (existingKey?.startsWith(QUARANTINE_PREFIX) && localStorage.getItem(existingKey) === archive) {
+        if (existingKey?.startsWith(prefix) && localStorage.getItem(existingKey) === archive) {
+          if (userId !== undefined) requireRecoveryOwner(userId);
           return true;
         }
       }
-      const key = `${QUARANTINE_PREFIX}${uuidv4()}`;
+      if (userId !== undefined) requireRecoveryOwner(userId);
+      const key = `${prefix}${uuidv4()}`;
       localStorage.setItem(key, archive);
+      if (userId !== undefined) requireRecoveryOwner(userId);
       return localStorage.getItem(key) === archive;
     } catch {
       return false;
     }
+  }
+
+  /** The caller must independently authenticate userId; the marker is not login. */
+  static listRecoverySessions(userId: string): string[] {
+    requireRecoveryOwner(userId);
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(OWNED_SESSION_PREFIX) && ownedSession(localStorage.getItem(key), userId) !== null) {
+        keys.push(key);
+      }
+    }
+    requireRecoveryOwner(userId);
+    return keys.sort();
+  }
+
+  static readRecoverySession(key: string, userId: string): string {
+    requireRecoveryOwner(userId);
+    const session = key.startsWith(OWNED_SESSION_PREFIX)
+      ? ownedSession(localStorage.getItem(key), userId) : null;
+    requireRecoveryOwner(userId);
+    if (session === null) throw new Error('Recovery copy is unavailable for this account');
+    return session;
   }
 
   /**

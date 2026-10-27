@@ -36,6 +36,7 @@ import { ConfirmationModals } from "@/components/modals/ConfirmationModals";
 import { SaveProjectModal } from "@/components/modals/SaveProjectModal";
 import { LoadProjectModal } from "@/components/modals/LoadProjectModal";
 import { NewProjectModal } from "@/components/modals/NewProjectModal";
+import { SessionRecoveryModal } from "@/components/modals/SessionRecoveryModal";
 import { ErrorModal } from "@/components/ui/error-alert";
 import { MobileWarningScreen } from "@/components/MobileWarningScreen";
 import { useMobileDetection } from "@/hooks/useMobileDetection";
@@ -99,6 +100,8 @@ function CertificateEditor() {
   const { isMobile, isLoading: isMobileLoading } = useMobileDetection();
   const [forceMobileAccess, setForceMobileAccess] = useState(false);
   const { data: session } = useSession();
+  const userId = (session?.user as { id?: string } | undefined)?.id;
+  const [showSessionRecovery, setShowSessionRecovery] = useState(false);
   const { isSuperAdmin } = useUserTier();
   // Check for localStorage projects on first login and offer import
   useProjectMigration();
@@ -659,6 +662,12 @@ function CertificateEditor() {
                   onClick: () => setShowLoadProjectModal(true)
                 },
                 {
+                  label: "Recover session data…",
+                  icon: <RefreshCw className="h-4 w-4" />,
+                  onClick: () => setShowSessionRecovery(true),
+                  disabled: !userId
+                },
+                {
                   label: "Save as new project",
                   icon: <Save className="h-4 w-4" />,
                   onClick: () => setShowSaveProjectModal(true),
@@ -1159,6 +1168,10 @@ function CertificateEditor() {
           onLoadProject={handleLoadProject}
           onProjectDeleted={handleProjectDeleted}
         />
+      )}
+
+      {showSessionRecovery && userId && (
+        <SessionRecoveryModal userId={userId} onClose={() => setShowSessionRecovery(false)} />
       )}
 
       {showNewProjectModal && (
