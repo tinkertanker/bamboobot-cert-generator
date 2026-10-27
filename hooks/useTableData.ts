@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import type { TableData } from "@/types/certificate";
 import { parseRecipientsDetailed } from "@/utils/email-validation";
 import { MAX_TABLE_TEXT, TABLE_LIMIT_ERROR, tableSizeError } from '@/utils/input-bounds';
@@ -183,11 +183,6 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
   const [detectedEmailColumn, setDetectedEmailColumn] = useState<string | null>(null);
   const [isProcessingData, setIsProcessingData] = useState<boolean>(false);
   const [dataError, setDataError] = useState<string | null>(null);
-  // Whether a table is currently loaded. Used to show the loading skeleton only
-  // for an initial large load: re-showing it on every edit of an existing
-  // large table would unmount/remount the whole table (and add a 50ms delay)
-  // on each keystroke in the data textarea.
-  const hasTableDataRef = useRef(false);
 
   const processTableData = useCallback(async (
     input: string,
@@ -201,7 +196,6 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
     }
     const trimmedInput = input.trim();
     if (!trimmedInput) {
-      hasTableDataRef.current = false;
       setTableData([]);
       setDetectedEmailColumn(null);
       setTableInput(input);
@@ -210,13 +204,10 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
       return true;
     }
 
-    // For large datasets, show loading state on the initial load
+    // Bounded parsing stays synchronous: delaying an edit can overwrite a
+    // newer input and makes a controlled textarea revert while it waits.
     const lines = trimmedInput.split("\n");
-    if (lines.length > 100 && !hasTableDataRef.current) {
-      setIsProcessingData(true);
-      // Small delay to let UI update
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
+    setIsProcessingData(true);
 
     try {
       if (lines.length === 0) return;
@@ -249,7 +240,6 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
         return obj;
       });
       
-      hasTableDataRef.current = processedTableData.length > 0;
       setTableData(processedTableData);
       setTableInput(input);
       setUseCSVMode(csvMode);
@@ -286,7 +276,6 @@ export function useTableData(initialCsv?: string): UseTableDataReturn {
   }, [processTableData]);
 
   const clearData = useCallback(() => {
-    hasTableDataRef.current = false;
     setDataError(null);
     setTableData([]);
     setTableInput("");

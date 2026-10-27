@@ -6,6 +6,8 @@
  */
 
 import type { TableData } from '@/types/certificate';
+import { v4 as uuidv4 } from 'uuid';
+import { QUARANTINE_PREFIX } from '@/lib/storage/account-scope';
 
 export interface SessionData {
   tableData: TableData[];
@@ -19,6 +21,20 @@ const SESSION_KEY = 'bamboobot_current_session_v1';
 const MAX_SESSION_SIZE = 2 * 1024 * 1024; // 2MB limit for session data
 
 export class SessionStorage {
+  /** Preserve rejected working data outside restoration and cleanup readers. */
+  static archiveSession(): boolean {
+    try {
+      const original = localStorage.getItem(SESSION_KEY);
+      if (original === null) return true;
+      const archive = JSON.stringify({ [SESSION_KEY]: original });
+      const key = `${QUARANTINE_PREFIX}${uuidv4()}`;
+      localStorage.setItem(key, archive);
+      return localStorage.getItem(key) === archive;
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Save current session data
    */

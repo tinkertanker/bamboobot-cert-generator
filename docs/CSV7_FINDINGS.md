@@ -57,3 +57,28 @@ ambiguous database outcomes or failed cleanup can retain objects until the exist
 24-hour, paginated sweep. No attacker-triggerable platform failure was demonstrated.
 PDF parser budgets, ownership-verified quarantine recovery and durable staged-byte
 accounting remain explicit follow-ups in `TODO.md`.
+
+## Fourth-cycle corrections
+
+Late host review superseded the two clean third-cycle receipts with four reproduced
+regressions. Work stopped before merge; the user explicitly authorised one additional
+fix/review cycle. The blocked checkpoint and reproduction evidence remain preserved.
+
+- Rows 16/21: restoring a valid saved project had allowed session autosave to erase
+  the rejected working session. Rejected sessions now get a verified copy in the
+  opaque quarantine before fallback; failed archive writes or verification pause
+  session autosave, including after later manual saves. Saved-project autosave
+  remains available. Recovery still requires ownership verification.
+- Row 7: Dev Mode cleanup now preserves the ownership marker, so unrelated cleanup
+  cannot make same-account projects appear unowned on reload.
+- Row 3: create/import reject empty, whitespace-only and overlong replay IDs rather
+  than deduplicating unrelated payloads or truncating identities. Successful POST
+  replays return 200; only new durable inserts return 201.
+- Rows 16/21: bounded table parsing no longer waits 50ms on an initial large edit.
+  The controlled input updates immediately, and an older delayed paste cannot
+  overwrite a newer accepted edit.
+
+Actual hooks/storage/autosave and native SQLite tests failed before these fixes.
+SQLite and D1 route regressions verify rejection without persistence, valid replay
+acknowledgement and distinct payload reloads. These corrections require fresh
+exact-head review and normal landing gates; earlier clean receipts are not clearance.

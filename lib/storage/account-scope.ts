@@ -12,7 +12,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 
-const OWNER_KEY = 'bamboobot_ls_owner_v1';
+export const OWNER_KEY = 'bamboobot_ls_owner_v1';
 export const QUARANTINE_PREFIX = 'bamboobot_quarantine_';
 
 // Prefixes / exact keys of all app-owned localStorage entries.

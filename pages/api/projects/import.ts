@@ -30,6 +30,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(400).json({ error: 'Each project must be an object' });
     return;
   }
+  if (projects.some((p: { id?: unknown }) => typeof p.id === 'string' && (!p.id.trim() || p.id.length > 200))) {
+    res.status(400).json({ error: 'Project id must contain 1 to 200 characters' });
+    return;
+  }
 
   try {
     const inputs = projects.map((p: unknown) => {
@@ -37,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const rawName = typeof project.name === 'string' ? project.name.trim() : '';
       const name: string = (rawName || 'Imported Project').slice(0, MAX_PROJECT_NAME_LENGTH);
       const clientProjectId: string | null =
-        typeof project.id === 'string' || typeof project.id === 'number' ? String(project.id).slice(0, 200) : null;
+        typeof project.id === 'string' || typeof project.id === 'number' ? String(project.id) : null;
       // Keep entire payload in data for compatibility - must be JSON-serializable
       const data = JSON.parse(JSON.stringify(project)) as Prisma.InputJsonValue;
       return { name, data, clientProjectId };

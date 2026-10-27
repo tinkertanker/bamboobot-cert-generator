@@ -430,6 +430,7 @@ function CertificateEditor() {
     currentProjectName,
     currentProjectId,
     hasManuallySaved,
+    sessionAutosaveBlocked,
     showSaveProjectModal,
     showLoadProjectModal,
     showNewProjectModal,
@@ -469,7 +470,7 @@ function CertificateEditor() {
     tableInput,
     isFirstRowHeader,
     useCSVMode,
-    enabled: hasManuallySaved && tableData.length > 0
+    enabled: hasManuallySaved && !sessionAutosaveBlocked && tableData.length > 0
   });
 
   // Project autosave hook - actually enables autosave after manual save

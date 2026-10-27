@@ -29,6 +29,40 @@ describe('project ordering in native SQLite', () => {
     rmSync(directory, { recursive: true, force: true });
   });
 
+  it('rejects empty replay identities without acknowledging discarded payloads', async () => {
+    const importProjects = require('@/pages/api/projects/import').default;
+    for (const clientProjectId of ['', '   ', 'x'.repeat(201)]) {
+      for (const name of ['Alice', 'Bob']) {
+        const res = httpMocks.createResponse();
+        await projects(httpMocks.createRequest({ method: 'POST', body: { name, data: { recipient: name }, clientProjectId } }), res);
+        expect(res.statusCode).toBe(400);
+        const imported = httpMocks.createResponse();
+        await importProjects(httpMocks.createRequest({ method: 'POST', body: { projects: [{ id: clientProjectId, name }] } }), imported);
+        expect(imported.statusCode).toBe(400);
+      }
+    }
+    expect(await prisma.project.count()).toBe(0);
+    const ids = [];
+    for (const name of ['Alice', 'Bob']) {
+      const created = httpMocks.createResponse();
+      const body = { name, data: { recipient: name }, clientProjectId: `local-${name}` };
+      await projects(httpMocks.createRequest({ method: 'POST', body }), created);
+      expect(created.statusCode).toBe(201);
+      const id = created._getJSONData().project.id;
+      ids.push(id);
+      const replay = httpMocks.createResponse();
+      await projects(httpMocks.createRequest({ method: 'POST', body }), replay);
+      expect(replay.statusCode).toBe(200);
+      expect(replay._getJSONData().project.id).toBe(id);
+      const reloaded = httpMocks.createResponse();
+      await project(httpMocks.createRequest({ method: 'GET', query: { id } }), reloaded);
+      expect(reloaded._getJSONData().project.data).toEqual({ recipient: name });
+    }
+    expect(new Set(ids).size).toBe(2);
+    expect(await prisma.project.count()).toBe(2);
+    await prisma.project.deleteMany();
+  });
+
   it('lists the most recently edited project first across legacy and atomic creates', async () => {
     const legacy = await prisma.project.create({ data: { ownerId: 'fixture', name: 'Legacy', data: {},
       createdAt: new Date('2025-01-01'), updatedAt: new Date('2025-01-01') } });

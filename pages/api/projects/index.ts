@@ -61,18 +61,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (trimmedName.length > MAX_PROJECT_NAME_LENGTH) {
       return res.status(400).json({ error: 'Project name is too long' });
     }
+    if (typeof clientProjectId === 'string' && (!clientProjectId.trim() || clientProjectId.length > 200)) {
+      return res.status(400).json({ error: 'clientProjectId must contain 1 to 200 characters' });
+    }
 
     try {
       const admitted = await createProjectWithinLimit(userId, {
         name: trimmedName, data,
-        clientProjectId: typeof clientProjectId === 'string' ? clientProjectId.slice(0, 200) : null,
+        clientProjectId: typeof clientProjectId === 'string' ? clientProjectId : null,
       });
       if (!admitted) {
         res.status(403).json({ error: 'Project limit reached for your plan', code: 'LIMIT_REACHED' });
         return;
       }
       const { id, name: projectName, createdAt, updatedAt } = admitted.project;
-      res.status(201).json({ project: { id, name: projectName, createdAt, updatedAt } });
+      res.status(admitted.created ? 201 : 200).json({ project: { id, name: projectName, createdAt, updatedAt } });
       return;
     } catch (err) {
       const e = err as { code?: string } | null;

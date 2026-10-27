@@ -5,7 +5,7 @@
  */
 
 import { formatBytes } from './format';
-import { QUARANTINE_PREFIX } from '@/lib/storage/account-scope';
+import { OWNER_KEY, QUARANTINE_PREFIX } from '@/lib/storage/account-scope';
 
 export interface LocalStorageItem {
   key: string;
@@ -255,7 +255,7 @@ export async function cleanupLocalStorage(options: CleanupOptions): Promise<{ de
     : null;
   
   stats.items.forEach(item => {
-    if (item.key.startsWith(QUARANTINE_PREFIX)) return;
+    if (item.key === OWNER_KEY || item.key.startsWith(QUARANTINE_PREFIX)) return;
     let shouldDelete = false;
     
     switch (options.target) {

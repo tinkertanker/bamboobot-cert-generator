@@ -1,8 +1,22 @@
 import { analyzeLocalStorage, cleanupLocalStorage } from '@/lib/localStorage-monitor';
+import { guardLocalStorageForUser } from '@/lib/storage/account-scope';
+import { ProjectStorage } from '@/lib/project-storage';
 
 describe('localStorage monitor', () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+
+  it('keeps owned projects readable after unrelated cleanup and same-account reload', async () => {
+    guardLocalStorageForUser('alice');
+    const saved = await ProjectStorage.saveProject('Alice', {}, ['Name'], '/image.png', 'image.png', [{ Name: 'Alice' }]);
+    localStorage.setItem('unrelated', 'remove');
+    await cleanupLocalStorage({ target: 'other' });
+    guardLocalStorageForUser('alice');
+    expect(ProjectStorage.loadProject(saved.id!)?.tableData).toEqual([{ Name: 'Alice' }]);
+    expect(localStorage.getItem('unrelated')).toBeNull();
+    guardLocalStorageForUser('bob');
+    expect(ProjectStorage.loadProject(saved.id!)).toBeNull();
   });
 
   it('does not disclose or delete quarantined legacy data', async () => {

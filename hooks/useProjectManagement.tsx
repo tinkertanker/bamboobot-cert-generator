@@ -53,6 +53,7 @@ interface UseProjectManagementReturn {
   currentProjectName: string | null;
   currentProjectId: string | null;
   hasManuallySaved: boolean;
+  sessionAutosaveBlocked: boolean;
   showSaveProjectModal: boolean;
   showLoadProjectModal: boolean;
   showNewProjectModal: boolean;
@@ -144,6 +145,7 @@ export function useProjectManagement({
   const [currentProjectName, setCurrentProjectName] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [hasManuallySaved, setHasManuallySaved] = useState<boolean>(false);
+  const [sessionAutosaveBlocked, setSessionAutosaveBlocked] = useState(false);
   const [showSaveProjectModal, setShowSaveProjectModal] = useState<boolean>(false);
   const [showLoadProjectModal, setShowLoadProjectModal] = useState<boolean>(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState<boolean>(false);
@@ -205,9 +207,16 @@ export function useProjectManagement({
               restoredWorkingSession = true;
               showToast({ message: "Session data restored", type: "info", duration: 2000 });
             } catch {
-              // Preserve the rejected session, but fall back to the saved table
-              // before selecting a project and enabling its autosave.
-              showToast({ message: "Session data could not be restored; loading the saved project instead", type: "error", duration: 5000 });
+              // A saved-project fallback must not overwrite rejected working
+              // data. Keep session autosave paused if a verified copy fails.
+              const preserved = SessionStorage.archiveSession();
+              setSessionAutosaveBlocked(!preserved);
+              showToast({
+                message: preserved
+                  ? "Session data could not be restored; a recovery copy was preserved. Loading the saved project instead"
+                  : "Session data could not be preserved; session autosave is paused. Loading the saved project instead",
+                type: "error", duration: 10000
+              });
             }
           } else {
             SessionStorage.clearSession();
@@ -453,6 +462,7 @@ export function useProjectManagement({
     currentProjectName,
     currentProjectId,
     hasManuallySaved,
+    sessionAutosaveBlocked,
     showSaveProjectModal,
     showLoadProjectModal,
     showNewProjectModal,

@@ -2,17 +2,32 @@ import { renderHook, act } from '@testing-library/react';
 import { useState } from 'react';
 import { useTableData } from '../../hooks/useTableData';
 import { useProjectAutosave } from '@/hooks/useProjectAutosave';
+import { useSessionAutosave } from '@/hooks/useSessionAutosave';
 import { useProjectManagement } from '@/hooks/useProjectManagement';
 import { ProjectStorage } from '@/lib/project-storage';
 import { SessionStorage } from '@/lib/session-storage';
+import { QUARANTINE_PREFIX } from '@/lib/storage/account-scope';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
 describe('useTableData Auto-Detection', () => {
-  it('does not autosave rejected restored data over either the current or selected project', async () => {
+  it.each(['success', 'write failure', 'verification failure'])('preserves rejected sessions and saved projects through autosave with archive %s', async (archiveResult) => {
     jest.useFakeTimers();
     localStorage.clear();
     const saved = await ProjectStorage.saveProject('Alice', { Name: { x: 50, y: 50 } }, ['Name'], '/image.png', 'image.png', [{ Name: 'Alice' }]);
     SessionStorage.saveSession({ tableData: [], tableInput: 'Name\n' + 'x'.repeat(2001), useCSVMode: false, isFirstRowHeader: true });
+    const rejectedSession = localStorage.getItem('bamboobot_current_session_v1')!;
+    const originalSet = Storage.prototype.setItem;
+    const originalGet = Storage.prototype.getItem;
+    if (archiveResult === 'write failure') {
+      jest.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+        if (key.startsWith(QUARANTINE_PREFIX)) throw new Error('QuotaExceededError');
+        originalSet.call(this, key, value);
+      });
+    } else if (archiveResult === 'verification failure') {
+      jest.spyOn(Storage.prototype, 'getItem').mockImplementation(function (this: Storage, key) {
+        return key.startsWith(QUARANTINE_PREFIX) ? null : originalGet.call(this, key);
+      });
+    }
     jest.advanceTimersByTime(1000);
     const { result, unmount } = renderHook(() => {
       const table = useTableData();
@@ -29,6 +44,8 @@ describe('useTableData Auto-Detection', () => {
       useProjectAutosave({ positions, columns: Object.keys(table.tableData[0] ?? {}), tableData: table.tableData,
         emailConfig: null, certificateImageUrl: url, certificateFilename: 'image.png',
         enabled: project.hasManuallySaved, currentProjectId: project.currentProjectId, currentProjectName: project.currentProjectName });
+      useSessionAutosave({ ...table,
+        enabled: project.hasManuallySaved && !project.sessionAutosaveBlocked && table.tableData.length > 0 });
       return { table, project };
     });
     try {
@@ -36,6 +53,14 @@ describe('useTableData Auto-Detection', () => {
       await act(async () => { jest.advanceTimersByTime(11_000); });
       expect(result.current.project.currentProjectId).toBe(saved.id);
       expect(ProjectStorage.loadProject(saved.id!)?.tableData).toEqual([{ Name: 'Alice' }]);
+      if (archiveResult === 'success') {
+        expect(SessionStorage.loadSession()?.tableInput).toBe('Name\nAlice');
+        const archive = Object.keys(localStorage).find(key => key.startsWith(QUARANTINE_PREFIX));
+        expect(archive).toBeDefined();
+        expect(JSON.parse(localStorage.getItem(archive!)!)).toEqual({ bamboobot_current_session_v1: rejectedSession });
+      } else {
+        expect(localStorage.getItem('bamboobot_current_session_v1')).toBe(rejectedSession);
+      }
       // Legacy projects can predate admission bounds. Also exercise rejection
       // during parsing, after structurally valid project data passes admission.
       for (const column of ['x'.repeat(2001), 'Field\t'.repeat(101)]) {
@@ -49,7 +74,25 @@ describe('useTableData Auto-Detection', () => {
         expect(ProjectStorage.loadProject('bob')?.tableData).toEqual(legacy.tableData);
         expect(ProjectStorage.loadProject(saved.id!)?.positions).toMatchObject({ Name: { x: 50, y: 50 } });
       }
-    } finally { unmount(); jest.useRealTimers(); localStorage.clear(); }
+      // A later manual save must not re-enable unsafe session autosave.
+      act(() => { result.current.project.handleSaveProjectSuccess(saved.id!, 'Alice'); });
+      await act(async () => { jest.advanceTimersByTime(11_000); });
+      if (archiveResult !== 'success') expect(localStorage.getItem('bamboobot_current_session_v1')).toBe(rejectedSession);
+    } finally { unmount(); jest.restoreAllMocks(); jest.useRealTimers(); localStorage.clear(); }
+  });
+
+  it('accepts an initial large edit immediately and never overwrites a newer edit', async () => {
+    jest.useFakeTimers();
+    const { result, unmount } = renderHook(() => useTableData());
+    const pasted = 'Name\n' + Array(101).fill('Alice').join('\n');
+    try {
+      act(() => { result.current.handleTableDataChange({ target: { value: pasted } } as React.ChangeEvent<HTMLTextAreaElement>); });
+      expect(result.current.tableInput).toBe(pasted);
+      await act(async () => { result.current.handleTableDataChange({ target: { value: 'Name\nBob' } } as React.ChangeEvent<HTMLTextAreaElement>); });
+      await act(async () => { jest.advanceTimersByTime(50); });
+      expect(result.current.tableInput).toBe('Name\nBob');
+      expect(result.current.tableData).toEqual([{ Name: 'Bob' }]);
+    } finally { unmount(); jest.useRealTimers(); }
   });
 
   it('preserves an already saved project when a paste is rejected', async () => {

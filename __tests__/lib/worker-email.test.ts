@@ -122,6 +122,38 @@ describe('durable email admission in real D1', () => {
     } finally { await db.prepare('DELETE FROM Project').run(); }
   });
 
+  it('rejects empty project replay IDs and distinguishes persisted D1 replays from creates', async () => {
+    try {
+      for (const clientProjectId of ['', '   ', 'x'.repeat(201)]) {
+        const created = httpMocks.createResponse();
+        await createProject(httpMocks.createRequest({ method: 'POST', body: { name: 'Rejected', data: {}, clientProjectId } }), created);
+        expect(created.statusCode).toBe(400);
+        const imported = httpMocks.createResponse();
+        await importProjects(httpMocks.createRequest({ method: 'POST', body: { projects: [{ id: clientProjectId, name: 'Rejected' }] } }), imported);
+        expect(imported.statusCode).toBe(400);
+      }
+      expect(await db.prepare('SELECT count(*) AS count FROM Project').first()).toEqual({ count: 0 });
+      const ids = [];
+      for (const name of ['Alice', 'Bob']) {
+        const body = { name, data: { recipient: name }, clientProjectId: `local-${name}` };
+        const created = httpMocks.createResponse();
+        await createProject(httpMocks.createRequest({ method: 'POST', body }), created);
+        expect(created.statusCode).toBe(201);
+        const id = created._getJSONData().project.id;
+        ids.push(id);
+        const replay = httpMocks.createResponse();
+        await createProject(httpMocks.createRequest({ method: 'POST', body }), replay);
+        expect(replay.statusCode).toBe(200);
+        expect(replay._getJSONData().project.id).toBe(id);
+        const reloaded = httpMocks.createResponse();
+        await projectRoute(httpMocks.createRequest({ method: 'GET', query: { id } }), reloaded);
+        expect(reloaded._getJSONData().project.data).toEqual({ recipient: name });
+      }
+      expect(new Set(ids).size).toBe(2);
+      expect(await db.prepare('SELECT count(*) AS count FROM Project').first()).toEqual({ count: 2 });
+    } finally { await db.prepare('DELETE FROM Project').run(); }
+  });
+
   it('shares atomic project capacity between create and import requests in D1', async () => {
     await db.prepare(`UPDATE User SET tier='free',tierSource='manual'`).run();
     try {
