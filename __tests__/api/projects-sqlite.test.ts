@@ -5,6 +5,7 @@ import { join } from 'path';
 import { execFileSync } from 'child_process';
 import type { PrismaClient } from '@prisma/client';
 import httpMocks from 'node-mocks-http';
+import { fixtureTimestamp, projectSummaryFixtures } from '../helpers/project-summary-fixtures';
 
 jest.mock('@/lib/auth/requireAuth', () => ({ requireAuth: async () => ({ user: { id: 'fixture' } }) }));
 
@@ -155,6 +156,26 @@ describe('project ordering in native SQLite', () => {
     } finally {
       await prisma.project.deleteMany();
       await prisma.user.update({ where: { id: 'fixture' }, data: { tier: 'plus' } });
+    }
+  });
+
+  it('derives list summaries in SQL with the former JavaScript semantics', async () => {
+    try {
+      for (const [index, fixture] of projectSummaryFixtures.entries()) {
+        await prisma.project.create({ data: { ownerId: 'fixture', name: fixture.name, data: fixture.data as object,
+          createdAt: fixtureTimestamp(index), updatedAt: fixtureTimestamp(index) } });
+      }
+      await prisma.user.create({ data: { id: 'other' } });
+      await prisma.project.create({ data: { ownerId: 'other', name: 'Not mine', data: {} } });
+      const listed = httpMocks.createResponse();
+      await projects(httpMocks.createRequest({ method: 'GET' }), listed);
+      expect(listed.statusCode).toBe(200);
+      expect(listed._getJSONData().projects.map(({ id, ...rest }: { id: string }) => rest)).toEqual(
+        projectSummaryFixtures.map((fixture, index) => ({ name: fixture.name, ...fixture.summary,
+          createdAt: fixtureTimestamp(index).toISOString(), updatedAt: fixtureTimestamp(index).toISOString() })).reverse());
+    } finally {
+      await prisma.project.deleteMany();
+      await prisma.user.deleteMany({ where: { id: 'other' } });
     }
   });
 

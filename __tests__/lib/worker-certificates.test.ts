@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
 import prisma from '@/lib/server/prisma';
-import { createWorkerDraft, approveWorkerJob, processWorkerCertificateJobs, expireWorkerJob, type WorkerCheckpoint } from '@/lib/agent/worker-jobs';
+import { createWorkerDraft, approveWorkerJob, processWorkerCertificateJobs, expireWorkerJob, cleanupWorkerCertificateJobs, type WorkerCheckpoint } from '@/lib/agent/worker-jobs';
 import { digest } from '@/lib/agent/render';
 import type { Snapshot, Manifest } from '@/lib/agent/jobs';
 
@@ -170,4 +170,37 @@ describe('certificate contract with real D1 and R2', () => {
     await expect(createWorkerDraft('owner', payload(1), first.idempotencyKey)).rejects.toMatchObject({ status: 409 });
     expect((await job(first.id)).input).toEqual({});
   });
+
+  it('expires stale objects but keeps every key a live job references or a live attempt owns', async () => {
+    // Earlier tests' objects would otherwise push these keys past one 50-object page.
+    for (let page = await bucket.list({ prefix: 'agent/' }); page.objects.length; page = await bucket.list({ prefix: 'agent/' })) {
+      await bucket.delete(page.objects.map((o: { key: string }) => o.key));
+    }
+    await db.prepare('DELETE FROM MaintenanceCursor').run();
+    const { job: draft } = await createWorkerDraft('owner', payload(2), 'cleanup-live');
+    await prepare(draft.id);
+    await approveWorkerJob('owner', draft.id, draft.inputHash);
+    await processWorkerCertificateJobs();
+    const { job: stale } = await createWorkerDraft('owner', payload(1), 'cleanup-expired');
+    await db.prepare(`UPDATE CertificateJob SET expiresAt='2000-01-01T00:00:00Z' WHERE id=?`).bind(stale.id).run();
+    await db.prepare(`UPDATE CertificateJob SET attemptToken='live-attempt' WHERE id=?`).bind(draft.id).run();
+    const complete = await job(draft.id);
+    expect(complete.status).toBe('completed');
+    const state = complete.checkpoint as unknown as WorkerCheckpoint;
+    const manifest = complete.manifest as unknown as Manifest;
+    const referenced = [state.requestKey, state.templateKey, state.sampleKey, manifest.zip.objectKey, ...state.files.map(f => f.objectKey)]
+      .filter((key): key is string => !!key);
+    const extras = { stray: `agent/${draft.id}/superseded/0001.pdf`, attempt: `agent/${draft.id}/live-attempt/0001.pdf`,
+      expired: `agent/${stale.id}/stale/0001.pdf`, orphan: 'agent/no-such-job/recent.pdf' };
+    for (const key of Object.values(extras)) await bucket.put(key, 'x');
+    // Objects are past the in-flight lease window but younger than the orphan grace period.
+    const now = Date.now();
+    jest.spyOn(Date, 'now').mockReturnValue(now + 10 * 60_000);
+    try { await cleanupWorkerCertificateJobs(); } finally { jest.restoreAllMocks(); }
+    const present = new Set(((await bucket.list({ prefix: 'agent/' })).objects as Array<{ key: string }>).map(o => o.key));
+    for (const key of [...referenced, extras.attempt, extras.orphan]) expect(present).toContain(key);
+    for (const key of [extras.stray, extras.expired]) expect(present).not.toContain(key);
+    expect([...present].filter(key => key.startsWith(`agent/${stale.id}/`))).toEqual([]);
+    expect((await job(stale.id))).toMatchObject({ status: 'expired', input: {}, storageBytes: 0 });
+  }, 30000);
 });
