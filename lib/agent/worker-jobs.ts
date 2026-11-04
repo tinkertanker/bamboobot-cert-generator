@@ -27,7 +27,7 @@ export interface WorkerCheckpoint {
   bytes: number;
   auxiliaryBytes: number;
 }
-const checkpoint = (job: CertificateJob) => job.checkpoint as unknown as WorkerCheckpoint;
+const checkpoint = (job: Pick<CertificateJob, 'checkpoint'>) => job.checkpoint as unknown as WorkerCheckpoint;
 
 async function owned(ownerId: string, id: string) {
   const job = await prisma.certificateJob.findFirst({ where: { id, ownerId } });
@@ -255,7 +255,9 @@ export async function cleanupWorkerCertificateJobs() {
   const cursor = await db.prepare('SELECT cursor FROM MaintenanceCursor WHERE id=?').bind('agent-expiry').first<{ cursor: string | null }>();
   const page = await files.list({ prefix: 'agent/', cursor: cursor?.cursor || undefined, limit: 50 });
   for (const object of page.objects) {
-    const job = await prisma.certificateJob.findUnique({ where: { id: object.key.split('/')[1] } });
+    // Retention needs only state and referenced keys; never load the job input.
+    const job = await prisma.certificateJob.findUnique({ where: { id: object.key.split('/')[1] },
+      select: { status: true, expiresAt: true, attemptToken: true, checkpoint: true, manifest: true } });
     if (!job || job.status === 'expired' || job.expiresAt <= new Date()) {
       if (job || Date.now() - object.uploaded.getTime() > DAY) await files.delete(object.key);
       continue;

@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { Prisma } from '@prisma/client';
 import { isDeepStrictEqual } from 'node:util';
 import { requireAuth } from '@/lib/auth/requireAuth';
 import prisma from '@/lib/server/prisma';
@@ -6,13 +7,33 @@ import { createProjectWithinLimit } from '@/lib/server/project-admission';
 
 const MAX_PROJECT_NAME_LENGTH = 200;
 
-/** The subset of stored project data read to build list summaries. */
-interface ProjectSummarySource {
-  columns?: unknown;
-  positions?: Record<string, unknown>;
-  tableData?: unknown;
-  emailConfig?: { isConfigured?: boolean };
-  certificateImage?: { isCloudStorage?: boolean; url?: string };
+// Summaries are derived in SQLite/D1 so lists never ship whole recipient tables.
+// Each expression reproduces the former JavaScript reading of the parsed JSON:
+// a root that is not an object contributes nothing, and flags use JS truthiness.
+// String positions are returned as-is: Object.keys counts their UTF-16 code
+// units, which SQLite length() does not. Duplicate JSON keys (which
+// JSON.stringify never writes) would resolve differently from JSON.parse.
+const truthy = (path: string) => `(CASE json_type(data,'${path}')
+  WHEN 'true' THEN 1 WHEN 'object' THEN 1 WHEN 'array' THEN 1
+  WHEN 'integer' THEN json_extract(data,'${path}')!=0 WHEN 'real' THEN json_extract(data,'${path}')!=0
+  WHEN 'text' THEN json_extract(data,'${path}')!='' ELSE 0 END)`;
+
+const SUMMARY_COLUMNS = Prisma.raw(`
+  CASE WHEN json_type(data,'$.columns')='array' THEN json_array_length(data,'$.columns')
+    ELSE CASE json_type(data,'$.positions')
+      WHEN 'object' THEN (SELECT count(*) FROM json_each(data,'$.positions'))
+      WHEN 'array' THEN json_array_length(data,'$.positions') ELSE 0 END
+  END AS columnsCount,
+  CASE WHEN json_type(data,'$.columns') IS NOT 'array' AND json_type(data,'$.positions')='text'
+    THEN json_extract(data,'$.positions') END AS positionsText,
+  CASE WHEN json_type(data,'$.tableData')='array' THEN json_array_length(data,'$.tableData') ELSE 0 END AS rowsCount,
+  ${truthy('$.emailConfig.isConfigured')} AS hasEmailConfig,
+  (${truthy('$.certificateImage.isCloudStorage')} OR ${truthy('$.certificateImage.url')}) AS hasImage`);
+
+interface ProjectSummaryRow {
+  id: string; name: string; createdAt: Date; updatedAt: Date;
+  columnsCount: number | bigint; positionsText: string | null; rowsCount: number | bigint;
+  hasEmailConfig: number | bigint; hasImage: number | bigint;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -22,33 +43,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'GET') {
     // List current user's projects with derived summary
-    const items = await prisma.project.findMany({
-      where: { ownerId: userId },
-      orderBy: { updatedAt: 'desc' },
-      select: { id: true, name: true, createdAt: true, updatedAt: true, data: true },
-    });
-    const projects = items.map((p) => {
-      const data = (p.data || {}) as ProjectSummarySource;
-      const columnsCount = Array.isArray(data?.columns)
-        ? data.columns.length
-        : (data?.positions ? Object.keys(data.positions || {}).length : 0);
-      const rowsCount = Array.isArray(data?.tableData) ? data.tableData.length : 0;
-      const hasEmailConfig = !!data?.emailConfig?.isConfigured;
-      let imageStatus: 'available' | 'missing' | 'checking' = 'checking';
-      if (data?.certificateImage?.isCloudStorage) imageStatus = 'available';
-      else if (data?.certificateImage?.url) imageStatus = 'available';
-      else imageStatus = 'missing';
-      return {
-        id: p.id,
-        name: p.name,
-        createdAt: p.createdAt,
-        updatedAt: p.updatedAt,
-        columnsCount,
-        rowsCount,
-        hasEmailConfig,
-        imageStatus,
-      };
-    });
+    const items = await prisma.$queryRaw<ProjectSummaryRow[]>`
+      SELECT id, name, createdAt, updatedAt, ${SUMMARY_COLUMNS}
+      FROM Project WHERE ownerId=${userId} ORDER BY updatedAt DESC`;
+    const projects = items.map((p) => ({
+      id: p.id,
+      name: p.name,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      columnsCount: p.positionsText ? p.positionsText.length : Number(p.columnsCount),
+      rowsCount: Number(p.rowsCount),
+      hasEmailConfig: Number(p.hasEmailConfig) === 1,
+      imageStatus: Number(p.hasImage) === 1 ? 'available' : 'missing',
+    }));
     res.status(200).json({ projects });
     return;
   }

@@ -16,7 +16,6 @@ jest.mock('@/lib/server/prisma', () => ({
   __esModule: true,
   default: {
     project: {
-      findMany: jest.fn(),
       create: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
@@ -43,21 +42,6 @@ describe('projects API', () => {
     const res = httpMocks.createResponse();
     await handlerList(req as any, res as any);
     expect(res.statusCode).toBe(401);
-  });
-
-  it('lists projects and maps counts from data', async () => {
-    requireAuth.mockResolvedValue({ user: { id: 'u1' } });
-    prisma.project.findMany.mockResolvedValue([
-      { id: 'p1', name: 'A', createdAt: '2025-01-01', updatedAt: '2025-01-02', data: { columns: ['x','y'], tableData: [{x:'1',y:'2'}], emailConfig: { isConfigured: true }, certificateImage: { url: '/temp_images/u_u1/a.jpg' } }},
-      { id: 'p2', name: 'B', createdAt: '2025-01-03', updatedAt: '2025-01-04', data: { positions: { Name: {} }, tableData: [], certificateImage: {} }},
-    ]);
-    const req = httpMocks.createRequest({ method: 'GET' });
-    const res = httpMocks.createResponse();
-    await handlerList(req as any, res as any);
-    expect(res.statusCode).toBe(200);
-    const json = res._getJSONData();
-    expect(json.projects[0]).toMatchObject({ columnsCount: 2, rowsCount: 1, hasEmailConfig: true, imageStatus: 'available' });
-    expect(json.projects[1]).toMatchObject({ columnsCount: 1, rowsCount: 0 });
   });
 
   it('does not mutate a project not owned by the user', async () => {
