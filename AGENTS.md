@@ -53,7 +53,8 @@ CI runs the Node application build (including the PDF worker), `npm test`, `npm 
 
 ## Conventions
 
-- Keep feature state in a hook in `hooks/`.
+- Import from the repo root with `@/` (for example `@/lib/paths`).
+- Function components with hooks; keep feature state in a hook in `hooks/`.
 - Use PascalCase component names/files, `useCamelCase` hook names/files and kebab-case utility modules. Do not rename persisted keys or API fields for style consistency.
 - Colours come from `COLORS` in `utils/styles.ts`.
 - User-facing errors come from `utils/errorMessages.ts` where a message exists; log with `lib/log.ts` rather than bare `console.log` in server code.
