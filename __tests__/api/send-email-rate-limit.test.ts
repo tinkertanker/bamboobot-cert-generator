@@ -38,7 +38,6 @@ import { createSignedGeneratedFileUrl } from '@/lib/security/signed-generated-ur
 describe('send-email API rate limiting', () => {
   it('returns 429 after exceeding email limit', async () => {
     jest.resetModules();
-    process.env.RATE_LIMIT_WINDOW_SECONDS = '1';
     process.env.RATE_LIMIT_EMAIL_PER_MIN = '2';
     process.env.FILE_URL_SIGNING_SECRET = 'test-file-signing-secret';
 

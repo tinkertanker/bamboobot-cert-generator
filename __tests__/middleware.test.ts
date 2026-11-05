@@ -40,6 +40,9 @@ describe('authentication middleware', () => {
     '/pdf-worker.js',
     '/fonts/Rubik-Regular.ttf',
     '/api/files/download?path=session%2Fcertificate.pdf&expires=1&signature=x',
+    // Agent routes authenticate sessions/PATs themselves.
+    '/api/agent',
+    '/api/agent/jobs',
   ])(
     'allows public path %s without reading a token',
     async pathname => {
@@ -63,6 +66,7 @@ describe('authentication middleware', () => {
     '/api/projects',
     '/api/files/generated/certificate.pdf',
     '/api/export/report.js',
+    '/api/agentx',
   ])(
     'rejects unauthenticated API request %s',
     async pathname => {

@@ -63,7 +63,7 @@ describe('email provider concurrency controls', () => {
     const send = jest.fn(async () => resendResponse('resend-id'));
     (provider as any).request = send;
     (provider as any).rateLimit.remaining = 1;
-    (provider as any).rateLimit.reset = new Date(Date.now() + 10);
+    (provider as any).rateLimit.reset = new Date(Date.now() + 60_000);
 
     const results = await Promise.all([provider.sendEmail(params), provider.sendEmail(params)]);
 

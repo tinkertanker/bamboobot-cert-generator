@@ -105,8 +105,9 @@ describe('useFileUpload', () => {
 
     it('should reject files larger than 10MB', async () => {
       const { result } = renderHook(() => useFileUpload());
-      const largeContent = new Array(11 * 1024 * 1024).fill('a').join('');
-      const file = new File([largeContent], 'large.jpg', { type: 'image/jpeg' });
+      // Only file.size is checked, so fake one byte over the limit instead of allocating 11 MB.
+      const file = new File(['x'], 'large.jpg', { type: 'image/jpeg' });
+      Object.defineProperty(file, 'size', { value: 10 * 1024 * 1024 + 1 });
 
       await act(async () => {
         await result.current.processFile(file);

@@ -159,13 +159,12 @@ describe('MainPage Component', () => {
     const headerToggle = screen.getByLabelText(/Treat first row as header/i);
     fireEvent.click(headerToggle);
     
-    // Now we should see both rows as data with Column headers
+    // Now the first row is data and the columns get generated names
     await waitFor(() => {
-      const headerCells = screen.getAllByRole('columnheader');
-      expect(headerCells.length).toBeGreaterThan(0);
-      expect(screen.getByText('Header1')).toBeInTheDocument(); // Now as a data cell
-      expect(screen.getByText('Value1')).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Column 1' })).toBeInTheDocument();
     });
+    expect(screen.queryByRole('columnheader', { name: 'Header1' })).not.toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Header1' })).toBeInTheDocument();
   });
 
   it('disables generate button when no file is uploaded', () => {

@@ -17,7 +17,20 @@ jest.mock('@/lib/email/provider-factory', () => ({ getEmailProvider: () => ({
   name: 'preview', getRateLimit: () => ({ limit: 2, remaining: 2, reset: new Date(), window: 'second' }),
 }) }));
 
+// Miniflare start-up and migrations can exceed Jest's 5 s default on a loaded machine.
+jest.setTimeout(30_000);
+
 describe('durable email admission in real D1', () => {
+  // putEmailPayloads waits 1 s between R2 write phases to respect production R2's
+  // per-key write rate. Local R2 does not enforce it and no test asserts the gap,
+  // so collapse only that delay; ordering and etag fencing still run for real.
+  // Miniflare's undici keep-alive also uses 1000 ms but passes extra arguments.
+  const realSetTimeout = global.setTimeout;
+  beforeAll(() => {
+    global.setTimeout = ((fn: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) =>
+      realSetTimeout(fn, ms === 1000 && args.length === 0 ? 0 : ms, ...args)) as typeof setTimeout;
+  });
+  afterAll(() => { global.setTimeout = realSetTimeout; });
   let mf: any;
   let db: any;
   const params = { to: ['recipient@example.test'], from: 'sender@example.test', subject: 'Certificate', html: '<p>Certificate</p>' };

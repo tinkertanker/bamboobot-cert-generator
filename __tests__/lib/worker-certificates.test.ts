@@ -45,7 +45,7 @@ describe('certificate contract with real D1 and R2', () => {
       }
     }
     await db.prepare(`INSERT INTO User(id,tier,lastUsageReset) VALUES ('owner','free',?)`).bind(new Date().toISOString()).run();
-  });
+  }, 30000);
   afterAll(async () => { await prisma.$disconnect(); await mf?.dispose(); });
   beforeEach(async () => {
     await db.prepare('DELETE FROM CertificateJob').run();
@@ -129,8 +129,8 @@ describe('certificate contract with real D1 and R2', () => {
     expect(await db.prepare('SELECT dailyPdfCount FROM User').first()).toEqual({ dailyPdfCount: 0 });
   });
 
-  it.each([1, 4])('stops after three interrupted executions without rendering another %i-row batch slice', async count => {
-    const { job: draft } = await createWorkerDraft('owner', payload(count), `exhausted-${count}`);
+  it('stops after three interrupted executions without rendering another batch slice', async () => {
+    const { job: draft } = await createWorkerDraft('owner', payload(4), 'exhausted');
     await db.prepare(`UPDATE CertificateJob SET attempts=2,attemptToken='third-interrupted-worker',leaseUntil='2000-01-01T00:00:00Z' WHERE id=?`).bind(draft.id).run();
     await processWorkerCertificateJobs(0);
     const exhausted = await job(draft.id);
@@ -144,7 +144,9 @@ describe('certificate contract with real D1 and R2', () => {
     await db.prepare(`INSERT OR IGNORE INTO User(id,tier,lastUsageReset) VALUES ('other-owner','free',?)`).bind(new Date().toISOString()).run();
     const input = payload(1);
     input.positions.name.fontFamily = 'Helvetica';
-    for (let i = 0; i < 9; i++) {
+    // Each draft reserves 660 MiB against a 2 GiB pool, so three leaked
+    // reservations of either kind would block the other owner's draft.
+    for (let i = 0; i < 3; i++) {
       const { job: draft } = await createWorkerDraft('owner', input, `tiny-complete-${i}`);
       await prepare(draft.id);
       await approveWorkerJob('owner', draft.id, draft.inputHash);

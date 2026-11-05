@@ -93,12 +93,15 @@ describe('useProjectAutosave', () => {
         currentProjectName: 'Existing Template'
       });
 
-      // Should not save immediately
-      expect(ProjectStorage.saveProject).not.toHaveBeenCalled();
-
-      // Fast forward 10 seconds and wait for async operations
+      // An existing project is saved with updateProject, and only after the full 10 s debounce
       await act(async () => {
-        jest.advanceTimersByTime(10000);
+        jest.advanceTimersByTime(9999);
+        await Promise.resolve();
+      });
+      expect(ProjectStorage.updateProject).not.toHaveBeenCalled();
+
+      await act(async () => {
+        jest.advanceTimersByTime(1);
         await Promise.resolve(); // Let microtasks run
       });
 

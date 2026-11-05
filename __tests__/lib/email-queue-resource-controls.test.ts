@@ -222,7 +222,7 @@ describe('email queue resource controls', () => {
     ]);
   });
 
-  it('never restores refund eligibility after an ambiguous dispatch', async () => {
+  it('never retries or restores refund eligibility after an ambiguous dispatch', async () => {
     const sendEmail = jest
       .fn()
       .mockResolvedValueOnce({
@@ -238,27 +238,9 @@ describe('email queue resource controls', () => {
     await manager.addToQueue([{ ...queuedEmail, quotaReservationDay: new Date('2026-07-11T00:00:00Z') }]);
 
     await manager.processQueue();
+    // A scheduled retry would leave the item pending here; clear() would then hide it.
+    expect(completed).toHaveLength(1);
     await manager.clear(true);
-
-    expect(completed).toEqual([
-      expect.objectContaining({
-        lastError: 'provider timeout',
-        quotaRefundSafe: false
-      })
-    ]);
-  });
-
-  it('does not retry an ambiguous outcome even if a later attempt would reject definitively', async () => {
-    const sendEmail = jest
-      .fn()
-      .mockResolvedValueOnce({ id: '', success: false, error: 'provider timeout', provider: 'resend' })
-      .mockResolvedValue({ id: '', success: false, error: 'PROVIDER_REJECTED: invalid sender', provider: 'resend' });
-    const manager = new EmailQueueManager(provider(sendEmail));
-    const completed: Array<{ lastError?: string; quotaRefundSafe?: boolean }> = [];
-    manager.onItemCompleted(item => completed.push({ ...item }));
-    await manager.addToQueue([{ ...queuedEmail, quotaReservationDay: new Date('2026-07-11T00:00:00Z') }]);
-
-    await manager.processQueue();
 
     expect(completed).toEqual([
       expect.objectContaining({

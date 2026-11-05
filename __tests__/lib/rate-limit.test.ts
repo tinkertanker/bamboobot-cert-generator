@@ -6,25 +6,10 @@ describe('rate-limit utility', () => {
     delete process.env.TRUST_PROXY_HEADERS;
     delete process.env.VERCEL;
     delete process.env.RATE_LIMIT_MAX_BUCKETS;
+    // The window is 1 s; a frozen clock keeps a slow run from crossing it mid-test.
+    jest.useFakeTimers();
   });
-
-  it('limits after N calls within window', async () => {
-    const { rateLimit, buildKey } = await import('@/lib/rate-limit');
-    const key = buildKey({
-      userId: 'u1',
-      ip: '127.0.0.1',
-      route: 'test',
-      category: 'api'
-    });
-    const r1 = await rateLimit(key, 'api');
-    const r2 = await rateLimit(key, 'api');
-    const r3 = await rateLimit(key, 'api');
-    const r4 = await rateLimit(key, 'api');
-    expect(r1.allowed).toBe(true);
-    expect(r2.allowed).toBe(true);
-    expect(r3.allowed).toBe(true);
-    expect(r4.allowed).toBe(false);
-  });
+  afterEach(() => jest.useRealTimers());
 
   it('does not let authenticated callers rotate spoofed IP headers', async () => {
     const { buildKey } = await import('@/lib/rate-limit');
@@ -67,22 +52,17 @@ describe('rate-limit utility', () => {
   });
 
   it('resets the window once resetAt passes', async () => {
-    jest.useFakeTimers();
-    try {
-      const { rateLimit, buildKey } = await import('@/lib/rate-limit');
-      const key = buildKey({ userId: 'reset-user', ip: null, route: 'test', category: 'api' });
-      for (let i = 0; i < 3; i++) expect((await rateLimit(key, 'api')).allowed).toBe(true);
-      expect((await rateLimit(key, 'api')).allowed).toBe(false);
-      // One millisecond before the reset boundary the caller is still blocked.
-      jest.advanceTimersByTime(999);
-      expect((await rateLimit(key, 'api')).allowed).toBe(false);
-      jest.advanceTimersByTime(1);
-      const afterReset = await rateLimit(key, 'api');
-      expect(afterReset.allowed).toBe(true);
-      expect(afterReset.remaining).toBe(2);
-    } finally {
-      jest.useRealTimers();
-    }
+    const { rateLimit, buildKey } = await import('@/lib/rate-limit');
+    const key = buildKey({ userId: 'reset-user', ip: null, route: 'test', category: 'api' });
+    for (let i = 0; i < 3; i++) expect((await rateLimit(key, 'api')).allowed).toBe(true);
+    expect((await rateLimit(key, 'api')).allowed).toBe(false);
+    // One millisecond before the reset boundary the caller is still blocked.
+    jest.advanceTimersByTime(999);
+    expect((await rateLimit(key, 'api')).allowed).toBe(false);
+    jest.advanceTimersByTime(1);
+    const afterReset = await rateLimit(key, 'api');
+    expect(afterReset.allowed).toBe(true);
+    expect(afterReset.remaining).toBe(2);
   });
 
   it('handles array headers, blank forwarded entries, and missing sockets', async () => {
