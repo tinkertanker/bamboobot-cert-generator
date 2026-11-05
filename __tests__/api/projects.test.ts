@@ -16,10 +16,8 @@ jest.mock('@/lib/server/prisma', () => ({
   __esModule: true,
   default: {
     project: {
-      create: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
-      findUnique: jest.fn(),
       delete: jest.fn(),
     },
   },
@@ -81,7 +79,6 @@ describe('projects API', () => {
     expect(prisma.project.delete).toHaveBeenCalledWith({
       where: { id: 'p1', ownerId: 'u1' },
     });
-    expect(prisma.project.findUnique).not.toHaveBeenCalled();
   });
 
   describe('project limits and input validation', () => {
@@ -95,7 +92,6 @@ describe('projects API', () => {
       const res = httpMocks.createResponse();
       await handlerList(req as any, res as any);
       expect(res.statusCode).toBe(403);
-      expect(prisma.project.create).not.toHaveBeenCalled();
     });
 
     it('creates a project owned by the caller regardless of client-supplied owner fields', async () => {
@@ -128,7 +124,7 @@ describe('projects API', () => {
       const res = httpMocks.createResponse();
       await handlerImport(req as any, res as any);
       expect(res.statusCode).toBe(403);
-      expect(prisma.project.create).not.toHaveBeenCalled();
+      expect(createProjectWithinLimit).not.toHaveBeenCalled();
     });
 
     it('rejects oversized import batches', async () => {

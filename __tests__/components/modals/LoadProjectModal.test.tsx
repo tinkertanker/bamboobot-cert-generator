@@ -134,12 +134,9 @@ describe('LoadProjectModal', () => {
   it('selects template on click', async () => {
     render(<LoadProjectModal {...defaultProps} />);
     
-    await waitFor(() => {
-      const template1 = screen.getByText('Template 1').closest('div[class*="border"]');
-      fireEvent.click(template1!);
-      
-      expect(template1).toHaveClass('border-blue-500', 'bg-blue-50');
-    });
+    const template1 = await screen.findByRole('button', { name: 'Template 1', pressed: false });
+    fireEvent.click(screen.getByText('Template 1').closest('div[class*="border"]')!);
+    expect(template1).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('loads selected template', async () => {

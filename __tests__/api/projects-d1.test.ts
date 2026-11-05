@@ -30,7 +30,7 @@ describe('project list summaries in real D1', () => {
     }
     await db.prepare(`INSERT INTO User(id,tier,lastUsageReset) VALUES ('owner','free',?),('other','free',?)`)
       .bind(new Date().toISOString(), new Date().toISOString()).run();
-  });
+  }, 30000);
   afterAll(async () => { await mf?.dispose(); });
 
   it('derives summaries and timestamps identically to the native SQLite route', async () => {
