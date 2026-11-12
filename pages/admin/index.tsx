@@ -33,31 +33,26 @@ export default function AdminDashboard({ stats, recentActivity }: AdminDashboard
           <StatCard
             title="Total Users"
             value={stats.totalUsers}
-            description="All registered users"
             color="blue"
           />
           <StatCard
             title="New Users (7 days)"
             value={stats.recentSignups}
-            description="Recent signups"
             color="green"
           />
           <StatCard
             title="Total Projects"
             value={stats.totalProjects}
-            description="All saved projects"
             color="purple"
           />
           <StatCard
             title="PDFs Today"
             value={stats.totalPdfsToday}
-            description="Generated today"
             color="yellow"
           />
           <StatCard
             title="Emails Today"
             value={stats.totalEmailsToday}
-            description="Sent today"
             color="indigo"
           />
           <StatCard
@@ -125,7 +120,7 @@ export default function AdminDashboard({ stats, recentActivity }: AdminDashboard
 function StatCard({ title, value, description, color }: {
   title: string;
   value: string | number;
-  description: string;
+  description?: string;
   color: string;
 }) {
   const colorClasses = {
@@ -146,7 +141,7 @@ function StatCard({ title, value, description, color }: {
       </div>
       <h2 className="text-sm font-medium text-gray-500">{title}</h2>
       <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-      <p className="text-xs text-gray-500 mt-1">{description}</p>
+      {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
     </div>
   );
 }

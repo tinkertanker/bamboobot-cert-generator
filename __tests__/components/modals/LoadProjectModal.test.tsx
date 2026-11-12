@@ -3,21 +3,6 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { LoadProjectModal } from '@/components/modals/LoadProjectModal';
 import { ProjectStorage, type ProjectListItem, type SavedProject } from '@/lib/project-storage';
 
-// Mock the Modal component to simplify testing
-jest.mock('@/components/ui/modal', () => ({
-  Modal: ({ open, children }: { open: boolean; children: React.ReactNode }) => 
-    open ? <div>{children}</div> : null
-}));
-
-// Mock the Button component
-jest.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled, ...props }: any) => (
-    <button onClick={onClick} disabled={disabled} {...props}>
-      {children}
-    </button>
-  )
-}));
-
 // Mock the template storage
 jest.mock('@/lib/project-storage', () => ({
   ProjectStorage: {
@@ -105,10 +90,16 @@ describe('LoadProjectModal', () => {
     jest.restoreAllMocks();
   });
 
-  it('does not render when closed', () => {
-    render(<LoadProjectModal {...defaultProps} isOpen={false} />);
-    
-    expect(screen.queryByText('Projects')).not.toBeInTheDocument();
+  it('removes the dialog and releases the scroll lock when closed', async () => {
+    const { rerender } = render(<LoadProjectModal {...defaultProps} />);
+    expect(screen.getByRole('dialog', { name: 'Projects' })).toBeInTheDocument();
+    await screen.findByText('Template 1');
+    expect(document.body.style.overflow).toBe('hidden');
+
+    rerender(<LoadProjectModal {...defaultProps} isOpen={false} />);
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe('');
   });
 
   it('loads template list on open', async () => {

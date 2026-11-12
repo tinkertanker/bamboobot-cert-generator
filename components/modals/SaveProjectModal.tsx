@@ -160,11 +160,8 @@ export function SaveProjectModal({
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" aria-hidden="true" />
             <div className="text-sm text-amber-800">
-              <p className="font-semibold mb-1">Important notes:</p>
               <ul className="list-disc ml-5 space-y-1">
-                <li>This project includes all your data and formatting</li>
-                <li>Saved locally in your browser</li>
-                <li>Works only in this browser on this device</li>
+                <li>Saved only in this browser on this device</li>
                 <li>Will be lost if you clear browser data</li>
                 <li>Cannot be shared with other users directly</li>
               </ul>

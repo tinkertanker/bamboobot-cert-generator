@@ -5,21 +5,6 @@ import { SaveProjectModal } from '@/components/modals/SaveProjectModal';
 import { ProjectStorage } from '@/lib/project-storage';
 import type { Positions, EmailConfig } from '@/types/certificate';
 
-// Mock the Modal component to simplify testing
-jest.mock('@/components/ui/modal', () => ({
-  Modal: ({ open, children }: { open: boolean; children: React.ReactNode }) => 
-    open ? <div>{children}</div> : null
-}));
-
-// Mock the Button component
-jest.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled, ...props }: any) => (
-    <button onClick={onClick} disabled={disabled} {...props}>
-      {children}
-    </button>
-  )
-}));
-
 // Mock the template storage
 jest.mock('@/lib/project-storage', () => ({
   ProjectStorage: {
@@ -81,10 +66,16 @@ describe('SaveProjectModal', () => {
     expect(screen.getByPlaceholderText('e.g. Annual Awards 2025')).toBeInTheDocument();
   });
 
-  it('does not render when closed', () => {
-    render(<SaveProjectModal {...defaultProps} isOpen={false} />);
-    
-    expect(screen.queryByText('Save Project')).not.toBeInTheDocument();
+  it('removes the dialog and releases the scroll lock when closed', () => {
+    const { rerender } = render(<SaveProjectModal {...defaultProps} />);
+    expect(screen.getByRole('dialog', { name: 'Save Project' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Project Name' })).toHaveFocus();
+    expect(document.body.style.overflow).toBe('hidden');
+
+    rerender(<SaveProjectModal {...defaultProps} isOpen={false} />);
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe('');
   });
 
   it('displays template information correctly', () => {

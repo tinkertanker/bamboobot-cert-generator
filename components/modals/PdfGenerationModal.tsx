@@ -48,7 +48,6 @@ export function PdfGenerationModal({
                 max={total}
                 label={`Processing certificate ${progress} of ${total}`}
               />
-              <p className="text-sm text-gray-500 text-center">Please wait…</p>
             </div>
           ) : (
             <div className="flex flex-col items-center space-y-4">

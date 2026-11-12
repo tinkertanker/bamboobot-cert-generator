@@ -242,12 +242,14 @@ export function SmartSearchBar({ tableData, onFilteredDataChange, columns }: Sma
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
             )}
-            <span
-              className="text-xs text-gray-500 font-medium tabular-nums"
-              aria-label={`${filteredCount} of ${tableData.length} entries shown`}
-            >
-              {filteredCount}/{tableData.length}
-            </span>
+            {!hasActiveFilters && (
+              <span
+                className="text-xs text-gray-500 font-medium tabular-nums"
+                aria-label={`${filteredCount} of ${tableData.length} entries shown`}
+              >
+                {filteredCount}/{tableData.length}
+              </span>
+            )}
           </div>
         </div>
 
