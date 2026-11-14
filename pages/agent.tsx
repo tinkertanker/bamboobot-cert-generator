@@ -38,8 +38,10 @@ interface AgentJob {
 
 const button = 'rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[var(--agent-primary)] transition-colors hover:bg-[var(--agent-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--agent-accent)] disabled:opacity-50 disabled:cursor-not-allowed';
 const link = 'text-sm text-[var(--agent-accent)] underline underline-offset-2 hover:text-[var(--agent-primary)]';
+const pendingBadge = 'rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-medium text-amber-800';
 const cardStyle = { backgroundColor: COLORS.cardBg, borderColor: COLORS.border };
 const isActive = (job: AgentJob) => ['preparing', 'queued', 'running'].includes(job.status);
+const isPending = (job: AgentJob) => job.status === 'awaiting_approval';
 const date = (value: string | null | undefined) => value ? new Date(value).toLocaleString() : '—';
 
 async function request<T>(url: string, method?: string, body?: unknown): Promise<T> {
@@ -202,6 +204,55 @@ export default function AgentPage() {
           <Link href="/app" className="rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Back to app</Link>
         </header>
 
+        {job && job.id === jobId && <section aria-labelledby="sample-heading" className="rounded-lg border p-5 space-y-4 shadow-sm" style={cardStyle}>
+          <div className="flex flex-wrap items-start justify-between gap-3"><h2 id="sample-heading" className="text-lg font-semibold break-words" style={{ color: COLORS.primary }}>{job.label || job.id}</h2>{isPending(job) ? <span className={`${pendingBadge} text-sm`}>Awaiting your approval</span> : <span className="text-sm text-gray-600">{job.status.replace(/_/g, ' ')}</span>}</div>
+          {isActive(job) && typeof job.progress === 'number' && <p className="text-sm text-gray-600" role="status">Progress: {job.progress}/{job.total}</p>}
+          {job.error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{job.error}</p>}
+          {job.sampleUrl && job.status !== 'expired' && <>
+            <iframe title="Sample certificate PDF" src={job.sampleUrl} className="w-full h-[70vh] min-h-[24rem] rounded-md border border-gray-200" />
+            <a href={job.sampleUrl} target="_blank" rel="noopener noreferrer" className={link}>Open actual sample PDF in a new tab</a>
+          </>}
+          {job.status === 'awaiting_approval' && <div className="rounded-md border border-amber-200 bg-amber-50 p-4 space-y-3">
+            <p className="text-sm">Approving generates all {job.total} certificates from these immutable inputs, without further prompts. Review all frozen recipient inputs and printed fields under Job details first.</p>
+            {!job.sampleUrl && <p className="text-sm text-red-700">No sample PDF is available. Refresh before approving.</p>}
+            <button type="button" disabled={!!busy || !job.sampleUrl || !!jobError} onClick={() => void jobAction('approve')} className={button}>{busy === 'approve' ? 'Approving…' : 'Approve sample and generate'}</button>
+          </div>}
+          {job.status === 'failed' && <button type="button" className={button} disabled={!!busy} onClick={() => void jobAction('retry')}>Retry generation</button>}
+          {job.status === 'completed' && <div className="space-y-3">
+            <h3 className="font-medium">Generated files</h3>
+            <div className="flex flex-wrap gap-4">{job.zipUrl && <a href={job.zipUrl} className={link}>Download ZIP</a>}{job.manifestUrl && <a href={job.manifestUrl} className={link}>Download manifest</a>}</div>
+            <ul className="space-y-2">{job.files.map(file => <li key={file.filename} className="text-sm"><a href={file.url} className={`${link} break-all`}>{file.filename}</a><span className="ml-2 text-gray-500">{file.size.toLocaleString()} bytes</span><p className="text-xs text-gray-500 break-all">SHA-256: {file.sha256}</p></li>)}</ul>
+          </div>}
+          {job.status === 'expired' && <p className="text-sm text-gray-600">This job has expired. Ask your agent to prepare a new job and review its sample.</p>}
+          <div className="space-y-3 border-t border-gray-100 pt-4">
+            <h3 className="font-medium">Job details</h3>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+              <div><dt className="text-xs text-gray-500">Recipients</dt><dd className="font-medium">{job.total}</dd></div>
+              <div><dt className="text-xs text-gray-500">Printed fields</dt><dd className="font-medium break-words">{job.fields?.length ? job.fields.join(', ') : 'None supplied'}</dd></div>
+              <div><dt className="text-xs text-gray-500">Stored but not printed</dt><dd className="font-medium break-words">{job.ignoredFields?.join(', ') || 'None'}</dd></div>
+              <div><dt className="text-xs text-gray-500">Sample pages</dt><dd className="font-medium break-all">{job.sampleRowIds?.length ? <ol aria-label="Sample PDF pages">{job.sampleRowIds.map((rowId, index) => <li key={index}>Page {index + 1}: {rowId}</li>)}</ol> : '—'}</dd></div>
+              <div><dt className="text-xs text-gray-500">Expires</dt><dd className="font-medium">{date(job.expiresAt)}</dd></div>
+              {job.approvedAt && <div><dt className="text-xs text-gray-500">Approved</dt><dd className="font-medium">{date(job.approvedAt)}</dd></div>}
+            </dl>
+            <p className="text-xs text-gray-500">{job.inputUrl && job.status !== 'expired' && <><a href={job.inputUrl} className={`${link} text-xs`}>Download all frozen recipient inputs</a> (JSON) · </>}Input hash <code className="break-all">{job.inputHash}</code></p>
+          </div>
+          <div className="border-t border-gray-100 pt-4"><button type="button" className={button} disabled={!!busy} onClick={() => void jobAction('delete')}>Delete job and data</button></div>
+        </section>}
+        <section aria-labelledby="jobs-heading" className="rounded-lg border p-5 space-y-4 shadow-sm" style={cardStyle}>
+          <div className="flex items-center justify-between gap-3"><h2 id="jobs-heading" className="text-lg font-semibold" style={{ color: COLORS.primary }}>Certificate jobs</h2><button type="button" className={button} disabled={jobsLoading || !!busy} onClick={() => setJobsVersion(value => value + 1)}>Refresh jobs</button></div>
+          <p className="text-sm text-gray-600">Preparing, queued and running jobs refresh every 3 seconds. Preparation and approved jobs continue without this browser; the agent can collect files once the whole batch is complete.</p>
+          {jobError && <p role="alert" className="text-sm text-red-700">{jobError}</p>}
+          {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
+          {jobsLoading && <p role="status" className="text-sm text-gray-500">Loading jobs…</p>}
+          {!jobsLoading && !jobs.length && !jobError && <p className="text-sm text-gray-500">No jobs yet. Ask your agent to prepare a certificate job using an API key.</p>}
+          <ul className="divide-y divide-gray-100">
+            {[...jobs].sort((a, b) => Number(isPending(b)) - Number(isPending(a))).map(item => <li key={item.id} className="py-3 flex flex-wrap justify-between gap-2">
+              <div className="min-w-0"><Link href={{ pathname: '/agent', query: { job: item.id } }} aria-current={jobId === item.id ? 'page' : undefined} className={`${link} font-medium break-words`}>{item.label || item.id}</Link><p className="text-xs text-gray-500">{item.total} recipients · Created {date(item.createdAt)} · Expires {date(item.expiresAt)}</p></div>
+              <div className="text-sm text-gray-600" aria-live="polite">{isPending(item) ? <span className={pendingBadge}>Awaiting your approval</span> : <span>{item.status.replace(/_/g, ' ')}</span>}{isActive(item) && typeof item.progress === 'number' && <p>Progress: {item.progress}/{item.total}</p>}</div>
+            </li>)}
+          </ul>
+        </section>
+
         <section aria-labelledby="getting-started-heading" className="rounded-lg border p-5 space-y-3 shadow-sm" style={cardStyle}>
           <h2 id="getting-started-heading" className="text-lg font-semibold" style={{ color: COLORS.primary }}>Get started with your agent</h2>
           <ol className="list-decimal pl-5 space-y-2 text-sm text-gray-600">
@@ -248,54 +299,6 @@ export default function AgentPage() {
           </ul>}
         </section>
 
-        <section aria-labelledby="jobs-heading" className="rounded-lg border p-5 space-y-4 shadow-sm" style={cardStyle}>
-          <div className="flex items-center justify-between gap-3"><h2 id="jobs-heading" className="text-lg font-semibold" style={{ color: COLORS.primary }}>Certificate jobs</h2><button type="button" className={button} disabled={jobsLoading || !!busy} onClick={() => setJobsVersion(value => value + 1)}>Refresh jobs</button></div>
-          <p className="text-sm text-gray-600">Preparing, queued and running jobs refresh every 3 seconds. Preparation and approved jobs continue without this browser; the agent can collect files once the whole batch is complete.</p>
-          {jobError && <p role="alert" className="text-sm text-red-700">{jobError}</p>}
-          {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
-          {jobsLoading && <p role="status" className="text-sm text-gray-500">Loading jobs…</p>}
-          {!jobsLoading && !jobs.length && !jobError && <p className="text-sm text-gray-500">No jobs yet. Ask your agent to prepare a certificate job using an API key.</p>}
-          <ul className="divide-y divide-gray-100">
-            {jobs.map(item => <li key={item.id} className="py-3 flex flex-wrap justify-between gap-2">
-              <div className="min-w-0"><Link href={{ pathname: '/agent', query: { job: item.id } }} aria-current={jobId === item.id ? 'page' : undefined} className={`${link} font-medium break-words`}>{item.label || item.id}</Link><p className="text-xs text-gray-500">{item.total} recipients · Created {date(item.createdAt)} · Expires {date(item.expiresAt)}</p></div>
-              <div className="text-sm text-gray-600" aria-live="polite"><span>{item.status.replace(/_/g, ' ')}</span>{isActive(item) && typeof item.progress === 'number' && <p>Progress: {item.progress}/{item.total}</p>}</div>
-            </li>)}
-          </ul>
-        </section>
-
-        {job && job.id === jobId && <section aria-labelledby="sample-heading" className="rounded-lg border p-5 space-y-4 shadow-sm" style={cardStyle}>
-          <div className="flex flex-wrap items-start justify-between gap-3"><h2 id="sample-heading" className="text-lg font-semibold break-words" style={{ color: COLORS.primary }}>{job.label || job.id}</h2><span className="text-sm text-gray-600">{job.status.replace(/_/g, ' ')}</span></div>
-          {isActive(job) && typeof job.progress === 'number' && <p className="text-sm text-gray-600" role="status">Progress: {job.progress}/{job.total}</p>}
-          <dl className="space-y-2 text-sm">
-            <div><dt className="font-medium">Recipients</dt><dd>{job.total}</dd></div>
-            <div><dt className="font-medium">Mapped fields</dt><dd>{job.fields?.length ? <ul>{job.fields.map(field => <li key={field}>{field}</li>)}</ul> : 'No mapped fields supplied.'}</dd></div>
-            <div><dt className="font-medium">Ignored columns (not printed)</dt><dd>{job.ignoredFields?.join(', ') || 'None'}</dd></div>
-            <div><dt className="font-medium">Sample row IDs</dt><dd className="break-all">{job.sampleRowIds?.length ? <ol aria-label="Sample PDF pages">{job.sampleRowIds.map((rowId, index) => <li key={index}>PDF page {index + 1}: {rowId}</li>)}</ol> : '—'}</dd></div>
-            <div><dt className="font-medium">Immutable input hash</dt><dd><code className="break-all">{job.inputHash}</code></dd></div>
-            <div><dt className="font-medium">Expires</dt><dd>{date(job.expiresAt)}</dd></div>
-            {job.approvedAt && <div><dt className="font-medium">Approved</dt><dd>{date(job.approvedAt)}</dd></div>}
-          </dl>
-          {job.inputUrl && job.status !== 'expired' && <p><a href={job.inputUrl} className={link}>Download all frozen recipient inputs</a><span className="block mt-1 text-xs text-gray-500">Authenticated JSON download of the immutable snapshot for every recipient.</span></p>}
-          {job.error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{job.error}</p>}
-          {job.sampleUrl && job.status !== 'expired' && <>
-            <a href={job.sampleUrl} target="_blank" rel="noopener noreferrer" className={link}>Open actual sample PDF in a new tab</a>
-            <iframe title="Sample certificate PDF" src={job.sampleUrl} className="w-full h-[32rem] rounded-md border border-gray-200" />
-            <p className="text-xs text-gray-500">If the embedded PDF does not display, use the sample link above.</p>
-          </>}
-          {job.status === 'awaiting_approval' && <div className="rounded-md border border-amber-200 bg-amber-50 p-4 space-y-3">
-            <p className="text-sm">Review all frozen recipient inputs using the download above, as well as the actual PDF, recipient count and mapped fields. Approving authorises generation for all {job.total} recipients with these immutable inputs, without further prompts.</p>
-            {!job.sampleUrl && <p className="text-sm text-red-700">No sample PDF is available. Refresh before approving.</p>}
-            <button type="button" disabled={!!busy || !job.sampleUrl || !!jobError} onClick={() => void jobAction('approve')} className={button}>{busy === 'approve' ? 'Approving…' : 'Approve sample and generate'}</button>
-          </div>}
-          {job.status === 'failed' && <button type="button" className={button} disabled={!!busy} onClick={() => void jobAction('retry')}>Retry generation</button>}
-          {job.status === 'completed' && <div className="space-y-3">
-            <h3 className="font-medium">Generated files</h3>
-            <div className="flex flex-wrap gap-4">{job.zipUrl && <a href={job.zipUrl} className={link}>Download ZIP</a>}{job.manifestUrl && <a href={job.manifestUrl} className={link}>Download manifest</a>}</div>
-            <ul className="space-y-2">{job.files.map(file => <li key={file.filename} className="text-sm"><a href={file.url} className={`${link} break-all`}>{file.filename}</a><span className="ml-2 text-gray-500">{file.size.toLocaleString()} bytes</span><p className="text-xs text-gray-500 break-all">SHA-256: {file.sha256}</p></li>)}</ul>
-          </div>}
-          {job.status === 'expired' && <p className="text-sm text-gray-600">This job has expired. Ask your agent to prepare a new job and review its sample.</p>}
-          <div className="border-t border-gray-100 pt-4"><button type="button" className={button} disabled={!!busy} onClick={() => void jobAction('delete')}>Delete job and data</button></div>
-        </section>}
       </div>
     </main>
   );

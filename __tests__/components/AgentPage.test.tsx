@@ -45,7 +45,7 @@ describe('AgentPage', () => {
     expect(screen.getByText(/Review all frozen recipient inputs/)).toBeInTheDocument();
     const sampleRows = screen.getByRole('list', { name: 'Sample PDF pages' });
     expect(Array.from(sampleRows.children).map(row => row.textContent)).toEqual([
-      'PDF page 1: row-9', 'PDF page 2: row-1',
+      'Page 1: row-9', 'Page 2: row-1',
     ]);
     expect((fetch as jest.Mock).mock.calls.every(([, options]) => !options?.method)).toBe(true);
     fireEvent.click(approve);
@@ -53,6 +53,29 @@ describe('AgentPage', () => {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'approve', inputHash: 'immutable-hash' }),
     })));
+  });
+
+  it('opens the linked job with its sample PDF first, above the job list and setup, with pending approvals listed first', async () => {
+    const done = { ...job, id: 'job-2', label: 'Older batch', status: 'completed' };
+    const original = fetch as jest.Mock;
+    const implementation = original.getMockImplementation()!;
+    original.mockImplementation(async (url, options) => String(url).endsWith('/jobs')
+      ? { ok: true, json: async () => ({ jobs: [done, job] }) }
+      : implementation(url, options));
+    render(<AgentPage />);
+    await screen.findByRole('heading', { level: 2, name: 'Graduation' });
+    const headings = screen.getAllByRole('heading', { level: 2 });
+    expect(headings.map(heading => heading.textContent)).toEqual([
+      'Graduation', 'Certificate jobs', 'Get started with your agent', 'API keys',
+    ]);
+    const sample = screen.getByTitle('Sample certificate PDF');
+    const approve = screen.getByRole('button', { name: /approve sample and generate/i });
+    const details = screen.getByRole('heading', { level: 3, name: 'Job details' });
+    expect(headings[0].compareDocumentPosition(sample) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sample.compareDocumentPosition(approve) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(approve.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const jobLinks = screen.getAllByRole('link', { name: /Graduation|Older batch/ });
+    expect(jobLinks.map(item => item.textContent)).toEqual(['Graduation', 'Older batch']);
   });
 
   it('creates a scoped key and shows the token only until dismissed', async () => {
