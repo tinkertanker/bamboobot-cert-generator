@@ -3,7 +3,8 @@ import { useSession } from 'next-auth/react';
 import AgentPage from '@/pages/agent';
 
 jest.mock('next-auth/react', () => ({ useSession: jest.fn() }));
-jest.mock('next/router', () => ({ useRouter: () => ({ isReady: true, query: { job: 'job-1' } }) }));
+const mockQuery = { job: 'job-1' };
+jest.mock('next/router', () => ({ useRouter: () => ({ isReady: true, query: mockQuery }) }));
 
 const job = {
   id: 'job-1', label: 'Graduation', status: 'awaiting_approval', total: 12,
@@ -16,6 +17,7 @@ const job = {
 describe('AgentPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockQuery.job = 'job-1';
     (useSession as jest.Mock).mockReturnValue({ status: 'authenticated', data: { user: { email: 'owner@example.com' } } });
     global.fetch = jest.fn(async (url, options) => ({
       ok: true,
@@ -106,12 +108,17 @@ describe('AgentPage', () => {
     const implementation = original.getMockImplementation()!;
     original.mockImplementation(async (url, options) => options?.method === 'POST'
       ? { ok: false, status: 409, json: async () => ({ error: 'Inputs changed. Review a new sample.' }) }
-      : implementation(url, options));
-    render(<AgentPage />);
+      : String(url).endsWith('/job-2') ? { ok: true, json: async () => ({ job: { ...job, id: 'job-2', label: 'Other batch' } }) }
+        : implementation(url, options));
+    const view = render(<AgentPage />);
     fireEvent.click(await screen.findByRole('button', { name: /approve sample and generate/i }));
     expect(await screen.findByText('Inputs changed. Review a new sample.')).toBeInTheDocument();
     await screen.findByTitle('Sample certificate PDF');
     expect(within(screen.getByRole('region', { name: 'Graduation' })).getByRole('alert')).toHaveTextContent('Inputs changed. Review a new sample.');
+    mockQuery.job = 'job-2';
+    view.rerender(<AgentPage />);
+    await screen.findByRole('heading', { level: 2, name: 'Other batch' });
+    expect(screen.queryByText('Inputs changed. Review a new sample.')).not.toBeInTheDocument();
   });
 
   it('retries failed jobs explicitly, without offering approval again', async () => {

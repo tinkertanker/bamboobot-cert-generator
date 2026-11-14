@@ -71,7 +71,7 @@ export default function AgentPage() {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [keyError, setKeyError] = useState('');
   const [jobError, setJobError] = useState('');
-  const [actionError, setActionError] = useState('');
+  const [actionError, setActionError] = useState<{ jobId: string; message: string } | null>(null);
   const [keysLoading, setKeysLoading] = useState(true);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [busy, setBusy] = useState('');
@@ -104,7 +104,8 @@ export default function AgentPage() {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     setJobsLoading(true);
-    setJob(null);
+    // Keep the open job mounted while it refreshes, so its sample and errors stay in place.
+    setJob(current => current?.id === jobId ? current : null);
     const load = async () => {
       try {
         const [list, detail] = await Promise.all([
@@ -124,6 +125,7 @@ export default function AgentPage() {
           // Expired/deleted jobs and authentication failures need user action,
           // not an indefinite poll. Network errors, throttling and 5xx retry.
           if (!(error instanceof Error) || !('status' in error) || error.status === 429 || (typeof error.status === 'number' && error.status >= 500)) timer = setTimeout(load, 3000);
+          else setJob(null);
         }
       } finally {
         if (!cancelled) setJobsLoading(false);
@@ -175,7 +177,7 @@ export default function AgentPage() {
     if (!job) return;
     if (action === 'delete' && !window.confirm(`Delete “${job.label}” and its data? This cannot be undone.`)) return;
     setBusy(action);
-    setActionError('');
+    setActionError(null);
     try {
       await request(`/api/agent/jobs/${encodeURIComponent(job.id)}`, action === 'delete' ? 'DELETE' : 'POST',
         action === 'approve' ? { action, inputHash: job.inputHash } : action === 'retry' ? { action } : undefined);
@@ -183,7 +185,7 @@ export default function AgentPage() {
       setJobsVersion(value => value + 1);
       if (action === 'delete') await router.replace('/agent');
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Could not update job.');
+      setActionError({ jobId: job.id, message: error instanceof Error ? error.message : 'Could not update job.' });
       // Reload the authoritative status after a rejected or uncertain mutation.
       setJobsVersion(value => value + 1);
     } finally { setBusy(''); }
@@ -212,7 +214,7 @@ export default function AgentPage() {
             <iframe title="Sample certificate PDF" src={job.sampleUrl} className="w-full h-[70vh] min-h-[24rem] rounded-md border border-gray-200" />
             <a href={job.sampleUrl} target="_blank" rel="noopener noreferrer" className={link}>Open actual sample PDF in a new tab</a>
           </>}
-          {actionError && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
+          {actionError?.jobId === job.id && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{actionError.message}</p>}
           {job.status === 'awaiting_approval' && <div className="rounded-md border border-amber-200 bg-amber-50 p-4 space-y-3">
             <p className="text-sm">Approving generates all {job.total} certificates from these immutable inputs, without further prompts. Review all frozen recipient inputs and printed fields under Job details first.</p>
             {!job.sampleUrl && <p className="text-sm text-red-700">No sample PDF is available. Refresh before approving.</p>}
@@ -243,7 +245,7 @@ export default function AgentPage() {
           <div className="flex items-center justify-between gap-3"><h2 id="jobs-heading" className="text-lg font-semibold" style={{ color: COLORS.primary }}>Certificate jobs</h2><button type="button" className={button} disabled={jobsLoading || !!busy} onClick={() => setJobsVersion(value => value + 1)}>Refresh jobs</button></div>
           <p className="text-sm text-gray-600">Preparing, queued and running jobs refresh every 3 seconds. Preparation and approved jobs continue without this browser; the agent can collect files once the whole batch is complete.</p>
           {jobError && <p role="alert" className="text-sm text-red-700">{jobError}</p>}
-          {actionError && !(job && job.id === jobId) && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
+          {actionError?.jobId === jobId && job?.id !== jobId && <p role="alert" className="text-sm text-red-700">{actionError.message}</p>}
           {jobsLoading && <p role="status" className="text-sm text-gray-500">Loading jobs…</p>}
           {!jobsLoading && !jobs.length && !jobError && <p className="text-sm text-gray-500">No jobs yet. Ask your agent to prepare a certificate job using an API key.</p>}
           <ul className="divide-y divide-gray-100">
