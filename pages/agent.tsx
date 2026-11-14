@@ -212,6 +212,7 @@ export default function AgentPage() {
             <iframe title="Sample certificate PDF" src={job.sampleUrl} className="w-full h-[70vh] min-h-[24rem] rounded-md border border-gray-200" />
             <a href={job.sampleUrl} target="_blank" rel="noopener noreferrer" className={link}>Open actual sample PDF in a new tab</a>
           </>}
+          {actionError && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
           {job.status === 'awaiting_approval' && <div className="rounded-md border border-amber-200 bg-amber-50 p-4 space-y-3">
             <p className="text-sm">Approving generates all {job.total} certificates from these immutable inputs, without further prompts. Review all frozen recipient inputs and printed fields under Job details first.</p>
             {!job.sampleUrl && <p className="text-sm text-red-700">No sample PDF is available. Refresh before approving.</p>}
@@ -242,7 +243,7 @@ export default function AgentPage() {
           <div className="flex items-center justify-between gap-3"><h2 id="jobs-heading" className="text-lg font-semibold" style={{ color: COLORS.primary }}>Certificate jobs</h2><button type="button" className={button} disabled={jobsLoading || !!busy} onClick={() => setJobsVersion(value => value + 1)}>Refresh jobs</button></div>
           <p className="text-sm text-gray-600">Preparing, queued and running jobs refresh every 3 seconds. Preparation and approved jobs continue without this browser; the agent can collect files once the whole batch is complete.</p>
           {jobError && <p role="alert" className="text-sm text-red-700">{jobError}</p>}
-          {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
+          {actionError && !(job && job.id === jobId) && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
           {jobsLoading && <p role="status" className="text-sm text-gray-500">Loading jobs…</p>}
           {!jobsLoading && !jobs.length && !jobError && <p className="text-sm text-gray-500">No jobs yet. Ask your agent to prepare a certificate job using an API key.</p>}
           <ul className="divide-y divide-gray-100">

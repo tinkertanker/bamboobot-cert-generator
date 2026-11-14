@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import AgentPage from '@/pages/agent';
 
@@ -111,7 +111,7 @@ describe('AgentPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: /approve sample and generate/i }));
     expect(await screen.findByText('Inputs changed. Review a new sample.')).toBeInTheDocument();
     await screen.findByTitle('Sample certificate PDF');
-    expect(screen.getByText('Inputs changed. Review a new sample.')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Graduation' })).getByRole('alert')).toHaveTextContent('Inputs changed. Review a new sample.');
   });
 
   it('retries failed jobs explicitly, without offering approval again', async () => {
