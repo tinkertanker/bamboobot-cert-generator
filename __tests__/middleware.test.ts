@@ -59,7 +59,17 @@ describe('authentication middleware', () => {
     const response = await middleware(request('/app'));
 
     expect(response.status).toBe(307);
-    expect(response.headers.get('location')).toBe('https://certificates.example/');
+    expect(response.headers.get('location')).toBe('https://certificates.example/?callbackUrl=%2Fapp');
+  });
+
+  it('keeps an agent approval link, query included, to return to after sign-in', async () => {
+    mockedGetToken.mockResolvedValue(null);
+
+    const response = await middleware(request('/agent?job=job-1&tab=a%26b'));
+
+    const location = new URL(response.headers.get('location')!);
+    expect(`${location.origin}${location.pathname}`).toBe('https://certificates.example/');
+    expect([...location.searchParams]).toEqual([['callbackUrl', '/agent?job=job-1&tab=a%26b']]);
   });
 
   it.each([
@@ -106,7 +116,7 @@ describe('authentication middleware', () => {
     for (const pathname of ['/apiary', '/api-docs']) {
       const response = await middleware(request(pathname));
       expect(response.status).toBe(307);
-      expect(response.headers.get('location')).toBe('https://certificates.example/');
+      expect(response.headers.get('location')).toBe(`https://certificates.example/?callbackUrl=${encodeURIComponent(pathname)}`);
     }
 
     const apiRoot = await middleware(request('/api'));

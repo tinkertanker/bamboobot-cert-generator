@@ -10,11 +10,24 @@ import { isAuthenticationRequired } from '@/lib/auth/runtime-policy';
 interface MarketingPageProps {
   /** When auth is not required, people can go straight to the editor. */
   authRequired: boolean;
+  /** Page to open after sign-in, such as the agent approval link that led here. */
+  callbackUrl: string;
+}
+
+/** Accept only a same-origin page other than this one; anything else opens the editor. */
+function returnPath(value: unknown): string {
+  const base = 'https://bamboobot.invalid';
+  if (typeof value !== 'string') return '/app';
+  try {
+    const url = new URL(value, base);
+    if (url.origin === base && url.pathname !== '/') return `${url.pathname}${url.search}${url.hash}`;
+  } catch { /* Malformed values open the editor. */ }
+  return '/app';
 }
 
 const externalLinkLabel = <span className="sr-only"> (opens in a new tab)</span>;
 
-export default function MarketingPage({ authRequired = true }: MarketingPageProps) {
+export default function MarketingPage({ authRequired = true, callbackUrl = '/app' }: MarketingPageProps) {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-white to-emerald-50 px-4 sm:px-6 pb-12 text-center">
@@ -41,7 +54,7 @@ export default function MarketingPage({ authRequired = true }: MarketingPageProp
           )}
           <button
             type="button"
-            onClick={() => signIn('google', { callbackUrl: '/app' })}
+            onClick={() => signIn('google', { callbackUrl })}
             className="inline-flex items-center justify-center rounded-md bg-white px-5 py-2.5 text-gray-700 font-medium border border-gray-300 shadow-sm hover:bg-gray-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2">
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -124,12 +137,13 @@ export default function MarketingPage({ authRequired = true }: MarketingPageProp
 
 export const getServerSideProps: GetServerSideProps<MarketingPageProps> = async (context) => {
   const session = await getServerSession(context.req, context.res, authOptions);
+  const callbackUrl = returnPath(context.query.callbackUrl);
 
-  // If user is authenticated, redirect to app page
+  // If user is authenticated, go to the requested page or the app
   if (session) {
     return {
       redirect: {
-        destination: '/app',
+        destination: callbackUrl,
         permanent: false,
       },
     };
@@ -137,6 +151,6 @@ export const getServerSideProps: GetServerSideProps<MarketingPageProps> = async 
 
   // Otherwise, show the marketing page
   return {
-    props: { authRequired: isAuthenticationRequired() },
+    props: { authRequired: isAuthenticationRequired(), callbackUrl },
   };
 };

@@ -51,10 +51,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // For app pages: redirect unauthenticated users to marketing page
+  // For app pages: redirect unauthenticated users to marketing page, keeping
+  // the requested page (such as an agent's approval link) to return to after sign-in.
   if (!token) {
     const url = req.nextUrl.clone();
     url.pathname = '/';
+    url.search = '';
+    url.searchParams.set('callbackUrl', `${pathname}${req.nextUrl.search}`);
     return NextResponse.redirect(url);
   }
 
