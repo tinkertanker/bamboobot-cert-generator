@@ -72,6 +72,8 @@ would choose this in the summary modal shown when they click Generate.
 
 ## Performance
 
+- [x] Audit CI costs and validate earlier lint/test feedback plus local PDF-worker compilation reuse ([measurements and limits](docs/CI_PERFORMANCE.md))
+- [ ] Measure the CI changes on GitHub after an approved push/PR; verify cancellation and required-check behaviour without dropping either runtime build or any tests
 - [ ] Performance monitoring utility for measuring optimisations
 
 ## Refactoring follow-ups
