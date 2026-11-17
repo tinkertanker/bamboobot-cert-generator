@@ -11,9 +11,12 @@ npm test -- --coverage
 npm run build                                  # Node application and PDF worker
 ```
 
-CI runs the Node build before Jest so worker artifact tests inspect a fresh bundle.
-It also runs the Cloudflare build and Wrangler packaging check; both build paths
-remain required and must run sequentially because they share `.next`.
+CI runs lint, generates Prisma and builds the PDF worker before the full Jest
+suite, so artifact tests inspect a fresh bundle without waiting for Next.js.
+The Node build, Cloudflare build and Wrangler packaging check then run; both
+build paths remain required and sequential because they share `.next`.
+The PDF worker's local webpack cache avoids repeating compilation in those
+builds; parser patch inputs invalidate it. See [CI measurements](../docs/CI_PERFORMANCE.md).
 
 ## Layout
 

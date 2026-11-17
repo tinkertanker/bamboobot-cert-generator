@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ main ]
 
+# Only superseded PR revisions are disposable. Give each main push its own
+# group so every merged revision still receives the full set of checks.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -15,10 +21,10 @@ jobs:
         node-version: [22.x]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
@@ -26,16 +32,21 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    # Keep the Node/Docker build contract separate from the Workers build and
-    # outside Jest. This also builds the PDF worker before its artifact tests.
-    - name: Build Node application
-      run: npm run build
+    - name: Run linting
+      run: npm run lint
+
+    # Tests need the generated client and a fresh browser worker, not a Next
+    # build. Later builds reuse webpack's local cache, never a previous bundle.
+    - name: Prepare test prerequisites
+      run: npx prisma generate && npm run build:worker
       
     - name: Run tests
       run: npm test
-      
-    - name: Run linting
-      run: npm run lint
+
+    # Both builds remain required and sequential: their runtime/persistence
+    # settings differ, and both write .next. Keep builds outside Jest.
+    - name: Build Node application
+      run: npm run build
 
     # Package locally without credentials. This does not create resources or
     # publish a Worker; deployment remains a separately authorised operation.
