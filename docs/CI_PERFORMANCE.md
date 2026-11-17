@@ -1,8 +1,10 @@
 # CI performance audit — 17 November 2026
 
 Baseline revision: `a5814536b4e7239e740ba95b5c2cfe0d6f152948`.
-The changes are locally verified; no post-change GitHub Actions run has been
-measured. Local timings are not hosted-runner results.
+Candidate measured: `69289b5ea269b03cc67e54b27529b021687be6cd`,
+[PR #91](https://github.com/tinkertanker/bamboobot-cert-generator/pull/91).
+Local checks and hosted CI passed. Hosted runs establish earlier feedback and
+working compilation reuse, but **do not establish lower total runner time**.
 
 ## Baseline
 
@@ -165,20 +167,61 @@ does not have authority to omit tests. Those percentages do not predict ours.
 - No test deletions based on duration. Existing security/parser, D1 and import
   contracts remain intact; this change adds no assertion-count padding.
 
-## Hosted acceptance after approval to push
+## Hosted validation
 
-1. Push a review branch; verify `test (22.x)` still satisfies the repository's
-   actual required-check configuration. Capture commit, runner image, Node/npm
-   versions, queue time, job/step start/end times and outcomes using
-   `gh api repos/tinkertanker/bamboobot-cert-generator/actions/runs/RUN_ID/jobs`.
+The first candidate run passed in **237 seconds**, with a cold npm download cache
+and a 67-second install. Updating setup-node changed its cache key from
+`node-cache-Linux-npm-…` to `node-cache-Linux-x64-npm-…`; it saved the new cache at
+job completion. This one-time miss must not be concealed as steady-state cost.
+
+Replayed the unchanged baseline and candidate on 17 November. Both replays used
+Ubuntu 26.04 image `20261111.196.1`, Node 22.23.4, npm 10.9.9 and npm-cache hits.
+The original historical baseline used Ubuntu 24.04, so compare the replays
+separately from that history. All original check steps and 116 suites / 935 tests
+passed in both replays; neither hosted build needed the local agent-advisory retry.
+
+| Measurement | [Baseline, attempt 2](https://github.com/tinkertanker/bamboobot-cert-generator/actions/runs/43596392716/attempts/2) | [Candidate, attempt 2](https://github.com/tinkertanker/bamboobot-cert-generator/actions/runs/44026252722/attempts/2) |
+| --- | ---: | ---: |
+| Whole job, runner seconds | 189 | 207 |
+| Install dependencies | 50 | 26 |
+| Lint result, seconds from job start | 122 | 40 |
+| Jest result, seconds from job start | 118 | 77 |
+| Lint result, seconds after install | 65 | 5 |
+| Jest result, seconds after install | 61 | 42 |
+| Node build step | 43 | 50 |
+| Cloudflare build step | 61 | 72 |
+
+The candidate delivered Jest feedback **19 seconds earlier after installation**,
+or 41 seconds earlier from job start with its faster install. Lint arrived 60
+seconds earlier after installation. Cached worker compilations took 418 ms and
+439 ms, versus baseline compilations of 5,984 ms and 5,995 ms. The candidate's
+first cold-cache worker compilation took 7,938 ms.
+
+**The measured full-job result is 18 seconds slower, not a compute saving.**
+Same image and Node versions do not guarantee identical CPU performance:
+unmodified agent bundling took 1,045/1,042 ms on the candidate versus 769/790 ms
+on the baseline, and unchanged Jest execution took 26 versus 18 step seconds.
+These observations are consistent with runner variability, but do not prove it
+explains the entire difference. One replay pair cannot establish an overall
+speedup or regression attributable to the patch. Do not advertise the local
+2–3-second estimate as a hosted saving; a same-runner A/B comparison or a larger
+balanced sample is needed before accepting a total-compute improvement claim.
+
+At this checkpoint `test (22.x)`, `claude-review` and CodeRabbit all passed.
+The check context is unchanged; inaccessible branch-protection settings were not
+modified or inferred absent. No merge or deployment was performed.
+
+## Remaining acceptance
+
+1. Measure full-job performance with a same-runner A/B experiment or several
+   balanced baseline/candidate runs. Capture image, Node/npm versions, cache
+   state, queue time, job/step times and outcomes from the attempt-specific jobs
+   endpoint. Reject a confirmed net runtime regression rather than masking it
+   with faster early feedback.
 2. Confirm a new PR revision cancels only its preceding test run, that another
    PR is unaffected and that both main pushes retain their complete checks.
    This requires real events; YAML linting cannot establish hosted behaviour.
-3. Compare several equivalent baseline/candidate runs on the same runner class
-   and npm-cache state. Include failures, cancellations and post steps in
-   compute totals; distinguish first lint/test answer from final green status.
-   Keep all tests, both builds and packaging in the comparison. Reject a net
-   runtime regression; do not infer cost savings from fewer planned steps.
+   No synthetic pushes to main were made merely to test cancellation.
 
-Until then, the evidence supports cache correctness and a small local resource
-reduction, not a fleet-wide percentage or a new hosted latency guarantee.
+The evidence supports cache correctness and earlier hosted feedback. Lower total
+hosted compute remains unproven, and no fleet-wide percentage is claimed.

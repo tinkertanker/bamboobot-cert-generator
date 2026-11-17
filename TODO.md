@@ -73,7 +73,8 @@ would choose this in the summary modal shown when they click Generate.
 ## Performance
 
 - [x] Audit CI costs and validate earlier lint/test feedback plus local PDF-worker compilation reuse ([measurements and limits](docs/CI_PERFORMANCE.md))
-- [ ] Measure the CI changes on GitHub after an approved push/PR; verify cancellation and required-check behaviour without dropping either runtime build or any tests
+- [x] Measure baseline/candidate CI on GitHub: all checks pass and feedback is earlier, but total hosted compute savings remain unproven ([PR #91](https://github.com/tinkertanker/bamboobot-cert-generator/pull/91))
+- [ ] Resolve full-job CI timing with a same-runner A/B or balanced sample; verify live cancellation and protected-branch acceptance without dropping checks
 - [ ] Performance monitoring utility for measuring optimisations
 
 ## Refactoring follow-ups
